@@ -25,3 +25,28 @@ test("salary slip route renders the workspace shell", async ({ page }) => {
     page.getByRole("heading", { name: /form and controls shell/i }),
   ).toBeVisible();
 });
+
+test("voucher route supports template changes and live visibility updates", async ({
+  page,
+}) => {
+  await page.goto("/voucher");
+
+  await expect(
+    page.getByRole("heading", { name: "Voucher Generator", level: 1 }),
+  ).toBeVisible();
+  await expect(
+    page.getByText(/payment voucher · minimal office/i),
+  ).toBeVisible();
+
+  await page.locator('[name="templateId"]').evaluate((element) => {
+    const select = element as HTMLSelectElement;
+    select.value = "traditional-ledger";
+    select.dispatchEvent(new Event("change", { bubbles: true }));
+  });
+  await expect(page.getByText(/formal voucher record/i)).toBeVisible();
+
+  await page.getByRole("switch", { name: /notes/i }).click();
+  await expect(
+    page.getByText("Settled after manager approval."),
+  ).toHaveCount(0);
+});

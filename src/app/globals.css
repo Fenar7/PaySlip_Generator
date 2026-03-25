@@ -14,6 +14,7 @@
   --ring: rgba(198, 152, 84, 0.5);
   --shadow-card: 0 24px 60px rgba(38, 30, 20, 0.08);
   --ink-soft: #84776a;
+  --danger: #b25536;
 }
 
 @theme inline {
@@ -48,7 +49,10 @@ h3 {
 }
 
 a,
-button {
+button,
+input,
+textarea,
+select {
   transition:
     background-color 180ms ease,
     color 180ms ease,
