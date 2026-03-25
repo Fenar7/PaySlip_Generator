@@ -37,6 +37,11 @@ test("voucher route supports template changes and live visibility updates", asyn
   await expect(
     page.getByText(/payment voucher · minimal office/i),
   ).toBeVisible();
+  await expect(
+    page.getByTestId("document-preview-viewport").evaluate((element) => {
+      return element.scrollWidth <= element.clientWidth + 1;
+    }),
+  ).resolves.toBe(true);
 
   await page.locator('[name="templateId"]').evaluate((element) => {
     const select = element as HTMLSelectElement;
@@ -44,6 +49,11 @@ test("voucher route supports template changes and live visibility updates", asyn
     select.dispatchEvent(new Event("change", { bubbles: true }));
   });
   await expect(page.getByText(/formal voucher record/i)).toBeVisible();
+  await expect(
+    page.getByTestId("document-preview-viewport").evaluate((element) => {
+      return element.scrollWidth <= element.clientWidth + 1;
+    }),
+  ).resolves.toBe(true);
 
   await page.getByRole("switch", { name: /notes/i }).click();
   await expect(
