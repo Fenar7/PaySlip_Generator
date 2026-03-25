@@ -1,0 +1,67 @@
+@import "tailwindcss";
+
+:root {
+  --background: #f6f1e8;
+  --foreground: #1d1710;
+  --foreground-soft: #3d362e;
+  --muted-foreground: #6e675f;
+  --surface-elevated: rgba(255, 252, 247, 0.72);
+  --surface-soft: #f4ede2;
+  --paper: #efe7db;
+  --border-soft: rgba(73, 61, 48, 0.1);
+  --border-strong: rgba(73, 61, 48, 0.14);
+  --accent: #c69854;
+  --ring: rgba(198, 152, 84, 0.5);
+  --shadow-card: 0 24px 60px rgba(38, 30, 20, 0.08);
+  --ink-soft: #84776a;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-instrument-sans);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-instrument-sans), sans-serif;
+  background-image:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.44), rgba(246, 241, 232, 0.92)),
+    radial-gradient(circle at top, rgba(255, 255, 255, 0.9), transparent 40%);
+}
+
+h1,
+h2,
+h3 {
+  font-family: var(--font-newsreader), serif;
+  font-weight: 500;
+  letter-spacing: -0.03em;
+}
+
+a,
+button {
+  transition:
+    background-color 180ms ease,
+    color 180ms ease,
+    border-color 180ms ease,
+    transform 180ms ease,
+    box-shadow 180ms ease;
+}
+
+::selection {
+  background: rgba(198, 152, 84, 0.22);
+}
+
+:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 3px;
+}
