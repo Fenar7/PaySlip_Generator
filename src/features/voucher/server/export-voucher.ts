@@ -1,3 +1,4 @@
+import { PDFDocument } from "pdf-lib";
 import type { VoucherDocument, VoucherExportFormat } from "@/features/voucher/types";
 import { launchExportBrowser } from "@/lib/export/browser";
 
@@ -29,7 +30,7 @@ export async function exportVoucherDocument({
     }, { document: voucherDocument });
 
     await page.goto(`${origin}/voucher/print?mode=export`, {
-      waitUntil: "networkidle",
+      waitUntil: "domcontentloaded",
     });
     await page.waitForSelector('[data-testid="voucher-render-ready"]');
     await page.evaluate(async () => {
@@ -42,28 +43,57 @@ export async function exportVoucherDocument({
       if (fontSet) {
         await fontSet.ready;
       }
+
+      await Promise.all(
+        Array.from(document.images).map(async (image) => {
+          if (image.complete) {
+            return;
+          }
+
+          if (typeof image.decode === "function") {
+            try {
+              await image.decode();
+              return;
+            } catch {
+              return;
+            }
+          }
+
+          await new Promise<void>((resolve) => {
+            image.addEventListener("load", () => resolve(), { once: true });
+            image.addEventListener("error", () => resolve(), { once: true });
+          });
+        }),
+      );
     });
-
-    if (format === "pdf") {
-      await page.emulateMedia({ media: "screen" });
-
-      return page.pdf({
-        width: "210mm",
-        height: "297mm",
-        printBackground: true,
-        margin: {
-          top: "0",
-          right: "0",
-          bottom: "0",
-          left: "0",
-        },
-      });
-    }
 
     const voucherRender = page.getByTestId("voucher-render-ready");
-    return voucherRender.screenshot({
-      type: "png",
+    const screenshotBuffer =
+      format === "png"
+        ? await voucherRender.screenshot({
+            type: "png",
+          })
+        : await voucherRender.screenshot({
+            type: "jpeg",
+            quality: 88,
+          });
+
+    if (format === "png") {
+      return screenshotBuffer;
+    }
+
+    const pdfDocument = await PDFDocument.create();
+    const pdfPage = pdfDocument.addPage([595.28, 841.89]);
+    const embeddedImage = await pdfDocument.embedJpg(screenshotBuffer);
+
+    pdfPage.drawImage(embeddedImage, {
+      x: 0,
+      y: 0,
+      width: pdfPage.getWidth(),
+      height: pdfPage.getHeight(),
     });
+
+    return pdfDocument.save();
   } finally {
     await browser.close();
   }

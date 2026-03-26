@@ -35,6 +35,20 @@ type VoucherActionState =
   | { status: "pending"; action: "print" | "pdf" | "png" }
   | { status: "error"; message: string };
 
+async function parseExportError(response: Response, format: "pdf" | "png") {
+  try {
+    const payload = (await response.json()) as { error?: string };
+
+    if (payload.error) {
+      return payload.error;
+    }
+  } catch {
+    // Ignore JSON parsing problems and fall back to the generic message below.
+  }
+
+  return `Unable to export the voucher as ${format.toUpperCase()}.`;
+}
+
 function VoucherPanel() {
   const { control, getValues, setValue, trigger } = useFormContextSafe();
   const values = useWatch({ control }) as VoucherFormValues;
@@ -85,7 +99,7 @@ function VoucherPanel() {
       });
 
       if (!response.ok) {
-        throw new Error(`Export failed with status ${response.status}.`);
+        throw new Error(await parseExportError(response, format));
       }
 
       const blob = await response.blob();
@@ -96,10 +110,13 @@ function VoucherPanel() {
       link.click();
       URL.revokeObjectURL(downloadUrl);
       setActionState({ status: "idle" });
-    } catch {
+    } catch (error) {
       setActionState({
         status: "error",
-        message: `Unable to export the voucher as ${format.toUpperCase()}.`,
+        message:
+          error instanceof Error
+            ? error.message
+            : `Unable to export the voucher as ${format.toUpperCase()}.`,
       });
     }
   }
@@ -134,7 +151,7 @@ function VoucherPanel() {
   return (
     <main className="relative isolate overflow-hidden">
       <div className="absolute inset-x-0 top-0 -z-10 h-[32rem] bg-[radial-gradient(circle_at_top,rgba(198,152,84,0.16),transparent_38%)]" />
-      <div className="mx-auto flex w-full max-w-7xl flex-col gap-8 px-6 py-8 lg:px-8 lg:py-12">
+      <div className="mx-auto flex w-full max-w-[92rem] flex-col gap-8 px-4 py-8 sm:px-5 lg:px-6 lg:py-12">
         <div className="flex flex-col gap-6 rounded-[2rem] border border-[var(--border-strong)] bg-[var(--surface-elevated)] p-6 shadow-[var(--shadow-card)] lg:flex-row lg:items-end lg:justify-between">
           <div className="max-w-3xl">
             <p className="text-xs font-semibold uppercase tracking-[0.3em] text-[var(--muted-foreground)]">
@@ -194,7 +211,7 @@ function VoucherPanel() {
           </div>
         ) : null}
 
-        <div className="grid gap-6 xl:grid-cols-[minmax(24rem,31rem)_minmax(0,1fr)]">
+        <div className="grid gap-6 xl:grid-cols-[minmax(23rem,29rem)_minmax(0,1fr)]">
           <section className="rounded-[2rem] border border-[var(--border-strong)] bg-[var(--surface-elevated)] p-5 shadow-[var(--shadow-card)]">
             <div className="mb-6 flex items-center justify-between">
               <div>

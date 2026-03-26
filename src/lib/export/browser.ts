@@ -4,6 +4,8 @@ import { chromium as playwrightChromium } from "playwright-core";
 
 const LOCAL_EXECUTABLE_CANDIDATES = [
   process.env.CHROME_EXECUTABLE_PATH,
+  process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH,
+  playwrightChromium.executablePath(),
   "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
   "/Applications/Chromium.app/Contents/MacOS/Chromium",
   "/usr/bin/google-chrome",
@@ -36,6 +38,11 @@ export async function launchExportBrowser() {
     headless: true,
     args: isLinux
       ? chromium.args
-      : ["--disable-dev-shm-usage", "--no-first-run", "--no-default-browser-check"],
+      : [
+          "--disable-dev-shm-usage",
+          "--no-first-run",
+          "--no-default-browser-check",
+          "--disable-features=DialMediaRouteProvider,GlobalMediaControls",
+        ],
   });
 }
