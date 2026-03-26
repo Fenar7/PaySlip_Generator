@@ -1,0 +1,32 @@
+import type { CSSProperties } from "react";
+import {
+  A4_DOCUMENT_HEIGHT,
+  A4_DOCUMENT_WIDTH,
+} from "@/components/document/document-constants";
+import { invoiceTemplateRegistry } from "@/features/invoice/templates";
+import type { InvoiceDocument } from "@/features/invoice/types";
+
+export function InvoiceDocumentFrame({
+  document,
+}: {
+  document: InvoiceDocument;
+}) {
+  const template = invoiceTemplateRegistry[document.templateId];
+  const TemplateComponent = template.component;
+
+  return (
+    <article
+      className="w-full bg-white p-8 text-[var(--voucher-ink)]"
+      style={
+        {
+          width: `${A4_DOCUMENT_WIDTH}px`,
+          minHeight: `${A4_DOCUMENT_HEIGHT}px`,
+          "--voucher-ink": "#1d1710",
+          "--voucher-accent": document.branding.accentColor || "var(--accent)",
+        } as CSSProperties
+      }
+    >
+      <TemplateComponent document={document} />
+    </article>
+  );
+}

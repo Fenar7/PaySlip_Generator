@@ -117,6 +117,19 @@ test("salary slip route renders the interactive workspace", async ({ page }) => 
   await expect(page.getByText(/salary slip · corporate clean/i)).toBeVisible();
 });
 
+test("invoice route renders the interactive workspace", async ({ page }) => {
+  await page.goto("/invoice");
+
+  await expect(
+    page.getByRole("heading", { name: "Invoice Generator", level: 1 }),
+  ).toBeVisible();
+  await expect(page.getByRole("heading", { name: /template and branding/i })).toBeVisible();
+  await expect(page.getByRole("heading", { name: /client details/i })).toBeVisible();
+  await expect(page.getByRole("heading", { name: /invoice metadata/i })).toBeVisible();
+  await expect(page.getByRole("heading", { name: /line items and totals/i })).toBeVisible();
+  await expect(page.getByText(/tax invoice · professional/i)).toBeVisible();
+});
+
 test("voucher route supports template changes and live visibility updates", async ({
   page,
 }) => {
@@ -186,6 +199,23 @@ test("salary slip print surface renders the normalized document", async ({
   expect(employeeBox).not.toBeNull();
   expect(netSalaryBox).not.toBeNull();
   expect(netSalaryBox!.x).toBeGreaterThan(employeeBox!.x + 280);
+});
+
+test("invoice route updates totals and template state as line items change", async ({
+  page,
+}) => {
+  await page.goto("/invoice");
+
+  await page.getByRole("button", { name: /bold brand/i }).click();
+  await expect(page.getByText(/balance due/i).first()).toBeVisible();
+
+  await page.locator('#lineItems-0-discountAmount').fill("1000");
+  await page.locator('#amountPaid').fill("20000");
+
+  await expect(page.getByText(/₹34,280.00/i).first()).toBeVisible();
+
+  await page.getByRole("switch", { name: /notes/i }).click();
+  await expect(page.getByText(/thank you for the continued engagement/i)).toHaveCount(0);
 });
 
 test("voucher print surface renders the normalized document", async ({ page }) => {
