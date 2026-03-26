@@ -2,15 +2,16 @@
 
 import type { ReactNode } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  A4_DOCUMENT_HEIGHT,
+  A4_DOCUMENT_WIDTH,
+} from "@/components/document/document-constants";
 
 type DocumentPreviewSurfaceProps = {
   title: string;
   templateName: string;
   children: ReactNode;
 };
-
-const DOCUMENT_WIDTH = 794;
-const DOCUMENT_MIN_HEIGHT = 1122;
 
 export function DocumentPreviewSurface({
   title,
@@ -28,7 +29,7 @@ export function DocumentPreviewSurface({
     }
 
     const updateScale = () => {
-      const nextScale = Math.min(1, viewport.clientWidth / DOCUMENT_WIDTH);
+      const nextScale = Math.min(1, viewport.clientWidth / A4_DOCUMENT_WIDTH);
       setScale(nextScale);
     };
 
@@ -44,7 +45,7 @@ export function DocumentPreviewSurface({
   }, []);
 
   const scaledHeight = useMemo(
-    () => Math.max(420, Math.ceil(DOCUMENT_MIN_HEIGHT * scale)),
+    () => Math.max(420, Math.ceil(A4_DOCUMENT_HEIGHT * scale)),
     [scale],
   );
 
@@ -76,10 +77,10 @@ export function DocumentPreviewSurface({
             style={{ minHeight: `${scaledHeight}px` }}
           >
             <div
-              className="rounded-[1.25rem] border border-[rgba(29,23,16,0.08)] bg-white p-8 shadow-[0_24px_48px_rgba(38,30,20,0.08)] [--voucher-ink:#1d1710] [--voucher-accent:var(--accent)]"
+              className="overflow-hidden rounded-[1.25rem] border border-[rgba(29,23,16,0.08)] shadow-[0_24px_48px_rgba(38,30,20,0.08)]"
               style={{
-                width: `${DOCUMENT_WIDTH}px`,
-                minHeight: `${DOCUMENT_MIN_HEIGHT}px`,
+                width: `${A4_DOCUMENT_WIDTH}px`,
+                minHeight: `${A4_DOCUMENT_HEIGHT}px`,
                 transform: `scale(${scale})`,
                 transformOrigin: "top center",
               }}

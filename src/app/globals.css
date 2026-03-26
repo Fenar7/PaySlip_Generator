@@ -29,6 +29,7 @@
 
 html {
   scroll-behavior: smooth;
+  background: var(--background);
 }
 
 body {
@@ -68,4 +69,17 @@ select {
 :focus-visible {
   outline: 2px solid var(--ring);
   outline-offset: 3px;
+}
+
+@page {
+  size: A4;
+  margin: 0;
+}
+
+@media print {
+  html,
+  body {
+    background: white !important;
+    background-image: none !important;
+  }
 }

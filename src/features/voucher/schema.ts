@@ -25,6 +25,31 @@ const visibilitySchema = z.object({
   showSignatureArea: z.boolean(),
 });
 
+export const voucherDocumentSchema = z.object({
+  templateId: z.enum(["minimal-office", "traditional-ledger"]),
+  voucherType: z.enum(["payment", "receipt"]),
+  title: z.string().trim().min(1),
+  counterpartyLabel: z.string().trim().min(1),
+  branding: brandingSchema,
+  voucherNumber: z.string().trim().min(1),
+  date: z.string().trim().min(1),
+  counterpartyName: z.string().trim().min(1),
+  amount: z.number().finite().positive(),
+  amountFormatted: z.string().trim().min(1),
+  amountInWords: z.string().trim().min(1),
+  paymentMode: z.string().trim().optional(),
+  referenceNumber: z.string().trim().optional(),
+  purpose: z.string().trim().min(1),
+  notes: z.string().trim().optional(),
+  approvedBy: z.string().trim().optional(),
+  receivedBy: z.string().trim().optional(),
+  visibility: visibilitySchema,
+});
+
+export const voucherExportRequestSchema = z.object({
+  document: voucherDocumentSchema,
+});
+
 export const voucherFormSchema = z.object({
   templateId: z.enum(["minimal-office", "traditional-ledger"]),
   voucherType: z.enum(["payment", "receipt"]),

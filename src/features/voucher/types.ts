@@ -52,3 +52,9 @@ export type VoucherDocument = {
   receivedBy?: string;
   visibility: VoucherVisibilityConfig;
 };
+
+export type VoucherExportFormat = "pdf" | "png";
+
+export type VoucherRenderPayload = {
+  document: VoucherDocument;
+};

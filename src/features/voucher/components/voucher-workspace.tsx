@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo } from "react";
+import { useState } from "react";
 import {
   FormProvider,
   useForm,
@@ -9,6 +9,7 @@ import {
   useWatch,
 } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
+import { FieldShell } from "@/components/forms/field-shell";
 import { FormSection } from "@/components/forms/form-section";
 import {
   ColorField,
@@ -26,13 +27,109 @@ import { VoucherPreview } from "@/features/voucher/components/voucher-preview";
 import { voucherFormSchema } from "@/features/voucher/schema";
 import type { VoucherFormValues } from "@/features/voucher/types";
 import { normalizeVoucher } from "@/features/voucher/utils/normalize-voucher";
+import { buildVoucherFilename } from "@/features/voucher/utils/build-voucher-filename";
+import { cn } from "@/lib/utils";
+
+type VoucherActionState =
+  | { status: "idle" }
+  | { status: "pending"; action: "print" | "pdf" | "png" }
+  | { status: "error"; message: string };
 
 function VoucherPanel() {
-  const { control } = useFormContextSafe();
+  const { control, getValues, setValue, trigger } = useFormContextSafe();
   const values = useWatch({ control }) as VoucherFormValues;
-  const visibility = values.visibility;
   const isPayment = values.voucherType === "payment";
-  const previewDocument = useMemo(() => normalizeVoucher(values), [values]);
+  const [selectedTemplateId, setSelectedTemplateId] = useState(values.templateId);
+  const visibility = values.visibility;
+  const previewDocument = normalizeVoucher({
+    ...values,
+    templateId: selectedTemplateId,
+  });
+  const [actionState, setActionState] = useState<VoucherActionState>({
+    status: "idle",
+  });
+
+  async function prepareDocument() {
+    const isValid = await trigger();
+
+    if (!isValid) {
+      setActionState({
+        status: "error",
+        message: "Complete the required voucher fields before exporting.",
+      });
+      return null;
+    }
+
+    return normalizeVoucher({
+      ...getValues(),
+      templateId: selectedTemplateId,
+    });
+  }
+
+  async function handleDownload(format: "pdf" | "png") {
+    const document = await prepareDocument();
+
+    if (!document) {
+      return;
+    }
+
+    setActionState({ status: "pending", action: format });
+
+    try {
+      const response = await fetch(`/api/export/${format}`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ document }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`Export failed with status ${response.status}.`);
+      }
+
+      const blob = await response.blob();
+      const downloadUrl = URL.createObjectURL(blob);
+      const link = window.document.createElement("a");
+      link.href = downloadUrl;
+      link.download = buildVoucherFilename(document, format);
+      link.click();
+      URL.revokeObjectURL(downloadUrl);
+      setActionState({ status: "idle" });
+    } catch {
+      setActionState({
+        status: "error",
+        message: `Unable to export the voucher as ${format.toUpperCase()}.`,
+      });
+    }
+  }
+
+  async function handlePrint() {
+    const document = await prepareDocument();
+
+    if (!document) {
+      return;
+    }
+
+    const printWindow = window.open(
+      "about:blank",
+      "_blank",
+      "popup=yes,width=1060,height=1320",
+    );
+
+    if (!printWindow) {
+      setActionState({
+        status: "error",
+        message: "Allow popups to open the voucher print surface.",
+      });
+      return;
+    }
+
+    setActionState({ status: "pending", action: "print" });
+    printWindow.name = JSON.stringify({ document });
+    printWindow.location.href = "/voucher/print?autoprint=1";
+    setActionState({ status: "idle" });
+  }
 
   return (
     <main className="relative isolate overflow-hidden">
@@ -47,8 +144,8 @@ function VoucherPanel() {
               Voucher Generator
             </h1>
             <p className="mt-4 max-w-2xl text-base leading-8 text-[var(--muted-foreground)]">
-              Create payment and receipt vouchers with brand controls, field visibility,
-              and a live A4 preview. Export actions are reserved for the next phase.
+              Create payment and receipt vouchers with brand controls, field
+              visibility, export actions, and a live A4 preview.
             </p>
           </div>
           <div className="flex flex-wrap gap-3">
@@ -60,13 +157,42 @@ function VoucherPanel() {
             </Link>
             <button
               type="button"
-              disabled
-              className="inline-flex cursor-not-allowed items-center justify-center rounded-full bg-[rgba(29,23,16,0.12)] px-4 py-2 text-sm font-medium text-[var(--foreground-soft)]"
+              onClick={handlePrint}
+              disabled={actionState.status === "pending"}
+              className="inline-flex items-center justify-center rounded-full border border-[var(--border-strong)] px-4 py-2 text-sm font-medium text-[var(--foreground)] transition-colors hover:bg-white disabled:cursor-wait disabled:opacity-65"
             >
-              Export next phase
+              {actionState.status === "pending" && actionState.action === "print"
+                ? "Preparing print"
+                : "Print voucher"}
+            </button>
+            <button
+              type="button"
+              onClick={() => handleDownload("pdf")}
+              disabled={actionState.status === "pending"}
+              className="inline-flex items-center justify-center rounded-full bg-[var(--foreground)] px-4 py-2 text-sm font-medium text-[var(--background)] transition-colors hover:bg-[var(--foreground-soft)] disabled:cursor-wait disabled:opacity-65"
+            >
+              {actionState.status === "pending" && actionState.action === "pdf"
+                ? "Exporting PDF"
+                : "Export PDF"}
+            </button>
+            <button
+              type="button"
+              onClick={() => handleDownload("png")}
+              disabled={actionState.status === "pending"}
+              className="inline-flex items-center justify-center rounded-full bg-[rgba(29,23,16,0.12)] px-4 py-2 text-sm font-medium text-[var(--foreground-soft)] transition-colors hover:bg-[rgba(29,23,16,0.18)] disabled:cursor-wait disabled:opacity-65"
+            >
+              {actionState.status === "pending" && actionState.action === "png"
+                ? "Exporting PNG"
+                : "Export PNG"}
             </button>
           </div>
         </div>
+
+        {actionState.status === "error" ? (
+          <div className="rounded-[1.5rem] border border-[rgba(178,85,54,0.2)] bg-[rgba(178,85,54,0.08)] px-5 py-4 text-sm text-[var(--danger)]">
+            {actionState.message}
+          </div>
+        ) : null}
 
         <div className="grid gap-6 xl:grid-cols-[minmax(24rem,31rem)_minmax(0,1fr)]">
           <section className="rounded-[2rem] border border-[var(--border-strong)] bg-[var(--surface-elevated)] p-5 shadow-[var(--shadow-card)]">
@@ -80,7 +206,7 @@ function VoucherPanel() {
                 </h2>
               </div>
               <span className="rounded-full border border-[var(--border-soft)] px-3 py-1 text-xs text-[var(--muted-foreground)]">
-                Phase 2
+                Export ready
               </span>
             </div>
 
@@ -90,18 +216,46 @@ function VoucherPanel() {
                 title="Template and voucher mode"
                 description="Switch layouts or voucher type without losing the entered form state."
               >
-                <SelectField<VoucherFormValues>
-                  name="templateId"
-                  label="Voucher template"
-                  options={voucherTemplateOptions.map((template) => ({
-                    value: template.id,
-                    label: template.name,
-                  }))}
-                />
+                <FieldShell label="Voucher template">
+                  <div className="grid gap-3">
+                    {voucherTemplateOptions.map((template) => {
+                      const active = template.id === selectedTemplateId;
+
+                      return (
+                        <button
+                          key={template.id}
+                          type="button"
+                          aria-pressed={active}
+                          onClick={() => {
+                            setSelectedTemplateId(template.id);
+                            setValue("templateId", template.id, {
+                              shouldDirty: true,
+                              shouldTouch: true,
+                              shouldValidate: true,
+                            });
+                          }}
+                          className={cn(
+                            "rounded-[1rem] border px-4 py-3 text-left shadow-[0_12px_30px_rgba(38,30,20,0.04)] transition-colors",
+                            active
+                              ? "border-[var(--accent)] bg-white"
+                              : "border-[var(--border-soft)] bg-white/80 hover:bg-white",
+                          )}
+                        >
+                          <span className="block text-sm font-medium text-[var(--foreground)]">
+                            {template.name}
+                          </span>
+                          <span className="mt-1 block text-xs leading-6 text-[var(--muted-foreground)]">
+                            {template.description}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </FieldShell>
                 <div className="rounded-[1rem] border border-[var(--border-soft)] bg-white px-4 py-3 text-sm leading-7 text-[var(--muted-foreground)]">
                   {
                     voucherTemplateOptions.find(
-                      (template) => template.id === values.templateId,
+                      (template) => template.id === selectedTemplateId,
                     )?.description
                   }
                 </div>
