@@ -1,5 +1,6 @@
-import { PDFDocument } from "pdf-lib";
+import type { Page } from "playwright-core";
 import type { VoucherDocument, VoucherExportFormat } from "@/features/voucher/types";
+import { renderVoucherPdfHtml } from "@/features/voucher/server/render-voucher-pdf";
 import { launchExportBrowser } from "@/lib/export/browser";
 
 type ExportVoucherOptions = {
@@ -16,12 +17,40 @@ export async function exportVoucherDocument({
   const browser = await launchExportBrowser();
 
   try {
+    if (format === "pdf") {
+      const page = await browser.newPage({
+        viewport: {
+          width: 1280,
+          height: 1810,
+        },
+      });
+
+      await page.setContent(renderVoucherPdfHtml(voucherDocument), {
+        waitUntil: "load",
+      });
+      await page.waitForSelector('[data-testid="voucher-pdf-ready"]');
+      await page.emulateMedia({ media: "print" });
+      await waitForPageAssets(page);
+
+      return page.pdf({
+        format: "A4",
+        printBackground: true,
+        preferCSSPageSize: true,
+        margin: {
+          top: "0",
+          right: "0",
+          bottom: "0",
+          left: "0",
+        },
+      });
+    }
+
     const page = await browser.newPage({
       viewport: {
         width: 1200,
         height: 1600,
       },
-      deviceScaleFactor: format === "png" ? 2 : 1,
+      deviceScaleFactor: 2,
     });
 
     await page.goto("about:blank");
@@ -33,68 +62,49 @@ export async function exportVoucherDocument({
       waitUntil: "domcontentloaded",
     });
     await page.waitForSelector('[data-testid="voucher-render-ready"]');
-    await page.evaluate(async () => {
-      const fontSet = (document as Document & {
-        fonts?: {
-          ready: Promise<unknown>;
-        };
-      }).fonts;
-
-      if (fontSet) {
-        await fontSet.ready;
-      }
-
-      await Promise.all(
-        Array.from(document.images).map(async (image) => {
-          if (image.complete) {
-            return;
-          }
-
-          if (typeof image.decode === "function") {
-            try {
-              await image.decode();
-              return;
-            } catch {
-              return;
-            }
-          }
-
-          await new Promise<void>((resolve) => {
-            image.addEventListener("load", () => resolve(), { once: true });
-            image.addEventListener("error", () => resolve(), { once: true });
-          });
-        }),
-      );
-    });
+    await waitForPageAssets(page);
 
     const voucherRender = page.getByTestId("voucher-render-ready");
-    const screenshotBuffer =
-      format === "png"
-        ? await voucherRender.screenshot({
-            type: "png",
-          })
-        : await voucherRender.screenshot({
-            type: "jpeg",
-            quality: 88,
-          });
-
-    if (format === "png") {
-      return screenshotBuffer;
-    }
-
-    const pdfDocument = await PDFDocument.create();
-    const pdfPage = pdfDocument.addPage([595.28, 841.89]);
-    const embeddedImage = await pdfDocument.embedJpg(screenshotBuffer);
-
-    pdfPage.drawImage(embeddedImage, {
-      x: 0,
-      y: 0,
-      width: pdfPage.getWidth(),
-      height: pdfPage.getHeight(),
+    return voucherRender.screenshot({
+      type: "png",
     });
-
-    return pdfDocument.save();
   } finally {
     await browser.close();
   }
+}
+
+async function waitForPageAssets(page: Page) {
+  await page.evaluate(async () => {
+    const fontSet = (document as Document & {
+      fonts?: {
+        ready: Promise<unknown>;
+      };
+    }).fonts;
+
+    if (fontSet) {
+      await fontSet.ready;
+    }
+
+    await Promise.all(
+      Array.from(document.images).map(async (image) => {
+        if (image.complete) {
+          return;
+        }
+
+        if (typeof image.decode === "function") {
+          try {
+            await image.decode();
+            return;
+          } catch {
+            return;
+          }
+        }
+
+        await new Promise<void>((resolve) => {
+          image.addEventListener("load", () => resolve(), { once: true });
+          image.addEventListener("error", () => resolve(), { once: true });
+        });
+      }),
+    );
+  });
 }
