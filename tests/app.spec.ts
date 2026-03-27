@@ -81,4 +81,17 @@ test("voucher print surface renders the normalized document", async ({ page }) =
 
   await expect(popup).toHaveURL(/\/voucher\/print\?autoprint=1/);
   await expect(popup.getByTestId("voucher-render-ready")).toBeVisible();
+
+  const voucherNumberBox = await popup.getByText("PV-2026-014").boundingBox();
+  const amountBox = await popup.getByText(/₹1,850\.00/i).boundingBox();
+
+  expect(voucherNumberBox).not.toBeNull();
+  expect(amountBox).not.toBeNull();
+
+  if (!voucherNumberBox || !amountBox) {
+    throw new Error("Voucher print surface boxes were not measurable.");
+  }
+
+  expect(amountBox.x).toBeGreaterThan(voucherNumberBox.x + 240);
+  expect(Math.abs(amountBox.y - voucherNumberBox.y)).toBeLessThan(140);
 });

@@ -6,7 +6,13 @@ export const voucherTemplateRegistry: Record<
   VoucherTemplateId,
   {
     name: string;
-    component: ({ document }: { document: VoucherDocument }) => React.JSX.Element;
+    component: ({
+      document,
+      mode,
+    }: {
+      document: VoucherDocument;
+      mode?: "preview" | "print";
+    }) => React.JSX.Element;
   }
 > = {
   "minimal-office": {
