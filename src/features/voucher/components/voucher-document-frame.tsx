@@ -34,7 +34,7 @@ export function VoucherDocumentFrame({
         } as CSSProperties
       }
     >
-      <TemplateComponent document={document} />
+      <TemplateComponent document={document} mode={mode} />
     </article>
   );
 }
