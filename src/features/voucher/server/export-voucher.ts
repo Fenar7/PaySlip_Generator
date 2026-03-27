@@ -1,6 +1,6 @@
 import type { Page } from "playwright-core";
 import type { VoucherDocument, VoucherExportFormat } from "@/features/voucher/types";
-import { buildVoucherPdf } from "@/features/voucher/server/build-voucher-pdf";
+import { exportVoucherPdf } from "@/features/voucher/server/export-voucher-pdf";
 import { launchExportBrowser } from "@/lib/export/browser";
 
 type ExportVoucherOptions = {
@@ -15,7 +15,10 @@ export async function exportVoucherDocument({
   origin,
 }: ExportVoucherOptions) {
   if (format === "pdf") {
-    return buildVoucherPdf(voucherDocument);
+    return exportVoucherPdf({
+      voucherDocument,
+      origin,
+    });
   }
 
   const browser = await launchExportBrowser();
