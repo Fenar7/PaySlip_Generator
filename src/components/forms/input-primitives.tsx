@@ -114,31 +114,48 @@ export function SelectField<TFormValues extends FieldValues>({
   options,
 }: SelectFieldProps<TFormValues>) {
   const {
-    register,
+    control,
+    setValue,
     formState: { errors },
   } = useFormContext<TFormValues>();
   const fieldError = get(errors, name)?.message;
 
   return (
-    <FieldShell
-      label={label}
-      htmlFor={name}
-      hint={hint}
-      required={required}
-      error={typeof fieldError === "string" ? fieldError : undefined}
-    >
-      <select
-        id={name}
-        {...register(name)}
-        className={baseInputClass(Boolean(fieldError))}
-      >
-        {options.map((option) => (
-          <option key={option.value} value={option.value}>
-            {option.label}
-          </option>
-        ))}
-      </select>
-    </FieldShell>
+    <Controller
+      name={name}
+      control={control}
+      render={({ field }) => (
+        <FieldShell
+          label={label}
+          htmlFor={name}
+          hint={hint}
+          required={required}
+          error={typeof fieldError === "string" ? fieldError : undefined}
+        >
+          <select
+            id={name}
+            name={field.name}
+            value={typeof field.value === "string" ? field.value : ""}
+            onChange={(event) =>
+              setValue(name, event.target.value as Path<TFormValues> extends never ? never : TFormValues[Path<TFormValues>], {
+                shouldDirty: true,
+                shouldTouch: true,
+                shouldValidate: true,
+              })
+            }
+            onBlur={field.onBlur}
+            ref={field.ref}
+            className={baseInputClass(Boolean(fieldError))}
+          >
+            {options.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+        </FieldShell>
+      )}
+    />
   );
 }
 

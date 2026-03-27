@@ -2,13 +2,19 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import VoucherPage from "@/app/voucher/page";
 
 describe("Voucher workspace", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
   it("renders the interactive voucher builder", () => {
     render(<VoucherPage />);
 
     expect(
       screen.getByRole("heading", { name: "Voucher Generator", level: 1 }),
     ).toBeInTheDocument();
-    expect(screen.getByLabelText(/voucher template/i)).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /traditional ledger/i }),
+    ).toBeInTheDocument();
     expect(screen.getAllByText(/payment voucher/i).length).toBeGreaterThan(0);
   });
 
@@ -39,5 +45,19 @@ describe("Voucher workspace", () => {
     expect(
       screen.queryByText("Settled after manager approval."),
     ).not.toBeInTheDocument();
+  });
+
+  it("shows an error state when export validation fails", async () => {
+    render(<VoucherPage />);
+
+    fireEvent.change(screen.getByLabelText(/voucher number/i), {
+      target: { value: "" },
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: /export pdf/i }));
+
+    expect(
+      await screen.findByText(/complete the required voucher fields before exporting/i),
+    ).toBeInTheDocument();
   });
 });

@@ -2,15 +2,18 @@
 
 import type { ReactNode } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  A4_DOCUMENT_HEIGHT,
+  PREVIEW_DOCUMENT_FRAME_HEIGHT,
+  PREVIEW_DOCUMENT_FRAME_WIDTH,
+  PREVIEW_VIEWPORT_HORIZONTAL_GUTTER,
+} from "@/components/document/document-constants";
 
 type DocumentPreviewSurfaceProps = {
   title: string;
   templateName: string;
   children: ReactNode;
 };
-
-const DOCUMENT_WIDTH = 794;
-const DOCUMENT_MIN_HEIGHT = 1122;
 
 export function DocumentPreviewSurface({
   title,
@@ -28,7 +31,11 @@ export function DocumentPreviewSurface({
     }
 
     const updateScale = () => {
-      const nextScale = Math.min(1, viewport.clientWidth / DOCUMENT_WIDTH);
+      const availableWidth = Math.max(
+        0,
+        viewport.clientWidth - PREVIEW_VIEWPORT_HORIZONTAL_GUTTER,
+      );
+      const nextScale = Math.min(1, availableWidth / PREVIEW_DOCUMENT_FRAME_WIDTH);
       setScale(nextScale);
     };
 
@@ -44,7 +51,11 @@ export function DocumentPreviewSurface({
   }, []);
 
   const scaledHeight = useMemo(
-    () => Math.max(420, Math.ceil(DOCUMENT_MIN_HEIGHT * scale)),
+    () => Math.max(420, Math.ceil(PREVIEW_DOCUMENT_FRAME_HEIGHT * scale)),
+    [scale],
+  );
+  const scaledWidth = useMemo(
+    () => Math.ceil(PREVIEW_DOCUMENT_FRAME_WIDTH * scale),
     [scale],
   );
 
@@ -69,17 +80,20 @@ export function DocumentPreviewSurface({
         <div
           ref={viewportRef}
           data-testid="document-preview-viewport"
-          className="overflow-hidden rounded-[1.6rem] border border-[var(--border-soft)] bg-[linear-gradient(180deg,#fffdf8,#f8f2e8)] p-3"
+          className="overflow-hidden rounded-[1.6rem] border border-[var(--border-soft)] bg-[linear-gradient(180deg,#fffdf8,#f8f2e8)] p-2 sm:p-3"
         >
           <div
-            className="mx-auto flex justify-center"
-            style={{ minHeight: `${scaledHeight}px` }}
+            className="mx-auto flex max-w-full justify-center"
+            style={{
+              width: `${scaledWidth}px`,
+              minHeight: `${scaledHeight}px`,
+            }}
           >
             <div
-              className="rounded-[1.25rem] border border-[rgba(29,23,16,0.08)] bg-white p-8 shadow-[0_24px_48px_rgba(38,30,20,0.08)] [--voucher-ink:#1d1710] [--voucher-accent:var(--accent)]"
+              className="overflow-hidden rounded-[1.25rem] border border-[rgba(29,23,16,0.08)] shadow-[0_24px_48px_rgba(38,30,20,0.08)]"
               style={{
-                width: `${DOCUMENT_WIDTH}px`,
-                minHeight: `${DOCUMENT_MIN_HEIGHT}px`,
+                width: `${PREVIEW_DOCUMENT_FRAME_WIDTH - 2}px`,
+                minHeight: `${A4_DOCUMENT_HEIGHT}px`,
                 transform: `scale(${scale})`,
                 transformOrigin: "top center",
               }}

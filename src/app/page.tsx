@@ -7,7 +7,7 @@ export default function Home() {
     <main className="relative isolate overflow-hidden">
       <div className="absolute inset-x-0 top-[-14rem] -z-10 h-[34rem] bg-[radial-gradient(circle_at_top,rgba(198,152,84,0.24),transparent_40%)]" />
       <div className="absolute inset-x-0 top-32 -z-10 h-[24rem] bg-[radial-gradient(circle_at_20%_20%,rgba(108,122,118,0.12),transparent_38%)]" />
-      <div className="mx-auto flex w-full max-w-7xl flex-col gap-16 px-6 py-8 lg:px-8 lg:py-12">
+      <div className="mx-auto flex w-full max-w-[92rem] flex-col gap-16 px-4 py-8 sm:px-5 lg:px-6 lg:py-12">
         <header className="flex flex-wrap items-center justify-between gap-4">
           <Link href="/" className="flex items-center gap-3">
             <span className="flex h-11 w-11 items-center justify-center rounded-2xl border border-[var(--border-strong)] bg-white text-sm font-semibold text-[var(--foreground)] shadow-[var(--shadow-card)]">

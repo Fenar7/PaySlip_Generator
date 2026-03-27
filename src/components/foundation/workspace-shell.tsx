@@ -19,7 +19,7 @@ export function WorkspaceShell({
   return (
     <main className="relative isolate overflow-hidden">
       <div className="absolute inset-x-0 top-0 -z-10 h-[32rem] bg-[radial-gradient(circle_at_top,rgba(198,152,84,0.16),transparent_38%)]" />
-      <div className="mx-auto flex w-full max-w-7xl flex-col gap-8 px-6 py-8 lg:px-8 lg:py-12">
+      <div className="mx-auto flex w-full max-w-[92rem] flex-col gap-8 px-4 py-8 sm:px-5 lg:px-6 lg:py-12">
         <div className="flex flex-col gap-6 rounded-[2rem] border border-[var(--border-strong)] bg-[var(--surface-elevated)] p-6 shadow-[var(--shadow-card)] lg:flex-row lg:items-end lg:justify-between">
           <div className="max-w-3xl">
             <p className="text-xs font-semibold uppercase tracking-[0.3em] text-[var(--muted-foreground)]">
@@ -48,7 +48,7 @@ export function WorkspaceShell({
           </div>
         </div>
 
-        <div className="grid gap-6 xl:grid-cols-[minmax(21rem,28rem)_minmax(0,1fr)]">
+        <div className="grid gap-6 xl:grid-cols-[minmax(20rem,27rem)_minmax(0,1fr)]">
           <section className="rounded-[2rem] border border-[var(--border-strong)] bg-[var(--surface-elevated)] p-5 shadow-[var(--shadow-card)]">
             <div className="mb-6 flex items-center justify-between">
               <div>

@@ -14,16 +14,17 @@ test("home page exposes the module entry points", async ({ page }) => {
   ).toBeVisible();
 });
 
-test("salary slip route renders the workspace shell", async ({ page }) => {
+test("salary slip route renders the interactive workspace", async ({ page }) => {
   await page.goto("/salary-slip");
 
   await expect(
     page.getByRole("heading", { name: "Salary Slip Generator", level: 1 }),
   ).toBeVisible();
-
-  await expect(
-    page.getByRole("heading", { name: /form and controls shell/i }),
-  ).toBeVisible();
+  await expect(page.getByRole("heading", { name: /template and branding/i })).toBeVisible();
+  await expect(page.getByRole("heading", { name: /employee details/i })).toBeVisible();
+  await expect(page.getByRole("heading", { name: /pay period and attendance/i })).toBeVisible();
+  await expect(page.getByRole("heading", { name: /earnings and deductions/i })).toBeVisible();
+  await expect(page.getByText(/salary slip · corporate clean/i)).toBeVisible();
 });
 
 test("voucher route supports template changes and live visibility updates", async ({
@@ -43,11 +44,7 @@ test("voucher route supports template changes and live visibility updates", asyn
     }),
   ).resolves.toBe(true);
 
-  await page.locator('[name="templateId"]').evaluate((element) => {
-    const select = element as HTMLSelectElement;
-    select.value = "traditional-ledger";
-    select.dispatchEvent(new Event("change", { bubbles: true }));
-  });
+  await page.getByRole("button", { name: /traditional ledger/i }).click();
   await expect(page.getByText(/formal voucher record/i)).toBeVisible();
   await expect(
     page.getByTestId("document-preview-viewport").evaluate((element) => {
@@ -59,4 +56,29 @@ test("voucher route supports template changes and live visibility updates", asyn
   await expect(
     page.getByText("Settled after manager approval."),
   ).toHaveCount(0);
+});
+
+test("salary slip route updates the preview as payroll rows change", async ({ page }) => {
+  await page.goto("/salary-slip");
+
+  await page.getByRole("button", { name: /add earning/i }).click();
+  await page.locator('#earnings-3-label').fill("Project allowance");
+  await page.locator('#earnings-3-amount').fill("2500");
+
+  await expect(page.getByText("Project allowance")).toBeVisible();
+  await expect(page.getByText(/₹50,000.00/i)).toBeVisible();
+
+  await page.getByRole("switch", { name: /bank details/i }).click();
+  await expect(page.getByText(/federal bank/i)).toHaveCount(0);
+});
+
+test("voucher print surface renders the normalized document", async ({ page }) => {
+  await page.goto("/voucher");
+
+  const popupPromise = page.waitForEvent("popup");
+  await page.getByRole("button", { name: /print voucher/i }).click();
+  const popup = await popupPromise;
+
+  await expect(popup).toHaveURL(/\/voucher\/print\?autoprint=1/);
+  await expect(popup.getByTestId("voucher-render-ready")).toBeVisible();
 });
