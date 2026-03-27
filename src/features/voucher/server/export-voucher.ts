@@ -1,6 +1,6 @@
 import type { Page } from "playwright-core";
 import type { VoucherDocument, VoucherExportFormat } from "@/features/voucher/types";
-import { renderVoucherPdfHtml } from "@/features/voucher/server/render-voucher-pdf";
+import { buildVoucherPdf } from "@/features/voucher/server/build-voucher-pdf";
 import { launchExportBrowser } from "@/lib/export/browser";
 
 type ExportVoucherOptions = {
@@ -14,37 +14,13 @@ export async function exportVoucherDocument({
   format,
   origin,
 }: ExportVoucherOptions) {
+  if (format === "pdf") {
+    return buildVoucherPdf(voucherDocument);
+  }
+
   const browser = await launchExportBrowser();
 
   try {
-    if (format === "pdf") {
-      const page = await browser.newPage({
-        viewport: {
-          width: 1280,
-          height: 1810,
-        },
-      });
-
-      await page.setContent(renderVoucherPdfHtml(voucherDocument), {
-        waitUntil: "load",
-      });
-      await page.waitForSelector('[data-testid="voucher-pdf-ready"]');
-      await page.emulateMedia({ media: "print" });
-      await waitForPageAssets(page);
-
-      return page.pdf({
-        format: "A4",
-        printBackground: true,
-        preferCSSPageSize: true,
-        margin: {
-          top: "0",
-          right: "0",
-          bottom: "0",
-          left: "0",
-        },
-      });
-    }
-
     const page = await browser.newPage({
       viewport: {
         width: 1200,
