@@ -143,9 +143,38 @@ function VoucherPanel() {
     }
 
     setActionState({ status: "pending", action: "print" });
-    printWindow.name = JSON.stringify({ document });
-    printWindow.location.href = "/voucher/print?autoprint=1";
-    setActionState({ status: "idle" });
+
+    try {
+      const response = await fetch("/api/export/session", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ document }),
+      });
+
+      if (!response.ok) {
+        throw new Error("Unable to prepare the voucher print surface.");
+      }
+
+      const payload = (await response.json()) as { printUrl?: string };
+
+      if (!payload.printUrl) {
+        throw new Error("Unable to prepare the voucher print surface.");
+      }
+
+      printWindow.location.href = payload.printUrl;
+      setActionState({ status: "idle" });
+    } catch (error) {
+      printWindow.close();
+      setActionState({
+        status: "error",
+        message:
+          error instanceof Error
+            ? error.message
+            : "Unable to prepare the voucher print surface.",
+      });
+    }
   }
 
   return (

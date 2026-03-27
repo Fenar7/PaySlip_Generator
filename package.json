@@ -12,12 +12,16 @@
     "test:e2e": "playwright test"
   },
   "dependencies": {
+    "@fontsource/inter": "^5.2.8",
+    "@fontsource/source-serif-4": "^5.2.9",
     "@hookform/resolvers": "^5.2.2",
     "@sparticuz/chromium": "^143.0.4",
     "motion": "^12.23.24",
     "next": "16.2.1",
     "pdf-lib": "^1.17.1",
+    "pdfjs-dist": "^5.5.207",
     "playwright-core": "^1.58.2",
+    "puppeteer": "^24.40.0",
     "react": "19.2.4",
     "react-dom": "19.2.4",
     "react-hook-form": "^7.72.0",

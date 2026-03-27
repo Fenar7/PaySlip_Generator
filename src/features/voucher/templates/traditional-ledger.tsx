@@ -1,7 +1,9 @@
+import { cn } from "@/lib/utils";
 import type { VoucherDocument } from "@/features/voucher/types";
 
 type VoucherTemplateProps = {
   document: VoucherDocument;
+  mode?: "preview" | "print" | "pdf" | "png";
 };
 
 function Row({
@@ -23,7 +25,10 @@ function Row({
 
 export function TraditionalLedgerVoucherTemplate({
   document,
+  mode = "preview",
 }: VoucherTemplateProps) {
+  const printLikeMode = mode !== "preview";
+
   return (
     <div className="space-y-6 text-[var(--voucher-ink)]">
       <section className="rounded-[1.5rem] border-2 border-[rgba(29,23,16,0.12)] bg-[rgba(255,255,255,0.92)]">
@@ -60,7 +65,12 @@ export function TraditionalLedgerVoucherTemplate({
         </div>
       </section>
 
-      <section className="grid gap-4 md:grid-cols-[1fr_0.8fr]">
+      <section
+        className={cn(
+          "grid gap-4",
+          printLikeMode ? "grid-cols-[1fr_0.8fr]" : "md:grid-cols-[1fr_0.8fr]",
+        )}
+      >
         <div className="rounded-[1.5rem] border border-[rgba(29,23,16,0.08)] bg-[rgba(255,255,255,0.88)] p-5">
           <p className="text-[0.68rem] font-semibold uppercase tracking-[0.25em] text-[rgba(29,23,16,0.45)]">
             Business details
