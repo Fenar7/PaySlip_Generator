@@ -2,6 +2,8 @@ import type { BrandingConfig } from "@/lib/branding";
 
 export type InvoiceTemplateId = "minimal" | "professional" | "bold-brand";
 
+export type InvoiceExportFormat = "pdf" | "png";
+
 export type InvoiceLineItemFormValue = {
   description: string;
   quantity: string;

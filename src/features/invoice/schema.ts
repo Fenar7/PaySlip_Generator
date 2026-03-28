@@ -189,6 +189,10 @@ export const invoiceFormSchema = z
 
 export type InvoiceFormSchema = z.infer<typeof invoiceFormSchema>;
 
+export const invoiceExportRequestSchema = z.object({
+  document: invoiceDocumentSchema,
+});
+
 export function validateInvoiceForm(
   values: InvoiceFormValues = invoiceDefaultValues,
 ) {

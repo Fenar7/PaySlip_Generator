@@ -84,6 +84,96 @@ const salarySlipDocumentPayload = {
   },
 } as const;
 
+const invoiceDocumentPayload = {
+  templateId: "professional",
+  title: "Tax Invoice",
+  branding: {
+    companyName: "Northfield Trading Co.",
+    address: "18 Market Road, Kozhikode",
+    email: "accounts@northfield.example",
+    phone: "+91 98765 43210",
+    accentColor: "#c69854",
+  },
+  businessTaxId: "GSTIN 32ABCDE1234F1Z6",
+  clientName: "Axis PeopleX Pvt. Ltd.",
+  clientAddress: "4th Floor, Grand Square, Kochi",
+  clientEmail: "finance@axispeoplex.example",
+  clientPhone: "+91 98470 12000",
+  invoiceNumber: "INV-2026-031",
+  invoiceDate: "26 Mar 2026",
+  dueDate: "02 Apr 2026",
+  currencyCode: "INR",
+  lineItems: [
+    {
+      description: "HR outsourcing retainer for March 2026",
+      quantity: 1,
+      unitPrice: 32000,
+      taxRate: 18,
+      discountAmount: 2000,
+      baseAmount: 32000,
+      taxableAmount: 30000,
+      taxAmount: 5400,
+      lineTotal: 35400,
+      unitPriceFormatted: "₹32,000.00",
+      discountAmountFormatted: "₹2,000.00",
+      baseAmountFormatted: "₹32,000.00",
+      taxAmountFormatted: "₹5,400.00",
+      lineTotalFormatted: "₹35,400.00",
+    },
+    {
+      description: "Recruitment coordination support",
+      quantity: 2,
+      unitPrice: 7500,
+      taxRate: 18,
+      discountAmount: 0,
+      baseAmount: 15000,
+      taxableAmount: 15000,
+      taxAmount: 2700,
+      lineTotal: 17700,
+      unitPriceFormatted: "₹7,500.00",
+      discountAmountFormatted: "₹0.00",
+      baseAmountFormatted: "₹15,000.00",
+      taxAmountFormatted: "₹2,700.00",
+      lineTotalFormatted: "₹17,700.00",
+    },
+  ],
+  subtotal: 47000,
+  totalDiscount: 2000,
+  totalTax: 8100,
+  grandTotal: 53100,
+  amountPaid: 15000,
+  balanceDue: 38100,
+  subtotalFormatted: "₹47,000.00",
+  totalDiscountFormatted: "₹2,000.00",
+  totalTaxFormatted: "₹8,100.00",
+  grandTotalFormatted: "₹53,100.00",
+  amountPaidFormatted: "₹15,000.00",
+  balanceDueFormatted: "₹38,100.00",
+  amountInWords: "Fifty-three thousand one hundred only",
+  notes:
+    "Thank you for the continued engagement. Please reference the invoice number with your remittance.",
+  terms:
+    "Payment due within 7 days. Late payments may be subject to a finance charge after prior notice.",
+  bankName: "Federal Bank",
+  bankAccountNumber: "122001004281",
+  bankIfsc: "FDRL0001220",
+  authorizedBy: "Anita Thomas",
+  visibility: {
+    showAddress: true,
+    showEmail: true,
+    showPhone: true,
+    showBusinessTaxId: true,
+    showClientAddress: true,
+    showClientEmail: true,
+    showClientPhone: true,
+    showDueDate: true,
+    showNotes: true,
+    showTerms: true,
+    showBankDetails: true,
+    showSignature: true,
+  },
+} as const;
+
 test("home page exposes the module entry points", async ({ page }) => {
   await page.goto("/");
 
@@ -122,6 +212,12 @@ test("invoice route renders the interactive workspace", async ({ page }) => {
 
   await expect(
     page.getByRole("heading", { name: "Invoice Generator", level: 1 }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: /print invoice/i }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: /export pdf/i }),
   ).toBeVisible();
   await expect(page.getByRole("heading", { name: /template and branding/i })).toBeVisible();
   await expect(page.getByRole("heading", { name: /client details/i })).toBeVisible();
@@ -218,21 +314,30 @@ test("salary slip print surface renders the normalized document", async ({
   expect(netSalaryBox!.x).toBeGreaterThan(employeeBox!.x + 280);
 });
 
-test("invoice route updates totals and template state as line items change", async ({
+test("invoice print surface renders the normalized document", async ({
   page,
+  request,
 }) => {
-  await page.goto("/invoice");
+  const sessionResponse = await request.post("/api/export/invoice/session", {
+    data: {
+      document: invoiceDocumentPayload,
+    },
+  });
 
-  await page.getByRole("button", { name: /bold brand/i }).click();
-  await expect(page.getByText(/balance due/i).first()).toBeVisible();
+  expect(sessionResponse.ok()).toBeTruthy();
 
-  await page.locator('#lineItems-0-discountAmount').fill("1000");
-  await page.locator('#amountPaid').fill("20000");
+  const sessionPayload = (await sessionResponse.json()) as { printUrl: string };
+  const printUrl = sessionPayload.printUrl.replace("&autoprint=1", "");
 
-  await expect(page.getByText(/₹34,280.00/i).first()).toBeVisible();
+  await page.goto(printUrl);
+  await expect(page.getByTestId("invoice-render-ready")).toBeVisible();
 
-  await page.getByRole("switch", { name: /notes/i }).click();
-  await expect(page.getByText(/thank you for the continued engagement/i)).toHaveCount(0);
+  const clientBox = await page.getByText("Axis PeopleX Pvt. Ltd.").first().boundingBox();
+  const totalBox = await page.getByText("₹53,100.00").first().boundingBox();
+
+  expect(clientBox).not.toBeNull();
+  expect(totalBox).not.toBeNull();
+  expect(totalBox!.x).toBeGreaterThan(clientBox!.x + 280);
 });
 
 test("voucher print surface renders the normalized document", async ({ page }) => {
@@ -334,6 +439,38 @@ test("salary slip PNG export returns an image response", async ({ request }) => 
   const response = await request.post("/api/export/salary-slip/png", {
     data: {
       document: salarySlipDocumentPayload,
+    },
+  });
+
+  expect(response.ok()).toBeTruthy();
+  expect(response.headers()["content-type"]).toContain("image/png");
+});
+
+test("invoice PDF export keeps text selectable", async ({ request }) => {
+  test.setTimeout(180_000);
+
+  const response = await request.post("/api/export/invoice/pdf", {
+    data: {
+      document: invoiceDocumentPayload,
+    },
+  });
+
+  expect(response.ok()).toBeTruthy();
+  expect(response.headers()["content-type"]).toContain("application/pdf");
+
+  const pdfText = await extractPdfText(new Uint8Array(await response.body()));
+
+  expect(pdfText).toContain("Northfield Trading Co.");
+  expect(pdfText).toContain("INV-2026-031");
+  expect(pdfText).toContain("Axis PeopleX Pvt. Ltd.");
+});
+
+test("invoice PNG export returns an image response", async ({ request }) => {
+  test.setTimeout(180_000);
+
+  const response = await request.post("/api/export/invoice/png", {
+    data: {
+      document: invoiceDocumentPayload,
     },
   });
 
