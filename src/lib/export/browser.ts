@@ -144,30 +144,26 @@ export async function renderExportPngViaBrowser(
       });
     });
 
-    const clip = await page.evaluate((selector) => {
-      const element = document.querySelector(selector);
+    const element = await page.$(readySelector);
 
-      if (!element) {
-        return null;
-      }
-
-      const rect = element.getBoundingClientRect();
-
-      return {
-        x: Math.max(rect.x, 0),
-        y: Math.max(rect.y, 0),
-        width: Math.max(rect.width, 1),
-        height: Math.max(rect.height, 1),
-      };
-    }, readySelector);
-
-    if (!clip) {
+    if (!element) {
       throw new Error(`Export render surface ${readySelector} did not become available.`);
     }
 
-    return page.screenshot({
+    await element.evaluate((node) => {
+      node.scrollIntoView({
+        block: "start",
+        inline: "nearest",
+      });
+    });
+    await page.evaluate(async () => {
+      await new Promise<void>((resolve) => {
+        requestAnimationFrame(() => resolve());
+      });
+    });
+
+    return element.screenshot({
       type: "png",
-      clip,
     });
   } finally {
     await browser.close();

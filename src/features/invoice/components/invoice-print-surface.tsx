@@ -35,7 +35,9 @@ export function InvoicePrintSurface({
   const bodyClasses =
     mode === "print"
       ? "min-h-screen bg-white px-4 py-6 md:px-8 md:py-10"
-      : "min-h-screen bg-white p-0";
+      : mode === "png"
+        ? "bg-white p-0"
+        : "min-h-screen bg-white p-0";
 
   return (
     <main className={bodyClasses}>
@@ -47,7 +49,9 @@ export function InvoicePrintSurface({
         className={
           mode === "print"
             ? "mx-auto w-fit rounded-[1.5rem] border border-[rgba(29,23,16,0.08)] bg-white shadow-[0_24px_48px_rgba(38,30,20,0.08)]"
-            : "mx-auto w-fit"
+            : mode === "png"
+              ? "w-fit"
+              : "mx-auto w-fit"
         }
       >
         <InvoiceDocumentFrame document={documentData} mode={mode} />

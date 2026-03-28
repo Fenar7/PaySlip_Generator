@@ -21,12 +21,15 @@ export function DocumentPreviewSurface({
   children,
 }: DocumentPreviewSurfaceProps) {
   const viewportRef = useRef<HTMLDivElement | null>(null);
+  const documentFrameRef = useRef<HTMLDivElement | null>(null);
   const [scale, setScale] = useState(1);
+  const [contentHeight, setContentHeight] = useState(PREVIEW_DOCUMENT_FRAME_HEIGHT);
 
   useEffect(() => {
     const viewport = viewportRef.current;
+    const documentFrame = documentFrameRef.current;
 
-    if (!viewport) {
+    if (!viewport || !documentFrame) {
       return;
     }
 
@@ -39,20 +42,34 @@ export function DocumentPreviewSurface({
       setScale(nextScale);
     };
 
-    updateScale();
+    const updateContentHeight = () => {
+      setContentHeight(
+        Math.max(PREVIEW_DOCUMENT_FRAME_HEIGHT, documentFrame.scrollHeight + 2),
+      );
+    };
 
-    const observer = new ResizeObserver(() => {
+    updateScale();
+    updateContentHeight();
+
+    const viewportObserver = new ResizeObserver(() => {
       updateScale();
     });
+    const documentObserver = new ResizeObserver(() => {
+      updateContentHeight();
+    });
 
-    observer.observe(viewport);
+    viewportObserver.observe(viewport);
+    documentObserver.observe(documentFrame);
 
-    return () => observer.disconnect();
+    return () => {
+      viewportObserver.disconnect();
+      documentObserver.disconnect();
+    };
   }, []);
 
   const scaledHeight = useMemo(
-    () => Math.max(420, Math.ceil(PREVIEW_DOCUMENT_FRAME_HEIGHT * scale)),
-    [scale],
+    () => Math.max(420, Math.ceil(contentHeight * scale)),
+    [contentHeight, scale],
   );
   const scaledWidth = useMemo(
     () => Math.ceil(PREVIEW_DOCUMENT_FRAME_WIDTH * scale),
@@ -90,6 +107,7 @@ export function DocumentPreviewSurface({
             }}
           >
             <div
+              ref={documentFrameRef}
               className="overflow-hidden rounded-[1.25rem] border border-[rgba(29,23,16,0.08)] shadow-[0_24px_48px_rgba(38,30,20,0.08)]"
               style={{
                 width: `${PREVIEW_DOCUMENT_FRAME_WIDTH - 2}px`,

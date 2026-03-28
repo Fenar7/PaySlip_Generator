@@ -25,6 +25,31 @@ async function extractPdfText(pdfSource: string | Uint8Array) {
   return combinedText;
 }
 
+function readPngDimensions(pngBytes: Uint8Array) {
+  if (
+    pngBytes.length < 24 ||
+    pngBytes[0] !== 0x89 ||
+    pngBytes[1] !== 0x50 ||
+    pngBytes[2] !== 0x4e ||
+    pngBytes[3] !== 0x47
+  ) {
+    throw new Error("Invalid PNG payload.");
+  }
+
+  const width =
+    (pngBytes[16] << 24) |
+    (pngBytes[17] << 16) |
+    (pngBytes[18] << 8) |
+    pngBytes[19];
+  const height =
+    (pngBytes[20] << 24) |
+    (pngBytes[21] << 16) |
+    (pngBytes[22] << 8) |
+    pngBytes[23];
+
+  return { width, height };
+}
+
 const salarySlipDocumentPayload = {
   templateId: "corporate-clean",
   title: "Salary Slip",
@@ -224,6 +249,11 @@ test("invoice route renders the interactive workspace", async ({ page }) => {
   await expect(page.getByRole("heading", { name: /invoice metadata/i })).toBeVisible();
   await expect(page.getByRole("heading", { name: /line items and totals/i })).toBeVisible();
   await expect(page.getByText(/tax invoice · professional/i)).toBeVisible();
+  await expect(
+    page.getByTestId("document-preview-viewport").evaluate((element) => {
+      return element.scrollHeight <= element.clientHeight + 1;
+    }),
+  ).resolves.toBe(true);
 });
 
 test("voucher route supports template changes and live visibility updates", async ({
@@ -525,4 +555,11 @@ test("invoice PNG export returns an image response", async ({ request }) => {
 
   expect(response.ok()).toBeTruthy();
   expect(response.headers()["content-type"]).toContain("image/png");
+
+  const imageBytes = new Uint8Array(await response.body());
+  const { width, height } = readPngDimensions(imageBytes);
+
+  expect(width).toBeLessThan(1700);
+  expect(height).toBeLessThan(2300);
+  expect(height).toBeGreaterThan(1500);
 });
