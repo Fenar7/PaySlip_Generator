@@ -6,7 +6,7 @@ import type { VoucherDocument, VoucherExportFormat } from "@/features/voucher/ty
 import { createVoucherExportSession } from "@/features/voucher/server/export-session-store";
 import {
   getLocalExportBrowserArgs,
-  launchExportBrowser,
+  renderExportPngViaBrowser,
   resolveExportBrowserExecutablePath,
 } from "@/lib/export/browser";
 
@@ -66,67 +66,57 @@ export async function exportVoucherDocument({
     }
   }
 
-  const browser = await launchExportBrowser();
+  const executablePath = await resolveExportBrowserExecutablePath();
+  const outputDirectory = await mkdtemp(join(tmpdir(), "voucher-png-"));
+  const outputFile = join(outputDirectory, "voucher.png");
+  const pngUrl = `${origin}/voucher/print?token=${encodeURIComponent(token)}&mode=${routeMode}`;
+  const cliArgs =
+    process.platform === "linux" && process.env.VERCEL
+      ? [
+          "--headless=new",
+          "--disable-gpu",
+          "--hide-scrollbars",
+          "--run-all-compositor-stages-before-draw",
+          "--force-device-scale-factor=2",
+          "--window-size=1600,2200",
+          "--virtual-time-budget=5000",
+          `--screenshot=${outputFile}`,
+          pngUrl,
+        ]
+      : [
+          "--headless=new",
+          "--disable-gpu",
+          "--hide-scrollbars",
+          "--run-all-compositor-stages-before-draw",
+          "--force-device-scale-factor=2",
+          "--window-size=1600,2200",
+          "--virtual-time-budget=5000",
+          ...getLocalExportBrowserArgs(),
+          `--screenshot=${outputFile}`,
+          pngUrl,
+        ];
 
   try {
-    const page = await browser.newPage();
-    await page.setViewport({
-      width: 1400,
-      height: 1800,
-      deviceScaleFactor: format === "png" ? 2 : 1,
-    });
-    await page.emulateMediaType("screen");
-    await page.goto(
-      `${origin}/voucher/print?token=${encodeURIComponent(token)}&mode=${routeMode}`,
-      {
-        waitUntil: "networkidle0",
-      },
-    );
-    await page.waitForSelector('[data-testid="voucher-render-ready"]');
-    await page.evaluate(async () => {
-      const fontSet = (document as Document & {
-        fonts?: {
-          ready: Promise<unknown>;
-        };
-      }).fonts;
-
-      if (fontSet) {
-        await fontSet.ready;
-      }
-
-      await Promise.all(
-        Array.from(document.images).map(async (image) => {
-          if (image.complete) {
+    try {
+      await new Promise<void>((resolve, reject) => {
+        execFile(executablePath, cliArgs, (error) => {
+          if (error) {
+            reject(error);
             return;
           }
 
-          if (typeof image.decode === "function") {
-            try {
-              await image.decode();
-              return;
-            } catch {
-              return;
-            }
-          }
+          resolve();
+        });
+      });
 
-          await new Promise<void>((resolve) => {
-            image.addEventListener("load", () => resolve(), { once: true });
-            image.addEventListener("error", () => resolve(), { once: true });
-          });
-        }),
+      return await readFile(outputFile);
+    } catch {
+      return await renderExportPngViaBrowser(
+        pngUrl,
+        '[data-testid="voucher-render-ready"]',
       );
-    });
-
-    const voucherRender = await page.$('[data-testid="voucher-render-ready"]');
-
-    if (!voucherRender) {
-      throw new Error("Voucher render surface did not become available.");
     }
-
-    return voucherRender.screenshot({
-      type: "png",
-    });
   } finally {
-    await browser.close();
+    await rm(outputDirectory, { recursive: true, force: true });
   }
 }
