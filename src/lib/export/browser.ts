@@ -1,6 +1,6 @@
 import { existsSync } from "node:fs";
 import chromium from "@sparticuz/chromium";
-import puppeteer from "puppeteer";
+import puppeteer, { type Page } from "puppeteer";
 
 const LOCAL_EXECUTABLE_CANDIDATES = [
   process.env.CHROME_EXECUTABLE_PATH,
@@ -52,4 +52,103 @@ export async function launchExportBrowser() {
       ? chromium.args
       : getLocalExportBrowserArgs(),
   });
+}
+
+export async function waitForExportPageAssets(page: Page, readySelector: string) {
+  await page.waitForSelector(readySelector);
+  await page.evaluate(async () => {
+    const fontSet = (document as Document & {
+      fonts?: {
+        ready: Promise<unknown>;
+      };
+    }).fonts;
+
+    if (fontSet) {
+      await fontSet.ready;
+    }
+
+    await Promise.all(
+      Array.from(document.images).map(async (image) => {
+        if (image.complete) {
+          return;
+        }
+
+        if (typeof image.decode === "function") {
+          try {
+            await image.decode();
+            return;
+          } catch {
+            return;
+          }
+        }
+
+        await new Promise<void>((resolve) => {
+          image.addEventListener("load", () => resolve(), { once: true });
+          image.addEventListener("error", () => resolve(), { once: true });
+        });
+      }),
+    );
+  });
+}
+
+export async function renderExportPdfViaBrowser(
+  url: string,
+  readySelector: string,
+) {
+  const browser = await launchExportBrowser();
+
+  try {
+    const page = await browser.newPage();
+    await page.setViewport({
+      width: 1400,
+      height: 1800,
+      deviceScaleFactor: 1,
+    });
+    await page.emulateMediaType("screen");
+    await page.goto(url, {
+      waitUntil: "networkidle0",
+    });
+    await waitForExportPageAssets(page, readySelector);
+
+    return page.pdf({
+      format: "A4",
+      printBackground: true,
+      preferCSSPageSize: true,
+    });
+  } finally {
+    await browser.close();
+  }
+}
+
+export async function renderExportPngViaBrowser(
+  url: string,
+  readySelector: string,
+) {
+  const browser = await launchExportBrowser();
+
+  try {
+    const page = await browser.newPage();
+    await page.setViewport({
+      width: 1600,
+      height: 2200,
+      deviceScaleFactor: 2,
+    });
+    await page.emulateMediaType("screen");
+    await page.goto(url, {
+      waitUntil: "networkidle0",
+    });
+    await waitForExportPageAssets(page, readySelector);
+
+    const renderSurface = await page.$(readySelector);
+
+    if (!renderSurface) {
+      throw new Error(`Export render surface ${readySelector} did not become available.`);
+    }
+
+    return renderSurface.screenshot({
+      type: "png",
+    });
+  } finally {
+    await browser.close();
+  }
 }

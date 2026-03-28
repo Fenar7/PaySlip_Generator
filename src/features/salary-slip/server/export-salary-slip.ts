@@ -9,6 +9,8 @@ import type {
 import { createSalarySlipExportSession } from "@/features/salary-slip/server/export-session-store";
 import {
   getLocalExportBrowserArgs,
+  renderExportPdfViaBrowser,
+  renderExportPngViaBrowser,
   resolveExportBrowserExecutablePath,
 } from "@/lib/export/browser";
 
@@ -52,18 +54,25 @@ export async function exportSalarySlipDocument({
           ];
 
     try {
-      await new Promise<void>((resolve, reject) => {
-        execFile(executablePath, cliArgs, (error) => {
-          if (error) {
-            reject(error);
-            return;
-          }
+      try {
+        await new Promise<void>((resolve, reject) => {
+          execFile(executablePath, cliArgs, (error) => {
+            if (error) {
+              reject(error);
+              return;
+            }
 
-          resolve();
+            resolve();
+          });
         });
-      });
 
-      return await readFile(outputFile);
+        return await readFile(outputFile);
+      } catch {
+        return await renderExportPdfViaBrowser(
+          pdfUrl,
+          '[data-testid="salary-slip-render-ready"]',
+        );
+      }
     } finally {
       await rm(outputDirectory, { recursive: true, force: true });
     }
@@ -99,18 +108,25 @@ export async function exportSalarySlipDocument({
         ];
 
   try {
-    await new Promise<void>((resolve, reject) => {
-      execFile(executablePath, cliArgs, (error) => {
-        if (error) {
-          reject(error);
-          return;
-        }
+    try {
+      await new Promise<void>((resolve, reject) => {
+        execFile(executablePath, cliArgs, (error) => {
+          if (error) {
+            reject(error);
+            return;
+          }
 
-        resolve();
+          resolve();
+        });
       });
-    });
 
-    return await readFile(outputFile);
+      return await readFile(outputFile);
+    } catch {
+      return await renderExportPngViaBrowser(
+        pngUrl,
+        '[data-testid="salary-slip-render-ready"]',
+      );
+    }
   } finally {
     await rm(outputDirectory, { recursive: true, force: true });
   }

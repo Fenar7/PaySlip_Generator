@@ -9,6 +9,8 @@ import type {
 import { createInvoiceExportSession } from "@/features/invoice/server/export-session-store";
 import {
   getLocalExportBrowserArgs,
+  renderExportPdfViaBrowser,
+  renderExportPngViaBrowser,
   resolveExportBrowserExecutablePath,
 } from "@/lib/export/browser";
 
@@ -52,18 +54,25 @@ export async function exportInvoiceDocument({
           ];
 
     try {
-      await new Promise<void>((resolve, reject) => {
-        execFile(executablePath, cliArgs, (error) => {
-          if (error) {
-            reject(error);
-            return;
-          }
+      try {
+        await new Promise<void>((resolve, reject) => {
+          execFile(executablePath, cliArgs, (error) => {
+            if (error) {
+              reject(error);
+              return;
+            }
 
-          resolve();
+            resolve();
+          });
         });
-      });
 
-      return await readFile(outputFile);
+        return await readFile(outputFile);
+      } catch {
+        return await renderExportPdfViaBrowser(
+          pdfUrl,
+          '[data-testid="invoice-render-ready"]',
+        );
+      }
     } finally {
       await rm(outputDirectory, { recursive: true, force: true });
     }
@@ -99,18 +108,25 @@ export async function exportInvoiceDocument({
         ];
 
   try {
-    await new Promise<void>((resolve, reject) => {
-      execFile(executablePath, cliArgs, (error) => {
-        if (error) {
-          reject(error);
-          return;
-        }
+    try {
+      await new Promise<void>((resolve, reject) => {
+        execFile(executablePath, cliArgs, (error) => {
+          if (error) {
+            reject(error);
+            return;
+          }
 
-        resolve();
+          resolve();
+        });
       });
-    });
 
-    return await readFile(outputFile);
+      return await readFile(outputFile);
+    } catch {
+      return await renderExportPngViaBrowser(
+        pngUrl,
+        '[data-testid="invoice-render-ready"]',
+      );
+    }
   } finally {
     await rm(outputDirectory, { recursive: true, force: true });
   }
