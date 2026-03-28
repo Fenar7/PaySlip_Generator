@@ -138,15 +138,36 @@ export async function renderExportPngViaBrowser(
       waitUntil: "networkidle0",
     });
     await waitForExportPageAssets(page, readySelector);
+    await page.evaluate(async () => {
+      await new Promise<void>((resolve) => {
+        requestAnimationFrame(() => resolve());
+      });
+    });
 
-    const renderSurface = await page.$(readySelector);
+    const clip = await page.evaluate((selector) => {
+      const element = document.querySelector(selector);
 
-    if (!renderSurface) {
+      if (!element) {
+        return null;
+      }
+
+      const rect = element.getBoundingClientRect();
+
+      return {
+        x: Math.max(rect.x, 0),
+        y: Math.max(rect.y, 0),
+        width: Math.max(rect.width, 1),
+        height: Math.max(rect.height, 1),
+      };
+    }, readySelector);
+
+    if (!clip) {
       throw new Error(`Export render surface ${readySelector} did not become available.`);
     }
 
-    return renderSurface.screenshot({
+    return page.screenshot({
       type: "png",
+      clip,
     });
   } finally {
     await browser.close();

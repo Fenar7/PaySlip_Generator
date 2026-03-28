@@ -413,6 +413,55 @@ test("voucher PDF export keeps text selectable", async ({ request }) => {
   expect(pdfText).toContain("Rahul Menon");
 });
 
+test("voucher PNG export returns an image response", async ({ request }) => {
+  test.setTimeout(180_000);
+
+  const response = await request.post("/api/export/png", {
+    data: {
+      document: {
+        templateId: "minimal-office",
+        voucherType: "payment",
+        title: "Payment Voucher",
+        counterpartyLabel: "Paid to",
+        branding: {
+          companyName: "Northfield Trading Co.",
+          address: "18 Market Road, Kozhikode",
+          email: "accounts@northfield.example",
+          phone: "+91 98765 43210",
+          accentColor: "#c69854",
+        },
+        voucherNumber: "PV-2026-014",
+        date: "25 Mar 2026",
+        counterpartyName: "Rahul Menon",
+        amount: 1850,
+        amountFormatted: "₹1,850.00",
+        amountInWords: "One thousand eight hundred fifty only",
+        paymentMode: "Cash",
+        referenceNumber: "REF-8831",
+        purpose: "Travel reimbursement for site visit.",
+        notes: "Settled after manager approval.",
+        approvedBy: "Anita Thomas",
+        receivedBy: "Rahul Menon",
+        visibility: {
+          showAddress: true,
+          showEmail: true,
+          showPhone: true,
+          showPaymentMode: true,
+          showReferenceNumber: true,
+          showNotes: true,
+          showApprovedBy: true,
+          showReceivedBy: true,
+          showSignatureArea: true,
+        },
+      },
+    },
+  });
+
+  expect(response.ok()).toBeTruthy();
+  expect(response.headers()["content-type"]).toContain("image/png");
+  expect((await response.body()).byteLength).toBeGreaterThan(0);
+});
+
 test("salary slip PDF export keeps text selectable", async ({ request }) => {
   test.setTimeout(180_000);
 
