@@ -218,6 +218,23 @@ test("salary slip print surface renders the normalized document", async ({
   expect(netSalaryBox!.x).toBeGreaterThan(employeeBox!.x + 280);
 });
 
+test("invoice route updates totals and template state as line items change", async ({
+  page,
+}) => {
+  await page.goto("/invoice");
+
+  await page.getByRole("button", { name: /bold brand/i }).click();
+  await expect(page.getByText(/balance due/i).first()).toBeVisible();
+
+  await page.locator('#lineItems-0-discountAmount').fill("1000");
+  await page.locator('#amountPaid').fill("20000");
+
+  await expect(page.getByText(/₹34,280.00/i).first()).toBeVisible();
+
+  await page.getByRole("switch", { name: /notes/i }).click();
+  await expect(page.getByText(/thank you for the continued engagement/i)).toHaveCount(0);
+});
+
 test("voucher print surface renders the normalized document", async ({ page }) => {
   await page.goto("/voucher");
 
