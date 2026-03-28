@@ -1,7 +1,9 @@
+import { cn } from "@/lib/utils";
 import type { SalarySlipDocument } from "@/features/salary-slip/types";
 
 type SalarySlipTemplateProps = {
   document: SalarySlipDocument;
+  mode?: "preview" | "print" | "pdf" | "png";
 };
 
 function MoneyTable({
@@ -41,7 +43,10 @@ function MoneyTable({
 
 export function CorporateCleanSalarySlipTemplate({
   document,
+  mode = "preview",
 }: SalarySlipTemplateProps) {
+  const printLikeMode = mode !== "preview";
+
   return (
     <div className="space-y-6 text-[var(--voucher-ink)]">
       <section className="rounded-[1.5rem] border border-[rgba(29,23,16,0.08)] bg-[rgba(255,255,255,0.96)] p-6">
@@ -74,7 +79,12 @@ export function CorporateCleanSalarySlipTemplate({
           </div>
         </div>
 
-        <div className="mt-5 grid gap-4 md:grid-cols-2">
+        <div
+          className={cn(
+            "mt-5 grid gap-4",
+            printLikeMode ? "grid-cols-2" : "md:grid-cols-2",
+          )}
+        >
           <div className="rounded-[1.2rem] bg-[rgba(29,23,16,0.04)] p-4">
             <p className="text-[0.68rem] uppercase tracking-[0.25em] text-[rgba(29,23,16,0.45)]">Employee</p>
             <p className="mt-2 text-lg font-medium">{document.employeeName}</p>
@@ -96,7 +106,12 @@ export function CorporateCleanSalarySlipTemplate({
       </section>
 
       {document.visibility.showAttendance ? (
-        <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <section
+          className={cn(
+            "grid gap-4",
+            printLikeMode ? "grid-cols-4" : "sm:grid-cols-2 lg:grid-cols-4",
+          )}
+        >
           {[
             ["Working days", document.workingDays],
             ["Paid days", document.paidDays],
@@ -118,7 +133,12 @@ export function CorporateCleanSalarySlipTemplate({
         </section>
       ) : null}
 
-      <section className="grid gap-4 md:grid-cols-2">
+      <section
+        className={cn(
+          "grid gap-4",
+          printLikeMode ? "grid-cols-2" : "md:grid-cols-2",
+        )}
+      >
         <MoneyTable
           title="Earnings"
           rows={document.earnings}
@@ -138,7 +158,12 @@ export function CorporateCleanSalarySlipTemplate({
           <p className="text-[0.68rem] uppercase tracking-[0.25em] text-[rgba(29,23,16,0.45)]">
             Disbursement details
           </p>
-          <div className="mt-4 grid gap-4 sm:grid-cols-2 text-sm text-[rgba(29,23,16,0.78)]">
+          <div
+            className={cn(
+              "mt-4 grid gap-4 text-sm text-[rgba(29,23,16,0.78)]",
+              printLikeMode ? "grid-cols-2" : "sm:grid-cols-2",
+            )}
+          >
             {document.bankName ? <p>Bank: {document.bankName}</p> : null}
             {document.bankAccountNumber ? (
               <p>Account: {document.bankAccountNumber}</p>
@@ -155,7 +180,12 @@ export function CorporateCleanSalarySlipTemplate({
       ) : null}
 
       {document.visibility.showSignature ? (
-        <section className="grid gap-4 md:grid-cols-2">
+        <section
+          className={cn(
+            "grid gap-4",
+            printLikeMode ? "grid-cols-2" : "md:grid-cols-2",
+          )}
+        >
           <div className="rounded-[1.35rem] border border-[rgba(29,23,16,0.08)] bg-[rgba(255,255,255,0.92)] p-5">
             <div className="h-16 border-b border-dashed border-[rgba(29,23,16,0.16)]" />
             <p className="mt-4 text-sm font-medium text-[rgba(29,23,16,0.8)]">
