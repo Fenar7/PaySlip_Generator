@@ -51,6 +51,19 @@ describe("validateInvoiceForm", () => {
     );
   });
 
+  it("rejects invoice-level discount beyond the computed invoice total", () => {
+    const result = validateInvoiceForm({
+      ...invoiceDefaultValues,
+      extraCharges: "0",
+      invoiceLevelDiscount: "999999",
+    });
+
+    expect(result.success).toBe(false);
+    expect(result.error?.flatten().fieldErrors.invoiceLevelDiscount).toContain(
+      "Invoice-level discount cannot exceed the computed invoice total.",
+    );
+  });
+
   it("accepts normalized invoice export payloads", () => {
     const document = normalizeInvoice(invoiceDefaultValues);
     const result = invoiceExportRequestSchema.safeParse({ document });

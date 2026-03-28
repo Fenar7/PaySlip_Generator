@@ -1,3 +1,4 @@
+import { DocumentBrandMark } from "@/components/document/document-brand-mark";
 import { cn } from "@/lib/utils";
 import type { VoucherDocument } from "@/features/voucher/types";
 
@@ -28,25 +29,7 @@ function HeaderBrand({ document }: VoucherTemplateProps) {
           ) : null}
         </div>
       </div>
-
-      <div className="flex h-18 w-18 shrink-0 items-center justify-center rounded-[1.4rem] border border-[rgba(29,23,16,0.1)] bg-[rgba(255,255,255,0.88)] p-2">
-        {document.branding.logoDataUrl ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={document.branding.logoDataUrl}
-            alt={`${document.branding.companyName || "Company"} logo`}
-            className="h-full w-full rounded-[1rem] object-cover"
-          />
-        ) : (
-          <span className="text-lg font-semibold text-[var(--voucher-accent)]">
-            {(document.branding.companyName || "BD")
-              .split(" ")
-              .slice(0, 2)
-              .map((part) => part.charAt(0).toUpperCase())
-              .join("")}
-          </span>
-        )}
-      </div>
+      <DocumentBrandMark branding={document.branding} />
     </div>
   );
 }

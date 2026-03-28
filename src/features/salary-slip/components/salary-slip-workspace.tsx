@@ -428,10 +428,34 @@ function SalarySlipPanel() {
                     placeholder="Site Coordinator"
                   />
                 </div>
+                <div className="grid gap-4 md:grid-cols-2">
+                  <TextField<SalarySlipFormValues>
+                    name="department"
+                    label="Department"
+                    placeholder="Operations"
+                  />
+                  <TextField<SalarySlipFormValues>
+                    name="workLocation"
+                    label="Work location"
+                    placeholder="Kozhikode HQ"
+                  />
+                </div>
+                <div className="grid gap-4 md:grid-cols-2">
+                  <TextField<SalarySlipFormValues>
+                    name="pan"
+                    label="PAN"
+                    placeholder="FJTPD2148Q"
+                  />
+                  <TextField<SalarySlipFormValues>
+                    name="uan"
+                    label="UAN"
+                    placeholder="100458732145"
+                  />
+                </div>
                 <TextField<SalarySlipFormValues>
-                  name="department"
-                  label="Department"
-                  placeholder="Operations"
+                  name="joiningDate"
+                  label="Joining date"
+                  type="date"
                 />
               </FormSection>
 
@@ -442,11 +466,20 @@ function SalarySlipPanel() {
               >
                 <div className="grid gap-4 md:grid-cols-2">
                   <TextField<SalarySlipFormValues>
-                    name="payPeriodLabel"
-                    label="Salary period"
+                    name="month"
+                    label="Month"
                     required
-                    placeholder="March 2026"
+                    placeholder="March"
                   />
+                  <TextField<SalarySlipFormValues>
+                    name="year"
+                    label="Year"
+                    required
+                    type="number"
+                    placeholder="2026"
+                  />
+                </div>
+                <div className="grid gap-4 md:grid-cols-2">
                   <TextField<SalarySlipFormValues>
                     name="payDate"
                     label="Pay date"
@@ -517,11 +550,18 @@ function SalarySlipPanel() {
                     placeholder="Federal Bank"
                   />
                 </div>
-                <TextField<SalarySlipFormValues>
-                  name="bankAccountNumber"
-                  label="Account number"
-                  placeholder="XXXX2841"
-                />
+                <div className="grid gap-4 md:grid-cols-2">
+                  <TextField<SalarySlipFormValues>
+                    name="bankAccountNumber"
+                    label="Account number"
+                    placeholder="XXXX2841"
+                  />
+                  <TextField<SalarySlipFormValues>
+                    name="bankIfsc"
+                    label="IFSC"
+                    placeholder="FDRL0001220"
+                  />
+                </div>
                 <TextAreaField<SalarySlipFormValues>
                   name="notes"
                   label="Notes"
@@ -566,8 +606,24 @@ function SalarySlipPanel() {
                     label="Designation"
                   />
                   <ToggleField<SalarySlipFormValues>
+                    name="visibility.showPan"
+                    label="PAN"
+                  />
+                  <ToggleField<SalarySlipFormValues>
+                    name="visibility.showUan"
+                    label="UAN"
+                  />
+                  <ToggleField<SalarySlipFormValues>
                     name="visibility.showBankDetails"
                     label="Bank details"
+                  />
+                  <ToggleField<SalarySlipFormValues>
+                    name="visibility.showJoiningDate"
+                    label="Joining date"
+                  />
+                  <ToggleField<SalarySlipFormValues>
+                    name="visibility.showWorkLocation"
+                    label="Work location"
                   />
                   <ToggleField<SalarySlipFormValues>
                     name="visibility.showAttendance"

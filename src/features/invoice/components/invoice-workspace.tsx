@@ -406,11 +406,18 @@ function InvoicePanel() {
                     placeholder="+91 98765 43210"
                   />
                 </div>
-                <TextField<InvoiceFormValues>
-                  name="businessTaxId"
-                  label="Tax ID / GSTIN"
-                  placeholder="GSTIN 32ABCDE1234F1Z6"
-                />
+                <div className="grid gap-4 md:grid-cols-2">
+                  <TextField<InvoiceFormValues>
+                    name="website"
+                    label="Website"
+                    placeholder="www.northfield.example"
+                  />
+                  <TextField<InvoiceFormValues>
+                    name="businessTaxId"
+                    label="Tax ID / GSTIN"
+                    placeholder="GSTIN 32ABCDE1234F1Z6"
+                  />
+                </div>
                 <div className="grid gap-4 md:grid-cols-2">
                   <ColorField<InvoiceFormValues>
                     name="branding.accentColor"
@@ -441,6 +448,12 @@ function InvoicePanel() {
                   rows={3}
                   placeholder="4th Floor, Grand Square, Kochi"
                 />
+                <TextAreaField<InvoiceFormValues>
+                  name="shippingAddress"
+                  label="Shipping address"
+                  rows={3}
+                  placeholder="Warehouse Bay 3, Marine Drive, Kochi"
+                />
                 <div className="grid gap-4 md:grid-cols-2">
                   <TextField<InvoiceFormValues>
                     name="clientEmail"
@@ -453,6 +466,11 @@ function InvoicePanel() {
                     placeholder="+91 98470 12000"
                   />
                 </div>
+                <TextField<InvoiceFormValues>
+                  name="clientTaxId"
+                  label="Client tax ID / GSTIN"
+                  placeholder="GSTIN 32AAACA1122R1ZV"
+                />
               </FormSection>
 
               <FormSection
@@ -479,12 +497,19 @@ function InvoicePanel() {
                     type="date"
                   />
                 </div>
-                <TextField<InvoiceFormValues>
-                  name="amountPaid"
-                  label="Amount paid"
-                  type="number"
-                  placeholder="15000"
-                />
+                <div className="grid gap-4 md:grid-cols-2">
+                  <TextField<InvoiceFormValues>
+                    name="placeOfSupply"
+                    label="Place of supply"
+                    placeholder="Kerala"
+                  />
+                  <TextField<InvoiceFormValues>
+                    name="amountPaid"
+                    label="Amount paid"
+                    type="number"
+                    placeholder="15000"
+                  />
+                </div>
               </FormSection>
 
               <FormSection
@@ -493,6 +518,20 @@ function InvoicePanel() {
                 description="Each line supports quantity, discount, and tax without leaving the form."
               >
                 <InvoiceLineItemsEditor />
+                <div className="grid gap-4 md:grid-cols-2">
+                  <TextField<InvoiceFormValues>
+                    name="extraCharges"
+                    label="Extra charges"
+                    type="number"
+                    placeholder="1500"
+                  />
+                  <TextField<InvoiceFormValues>
+                    name="invoiceLevelDiscount"
+                    label="Invoice-level discount"
+                    type="number"
+                    placeholder="500"
+                  />
+                </div>
               </FormSection>
 
               <FormSection
@@ -557,6 +596,10 @@ function InvoicePanel() {
                     label="Business phone"
                   />
                   <ToggleField<InvoiceFormValues>
+                    name="visibility.showWebsite"
+                    label="Business website"
+                  />
+                  <ToggleField<InvoiceFormValues>
                     name="visibility.showBusinessTaxId"
                     label="Business tax ID"
                   />
@@ -573,8 +616,20 @@ function InvoicePanel() {
                     label="Client phone"
                   />
                   <ToggleField<InvoiceFormValues>
+                    name="visibility.showClientTaxId"
+                    label="Client tax ID"
+                  />
+                  <ToggleField<InvoiceFormValues>
+                    name="visibility.showShippingAddress"
+                    label="Shipping address"
+                  />
+                  <ToggleField<InvoiceFormValues>
                     name="visibility.showDueDate"
                     label="Due date"
+                  />
+                  <ToggleField<InvoiceFormValues>
+                    name="visibility.showPlaceOfSupply"
+                    label="Place of supply"
                   />
                   <ToggleField<InvoiceFormValues>
                     name="visibility.showNotes"
@@ -591,6 +646,10 @@ function InvoicePanel() {
                   <ToggleField<InvoiceFormValues>
                     name="visibility.showSignature"
                     label="Signature"
+                  />
+                  <ToggleField<InvoiceFormValues>
+                    name="visibility.showPaymentSummary"
+                    label="Payment summary"
                   />
                 </div>
               </FormSection>

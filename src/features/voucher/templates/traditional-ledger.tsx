@@ -1,3 +1,4 @@
+import { DocumentBrandMark } from "@/components/document/document-brand-mark";
 import { cn } from "@/lib/utils";
 import type { VoucherDocument } from "@/features/voucher/types";
 
@@ -37,11 +38,19 @@ export function TraditionalLedgerVoucherTemplate({
           style={{ backgroundColor: "var(--voucher-accent)" }}
         >
           <div className="flex items-start justify-between gap-4">
-            <div>
-              <p className="text-[0.7rem] font-semibold uppercase tracking-[0.32em] text-white/72">
-                Formal voucher record
-              </p>
-              <h2 className="mt-3 text-[1.8rem] font-medium">{document.title}</h2>
+            <div className="flex items-start gap-4">
+              <DocumentBrandMark
+                branding={document.branding}
+                className="flex h-16 w-16 shrink-0 items-center justify-center rounded-[1.2rem] border border-white/20 bg-white/10 p-2"
+                initialsClassName="text-base font-semibold text-white"
+                imageClassName="h-full w-full rounded-[0.9rem] object-cover"
+              />
+              <div>
+                <p className="text-[0.7rem] font-semibold uppercase tracking-[0.32em] text-white/72">
+                  Formal voucher record
+                </p>
+                <h2 className="mt-3 text-[1.8rem] font-medium">{document.title}</h2>
+              </div>
             </div>
             <p className="text-right text-sm leading-7 text-white/82">
               {document.branding.companyName || "Business Document Generator"}

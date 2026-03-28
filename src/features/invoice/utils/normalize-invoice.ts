@@ -76,13 +76,23 @@ function normalizeLineItems(rows: InvoiceFormValues["lineItems"]) {
 
 export function normalizeInvoice(values: InvoiceFormValues): InvoiceDocument {
   const lineItems = normalizeLineItems(values.lineItems);
-  const subtotal = lineItems.reduce((sum, item) => sum + item.baseAmount, 0);
+  const subtotal = lineItems.reduce((sum, item) => sum + item.taxableAmount, 0);
   const totalDiscount = lineItems.reduce(
     (sum, item) => sum + item.discountAmount,
     0,
   );
   const totalTax = lineItems.reduce((sum, item) => sum + item.taxAmount, 0);
-  const grandTotal = lineItems.reduce((sum, item) => sum + item.lineTotal, 0);
+  const extraCharges = Number.isFinite(Number(values.extraCharges))
+    ? Math.max(Number(values.extraCharges), 0)
+    : 0;
+  const invoiceLevelDiscount = Number.isFinite(Number(values.invoiceLevelDiscount))
+    ? Math.max(Number(values.invoiceLevelDiscount), 0)
+    : 0;
+  const lineItemsGrandTotal = lineItems.reduce((sum, item) => sum + item.lineTotal, 0);
+  const grandTotal = Math.max(
+    lineItemsGrandTotal + extraCharges - invoiceLevelDiscount,
+    0,
+  );
   const amountPaid = Number.isFinite(Number(values.amountPaid))
     ? Math.max(Number(values.amountPaid), 0)
     : 0;
@@ -93,6 +103,7 @@ export function normalizeInvoice(values: InvoiceFormValues): InvoiceDocument {
     templateId: values.templateId,
     title: "Tax Invoice",
     branding: values.branding,
+    website: values.visibility.showWebsite ? values.website.trim() || undefined : undefined,
     businessTaxId: visibility.showBusinessTaxId
       ? values.businessTaxId.trim() || undefined
       : undefined,
@@ -100,26 +111,39 @@ export function normalizeInvoice(values: InvoiceFormValues): InvoiceDocument {
     clientAddress: visibility.showClientAddress
       ? values.clientAddress.trim() || undefined
       : undefined,
+    shippingAddress: visibility.showShippingAddress
+      ? values.shippingAddress.trim() || undefined
+      : undefined,
     clientEmail: visibility.showClientEmail
       ? values.clientEmail.trim() || undefined
       : undefined,
     clientPhone: visibility.showClientPhone
       ? values.clientPhone.trim() || undefined
       : undefined,
+    clientTaxId: visibility.showClientTaxId
+      ? values.clientTaxId.trim() || undefined
+      : undefined,
     invoiceNumber: values.invoiceNumber.trim(),
     invoiceDate: formatDate(values.invoiceDate) || values.invoiceDate,
     dueDate: visibility.showDueDate ? formatDate(values.dueDate) : undefined,
+    placeOfSupply: visibility.showPlaceOfSupply
+      ? values.placeOfSupply.trim() || undefined
+      : undefined,
     currencyCode: "INR",
     lineItems,
     subtotal,
     totalDiscount,
     totalTax,
+    extraCharges,
+    invoiceLevelDiscount,
     grandTotal,
     amountPaid,
     balanceDue,
     subtotalFormatted: formatCurrency(subtotal),
     totalDiscountFormatted: formatCurrency(totalDiscount),
     totalTaxFormatted: formatCurrency(totalTax),
+    extraChargesFormatted: formatCurrency(extraCharges),
+    invoiceLevelDiscountFormatted: formatCurrency(invoiceLevelDiscount),
     grandTotalFormatted: formatCurrency(grandTotal),
     amountPaidFormatted: formatCurrency(amountPaid),
     balanceDueFormatted: formatCurrency(balanceDue),

@@ -17,13 +17,18 @@ describe("normalizeSalarySlip", () => {
       ...salarySlipDefaultValues,
       visibility: {
         ...salarySlipDefaultValues.visibility,
+        showPan: false,
+        showUan: false,
         showNotes: false,
         showBankDetails: false,
       },
     });
 
+    expect(document.pan).toBeUndefined();
+    expect(document.uan).toBeUndefined();
     expect(document.notes).toBeUndefined();
     expect(document.bankName).toBeUndefined();
     expect(document.bankAccountNumber).toBeUndefined();
+    expect(document.bankIfsc).toBeUndefined();
   });
 });

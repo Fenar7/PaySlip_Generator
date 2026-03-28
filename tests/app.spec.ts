@@ -64,6 +64,8 @@ const salarySlipDocumentPayload = {
   employeeId: "EMP-041",
   department: "Operations",
   designation: "Site Coordinator",
+  pan: "FJTPD2148Q",
+  uan: "100458732145",
   payPeriodLabel: "March 2026",
   payDate: "31 Mar 2026",
   workingDays: "31",
@@ -73,6 +75,9 @@ const salarySlipDocumentPayload = {
   paymentMethod: "Bank transfer",
   bankName: "Federal Bank",
   bankAccountNumber: "XXXX2841",
+  bankIfsc: "FDRL0001220",
+  joiningDate: "16 Aug 2022",
+  workLocation: "Kozhikode HQ",
   earnings: [
     { label: "Basic salary", amount: 32000, amountFormatted: "₹32,000.00" },
     {
@@ -102,7 +107,11 @@ const salarySlipDocumentPayload = {
     showEmployeeId: true,
     showDepartment: true,
     showDesignation: true,
+    showPan: true,
+    showUan: true,
     showBankDetails: true,
+    showJoiningDate: true,
+    showWorkLocation: true,
     showAttendance: true,
     showNotes: true,
     showSignature: true,
@@ -119,14 +128,18 @@ const invoiceDocumentPayload = {
     phone: "+91 98765 43210",
     accentColor: "#c69854",
   },
+  website: "www.northfield.example",
   businessTaxId: "GSTIN 32ABCDE1234F1Z6",
   clientName: "Axis PeopleX Pvt. Ltd.",
   clientAddress: "4th Floor, Grand Square, Kochi",
+  shippingAddress: "Warehouse Bay 3, Marine Drive, Kochi",
   clientEmail: "finance@axispeoplex.example",
   clientPhone: "+91 98470 12000",
+  clientTaxId: "GSTIN 32AAACA1122R1ZV",
   invoiceNumber: "INV-2026-031",
   invoiceDate: "26 Mar 2026",
   dueDate: "02 Apr 2026",
+  placeOfSupply: "Kerala",
   currencyCode: "INR",
   lineItems: [
     {
@@ -162,19 +175,23 @@ const invoiceDocumentPayload = {
       lineTotalFormatted: "₹17,700.00",
     },
   ],
-  subtotal: 47000,
+  subtotal: 45000,
   totalDiscount: 2000,
   totalTax: 8100,
-  grandTotal: 53100,
+  extraCharges: 1500,
+  invoiceLevelDiscount: 500,
+  grandTotal: 54100,
   amountPaid: 15000,
-  balanceDue: 38100,
-  subtotalFormatted: "₹47,000.00",
+  balanceDue: 39100,
+  subtotalFormatted: "₹45,000.00",
   totalDiscountFormatted: "₹2,000.00",
   totalTaxFormatted: "₹8,100.00",
-  grandTotalFormatted: "₹53,100.00",
+  extraChargesFormatted: "₹1,500.00",
+  invoiceLevelDiscountFormatted: "₹500.00",
+  grandTotalFormatted: "₹54,100.00",
   amountPaidFormatted: "₹15,000.00",
-  balanceDueFormatted: "₹38,100.00",
-  amountInWords: "Fifty-three thousand one hundred only",
+  balanceDueFormatted: "₹39,100.00",
+  amountInWords: "Fifty-four thousand one hundred only",
   notes:
     "Thank you for the continued engagement. Please reference the invoice number with your remittance.",
   terms:
@@ -187,15 +204,20 @@ const invoiceDocumentPayload = {
     showAddress: true,
     showEmail: true,
     showPhone: true,
+    showWebsite: true,
     showBusinessTaxId: true,
     showClientAddress: true,
     showClientEmail: true,
     showClientPhone: true,
+    showClientTaxId: true,
+    showShippingAddress: true,
     showDueDate: true,
+    showPlaceOfSupply: true,
     showNotes: true,
     showTerms: true,
     showBankDetails: true,
     showSignature: true,
+    showPaymentSummary: true,
   },
 } as const;
 
@@ -312,7 +334,7 @@ test("invoice route updates totals and template state as line items change", asy
   await page.locator('#lineItems-0-discountAmount').fill("1000");
   await page.locator('#amountPaid').fill("20000");
 
-  await expect(page.getByText(/₹34,280.00/i).first()).toBeVisible();
+  await expect(page.getByText(/₹35,280.00/i).first()).toBeVisible();
 
   await page.getByRole("switch", { name: /notes/i }).click();
   await expect(page.getByText(/thank you for the continued engagement/i)).toHaveCount(0);
@@ -363,7 +385,7 @@ test("invoice print surface renders the normalized document", async ({
   await expect(page.getByTestId("invoice-render-ready")).toBeVisible();
 
   const clientBox = await page.getByText("Axis PeopleX Pvt. Ltd.").first().boundingBox();
-  const totalBox = await page.getByText("₹53,100.00").first().boundingBox();
+  const totalBox = await page.getByText("₹54,100.00").first().boundingBox();
 
   expect(clientBox).not.toBeNull();
   expect(totalBox).not.toBeNull();
