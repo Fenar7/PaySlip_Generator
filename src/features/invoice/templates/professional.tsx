@@ -1,3 +1,4 @@
+import { DocumentBrandMark } from "@/components/document/document-brand-mark";
 import { cn } from "@/lib/utils";
 import type { InvoiceDocument } from "@/features/invoice/types";
 
@@ -36,16 +37,20 @@ export function ProfessionalInvoiceTemplate({
             printLike ? "grid-cols-[1.2fr_0.8fr]" : "md:grid-cols-[1.2fr_0.8fr]",
           )}
         >
-          <div>
-            <p className="text-[0.68rem] uppercase tracking-[0.32em] text-[rgba(29,23,16,0.45)]">
-              {document.title}
-            </p>
-            <h2 className="mt-3 text-[2rem] leading-tight">{document.branding.companyName}</h2>
-            <div className="mt-4 space-y-1.5 text-sm leading-6 text-[rgba(29,23,16,0.72)]">
-              {document.visibility.showAddress && document.branding.address ? <p>{document.branding.address}</p> : null}
-              {document.visibility.showEmail && document.branding.email ? <p>{document.branding.email}</p> : null}
-              {document.visibility.showPhone && document.branding.phone ? <p>{document.branding.phone}</p> : null}
-              {document.businessTaxId ? <p>{document.businessTaxId}</p> : null}
+          <div className="flex items-start gap-4">
+            <DocumentBrandMark branding={document.branding} />
+            <div>
+              <p className="text-[0.68rem] uppercase tracking-[0.32em] text-[rgba(29,23,16,0.45)]">
+                {document.title}
+              </p>
+              <h2 className="mt-3 text-[2rem] leading-tight">{document.branding.companyName}</h2>
+              <div className="mt-4 space-y-1.5 text-sm leading-6 text-[rgba(29,23,16,0.72)]">
+                {document.visibility.showAddress && document.branding.address ? <p>{document.branding.address}</p> : null}
+                {document.visibility.showEmail && document.branding.email ? <p>{document.branding.email}</p> : null}
+                {document.visibility.showPhone && document.branding.phone ? <p>{document.branding.phone}</p> : null}
+                {document.website ? <p>{document.website}</p> : null}
+                {document.businessTaxId ? <p>{document.businessTaxId}</p> : null}
+              </div>
             </div>
           </div>
           <div className="rounded-[1.4rem] bg-[rgba(29,23,16,0.04)] p-5">
@@ -81,6 +86,7 @@ export function ProfessionalInvoiceTemplate({
               {document.clientAddress ? <p>{document.clientAddress}</p> : null}
               {document.clientEmail ? <p>{document.clientEmail}</p> : null}
               {document.clientPhone ? <p>{document.clientPhone}</p> : null}
+              {document.clientTaxId ? <p>Tax ID: {document.clientTaxId}</p> : null}
             </div>
           </div>
           <div className="rounded-[1.4rem] p-5 text-white" style={{ backgroundColor: "var(--voucher-accent)" }}>
@@ -90,6 +96,28 @@ export function ProfessionalInvoiceTemplate({
           </div>
         </div>
       </section>
+
+      {document.shippingAddress || document.placeOfSupply ? (
+        <section
+          className={cn(
+            "grid gap-4",
+            printLike ? "grid-cols-2" : "md:grid-cols-2",
+          )}
+        >
+          {document.shippingAddress ? (
+            <div className="rounded-[1.4rem] border border-[rgba(29,23,16,0.08)] bg-[rgba(255,255,255,0.88)] p-5">
+              <p className="text-[0.68rem] uppercase tracking-[0.25em] text-[rgba(29,23,16,0.45)]">Shipping address</p>
+              <p className="mt-3 text-sm leading-7 text-[rgba(29,23,16,0.82)]">{document.shippingAddress}</p>
+            </div>
+          ) : null}
+          {document.placeOfSupply ? (
+            <div className="rounded-[1.4rem] border border-[rgba(29,23,16,0.08)] bg-[rgba(255,255,255,0.88)] p-5">
+              <p className="text-[0.68rem] uppercase tracking-[0.25em] text-[rgba(29,23,16,0.45)]">Place of supply</p>
+              <p className="mt-3 text-sm font-medium text-[rgba(29,23,16,0.82)]">{document.placeOfSupply}</p>
+            </div>
+          ) : null}
+        </section>
+      ) : null}
 
       <section className="overflow-hidden rounded-[1.6rem] border border-[rgba(29,23,16,0.08)] bg-[rgba(255,255,255,0.92)]">
         <table className="w-full border-collapse text-left text-[0.82rem]">
@@ -150,15 +178,28 @@ export function ProfessionalInvoiceTemplate({
         </div>
         <div className="rounded-[1.4rem] border border-[rgba(29,23,16,0.08)] bg-[rgba(255,255,255,0.96)] p-5">
           <SummaryRow label="Subtotal" value={document.subtotalFormatted} />
-          <SummaryRow label="Discount" value={document.totalDiscountFormatted} />
+          <SummaryRow label="Line discount" value={document.totalDiscountFormatted} />
           <SummaryRow label="Tax" value={document.totalTaxFormatted} />
+          {document.extraCharges > 0 ? (
+            <SummaryRow label="Extra charges" value={document.extraChargesFormatted} />
+          ) : null}
+          {document.invoiceLevelDiscount > 0 ? (
+            <SummaryRow
+              label="Invoice discount"
+              value={document.invoiceLevelDiscountFormatted}
+            />
+          ) : null}
           <div className="border-t border-[rgba(29,23,16,0.08)] pt-2">
             <SummaryRow label="Grand total" value={document.grandTotalFormatted} emphasized />
           </div>
-          <SummaryRow label="Amount paid" value={document.amountPaidFormatted} />
-          <div className="border-t border-[rgba(29,23,16,0.08)] pt-2">
-            <SummaryRow label="Balance due" value={document.balanceDueFormatted} emphasized />
-          </div>
+          {document.visibility.showPaymentSummary ? (
+            <>
+              <SummaryRow label="Amount paid" value={document.amountPaidFormatted} />
+              <div className="border-t border-[rgba(29,23,16,0.08)] pt-2">
+                <SummaryRow label="Balance due" value={document.balanceDueFormatted} emphasized />
+              </div>
+            </>
+          ) : null}
           {document.authorizedBy ? (
             <div className="mt-6 border-t border-dashed border-[rgba(29,23,16,0.16)] pt-4 text-sm">
               Authorized by: {document.authorizedBy}

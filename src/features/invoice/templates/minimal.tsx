@@ -1,3 +1,4 @@
+import { DocumentBrandMark } from "@/components/document/document-brand-mark";
 import { cn } from "@/lib/utils";
 import type { InvoiceDocument } from "@/features/invoice/types";
 
@@ -44,26 +45,30 @@ export function MinimalInvoiceTemplate({
   return (
     <div className="space-y-6 text-[var(--voucher-ink)]">
       <section className="flex items-start justify-between gap-6 border-b border-[rgba(29,23,16,0.08)] pb-6">
-        <div className="space-y-4">
-          <div>
-            <p className="text-[0.68rem] font-semibold uppercase tracking-[0.32em] text-[rgba(29,23,16,0.45)]">
-              {document.title}
-            </p>
-            <h2 className="mt-3 text-[1.95rem] leading-tight">
-              {document.branding.companyName}
-            </h2>
-          </div>
-          <div className="space-y-1.5 text-sm leading-6 text-[rgba(29,23,16,0.7)]">
-            {document.visibility.showAddress && document.branding.address ? (
-              <p>{document.branding.address}</p>
-            ) : null}
-            {document.visibility.showEmail && document.branding.email ? (
-              <p>{document.branding.email}</p>
-            ) : null}
-            {document.visibility.showPhone && document.branding.phone ? (
-              <p>{document.branding.phone}</p>
-            ) : null}
-            {document.businessTaxId ? <p>{document.businessTaxId}</p> : null}
+        <div className="flex items-start gap-4">
+          <DocumentBrandMark branding={document.branding} />
+          <div className="space-y-4">
+            <div>
+              <p className="text-[0.68rem] font-semibold uppercase tracking-[0.32em] text-[rgba(29,23,16,0.45)]">
+                {document.title}
+              </p>
+              <h2 className="mt-3 text-[1.95rem] leading-tight">
+                {document.branding.companyName}
+              </h2>
+            </div>
+            <div className="space-y-1.5 text-sm leading-6 text-[rgba(29,23,16,0.7)]">
+              {document.visibility.showAddress && document.branding.address ? (
+                <p>{document.branding.address}</p>
+              ) : null}
+              {document.visibility.showEmail && document.branding.email ? (
+                <p>{document.branding.email}</p>
+              ) : null}
+              {document.visibility.showPhone && document.branding.phone ? (
+                <p>{document.branding.phone}</p>
+              ) : null}
+              {document.website ? <p>{document.website}</p> : null}
+              {document.businessTaxId ? <p>{document.businessTaxId}</p> : null}
+            </div>
           </div>
         </div>
 
@@ -102,6 +107,7 @@ export function MinimalInvoiceTemplate({
             {document.clientAddress ? <p>{document.clientAddress}</p> : null}
             {document.clientEmail ? <p>{document.clientEmail}</p> : null}
             {document.clientPhone ? <p>{document.clientPhone}</p> : null}
+            {document.clientTaxId ? <p>Tax ID: {document.clientTaxId}</p> : null}
           </div>
         </div>
         <div className="rounded-[1.5rem] p-5 text-white" style={{ backgroundColor: "var(--voucher-accent)" }}>
@@ -112,6 +118,36 @@ export function MinimalInvoiceTemplate({
           <p className="mt-4 text-sm leading-7 text-white/82">{document.amountInWords}</p>
         </div>
       </section>
+
+      {document.shippingAddress || document.placeOfSupply ? (
+        <section
+          className={cn(
+            "grid gap-4",
+            printLike ? "grid-cols-2" : "md:grid-cols-2",
+          )}
+        >
+          {document.shippingAddress ? (
+            <div className="rounded-[1.5rem] border border-[rgba(29,23,16,0.08)] bg-[rgba(255,255,255,0.86)] p-5">
+              <p className="text-[0.68rem] font-semibold uppercase tracking-[0.25em] text-[rgba(29,23,16,0.45)]">
+                Ship to
+              </p>
+              <p className="mt-3 text-sm leading-7 text-[rgba(29,23,16,0.82)]">
+                {document.shippingAddress}
+              </p>
+            </div>
+          ) : null}
+          {document.placeOfSupply ? (
+            <div className="rounded-[1.5rem] border border-[rgba(29,23,16,0.08)] bg-[rgba(255,255,255,0.86)] p-5">
+              <p className="text-[0.68rem] font-semibold uppercase tracking-[0.25em] text-[rgba(29,23,16,0.45)]">
+                Place of supply
+              </p>
+              <p className="mt-3 text-sm font-medium text-[rgba(29,23,16,0.82)]">
+                {document.placeOfSupply}
+              </p>
+            </div>
+          ) : null}
+        </section>
+      ) : null}
 
       <InvoiceTable document={document} />
 
@@ -154,18 +190,34 @@ export function MinimalInvoiceTemplate({
               <span>Tax</span>
               <span>{document.totalTaxFormatted}</span>
             </div>
+            {document.extraCharges > 0 ? (
+              <div className="flex items-center justify-between">
+                <span>Extra charges</span>
+                <span>{document.extraChargesFormatted}</span>
+              </div>
+            ) : null}
+            {document.invoiceLevelDiscount > 0 ? (
+              <div className="flex items-center justify-between">
+                <span>Invoice discount</span>
+                <span>{document.invoiceLevelDiscountFormatted}</span>
+              </div>
+            ) : null}
             <div className="flex items-center justify-between border-t border-[rgba(29,23,16,0.08)] pt-3 font-medium">
               <span>Total</span>
               <span>{document.grandTotalFormatted}</span>
             </div>
-            <div className="flex items-center justify-between">
-              <span>Paid</span>
-              <span>{document.amountPaidFormatted}</span>
-            </div>
-            <div className="flex items-center justify-between text-base font-medium text-[var(--voucher-accent)]">
-              <span>Due</span>
-              <span>{document.balanceDueFormatted}</span>
-            </div>
+            {document.visibility.showPaymentSummary ? (
+              <>
+                <div className="flex items-center justify-between">
+                  <span>Paid</span>
+                  <span>{document.amountPaidFormatted}</span>
+                </div>
+                <div className="flex items-center justify-between text-base font-medium text-[var(--voucher-accent)]">
+                  <span>Due</span>
+                  <span>{document.balanceDueFormatted}</span>
+                </div>
+              </>
+            ) : null}
           </div>
         </div>
       </section>

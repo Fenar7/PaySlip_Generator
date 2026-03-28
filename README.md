@@ -1,6 +1,6 @@
 # Business Document Generator
 
-Phase 1 foundation for a premium document-generation product built with Next.js. The product will support vouchers, salary slips, and invoices through a shared shell, live preview, and export-ready layout system.
+Phase 1 implementation of a premium document-generation product built with Next.js. The app supports vouchers, salary slips, and invoices through a shared shell, live preview, and export-ready layout system.
 
 ## Stack
 
@@ -34,15 +34,16 @@ Open [http://localhost:3000](http://localhost:3000) in your browser.
 
 ## Phase 1 Scope
 
-This branch establishes:
+This phase includes:
 
-- the landing and module entry experience
-- the shared workspace shell used by all generators
-- the visual system, fonts, tokens, and interaction baseline
-- route scaffolding for Voucher, Salary Slip, and Invoice generators
-- CI, unit test, and E2E test foundations
-
-This phase intentionally does not include generator forms, calculations, templates, or export logic yet.
+- landing and module entry experience
+- shared form primitives, preview shell, and export infrastructure
+- Voucher Generator with payment/receipt modes and 2 templates
+- Salary Slip Generator with dynamic earnings/deductions and 2 templates
+- Invoice Generator with line-item tax math and 3 templates
+- session-scoped branding controls with logo upload and accent color
+- PDF export, PNG export, and browser print flows
+- unit and E2E coverage for preview, print, and export paths
 
 ## Repository Notes
 
@@ -50,12 +51,15 @@ This phase intentionally does not include generator forms, calculations, templat
 - feature branch prefix: `codex/`
 - deploy target: Vercel
 
-## Next Phases
+## Excluded From Phase 1
 
-- shared form and branding controls
-- normalized document engine and preview model
-- voucher, salary slip, and invoice feature delivery
-- PDF, PNG, and print export pipeline
+- authentication and user accounts
+- saved drafts or document history
+- persistent branding/company profiles
+- database-backed storage
+- recurring invoices or billing automation
+- payroll automation and compliance workflows
+- team collaboration or approval flows
 
 ## PRD
 

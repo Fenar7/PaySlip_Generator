@@ -30,6 +30,17 @@ function formatDate(value: string) {
   }).format(parsed);
 }
 
+function buildPayPeriodLabel(month: string, year: string, fallback: string) {
+  const cleanMonth = month.trim();
+  const cleanYear = year.trim();
+
+  if (cleanMonth && cleanYear) {
+    return `${cleanMonth} ${cleanYear}`.trim();
+  }
+
+  return fallback.trim();
+}
+
 function normalizeNumberText(value: string) {
   if (!value) {
     return undefined;
@@ -89,7 +100,13 @@ export function normalizeSalarySlip(values: SalarySlipFormValues): SalarySlipDoc
     designation: visibility.showDesignation
       ? values.designation.trim() || undefined
       : undefined,
-    payPeriodLabel: values.payPeriodLabel.trim(),
+    pan: visibility.showPan ? values.pan.trim() || undefined : undefined,
+    uan: visibility.showUan ? values.uan.trim() || undefined : undefined,
+    payPeriodLabel: buildPayPeriodLabel(
+      values.month,
+      values.year,
+      values.payPeriodLabel,
+    ),
     payDate: formatDate(values.payDate),
     workingDays: visibility.showAttendance
       ? normalizeNumberText(values.workingDays)
@@ -111,6 +128,15 @@ export function normalizeSalarySlip(values: SalarySlipFormValues): SalarySlipDoc
       : undefined,
     bankAccountNumber: visibility.showBankDetails
       ? values.bankAccountNumber.trim() || undefined
+      : undefined,
+    bankIfsc: visibility.showBankDetails
+      ? values.bankIfsc.trim() || undefined
+      : undefined,
+    joiningDate: visibility.showJoiningDate
+      ? formatDate(values.joiningDate)
+      : undefined,
+    workLocation: visibility.showWorkLocation
+      ? values.workLocation.trim() || undefined
       : undefined,
     earnings,
     deductions,

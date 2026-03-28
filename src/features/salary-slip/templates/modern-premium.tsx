@@ -1,3 +1,4 @@
+import { DocumentBrandMark } from "@/components/document/document-brand-mark";
 import { cn } from "@/lib/utils";
 import type { SalarySlipDocument } from "@/features/salary-slip/types";
 
@@ -52,15 +53,18 @@ export function ModernPremiumSalarySlipTemplate({
     <div className="space-y-6 text-[var(--voucher-ink)]">
       <section className="rounded-[1.6rem] border border-[rgba(29,23,16,0.08)] bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(247,241,232,0.96))] p-6">
         <div className="flex items-start justify-between gap-6">
-          <div>
-            <p className="text-[0.68rem] uppercase tracking-[0.32em] text-[rgba(29,23,16,0.45)]">
-              Salary Slip
-            </p>
-            <h2 className="mt-3 text-[2rem] font-medium">{document.employeeName}</h2>
-            <p className="mt-3 text-sm leading-7 text-[rgba(29,23,16,0.7)]">
-              {document.payPeriodLabel}
-              {document.payDate ? ` · Paid on ${document.payDate}` : ""}
-            </p>
+          <div className="flex items-start gap-4">
+            <DocumentBrandMark branding={document.branding} />
+            <div>
+              <p className="text-[0.68rem] uppercase tracking-[0.32em] text-[rgba(29,23,16,0.45)]">
+                Salary Slip
+              </p>
+              <h2 className="mt-3 text-[2rem] font-medium">{document.employeeName}</h2>
+              <p className="mt-3 text-sm leading-7 text-[rgba(29,23,16,0.7)]">
+                {document.payPeriodLabel}
+                {document.payDate ? ` · Paid on ${document.payDate}` : ""}
+              </p>
+            </div>
           </div>
           <div className="max-w-[15rem] text-right text-sm leading-7 text-[rgba(29,23,16,0.72)]">
             <p className="font-medium text-[var(--voucher-ink)]">
@@ -99,11 +103,16 @@ export function ModernPremiumSalarySlipTemplate({
               {document.employeeId ? <p>Employee ID: {document.employeeId}</p> : null}
               {document.department ? <p>Department: {document.department}</p> : null}
               {document.designation ? <p>Designation: {document.designation}</p> : null}
+              {document.workLocation ? <p>Location: {document.workLocation}</p> : null}
+              {document.joiningDate ? <p>Joined: {document.joiningDate}</p> : null}
+              {document.pan ? <p>PAN: {document.pan}</p> : null}
+              {document.uan ? <p>UAN: {document.uan}</p> : null}
               {document.paymentMethod ? <p>Mode: {document.paymentMethod}</p> : null}
               {document.bankName ? <p>Bank: {document.bankName}</p> : null}
               {document.bankAccountNumber ? (
                 <p>Account: {document.bankAccountNumber}</p>
               ) : null}
+              {document.bankIfsc ? <p>IFSC: {document.bankIfsc}</p> : null}
             </div>
           </div>
           <div className="grid gap-3">

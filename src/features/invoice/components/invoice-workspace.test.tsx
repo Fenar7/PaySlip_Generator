@@ -21,7 +21,7 @@ describe("Invoice workspace", () => {
       target: { value: "20000" },
     });
 
-    expect(screen.getByText(/₹33,100.00/i)).toBeInTheDocument();
+    expect(screen.getByText(/₹34,100.00/i)).toBeInTheDocument();
   });
 
   it("hides notes when the notes visibility toggle is disabled", () => {
@@ -40,5 +40,19 @@ describe("Invoice workspace", () => {
     expect(
       screen.queryByText(/thank you for the continued engagement/i),
     ).not.toBeInTheDocument();
+  });
+
+  it("hides the payment summary block when the visibility toggle is disabled", () => {
+    render(<InvoicePage />);
+
+    expect(screen.getAllByText(/₹39,100.00/i).length).toBeGreaterThan(0);
+
+    fireEvent.click(
+      screen.getByRole("switch", {
+        name: /payment summary/i,
+      }),
+    );
+
+    expect(screen.queryByText(/₹39,100.00/i)).not.toBeInTheDocument();
   });
 });

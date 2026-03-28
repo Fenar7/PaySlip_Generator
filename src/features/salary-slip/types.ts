@@ -14,7 +14,11 @@ export type SalarySlipVisibilityConfig = {
   showEmployeeId: boolean;
   showDepartment: boolean;
   showDesignation: boolean;
+  showPan: boolean;
+  showUan: boolean;
   showBankDetails: boolean;
+  showJoiningDate: boolean;
+  showWorkLocation: boolean;
   showAttendance: boolean;
   showNotes: boolean;
   showSignature: boolean;
@@ -27,7 +31,11 @@ export type SalarySlipFormValues = {
   employeeId: string;
   department: string;
   designation: string;
+  pan: string;
+  uan: string;
   payPeriodLabel: string;
+  month: string;
+  year: string;
   payDate: string;
   workingDays: string;
   paidDays: string;
@@ -36,6 +44,9 @@ export type SalarySlipFormValues = {
   paymentMethod: string;
   bankName: string;
   bankAccountNumber: string;
+  bankIfsc: string;
+  joiningDate: string;
+  workLocation: string;
   earnings: SalarySlipLineItemFormValues[];
   deductions: SalarySlipLineItemFormValues[];
   notes: string;
@@ -57,6 +68,8 @@ export type SalarySlipDocument = {
   employeeId?: string;
   department?: string;
   designation?: string;
+  pan?: string;
+  uan?: string;
   payPeriodLabel: string;
   payDate?: string;
   workingDays?: string;
@@ -66,6 +79,9 @@ export type SalarySlipDocument = {
   paymentMethod?: string;
   bankName?: string;
   bankAccountNumber?: string;
+  bankIfsc?: string;
+  joiningDate?: string;
+  workLocation?: string;
   earnings: SalarySlipLineItem[];
   deductions: SalarySlipLineItem[];
   totalEarnings: number;

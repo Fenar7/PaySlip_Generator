@@ -20,6 +20,15 @@ describe("salary slip schema", () => {
     expect(result.success).toBe(false);
   });
 
+  it("rejects invalid month values", () => {
+    const result = salarySlipFormSchema.safeParse({
+      ...salarySlipDefaultValues,
+      month: "Smarch",
+    });
+
+    expect(result.success).toBe(false);
+  });
+
   it("accepts the normalized salary slip document payload", () => {
     const document = normalizeSalarySlip(salarySlipDefaultValues);
 

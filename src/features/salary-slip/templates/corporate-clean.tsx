@@ -1,3 +1,4 @@
+import { DocumentBrandMark } from "@/components/document/document-brand-mark";
 import { cn } from "@/lib/utils";
 import type { SalarySlipDocument } from "@/features/salary-slip/types";
 
@@ -51,23 +52,26 @@ export function CorporateCleanSalarySlipTemplate({
     <div className="space-y-6 text-[var(--voucher-ink)]">
       <section className="rounded-[1.5rem] border border-[rgba(29,23,16,0.08)] bg-[rgba(255,255,255,0.96)] p-6">
         <div className="flex items-start justify-between gap-6 border-b border-[rgba(29,23,16,0.08)] pb-5">
-          <div>
-            <p className="text-[0.68rem] font-semibold uppercase tracking-[0.3em] text-[rgba(29,23,16,0.45)]">
-              Monthly payroll summary
-            </p>
-            <h2 className="mt-3 text-[1.8rem] font-medium">
-              {document.branding.companyName || "Business Document Generator"}
-            </h2>
-            <div className="mt-4 space-y-1.5 text-sm leading-6 text-[rgba(29,23,16,0.68)]">
-              {document.visibility.showAddress && document.branding.address ? (
-                <p>{document.branding.address}</p>
-              ) : null}
-              {document.visibility.showEmail && document.branding.email ? (
-                <p>{document.branding.email}</p>
-              ) : null}
-              {document.visibility.showPhone && document.branding.phone ? (
-                <p>{document.branding.phone}</p>
-              ) : null}
+          <div className="flex items-start gap-4">
+            <DocumentBrandMark branding={document.branding} />
+            <div>
+              <p className="text-[0.68rem] font-semibold uppercase tracking-[0.3em] text-[rgba(29,23,16,0.45)]">
+                Monthly payroll summary
+              </p>
+              <h2 className="mt-3 text-[1.8rem] font-medium">
+                {document.branding.companyName || "Business Document Generator"}
+              </h2>
+              <div className="mt-4 space-y-1.5 text-sm leading-6 text-[rgba(29,23,16,0.68)]">
+                {document.visibility.showAddress && document.branding.address ? (
+                  <p>{document.branding.address}</p>
+                ) : null}
+                {document.visibility.showEmail && document.branding.email ? (
+                  <p>{document.branding.email}</p>
+                ) : null}
+                {document.visibility.showPhone && document.branding.phone ? (
+                  <p>{document.branding.phone}</p>
+                ) : null}
+              </div>
             </div>
           </div>
           <div className="rounded-[1.25rem] px-5 py-4 text-white" style={{ backgroundColor: "var(--voucher-accent)" }}>
@@ -92,6 +96,10 @@ export function CorporateCleanSalarySlipTemplate({
               {document.employeeId ? <p>Employee ID: {document.employeeId}</p> : null}
               {document.department ? <p>Department: {document.department}</p> : null}
               {document.designation ? <p>Designation: {document.designation}</p> : null}
+              {document.workLocation ? <p>Work location: {document.workLocation}</p> : null}
+              {document.joiningDate ? <p>Joining date: {document.joiningDate}</p> : null}
+              {document.pan ? <p>PAN: {document.pan}</p> : null}
+              {document.uan ? <p>UAN: {document.uan}</p> : null}
             </div>
           </div>
           <div className="rounded-[1.2rem] bg-[rgba(29,23,16,0.04)] p-4">
@@ -168,6 +176,7 @@ export function CorporateCleanSalarySlipTemplate({
             {document.bankAccountNumber ? (
               <p>Account: {document.bankAccountNumber}</p>
             ) : null}
+            {document.bankIfsc ? <p>IFSC: {document.bankIfsc}</p> : null}
           </div>
         </section>
       ) : null}

@@ -17,15 +17,20 @@ const visibilitySchema = z.object({
   showAddress: z.boolean(),
   showEmail: z.boolean(),
   showPhone: z.boolean(),
+  showWebsite: z.boolean(),
   showBusinessTaxId: z.boolean(),
   showClientAddress: z.boolean(),
   showClientEmail: z.boolean(),
   showClientPhone: z.boolean(),
+  showClientTaxId: z.boolean(),
+  showShippingAddress: z.boolean(),
   showDueDate: z.boolean(),
+  showPlaceOfSupply: z.boolean(),
   showNotes: z.boolean(),
   showTerms: z.boolean(),
   showBankDetails: z.boolean(),
   showSignature: z.boolean(),
+  showPaymentSummary: z.boolean(),
 });
 
 const lineItemFormSchema = z.object({
@@ -77,25 +82,33 @@ export const invoiceDocumentSchema = z.object({
   templateId: z.enum(["minimal", "professional", "bold-brand"]),
   title: z.string().trim().min(1),
   branding: brandingSchema,
+  website: z.string().trim().optional(),
   businessTaxId: z.string().trim().optional(),
   clientName: z.string().trim().min(1),
   clientAddress: z.string().trim().optional(),
+  shippingAddress: z.string().trim().optional(),
   clientEmail: z.string().trim().optional(),
   clientPhone: z.string().trim().optional(),
+  clientTaxId: z.string().trim().optional(),
   invoiceNumber: z.string().trim().min(1),
   invoiceDate: z.string().trim().min(1),
   dueDate: z.string().trim().optional(),
+  placeOfSupply: z.string().trim().optional(),
   currencyCode: z.literal("INR"),
   lineItems: z.array(lineItemDocumentSchema).min(1),
   subtotal: z.number().finite().min(0),
   totalDiscount: z.number().finite().min(0),
   totalTax: z.number().finite().min(0),
+  extraCharges: z.number().finite().min(0),
+  invoiceLevelDiscount: z.number().finite().min(0),
   grandTotal: z.number().finite().min(0),
   amountPaid: z.number().finite().min(0),
   balanceDue: z.number().finite().min(0),
   subtotalFormatted: z.string().trim().min(1),
   totalDiscountFormatted: z.string().trim().min(1),
   totalTaxFormatted: z.string().trim().min(1),
+  extraChargesFormatted: z.string().trim().min(1),
+  invoiceLevelDiscountFormatted: z.string().trim().min(1),
   grandTotalFormatted: z.string().trim().min(1),
   amountPaidFormatted: z.string().trim().min(1),
   balanceDueFormatted: z.string().trim().min(1),
@@ -112,15 +125,36 @@ export const invoiceDocumentSchema = z.object({
 export const invoiceFormSchema = z
   .object({
     templateId: z.enum(["minimal", "professional", "bold-brand"]),
-    branding: brandingSchema,
+    branding: brandingSchema.extend({
+      companyName: z.string().trim().min(1, "Business name is required."),
+    }),
+    website: z.string().trim(),
     businessTaxId: z.string().trim(),
     clientName: z.string().trim().min(1, "Client name is required."),
     clientAddress: z.string().trim(),
+    shippingAddress: z.string().trim(),
     clientEmail: z.string().trim(),
     clientPhone: z.string().trim(),
+    clientTaxId: z.string().trim(),
     invoiceNumber: z.string().trim().min(1, "Invoice number is required."),
     invoiceDate: z.string().trim().min(1, "Invoice date is required."),
     dueDate: z.string().trim(),
+    placeOfSupply: z.string().trim(),
+    extraCharges: z
+      .string()
+      .trim()
+      .min(1, "Extra charges are required.")
+      .refine((value) => Number.isFinite(Number(value)), "Enter a valid amount.")
+      .refine((value) => Number(value) >= 0, "Extra charges cannot be negative."),
+    invoiceLevelDiscount: z
+      .string()
+      .trim()
+      .min(1, "Invoice-level discount is required.")
+      .refine((value) => Number.isFinite(Number(value)), "Enter a valid discount.")
+      .refine(
+        (value) => Number(value) >= 0,
+        "Invoice-level discount cannot be negative.",
+      ),
     amountPaid: z
       .string()
       .trim()
@@ -156,7 +190,10 @@ export const invoiceFormSchema = z
       });
     }
 
-    let computedGrandTotal = 0;
+    const extraCharges = Number(values.extraCharges || 0);
+    const invoiceLevelDiscount = Number(values.invoiceLevelDiscount || 0);
+    let computedSubtotal = 0;
+    let computedTaxTotal = 0;
 
     values.lineItems.forEach((item, index) => {
       const quantity = Number(item.quantity || 0);
@@ -175,8 +212,34 @@ export const invoiceFormSchema = z
 
       const taxableAmount = Math.max(baseAmount - discountAmount, 0);
       const taxAmount = taxableAmount * (taxRate / 100);
-      computedGrandTotal += taxableAmount + taxAmount;
+      computedSubtotal += taxableAmount;
+      computedTaxTotal += taxAmount;
     });
+
+    const computedBeforeInvoiceDiscount =
+      computedSubtotal + computedTaxTotal + Math.max(extraCharges, 0);
+
+    if (invoiceLevelDiscount > computedBeforeInvoiceDiscount) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["invoiceLevelDiscount"],
+        message:
+          "Invoice-level discount cannot exceed the computed invoice total.",
+      });
+    }
+
+    const computedGrandTotal = Math.max(
+      computedBeforeInvoiceDiscount - Math.max(invoiceLevelDiscount, 0),
+      0,
+    );
+
+    if (!Number.isFinite(extraCharges)) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["extraCharges"],
+        message: "Extra charges must be a valid amount.",
+      });
+    }
 
     if (Number(values.amountPaid || 0) > computedGrandTotal) {
       context.addIssue({

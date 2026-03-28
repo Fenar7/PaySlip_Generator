@@ -20,7 +20,11 @@ const visibilitySchema = z.object({
   showEmployeeId: z.boolean(),
   showDepartment: z.boolean(),
   showDesignation: z.boolean(),
+  showPan: z.boolean(),
+  showUan: z.boolean(),
   showBankDetails: z.boolean(),
+  showJoiningDate: z.boolean(),
+  showWorkLocation: z.boolean(),
   showAttendance: z.boolean(),
   showNotes: z.boolean(),
   showSignature: z.boolean(),
@@ -44,6 +48,8 @@ export const salarySlipDocumentSchema = z.object({
   employeeId: z.string().trim().optional(),
   department: z.string().trim().optional(),
   designation: z.string().trim().optional(),
+  pan: z.string().trim().optional(),
+  uan: z.string().trim().optional(),
   payPeriodLabel: z.string().trim().min(1),
   payDate: z.string().trim().optional(),
   workingDays: z.string().trim().optional(),
@@ -53,6 +59,9 @@ export const salarySlipDocumentSchema = z.object({
   paymentMethod: z.string().trim().optional(),
   bankName: z.string().trim().optional(),
   bankAccountNumber: z.string().trim().optional(),
+  bankIfsc: z.string().trim().optional(),
+  joiningDate: z.string().trim().optional(),
+  workLocation: z.string().trim().optional(),
   earnings: z.array(
     z.object({
       label: z.string().trim().min(1),
@@ -86,12 +95,22 @@ export const salarySlipExportRequestSchema = z.object({
 export const salarySlipFormSchema = z
   .object({
     templateId: z.enum(["corporate-clean", "modern-premium"]),
-    branding: brandingSchema,
+    branding: brandingSchema.extend({
+      companyName: z.string().trim().min(1, "Company name is required."),
+    }),
     employeeName: z.string().trim().min(1, "Employee name is required."),
-    employeeId: z.string().trim(),
+    employeeId: z.string().trim().min(1, "Employee ID is required."),
     department: z.string().trim(),
     designation: z.string().trim(),
-    payPeriodLabel: z.string().trim().min(1, "Salary period is required."),
+    pan: z.string().trim(),
+    uan: z.string().trim(),
+    payPeriodLabel: z.string().trim(),
+    month: z.string().trim().min(1, "Month is required."),
+    year: z
+      .string()
+      .trim()
+      .min(1, "Year is required.")
+      .regex(/^\d{4}$/, "Enter a valid year."),
     payDate: z.string().trim(),
     workingDays: z.string().trim(),
     paidDays: z.string().trim(),
@@ -100,6 +119,9 @@ export const salarySlipFormSchema = z
     paymentMethod: z.string().trim(),
     bankName: z.string().trim(),
     bankAccountNumber: z.string().trim(),
+    bankIfsc: z.string().trim(),
+    joiningDate: z.string().trim(),
+    workLocation: z.string().trim(),
     earnings: z
       .array(lineItemSchema)
       .min(1, "Add at least one earning row.")
@@ -158,6 +180,16 @@ export const salarySlipFormSchema = z
         code: z.ZodIssueCode.custom,
         path: ["paidDays"],
         message: "Paid days cannot exceed working days.",
+      });
+    }
+
+    const monthIndex = new Date(`${values.month} 1, 2000`).getMonth();
+
+    if (!Number.isInteger(monthIndex) || monthIndex < 0 || monthIndex > 11) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["month"],
+        message: "Enter a valid month.",
       });
     }
   });
