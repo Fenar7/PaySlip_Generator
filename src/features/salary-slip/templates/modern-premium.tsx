@@ -18,7 +18,7 @@ function SummaryCard({
 }) {
   return (
     <div
-      className="rounded-[1.25rem] border px-4 py-4"
+      className="document-break-inside-avoid rounded-[1.25rem] border px-4 py-4"
       style={
         accent
           ? {
@@ -51,7 +51,7 @@ export function ModernPremiumSalarySlipTemplate({
 
   return (
     <div className="space-y-6 text-[var(--voucher-ink)]">
-      <section className="rounded-[1.6rem] border border-[rgba(29,23,16,0.08)] bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(247,241,232,0.96))] p-6">
+      <section className="document-break-inside-avoid rounded-[1.6rem] border border-[rgba(29,23,16,0.08)] bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(247,241,232,0.96))] p-6">
         <div className="flex items-start justify-between gap-6">
           <div className="flex items-start gap-4">
             <DocumentBrandMark branding={document.branding} />
@@ -131,7 +131,7 @@ export function ModernPremiumSalarySlipTemplate({
             : "lg:grid-cols-[1.05fr_0.95fr]",
         )}
       >
-        <div className="rounded-[1.35rem] border border-[rgba(29,23,16,0.08)] bg-[rgba(255,255,255,0.95)] p-5">
+        <div className="document-break-inside-avoid rounded-[1.35rem] border border-[rgba(29,23,16,0.08)] bg-[rgba(255,255,255,0.95)] p-5">
           <p className="text-[0.68rem] uppercase tracking-[0.25em] text-[rgba(29,23,16,0.45)]">
             Earnings and deductions
           </p>
@@ -167,7 +167,7 @@ export function ModernPremiumSalarySlipTemplate({
         </div>
 
         <div className="space-y-4">
-          <div className="rounded-[1.35rem] border border-[rgba(29,23,16,0.08)] bg-[rgba(255,255,255,0.95)] p-5">
+          <div className="document-break-inside-avoid rounded-[1.35rem] border border-[rgba(29,23,16,0.08)] bg-[rgba(255,255,255,0.95)] p-5">
             <p className="text-[0.68rem] uppercase tracking-[0.25em] text-[rgba(29,23,16,0.45)]">
               Net salary in words
             </p>
@@ -177,7 +177,7 @@ export function ModernPremiumSalarySlipTemplate({
           </div>
 
           {document.visibility.showAttendance ? (
-            <div className="rounded-[1.35rem] border border-[rgba(29,23,16,0.08)] bg-[rgba(255,255,255,0.95)] p-5">
+            <div className="document-break-inside-avoid rounded-[1.35rem] border border-[rgba(29,23,16,0.08)] bg-[rgba(255,255,255,0.95)] p-5">
               <p className="text-[0.68rem] uppercase tracking-[0.25em] text-[rgba(29,23,16,0.45)]">
                 Attendance summary
               </p>
@@ -196,7 +196,7 @@ export function ModernPremiumSalarySlipTemplate({
           ) : null}
 
           {document.notes ? (
-            <div className="rounded-[1.35rem] border border-dashed border-[rgba(29,23,16,0.14)] bg-[rgba(255,255,255,0.88)] p-5">
+            <div className="document-break-inside-avoid rounded-[1.35rem] border border-dashed border-[rgba(29,23,16,0.14)] bg-[rgba(255,255,255,0.88)] p-5">
               <p className="text-[0.68rem] uppercase tracking-[0.25em] text-[rgba(29,23,16,0.45)]">
                 Notes
               </p>
@@ -209,17 +209,17 @@ export function ModernPremiumSalarySlipTemplate({
       {document.visibility.showSignature ? (
         <section
           className={cn(
-            "grid gap-4",
+            "document-break-inside-avoid grid gap-4",
             printLikeMode ? "grid-cols-2" : "md:grid-cols-2",
           )}
         >
-          <div className="rounded-[1.35rem] border border-[rgba(29,23,16,0.08)] bg-[rgba(255,255,255,0.95)] p-5">
+          <div className="document-break-inside-avoid rounded-[1.35rem] border border-[rgba(29,23,16,0.08)] bg-[rgba(255,255,255,0.95)] p-5">
             <div className="h-16 border-b border-dashed border-[rgba(29,23,16,0.16)]" />
             <p className="mt-4 text-sm font-medium">
               {document.preparedBy ? `Prepared by: ${document.preparedBy}` : "Prepared by"}
             </p>
           </div>
-          <div className="rounded-[1.35rem] border border-[rgba(29,23,16,0.08)] bg-[rgba(255,255,255,0.95)] p-5">
+          <div className="document-break-inside-avoid rounded-[1.35rem] border border-[rgba(29,23,16,0.08)] bg-[rgba(255,255,255,0.95)] p-5">
             <div className="h-16 border-b border-dashed border-[rgba(29,23,16,0.16)]" />
             <p className="mt-4 text-sm font-medium">Employee acknowledgement</p>
           </div>

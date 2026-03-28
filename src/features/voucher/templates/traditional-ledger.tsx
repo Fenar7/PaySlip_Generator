@@ -32,7 +32,7 @@ export function TraditionalLedgerVoucherTemplate({
 
   return (
     <div className="space-y-6 text-[var(--voucher-ink)]">
-      <section className="rounded-[1.5rem] border-2 border-[rgba(29,23,16,0.12)] bg-[rgba(255,255,255,0.92)]">
+      <section className="document-break-inside-avoid rounded-[1.5rem] border-2 border-[rgba(29,23,16,0.12)] bg-[rgba(255,255,255,0.92)]">
         <div
           className="rounded-t-[1.35rem] px-6 py-5 text-white"
           style={{ backgroundColor: "var(--voucher-accent)" }}
@@ -76,7 +76,7 @@ export function TraditionalLedgerVoucherTemplate({
 
       <section
         className={cn(
-          "grid gap-4",
+          "document-break-inside-avoid grid gap-4",
           printLikeMode ? "grid-cols-[1fr_0.8fr]" : "md:grid-cols-[1fr_0.8fr]",
         )}
       >

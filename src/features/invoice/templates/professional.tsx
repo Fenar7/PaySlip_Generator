@@ -30,7 +30,7 @@ export function ProfessionalInvoiceTemplate({
 
   return (
     <div className="space-y-6 text-[var(--voucher-ink)]">
-      <section className="rounded-[1.75rem] border border-[rgba(29,23,16,0.08)] bg-[rgba(255,255,255,0.92)]">
+      <section className="document-break-inside-avoid rounded-[1.75rem] border border-[rgba(29,23,16,0.08)] bg-[rgba(255,255,255,0.92)]">
         <div
           className={cn(
             "grid gap-5 border-b border-[rgba(29,23,16,0.08)] p-6",
@@ -100,7 +100,7 @@ export function ProfessionalInvoiceTemplate({
       {document.shippingAddress || document.placeOfSupply ? (
         <section
           className={cn(
-            "grid gap-4",
+            "document-break-inside-avoid grid gap-4",
             printLike ? "grid-cols-2" : "md:grid-cols-2",
           )}
         >
@@ -121,7 +121,7 @@ export function ProfessionalInvoiceTemplate({
 
       <section className="overflow-hidden rounded-[1.6rem] border border-[rgba(29,23,16,0.08)] bg-[rgba(255,255,255,0.92)]">
         <table className="w-full border-collapse text-left text-[0.82rem]">
-          <thead className="bg-[rgba(29,23,16,0.04)] text-[0.68rem] uppercase tracking-[0.2em] text-[rgba(29,23,16,0.52)]">
+          <thead className="document-table-head bg-[rgba(29,23,16,0.04)] text-[0.68rem] uppercase tracking-[0.2em] text-[rgba(29,23,16,0.52)]">
             <tr>
               <th className="px-4 py-3">Item</th>
               <th className="px-4 py-3">Qty</th>
@@ -133,7 +133,7 @@ export function ProfessionalInvoiceTemplate({
           </thead>
           <tbody>
             {document.lineItems.map((item) => (
-              <tr key={`${item.description}-${item.lineTotal}`} className="border-t border-[rgba(29,23,16,0.08)] align-top">
+              <tr key={`${item.description}-${item.lineTotal}`} className="document-table-row-avoid border-t border-[rgba(29,23,16,0.08)] align-top">
                 <td className="px-4 py-4 text-[rgba(29,23,16,0.84)]">{item.description}</td>
                 <td className="px-4 py-4">{item.quantity}</td>
                 <td className="px-4 py-4">{item.baseAmountFormatted}</td>
@@ -154,19 +154,19 @@ export function ProfessionalInvoiceTemplate({
       >
         <div className="space-y-4">
           {document.notes ? (
-            <div className="rounded-[1.4rem] border border-[rgba(29,23,16,0.08)] bg-[rgba(255,255,255,0.88)] p-5">
+            <div className="document-break-inside-avoid rounded-[1.4rem] border border-[rgba(29,23,16,0.08)] bg-[rgba(255,255,255,0.88)] p-5">
               <p className="text-[0.68rem] uppercase tracking-[0.25em] text-[rgba(29,23,16,0.45)]">Notes</p>
               <p className="mt-3 text-sm leading-7 text-[rgba(29,23,16,0.82)]">{document.notes}</p>
             </div>
           ) : null}
           {document.terms ? (
-            <div className="rounded-[1.4rem] border border-[rgba(29,23,16,0.08)] bg-[rgba(255,255,255,0.88)] p-5">
+            <div className="document-break-inside-avoid rounded-[1.4rem] border border-[rgba(29,23,16,0.08)] bg-[rgba(255,255,255,0.88)] p-5">
               <p className="text-[0.68rem] uppercase tracking-[0.25em] text-[rgba(29,23,16,0.45)]">Terms</p>
               <p className="mt-3 text-sm leading-7 text-[rgba(29,23,16,0.82)]">{document.terms}</p>
             </div>
           ) : null}
           {document.bankName || document.bankAccountNumber || document.bankIfsc ? (
-            <div className="rounded-[1.4rem] border border-[rgba(29,23,16,0.08)] bg-[rgba(255,255,255,0.88)] p-5">
+            <div className="document-break-inside-avoid rounded-[1.4rem] border border-[rgba(29,23,16,0.08)] bg-[rgba(255,255,255,0.88)] p-5">
               <p className="text-[0.68rem] uppercase tracking-[0.25em] text-[rgba(29,23,16,0.45)]">Bank details</p>
               <div className="mt-3 space-y-1.5 text-sm leading-6 text-[rgba(29,23,16,0.82)]">
                 {document.bankName ? <p>{document.bankName}</p> : null}
@@ -176,7 +176,7 @@ export function ProfessionalInvoiceTemplate({
             </div>
           ) : null}
         </div>
-        <div className="rounded-[1.4rem] border border-[rgba(29,23,16,0.08)] bg-[rgba(255,255,255,0.96)] p-5">
+        <div className="document-break-inside-avoid rounded-[1.4rem] border border-[rgba(29,23,16,0.08)] bg-[rgba(255,255,255,0.96)] p-5">
           <SummaryRow label="Subtotal" value={document.subtotalFormatted} />
           <SummaryRow label="Line discount" value={document.totalDiscountFormatted} />
           <SummaryRow label="Tax" value={document.totalTaxFormatted} />

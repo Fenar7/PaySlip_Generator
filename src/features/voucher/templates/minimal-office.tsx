@@ -46,7 +46,7 @@ export function MinimalOfficeVoucherTemplate({
 
       <div
         className={cn(
-          "grid gap-4",
+          "document-break-inside-avoid grid gap-4",
           printLikeMode ? "grid-cols-[1.15fr_0.85fr]" : "md:grid-cols-[1.15fr_0.85fr]",
         )}
       >
@@ -103,7 +103,7 @@ export function MinimalOfficeVoucherTemplate({
         </aside>
       </div>
 
-      <section className="rounded-[1.5rem] border border-[rgba(29,23,16,0.08)] bg-[rgba(255,255,255,0.9)] p-5">
+      <section className="document-break-inside-avoid rounded-[1.5rem] border border-[rgba(29,23,16,0.08)] bg-[rgba(255,255,255,0.9)] p-5">
         <p className="text-[0.68rem] font-semibold uppercase tracking-[0.25em] text-[rgba(29,23,16,0.45)]">
           Purpose / Narration
         </p>
@@ -113,7 +113,7 @@ export function MinimalOfficeVoucherTemplate({
       </section>
 
       {document.notes ? (
-        <section className="rounded-[1.5rem] border border-dashed border-[rgba(29,23,16,0.12)] bg-[rgba(255,255,255,0.72)] p-5">
+        <section className="document-break-inside-avoid rounded-[1.5rem] border border-dashed border-[rgba(29,23,16,0.12)] bg-[rgba(255,255,255,0.72)] p-5">
           <p className="text-[0.68rem] font-semibold uppercase tracking-[0.25em] text-[rgba(29,23,16,0.45)]">
             Notes
           </p>
@@ -126,7 +126,7 @@ export function MinimalOfficeVoucherTemplate({
       {document.visibility.showSignatureArea ? (
         <section
           className={cn(
-            "grid gap-4",
+            "document-break-inside-avoid grid gap-4",
             printLikeMode ? "grid-cols-2" : "md:grid-cols-2",
           )}
         >
