@@ -79,6 +79,10 @@ export const salarySlipDocumentSchema = z.object({
   visibility: visibilitySchema,
 });
 
+export const salarySlipExportRequestSchema = z.object({
+  document: salarySlipDocumentSchema,
+});
+
 export const salarySlipFormSchema = z
   .object({
     templateId: z.enum(["corporate-clean", "modern-premium"]),

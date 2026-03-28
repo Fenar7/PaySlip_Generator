@@ -1,3 +1,4 @@
+import type { JSX } from "react";
 import type {
   SalarySlipDocument,
   SalarySlipTemplateId,
@@ -9,7 +10,13 @@ export const salarySlipTemplateRegistry: Record<
   SalarySlipTemplateId,
   {
     name: string;
-    component: ({ document }: { document: SalarySlipDocument }) => React.JSX.Element;
+    component: ({
+      document,
+      mode,
+    }: {
+      document: SalarySlipDocument;
+      mode?: "preview" | "print" | "pdf" | "png";
+    }) => JSX.Element;
   }
 > = {
   "corporate-clean": {

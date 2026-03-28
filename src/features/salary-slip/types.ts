@@ -79,3 +79,5 @@ export type SalarySlipDocument = {
   preparedBy?: string;
   visibility: SalarySlipVisibilityConfig;
 };
+
+export type SalarySlipExportFormat = "pdf" | "png";
