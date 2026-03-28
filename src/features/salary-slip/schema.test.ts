@@ -1,6 +1,7 @@
 import { salarySlipDefaultValues } from "@/features/salary-slip/constants";
 import {
   salarySlipDocumentSchema,
+  salarySlipExportRequestSchema,
   salarySlipFormSchema,
 } from "@/features/salary-slip/schema";
 import { normalizeSalarySlip } from "@/features/salary-slip/utils/normalize-salary-slip";
@@ -23,5 +24,13 @@ describe("salary slip schema", () => {
     const document = normalizeSalarySlip(salarySlipDefaultValues);
 
     expect(salarySlipDocumentSchema.safeParse(document).success).toBe(true);
+  });
+
+  it("accepts the salary slip export request payload", () => {
+    const document = normalizeSalarySlip(salarySlipDefaultValues);
+
+    expect(
+      salarySlipExportRequestSchema.safeParse({ document }).success,
+    ).toBe(true);
   });
 });

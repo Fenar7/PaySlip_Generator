@@ -1,7 +1,9 @@
+import { cn } from "@/lib/utils";
 import type { SalarySlipDocument } from "@/features/salary-slip/types";
 
 type SalarySlipTemplateProps = {
   document: SalarySlipDocument;
+  mode?: "preview" | "print" | "pdf" | "png";
 };
 
 function SummaryCard({
@@ -42,7 +44,10 @@ function SummaryCard({
 
 export function ModernPremiumSalarySlipTemplate({
   document,
+  mode = "preview",
 }: SalarySlipTemplateProps) {
+  const printLikeMode = mode !== "preview";
+
   return (
     <div className="space-y-6 text-[var(--voucher-ink)]">
       <section className="rounded-[1.6rem] border border-[rgba(29,23,16,0.08)] bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(247,241,232,0.96))] p-6">
@@ -73,12 +78,24 @@ export function ModernPremiumSalarySlipTemplate({
           </div>
         </div>
 
-        <div className="mt-6 grid gap-4 md:grid-cols-[1.15fr_0.85fr]">
+        <div
+          className={cn(
+            "mt-6 grid gap-4",
+            printLikeMode
+              ? "grid-cols-[1.15fr_0.85fr]"
+              : "md:grid-cols-[1.15fr_0.85fr]",
+          )}
+        >
           <div className="rounded-[1.35rem] border border-[rgba(29,23,16,0.08)] bg-white/88 p-5">
             <p className="text-[0.68rem] uppercase tracking-[0.25em] text-[rgba(29,23,16,0.45)]">
               Employee profile
             </p>
-            <div className="mt-4 grid gap-3 text-sm text-[rgba(29,23,16,0.78)] sm:grid-cols-2">
+            <div
+              className={cn(
+                "mt-4 grid gap-3 text-sm text-[rgba(29,23,16,0.78)]",
+                printLikeMode ? "grid-cols-2" : "sm:grid-cols-2",
+              )}
+            >
               {document.employeeId ? <p>Employee ID: {document.employeeId}</p> : null}
               {document.department ? <p>Department: {document.department}</p> : null}
               {document.designation ? <p>Designation: {document.designation}</p> : null}
@@ -97,12 +114,24 @@ export function ModernPremiumSalarySlipTemplate({
         </div>
       </section>
 
-      <section className="grid gap-4 lg:grid-cols-[1.05fr_0.95fr]">
+      <section
+        className={cn(
+          "grid gap-4",
+          printLikeMode
+            ? "grid-cols-[1.05fr_0.95fr]"
+            : "lg:grid-cols-[1.05fr_0.95fr]",
+        )}
+      >
         <div className="rounded-[1.35rem] border border-[rgba(29,23,16,0.08)] bg-[rgba(255,255,255,0.95)] p-5">
           <p className="text-[0.68rem] uppercase tracking-[0.25em] text-[rgba(29,23,16,0.45)]">
             Earnings and deductions
           </p>
-          <div className="mt-4 grid gap-4 sm:grid-cols-2">
+          <div
+            className={cn(
+              "mt-4 grid gap-4",
+              printLikeMode ? "grid-cols-2" : "sm:grid-cols-2",
+            )}
+          >
             <div>
               <p className="text-sm font-medium text-[rgba(29,23,16,0.72)]">Earnings</p>
               <div className="mt-3 divide-y divide-[rgba(29,23,16,0.08)]">
@@ -143,7 +172,12 @@ export function ModernPremiumSalarySlipTemplate({
               <p className="text-[0.68rem] uppercase tracking-[0.25em] text-[rgba(29,23,16,0.45)]">
                 Attendance summary
               </p>
-              <div className="mt-4 grid gap-3 text-sm text-[rgba(29,23,16,0.78)] sm:grid-cols-2">
+              <div
+                className={cn(
+                  "mt-4 grid gap-3 text-sm text-[rgba(29,23,16,0.78)]",
+                  printLikeMode ? "grid-cols-2" : "sm:grid-cols-2",
+                )}
+              >
                 {document.workingDays ? <p>Working days: {document.workingDays}</p> : null}
                 {document.paidDays ? <p>Paid days: {document.paidDays}</p> : null}
                 {document.leaveDays ? <p>Leave days: {document.leaveDays}</p> : null}
@@ -164,7 +198,12 @@ export function ModernPremiumSalarySlipTemplate({
       </section>
 
       {document.visibility.showSignature ? (
-        <section className="grid gap-4 md:grid-cols-2">
+        <section
+          className={cn(
+            "grid gap-4",
+            printLikeMode ? "grid-cols-2" : "md:grid-cols-2",
+          )}
+        >
           <div className="rounded-[1.35rem] border border-[rgba(29,23,16,0.08)] bg-[rgba(255,255,255,0.95)] p-5">
             <div className="h-16 border-b border-dashed border-[rgba(29,23,16,0.16)]" />
             <p className="mt-4 text-sm font-medium">

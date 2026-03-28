@@ -18,8 +18,28 @@ import { salarySlipDefaultValues, salarySlipTemplateOptions } from "@/features/s
 import { SalarySlipPreview } from "@/features/salary-slip/components/salary-slip-preview";
 import { salarySlipFormSchema } from "@/features/salary-slip/schema";
 import type { SalarySlipFormValues } from "@/features/salary-slip/types";
+import { buildSalarySlipFilename } from "@/features/salary-slip/utils/build-salary-slip-filename";
 import { normalizeSalarySlip } from "@/features/salary-slip/utils/normalize-salary-slip";
 import { cn } from "@/lib/utils";
+
+type SalarySlipActionState =
+  | { status: "idle" }
+  | { status: "pending"; action: "print" | "pdf" | "png" }
+  | { status: "error"; message: string };
+
+async function parseExportError(response: Response, format: "pdf" | "png") {
+  try {
+    const payload = (await response.json()) as { error?: string };
+
+    if (payload.error) {
+      return payload.error;
+    }
+  } catch {
+    // Ignore JSON parsing problems and fall back to the generic message below.
+  }
+
+  return `Unable to export the salary slip as ${format.toUpperCase()}.`;
+}
 
 function rowInputClass() {
   return cn(
@@ -96,13 +116,130 @@ function SalaryLineItemsEditor({
 }
 
 function SalarySlipPanel() {
-  const { control, setValue } = useFormContextSafe();
+  const { control, getValues, setValue, trigger } = useFormContextSafe();
   const values = useWatch({ control }) as SalarySlipFormValues;
   const [selectedTemplateId, setSelectedTemplateId] = useState(values.templateId);
   const previewDocumentWithTemplate = normalizeSalarySlip({
     ...values,
     templateId: selectedTemplateId,
   });
+  const [actionState, setActionState] = useState<SalarySlipActionState>({
+    status: "idle",
+  });
+
+  async function prepareDocument() {
+    const isValid = await trigger();
+
+    if (!isValid) {
+      setActionState({
+        status: "error",
+        message: "Complete the required salary slip fields before exporting.",
+      });
+      return null;
+    }
+
+    return normalizeSalarySlip({
+      ...getValues(),
+      templateId: selectedTemplateId,
+    });
+  }
+
+  async function handleDownload(format: "pdf" | "png") {
+    const document = await prepareDocument();
+
+    if (!document) {
+      return;
+    }
+
+    setActionState({ status: "pending", action: format });
+
+    try {
+      const response = await fetch(`/api/export/salary-slip/${format}`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ document }),
+      });
+
+      if (!response.ok) {
+        throw new Error(await parseExportError(response, format));
+      }
+
+      const blob = await response.blob();
+      const downloadUrl = URL.createObjectURL(blob);
+      const link = window.document.createElement("a");
+      link.href = downloadUrl;
+      link.download = buildSalarySlipFilename(document, format);
+      link.click();
+      URL.revokeObjectURL(downloadUrl);
+      setActionState({ status: "idle" });
+    } catch (error) {
+      setActionState({
+        status: "error",
+        message:
+          error instanceof Error
+            ? error.message
+            : `Unable to export the salary slip as ${format.toUpperCase()}.`,
+      });
+    }
+  }
+
+  async function handlePrint() {
+    const document = await prepareDocument();
+
+    if (!document) {
+      return;
+    }
+
+    const printWindow = window.open(
+      "about:blank",
+      "_blank",
+      "popup=yes,width=1060,height=1320",
+    );
+
+    if (!printWindow) {
+      setActionState({
+        status: "error",
+        message: "Allow popups to open the salary slip print surface.",
+      });
+      return;
+    }
+
+    setActionState({ status: "pending", action: "print" });
+
+    try {
+      const response = await fetch("/api/export/salary-slip/session", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ document }),
+      });
+
+      if (!response.ok) {
+        throw new Error("Unable to prepare the salary slip print surface.");
+      }
+
+      const payload = (await response.json()) as { printUrl?: string };
+
+      if (!payload.printUrl) {
+        throw new Error("Unable to prepare the salary slip print surface.");
+      }
+
+      printWindow.location.href = payload.printUrl;
+      setActionState({ status: "idle" });
+    } catch (error) {
+      printWindow.close();
+      setActionState({
+        status: "error",
+        message:
+          error instanceof Error
+            ? error.message
+            : "Unable to prepare the salary slip print surface.",
+      });
+    }
+  }
 
   return (
     <main className="relative isolate overflow-hidden">
@@ -130,13 +267,42 @@ function SalarySlipPanel() {
             </Link>
             <button
               type="button"
-              disabled
-              className="inline-flex cursor-not-allowed items-center justify-center rounded-full bg-[rgba(29,23,16,0.12)] px-4 py-2 text-sm font-medium text-[var(--foreground-soft)]"
+              onClick={handlePrint}
+              disabled={actionState.status === "pending"}
+              className="inline-flex items-center justify-center rounded-full border border-[var(--border-strong)] px-4 py-2 text-sm font-medium text-[var(--foreground)] transition-colors hover:bg-white disabled:cursor-wait disabled:opacity-65"
             >
-              Export next phase
+              {actionState.status === "pending" && actionState.action === "print"
+                ? "Preparing print"
+                : "Print salary slip"}
+            </button>
+            <button
+              type="button"
+              onClick={() => handleDownload("pdf")}
+              disabled={actionState.status === "pending"}
+              className="inline-flex items-center justify-center rounded-full bg-[var(--foreground)] px-4 py-2 text-sm font-medium text-[var(--background)] transition-colors hover:bg-[var(--foreground-soft)] disabled:cursor-wait disabled:opacity-65"
+            >
+              {actionState.status === "pending" && actionState.action === "pdf"
+                ? "Exporting PDF"
+                : "Export PDF"}
+            </button>
+            <button
+              type="button"
+              onClick={() => handleDownload("png")}
+              disabled={actionState.status === "pending"}
+              className="inline-flex items-center justify-center rounded-full bg-[rgba(29,23,16,0.12)] px-4 py-2 text-sm font-medium text-[var(--foreground-soft)] transition-colors hover:bg-[rgba(29,23,16,0.18)] disabled:cursor-wait disabled:opacity-65"
+            >
+              {actionState.status === "pending" && actionState.action === "png"
+                ? "Exporting PNG"
+                : "Export PNG"}
             </button>
           </div>
         </div>
+
+        {actionState.status === "error" ? (
+          <div className="rounded-[1.5rem] border border-[rgba(178,85,54,0.2)] bg-[rgba(178,85,54,0.08)] px-5 py-4 text-sm text-[var(--danger)]">
+            {actionState.message}
+          </div>
+        ) : null}
 
         <div className="grid gap-6 xl:grid-cols-[minmax(23rem,29rem)_minmax(0,1fr)]">
           <section className="rounded-[2rem] border border-[var(--border-strong)] bg-[var(--surface-elevated)] p-5 shadow-[var(--shadow-card)]">
@@ -150,7 +316,7 @@ function SalarySlipPanel() {
                 </h2>
               </div>
               <span className="rounded-full border border-[var(--border-soft)] px-3 py-1 text-xs text-[var(--muted-foreground)]">
-                Phase 3
+                Export ready
               </span>
             </div>
 

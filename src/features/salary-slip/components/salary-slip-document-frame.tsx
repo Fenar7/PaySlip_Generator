@@ -8,16 +8,19 @@ import type { SalarySlipDocument } from "@/features/salary-slip/types";
 
 type SalarySlipDocumentFrameProps = {
   document: SalarySlipDocument;
+  mode?: "preview" | "print" | "pdf" | "png";
 };
 
 export function SalarySlipDocumentFrame({
   document,
+  mode = "preview",
 }: SalarySlipDocumentFrameProps) {
   const template = salarySlipTemplateRegistry[document.templateId];
   const TemplateComponent = template.component;
 
   return (
     <article
+      data-testid={mode === "preview" ? undefined : "salary-slip-render-ready"}
       className="w-full bg-white p-8 text-[var(--voucher-ink)]"
       style={
         {
@@ -28,7 +31,7 @@ export function SalarySlipDocumentFrame({
         } as CSSProperties
       }
     >
-      <TemplateComponent document={document} />
+      <TemplateComponent document={document} mode={mode} />
     </article>
   );
 }

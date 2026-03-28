@@ -25,6 +25,65 @@ async function extractPdfText(pdfSource: string | Uint8Array) {
   return combinedText;
 }
 
+const salarySlipDocumentPayload = {
+  templateId: "corporate-clean",
+  title: "Salary Slip",
+  branding: {
+    companyName: "Northfield Trading Co.",
+    address: "18 Market Road, Kozhikode",
+    email: "accounts@northfield.example",
+    phone: "+91 98765 43210",
+    accentColor: "#c69854",
+  },
+  employeeName: "Arun Dev",
+  employeeId: "EMP-041",
+  department: "Operations",
+  designation: "Site Coordinator",
+  payPeriodLabel: "March 2026",
+  payDate: "31 Mar 2026",
+  workingDays: "31",
+  paidDays: "30",
+  leaveDays: "1",
+  lossOfPayDays: "0",
+  paymentMethod: "Bank transfer",
+  bankName: "Federal Bank",
+  bankAccountNumber: "XXXX2841",
+  earnings: [
+    { label: "Basic salary", amount: 32000, amountFormatted: "₹32,000.00" },
+    {
+      label: "House rent allowance",
+      amount: 12000,
+      amountFormatted: "₹12,000.00",
+    },
+    { label: "Travel allowance", amount: 3500, amountFormatted: "₹3,500.00" },
+  ],
+  deductions: [
+    { label: "Provident fund", amount: 1800, amountFormatted: "₹1,800.00" },
+    { label: "Professional tax", amount: 200, amountFormatted: "₹200.00" },
+  ],
+  totalEarnings: 47500,
+  totalDeductions: 2000,
+  netSalary: 45500,
+  totalEarningsFormatted: "₹47,500.00",
+  totalDeductionsFormatted: "₹2,000.00",
+  netSalaryFormatted: "₹45,500.00",
+  netSalaryInWords: "Forty five thousand five hundred only",
+  notes: "Salary credited after attendance review and travel settlement reconciliation.",
+  preparedBy: "Anita Thomas",
+  visibility: {
+    showAddress: true,
+    showEmail: true,
+    showPhone: true,
+    showEmployeeId: true,
+    showDepartment: true,
+    showDesignation: true,
+    showBankDetails: true,
+    showAttendance: true,
+    showNotes: true,
+    showSignature: true,
+  },
+} as const;
+
 test("home page exposes the module entry points", async ({ page }) => {
   await page.goto("/");
 
@@ -44,6 +103,12 @@ test("salary slip route renders the interactive workspace", async ({ page }) => 
 
   await expect(
     page.getByRole("heading", { name: "Salary Slip Generator", level: 1 }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: /print salary slip/i }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: /export pdf/i }),
   ).toBeVisible();
   await expect(page.getByRole("heading", { name: /template and branding/i })).toBeVisible();
   await expect(page.getByRole("heading", { name: /employee details/i })).toBeVisible();
@@ -97,6 +162,32 @@ test("salary slip route updates the preview as payroll rows change", async ({ pa
   await expect(page.getByText(/federal bank/i)).toHaveCount(0);
 });
 
+test("salary slip print surface renders the normalized document", async ({
+  page,
+  request,
+}) => {
+  const sessionResponse = await request.post("/api/export/salary-slip/session", {
+    data: {
+      document: salarySlipDocumentPayload,
+    },
+  });
+
+  expect(sessionResponse.ok()).toBeTruthy();
+
+  const sessionPayload = (await sessionResponse.json()) as { printUrl: string };
+  const printUrl = sessionPayload.printUrl.replace("&autoprint=1", "");
+
+  await page.goto(printUrl);
+  await expect(page.getByTestId("salary-slip-render-ready")).toBeVisible();
+
+  const employeeBox = await page.getByText("Arun Dev").first().boundingBox();
+  const netSalaryBox = await page.getByText("₹45,500.00").boundingBox();
+
+  expect(employeeBox).not.toBeNull();
+  expect(netSalaryBox).not.toBeNull();
+  expect(netSalaryBox!.x).toBeGreaterThan(employeeBox!.x + 280);
+});
+
 test("voucher print surface renders the normalized document", async ({ page }) => {
   await page.goto("/voucher");
 
@@ -117,6 +208,8 @@ test("voucher print surface renders the normalized document", async ({ page }) =
 });
 
 test("voucher PDF export keeps text selectable", async ({ request }) => {
+  test.setTimeout(180_000);
+
   const response = await request.post("/api/export/pdf", {
     data: {
       document: {
@@ -166,4 +259,37 @@ test("voucher PDF export keeps text selectable", async ({ request }) => {
   expect(pdfText).toContain("Northfield Trading Co.");
   expect(pdfText).toContain("PV-2026-014");
   expect(pdfText).toContain("Rahul Menon");
+});
+
+test("salary slip PDF export keeps text selectable", async ({ request }) => {
+  test.setTimeout(180_000);
+
+  const response = await request.post("/api/export/salary-slip/pdf", {
+    data: {
+      document: salarySlipDocumentPayload,
+    },
+  });
+
+  expect(response.ok()).toBeTruthy();
+  expect(response.headers()["content-type"]).toContain("application/pdf");
+
+  const pdfText = await extractPdfText(new Uint8Array(await response.body()));
+
+  expect(pdfText).toContain("Arun Dev");
+  expect(pdfText).toContain("Northfield Trading Co.");
+  expect(pdfText).toContain("March 2026");
+  expect(pdfText).toContain("Federal Bank");
+});
+
+test("salary slip PNG export returns an image response", async ({ request }) => {
+  test.setTimeout(180_000);
+
+  const response = await request.post("/api/export/salary-slip/png", {
+    data: {
+      document: salarySlipDocumentPayload,
+    },
+  });
+
+  expect(response.ok()).toBeTruthy();
+  expect(response.headers()["content-type"]).toContain("image/png");
 });
