@@ -1,15 +1,15 @@
-import { VoucherPrintSurface } from "@/features/voucher/components/voucher-print-surface";
-import { getVoucherExportSession } from "@/features/voucher/server/export-session-store";
+import { SalarySlipPrintSurface } from "@/features/salary-slip/components/salary-slip-print-surface";
+import { getSalarySlipExportSession } from "@/features/salary-slip/server/export-session-store";
 
 export const dynamic = "force-dynamic";
 
-type VoucherPrintPageProps = {
+type SalarySlipPrintPageProps = {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 };
 
-export default async function VoucherPrintPage({
+export default async function SalarySlipPrintPage({
   searchParams,
-}: VoucherPrintPageProps) {
+}: SalarySlipPrintPageProps) {
   const params = await searchParams;
   const token = typeof params.token === "string" ? params.token : "";
   const rawMode = typeof params.mode === "string" ? params.mode : "print";
@@ -20,8 +20,8 @@ export default async function VoucherPrintPage({
       : "print";
 
   return (
-    <VoucherPrintSurface
-      documentData={token ? getVoucherExportSession(token) : null}
+    <SalarySlipPrintSurface
+      documentData={token ? getSalarySlipExportSession(token) : null}
       mode={mode}
       autoPrint={autoPrint}
     />

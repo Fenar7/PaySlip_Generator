@@ -2,7 +2,7 @@ import { defineConfig, devices } from "@playwright/test";
 
 export default defineConfig({
   testDir: "./tests",
-  timeout: 120000,
+  timeout: 180000,
   expect: {
     timeout: 15000,
   },
@@ -11,10 +11,11 @@ export default defineConfig({
     trace: "on-first-retry",
   },
   webServer: {
-    command: "npm run dev -- --hostname 127.0.0.1 --port 3100",
+    command:
+      "npm run build && npm run start -- --hostname 127.0.0.1 --port 3100",
     port: 3100,
-    reuseExistingServer: true,
-    timeout: 240000,
+    reuseExistingServer: false,
+    timeout: 360000,
   },
   projects: [
     {

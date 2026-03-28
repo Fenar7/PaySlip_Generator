@@ -1,31 +1,31 @@
-import { VoucherDocumentFrame } from "@/features/voucher/components/voucher-document-frame";
-import { VoucherPrintEffects } from "@/features/voucher/components/voucher-print-effects";
-import type { VoucherDocument } from "@/features/voucher/types";
+import { SalarySlipDocumentFrame } from "@/features/salary-slip/components/salary-slip-document-frame";
+import { SalarySlipPrintEffects } from "@/features/salary-slip/components/salary-slip-print-effects";
+import type { SalarySlipDocument } from "@/features/salary-slip/types";
 
-type VoucherPrintSurfaceProps = {
-  documentData: VoucherDocument | null;
+type SalarySlipPrintSurfaceProps = {
+  documentData: SalarySlipDocument | null;
   mode: "print" | "pdf" | "png";
   autoPrint?: boolean;
 };
 
-export function VoucherPrintSurface({
+export function SalarySlipPrintSurface({
   documentData,
   mode,
   autoPrint = false,
-}: VoucherPrintSurfaceProps) {
+}: SalarySlipPrintSurfaceProps) {
   if (!documentData) {
     return (
       <main className="flex min-h-screen items-center justify-center bg-white px-6">
         <div className="max-w-md text-center">
           <p className="text-xs font-semibold uppercase tracking-[0.3em] text-[var(--muted-foreground)]">
-            Voucher render
+            Salary slip render
           </p>
           <h1 className="mt-4 text-3xl text-[var(--foreground)]">
             Render payload unavailable
           </h1>
           <p className="mt-4 text-base leading-7 text-[var(--muted-foreground)]">
-            Open this page through the voucher workspace so the normalized document
-            payload can be passed into the print surface.
+            Open this page through the salary slip workspace so the normalized
+            document payload can be passed into the print surface.
           </p>
         </div>
       </main>
@@ -39,8 +39,8 @@ export function VoucherPrintSurface({
 
   return (
     <main className={bodyClasses}>
-      <VoucherPrintEffects
-        title={`${documentData.title} ${documentData.voucherNumber}`}
+      <SalarySlipPrintEffects
+        title={`${documentData.title} ${documentData.employeeName} ${documentData.payPeriodLabel}`}
         autoPrint={mode === "print" && autoPrint}
       />
       <div
@@ -50,7 +50,7 @@ export function VoucherPrintSurface({
             : "mx-auto w-fit"
         }
       >
-        <VoucherDocumentFrame document={documentData} mode={mode} />
+        <SalarySlipDocumentFrame document={documentData} mode={mode} />
       </div>
     </main>
   );

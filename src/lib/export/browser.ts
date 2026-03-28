@@ -1,11 +1,11 @@
 import { existsSync } from "node:fs";
 import chromium from "@sparticuz/chromium";
-import { chromium as playwrightChromium } from "playwright-core";
+import puppeteer from "puppeteer";
 
 const LOCAL_EXECUTABLE_CANDIDATES = [
   process.env.CHROME_EXECUTABLE_PATH,
-  process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH,
-  playwrightChromium.executablePath(),
+  process.env.PUPPETEER_EXECUTABLE_PATH,
+  puppeteer.executablePath(),
   "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
   "/Applications/Chromium.app/Contents/MacOS/Chromium",
   "/usr/bin/google-chrome",
@@ -13,8 +13,8 @@ const LOCAL_EXECUTABLE_CANDIDATES = [
   "/usr/bin/chromium",
 ].filter(Boolean) as string[];
 
-async function resolveExecutablePath() {
-  if (process.platform === "linux") {
+export async function resolveExportBrowserExecutablePath() {
+  if (process.platform === "linux" && process.env.VERCEL) {
     return chromium.executablePath();
   }
 
@@ -29,20 +29,27 @@ async function resolveExecutablePath() {
   return localPath;
 }
 
-export async function launchExportBrowser() {
-  const executablePath = await resolveExecutablePath();
-  const isLinux = process.platform === "linux";
+export function getLocalExportBrowserArgs() {
+  return [
+    "--no-sandbox",
+    "--disable-setuid-sandbox",
+    "--disable-dev-shm-usage",
+    "--no-first-run",
+    "--no-default-browser-check",
+    "--disable-gpu",
+    "--disable-features=DialMediaRouteProvider,GlobalMediaControls",
+  ];
+}
 
-  return playwrightChromium.launch({
+export async function launchExportBrowser() {
+  const executablePath = await resolveExportBrowserExecutablePath();
+  const isServerlessLinux = process.platform === "linux" && process.env.VERCEL;
+
+  return puppeteer.launch({
     executablePath,
     headless: true,
-    args: isLinux
+    args: isServerlessLinux
       ? chromium.args
-      : [
-          "--disable-dev-shm-usage",
-          "--no-first-run",
-          "--no-default-browser-check",
-          "--disable-features=DialMediaRouteProvider,GlobalMediaControls",
-        ],
+      : getLocalExportBrowserArgs(),
   });
 }

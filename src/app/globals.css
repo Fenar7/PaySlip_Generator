@@ -1,3 +1,8 @@
+@import "@fontsource/inter/400.css";
+@import "@fontsource/inter/500.css";
+@import "@fontsource/inter/600.css";
+@import "@fontsource/source-serif-4/500.css";
+@import "@fontsource/source-serif-4/600.css";
 @import "tailwindcss";
 
 :root {
@@ -15,10 +20,8 @@
   --shadow-card: 0 24px 60px rgba(38, 30, 20, 0.08);
   --ink-soft: #84776a;
   --danger: #b25536;
-  --font-sans-stack:
-    "Avenir Next", "Helvetica Neue", "Segoe UI", "Inter", sans-serif;
-  --font-display-stack:
-    "Iowan Old Style", "Palatino Linotype", "Book Antiqua", Georgia, serif;
+  --font-sans-stack: "Inter", "Helvetica Neue", "Segoe UI", sans-serif;
+  --font-display-stack: "Source Serif 4", Georgia, serif;
 }
 
 @theme inline {

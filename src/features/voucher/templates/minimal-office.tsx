@@ -1,7 +1,9 @@
+import { cn } from "@/lib/utils";
 import type { VoucherDocument } from "@/features/voucher/types";
 
 type VoucherTemplateProps = {
   document: VoucherDocument;
+  mode?: "preview" | "print" | "pdf" | "png";
 };
 
 function HeaderBrand({ document }: VoucherTemplateProps) {
@@ -51,14 +53,27 @@ function HeaderBrand({ document }: VoucherTemplateProps) {
 
 export function MinimalOfficeVoucherTemplate({
   document,
+  mode = "preview",
 }: VoucherTemplateProps) {
+  const printLikeMode = mode !== "preview";
+
   return (
     <div className="space-y-6 text-[var(--voucher-ink)]">
       <HeaderBrand document={document} />
 
-      <div className="grid gap-4 md:grid-cols-[1.15fr_0.85fr]">
+      <div
+        className={cn(
+          "grid gap-4",
+          printLikeMode ? "grid-cols-[1.15fr_0.85fr]" : "md:grid-cols-[1.15fr_0.85fr]",
+        )}
+      >
         <section className="rounded-[1.5rem] border border-[rgba(29,23,16,0.08)] bg-[rgba(255,255,255,0.86)] p-5">
-          <div className="grid gap-4 sm:grid-cols-2">
+          <div
+            className={cn(
+              "grid gap-4",
+              printLikeMode ? "grid-cols-2" : "sm:grid-cols-2",
+            )}
+          >
             <div>
               <p className="text-[0.68rem] font-semibold uppercase tracking-[0.25em] text-[rgba(29,23,16,0.45)]">
                 Voucher no.
@@ -126,7 +141,12 @@ export function MinimalOfficeVoucherTemplate({
       ) : null}
 
       {document.visibility.showSignatureArea ? (
-        <section className="grid gap-4 md:grid-cols-2">
+        <section
+          className={cn(
+            "grid gap-4",
+            printLikeMode ? "grid-cols-2" : "md:grid-cols-2",
+          )}
+        >
           <div className="rounded-[1.5rem] border border-[rgba(29,23,16,0.08)] bg-[rgba(255,255,255,0.9)] p-5">
             <div className="h-16 border-b border-dashed border-[rgba(29,23,16,0.16)]" />
             <p className="mt-4 text-sm font-medium text-[rgba(29,23,16,0.82)]">

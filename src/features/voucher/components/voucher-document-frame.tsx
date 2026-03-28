@@ -8,7 +8,7 @@ import type { VoucherDocument } from "@/features/voucher/types";
 
 type VoucherDocumentFrameProps = {
   document: VoucherDocument;
-  mode?: "preview" | "print";
+  mode?: "preview" | "print" | "pdf" | "png";
 };
 
 export const VOUCHER_DOCUMENT_WIDTH = A4_DOCUMENT_WIDTH;
@@ -23,7 +23,7 @@ export function VoucherDocumentFrame({
 
   return (
     <article
-      data-testid={mode === "print" ? "voucher-render-ready" : undefined}
+      data-testid={mode === "preview" ? undefined : "voucher-render-ready"}
       className="w-full bg-white p-8 text-[var(--voucher-ink)]"
       style={
         {
@@ -34,7 +34,7 @@ export function VoucherDocumentFrame({
         } as CSSProperties
       }
     >
-      <TemplateComponent document={document} />
+      <TemplateComponent document={document} mode={mode} />
     </article>
   );
 }

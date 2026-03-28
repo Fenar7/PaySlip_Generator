@@ -1,6 +1,14 @@
-import { PDFDocument } from "pdf-lib";
+import { execFile } from "node:child_process";
+import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import type { VoucherDocument, VoucherExportFormat } from "@/features/voucher/types";
-import { launchExportBrowser } from "@/lib/export/browser";
+import { createVoucherExportSession } from "@/features/voucher/server/export-session-store";
+import {
+  getLocalExportBrowserArgs,
+  launchExportBrowser,
+  resolveExportBrowserExecutablePath,
+} from "@/lib/export/browser";
 
 type ExportVoucherOptions = {
   voucherDocument: VoucherDocument;
@@ -13,25 +21,67 @@ export async function exportVoucherDocument({
   format,
   origin,
 }: ExportVoucherOptions) {
+  const token = createVoucherExportSession(voucherDocument);
+  const routeMode = format === "pdf" ? "pdf" : "png";
+
+  if (format === "pdf") {
+    const executablePath = await resolveExportBrowserExecutablePath();
+    const outputDirectory = await mkdtemp(join(tmpdir(), "voucher-pdf-"));
+    const outputFile = join(outputDirectory, "voucher.pdf");
+    const pdfUrl = `${origin}/voucher/print?token=${encodeURIComponent(token)}&mode=${routeMode}`;
+    const cliArgs = process.platform === "linux" && process.env.VERCEL
+      ? [
+          "--headless=new",
+          "--disable-gpu",
+          "--print-to-pdf-no-header",
+          "--virtual-time-budget=5000",
+          `--print-to-pdf=${outputFile}`,
+          pdfUrl,
+        ]
+      : [
+          "--headless=new",
+          "--disable-gpu",
+          "--print-to-pdf-no-header",
+          "--virtual-time-budget=5000",
+          ...getLocalExportBrowserArgs(),
+          `--print-to-pdf=${outputFile}`,
+          pdfUrl,
+        ];
+
+    try {
+      await new Promise<void>((resolve, reject) => {
+        execFile(executablePath, cliArgs, (error) => {
+          if (error) {
+            reject(error);
+            return;
+          }
+
+          resolve();
+        });
+      });
+
+      return await readFile(outputFile);
+    } finally {
+      await rm(outputDirectory, { recursive: true, force: true });
+    }
+  }
+
   const browser = await launchExportBrowser();
 
   try {
-    const page = await browser.newPage({
-      viewport: {
-        width: 1200,
-        height: 1600,
-      },
+    const page = await browser.newPage();
+    await page.setViewport({
+      width: 1400,
+      height: 1800,
       deviceScaleFactor: format === "png" ? 2 : 1,
     });
-
-    await page.goto("about:blank");
-    await page.evaluate((payload) => {
-      window.name = JSON.stringify(payload);
-    }, { document: voucherDocument });
-
-    await page.goto(`${origin}/voucher/print?mode=export`, {
-      waitUntil: "domcontentloaded",
-    });
+    await page.emulateMediaType("screen");
+    await page.goto(
+      `${origin}/voucher/print?token=${encodeURIComponent(token)}&mode=${routeMode}`,
+      {
+        waitUntil: "networkidle0",
+      },
+    );
     await page.waitForSelector('[data-testid="voucher-render-ready"]');
     await page.evaluate(async () => {
       const fontSet = (document as Document & {
@@ -67,33 +117,15 @@ export async function exportVoucherDocument({
       );
     });
 
-    const voucherRender = page.getByTestId("voucher-render-ready");
-    const screenshotBuffer =
-      format === "png"
-        ? await voucherRender.screenshot({
-            type: "png",
-          })
-        : await voucherRender.screenshot({
-            type: "jpeg",
-            quality: 88,
-          });
+    const voucherRender = await page.$('[data-testid="voucher-render-ready"]');
 
-    if (format === "png") {
-      return screenshotBuffer;
+    if (!voucherRender) {
+      throw new Error("Voucher render surface did not become available.");
     }
 
-    const pdfDocument = await PDFDocument.create();
-    const pdfPage = pdfDocument.addPage([595.28, 841.89]);
-    const embeddedImage = await pdfDocument.embedJpg(screenshotBuffer);
-
-    pdfPage.drawImage(embeddedImage, {
-      x: 0,
-      y: 0,
-      width: pdfPage.getWidth(),
-      height: pdfPage.getHeight(),
+    return voucherRender.screenshot({
+      type: "png",
     });
-
-    return pdfDocument.save();
   } finally {
     await browser.close();
   }
