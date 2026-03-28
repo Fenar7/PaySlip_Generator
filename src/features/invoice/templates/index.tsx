@@ -7,7 +7,13 @@ export const invoiceTemplateRegistry: Record<
   InvoiceTemplateId,
   {
     name: string;
-    component: ({ document }: { document: InvoiceDocument }) => React.JSX.Element;
+    component: ({
+      document,
+      mode,
+    }: {
+      document: InvoiceDocument;
+      mode?: "preview" | "print" | "pdf" | "png";
+    }) => React.JSX.Element;
   }
 > = {
   minimal: {

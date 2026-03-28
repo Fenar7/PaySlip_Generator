@@ -1,3 +1,4 @@
+import { cn } from "@/lib/utils";
 import type { InvoiceDocument } from "@/features/invoice/types";
 
 function InvoiceTable({ document }: { document: InvoiceDocument }) {
@@ -33,9 +34,13 @@ function InvoiceTable({ document }: { document: InvoiceDocument }) {
 
 export function MinimalInvoiceTemplate({
   document,
+  mode = "preview",
 }: {
   document: InvoiceDocument;
+  mode?: "preview" | "print" | "pdf" | "png";
 }) {
+  const printLike = mode !== "preview";
+
   return (
     <div className="space-y-6 text-[var(--voucher-ink)]">
       <section className="flex items-start justify-between gap-6 border-b border-[rgba(29,23,16,0.08)] pb-6">
@@ -82,7 +87,12 @@ export function MinimalInvoiceTemplate({
         </div>
       </section>
 
-      <section className="grid gap-4 md:grid-cols-[1.1fr_0.9fr]">
+      <section
+        className={cn(
+          "grid gap-4",
+          printLike ? "grid-cols-[1.1fr_0.9fr]" : "md:grid-cols-[1.1fr_0.9fr]",
+        )}
+      >
         <div className="rounded-[1.5rem] border border-[rgba(29,23,16,0.08)] bg-[rgba(255,255,255,0.86)] p-5">
           <p className="text-[0.68rem] font-semibold uppercase tracking-[0.25em] text-[rgba(29,23,16,0.45)]">
             Bill to
@@ -105,7 +115,12 @@ export function MinimalInvoiceTemplate({
 
       <InvoiceTable document={document} />
 
-      <section className="grid gap-4 md:grid-cols-[1fr_18rem]">
+      <section
+        className={cn(
+          "grid gap-4",
+          printLike ? "grid-cols-[1fr_18rem]" : "md:grid-cols-[1fr_18rem]",
+        )}
+      >
         <div className="space-y-4">
           {document.notes ? (
             <div className="rounded-[1.5rem] border border-dashed border-[rgba(29,23,16,0.12)] bg-[rgba(255,255,255,0.72)] p-5">

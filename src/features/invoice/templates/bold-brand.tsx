@@ -1,10 +1,15 @@
+import { cn } from "@/lib/utils";
 import type { InvoiceDocument } from "@/features/invoice/types";
 
 export function BoldBrandInvoiceTemplate({
   document,
+  mode = "preview",
 }: {
   document: InvoiceDocument;
+  mode?: "preview" | "print" | "pdf" | "png";
 }) {
+  const printLike = mode !== "preview";
+
   return (
     <div className="space-y-6 text-[var(--voucher-ink)]">
       <section
@@ -37,7 +42,12 @@ export function BoldBrandInvoiceTemplate({
         </div>
       </section>
 
-      <section className="grid gap-4 md:grid-cols-[0.95fr_1.05fr]">
+      <section
+        className={cn(
+          "grid gap-4",
+          printLike ? "grid-cols-[0.95fr_1.05fr]" : "md:grid-cols-[0.95fr_1.05fr]",
+        )}
+      >
         <div className="rounded-[1.5rem] border border-[rgba(29,23,16,0.08)] bg-[rgba(255,255,255,0.92)] p-5">
           <p className="text-[0.68rem] uppercase tracking-[0.25em] text-[rgba(29,23,16,0.45)]">Bill to</p>
           <p className="mt-3 text-lg font-medium">{document.clientName}</p>
@@ -48,7 +58,12 @@ export function BoldBrandInvoiceTemplate({
           </div>
         </div>
         <div className="rounded-[1.5rem] border border-[rgba(29,23,16,0.08)] bg-[rgba(255,255,255,0.92)] p-5">
-          <div className="grid gap-3 text-sm md:grid-cols-2">
+          <div
+            className={cn(
+              "grid gap-3 text-sm",
+              printLike ? "grid-cols-2" : "md:grid-cols-2",
+            )}
+          >
             <div>
               <p className="text-[0.68rem] uppercase tracking-[0.25em] text-[rgba(29,23,16,0.45)]">Invoice date</p>
               <p className="mt-2 font-medium">{document.invoiceDate}</p>
@@ -96,7 +111,12 @@ export function BoldBrandInvoiceTemplate({
         </table>
       </section>
 
-      <section className="grid gap-4 md:grid-cols-[1fr_18rem]">
+      <section
+        className={cn(
+          "grid gap-4",
+          printLike ? "grid-cols-[1fr_18rem]" : "md:grid-cols-[1fr_18rem]",
+        )}
+      >
         <div className="space-y-4">
           {document.notes ? (
             <div className="rounded-[1.5rem] border border-[rgba(29,23,16,0.08)] bg-[rgba(255,255,255,0.9)] p-5">

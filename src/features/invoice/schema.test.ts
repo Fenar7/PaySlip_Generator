@@ -1,5 +1,9 @@
 import { invoiceDefaultValues } from "@/features/invoice/constants";
-import { validateInvoiceForm } from "@/features/invoice/schema";
+import {
+  invoiceExportRequestSchema,
+  validateInvoiceForm,
+} from "@/features/invoice/schema";
+import { normalizeInvoice } from "@/features/invoice/utils/normalize-invoice";
 
 describe("validateInvoiceForm", () => {
   it("rejects line discounts above the base amount", () => {
@@ -45,5 +49,12 @@ describe("validateInvoiceForm", () => {
     expect(result.error?.flatten().fieldErrors.dueDate).toContain(
       "Due date cannot be earlier than the invoice date.",
     );
+  });
+
+  it("accepts normalized invoice export payloads", () => {
+    const document = normalizeInvoice(invoiceDefaultValues);
+    const result = invoiceExportRequestSchema.safeParse({ document });
+
+    expect(result.success).toBe(true);
   });
 });

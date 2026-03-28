@@ -6,16 +6,21 @@ import {
 import { invoiceTemplateRegistry } from "@/features/invoice/templates";
 import type { InvoiceDocument } from "@/features/invoice/types";
 
+type InvoiceDocumentFrameProps = {
+  document: InvoiceDocument;
+  mode?: "preview" | "print" | "pdf" | "png";
+};
+
 export function InvoiceDocumentFrame({
   document,
-}: {
-  document: InvoiceDocument;
-}) {
+  mode = "preview",
+}: InvoiceDocumentFrameProps) {
   const template = invoiceTemplateRegistry[document.templateId];
   const TemplateComponent = template.component;
 
   return (
     <article
+      data-testid={mode === "preview" ? undefined : "invoice-render-ready"}
       className="w-full bg-white p-8 text-[var(--voucher-ink)]"
       style={
         {
@@ -26,7 +31,7 @@ export function InvoiceDocumentFrame({
         } as CSSProperties
       }
     >
-      <TemplateComponent document={document} />
+      <TemplateComponent document={document} mode={mode} />
     </article>
   );
 }

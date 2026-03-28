@@ -1,3 +1,4 @@
+import { cn } from "@/lib/utils";
 import type { InvoiceDocument } from "@/features/invoice/types";
 
 function SummaryRow({
@@ -19,13 +20,22 @@ function SummaryRow({
 
 export function ProfessionalInvoiceTemplate({
   document,
+  mode = "preview",
 }: {
   document: InvoiceDocument;
+  mode?: "preview" | "print" | "pdf" | "png";
 }) {
+  const printLike = mode !== "preview";
+
   return (
     <div className="space-y-6 text-[var(--voucher-ink)]">
       <section className="rounded-[1.75rem] border border-[rgba(29,23,16,0.08)] bg-[rgba(255,255,255,0.92)]">
-        <div className="grid gap-5 border-b border-[rgba(29,23,16,0.08)] p-6 md:grid-cols-[1.2fr_0.8fr]">
+        <div
+          className={cn(
+            "grid gap-5 border-b border-[rgba(29,23,16,0.08)] p-6",
+            printLike ? "grid-cols-[1.2fr_0.8fr]" : "md:grid-cols-[1.2fr_0.8fr]",
+          )}
+        >
           <div>
             <p className="text-[0.68rem] uppercase tracking-[0.32em] text-[rgba(29,23,16,0.45)]">
               {document.title}
@@ -58,7 +68,12 @@ export function ProfessionalInvoiceTemplate({
           </div>
         </div>
 
-        <div className="grid gap-4 p-6 md:grid-cols-[1fr_18rem]">
+        <div
+          className={cn(
+            "grid gap-4 p-6",
+            printLike ? "grid-cols-[1fr_18rem]" : "md:grid-cols-[1fr_18rem]",
+          )}
+        >
           <div className="rounded-[1.4rem] border border-[rgba(29,23,16,0.08)] bg-white p-5">
             <p className="text-[0.68rem] uppercase tracking-[0.25em] text-[rgba(29,23,16,0.45)]">Client details</p>
             <p className="mt-3 text-base font-medium">{document.clientName}</p>
@@ -103,7 +118,12 @@ export function ProfessionalInvoiceTemplate({
         </table>
       </section>
 
-      <section className="grid gap-4 md:grid-cols-[1fr_18rem]">
+      <section
+        className={cn(
+          "grid gap-4",
+          printLike ? "grid-cols-[1fr_18rem]" : "md:grid-cols-[1fr_18rem]",
+        )}
+      >
         <div className="space-y-4">
           {document.notes ? (
             <div className="rounded-[1.4rem] border border-[rgba(29,23,16,0.08)] bg-[rgba(255,255,255,0.88)] p-5">
