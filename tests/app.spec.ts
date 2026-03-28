@@ -249,6 +249,11 @@ test("invoice route renders the interactive workspace", async ({ page }) => {
   await expect(page.getByRole("heading", { name: /invoice metadata/i })).toBeVisible();
   await expect(page.getByRole("heading", { name: /line items and totals/i })).toBeVisible();
   await expect(page.getByText(/tax invoice · professional/i)).toBeVisible();
+  await expect(
+    page.getByTestId("document-preview-viewport").evaluate((element) => {
+      return element.scrollHeight <= element.clientHeight + 1;
+    }),
+  ).resolves.toBe(true);
 });
 
 test("voucher route supports template changes and live visibility updates", async ({
