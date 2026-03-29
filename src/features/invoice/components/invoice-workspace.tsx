@@ -1,9 +1,13 @@
 "use client";
 
-import Link from "next/link";
 import { useState } from "react";
 import { FormProvider, useFieldArray, useForm, useFormContext, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
+import {
+  DocumentWorkspaceLayout,
+  type WorkspaceAction,
+  type WorkspaceSectionMeta,
+} from "@/components/foundation/document-workspace-layout";
 import { FieldShell } from "@/components/forms/field-shell";
 import { FormSection } from "@/components/forms/form-section";
 import {
@@ -27,6 +31,15 @@ type InvoiceActionState =
   | { status: "pending"; action: "print" | "pdf" | "png" }
   | { status: "error"; message: string };
 
+const invoiceWorkspaceSections: WorkspaceSectionMeta[] = [
+  { id: "invoice-setup", label: "Setup" },
+  { id: "invoice-client", label: "Client" },
+  { id: "invoice-meta", label: "Meta" },
+  { id: "invoice-billing", label: "Billing" },
+  { id: "invoice-footer", label: "Footer" },
+  { id: "invoice-visibility", label: "Visibility" },
+];
+
 async function parseExportError(response: Response, format: "pdf" | "png") {
   try {
     const payload = (await response.json()) as { error?: string };
@@ -43,7 +56,7 @@ async function parseExportError(response: Response, format: "pdf" | "png") {
 
 function rowInputClass() {
   return cn(
-    "w-full rounded-[1rem] border border-[var(--border-soft)] bg-white px-4 py-3 text-sm text-[var(--foreground)] shadow-[0_12px_30px_rgba(38,30,20,0.04)] outline-none transition-colors focus:border-[var(--accent)]",
+    "w-full rounded-[1rem] border border-[var(--border-soft)] bg-white px-4 py-3 text-sm text-[var(--foreground)] shadow-[0_10px_24px_rgba(15,23,42,0.04)] outline-none transition-colors focus:border-[var(--accent)]",
   );
 }
 
@@ -263,85 +276,54 @@ function InvoicePanel() {
   }
 
   return (
-    <main className="slipwise-shell-bg relative isolate overflow-hidden">
-      <div className="absolute inset-x-0 top-0 -z-10 h-[34rem] bg-[radial-gradient(circle_at_top,rgba(45,107,255,0.18),transparent_36%),radial-gradient(circle_at_80%_10%,rgba(103,203,255,0.12),transparent_26%)]" />
-      <div className="mx-auto flex w-full max-w-[var(--container-shell)] flex-col gap-8 px-4 py-8 sm:px-5 lg:px-6 lg:py-12">
-        <div className="flex flex-col gap-6 rounded-[2.5rem] border border-[var(--border-strong)] bg-[linear-gradient(180deg,rgba(255,255,255,0.92),rgba(245,248,253,0.96))] p-6 shadow-[var(--shadow-card)] backdrop-blur-sm lg:flex-row lg:items-end lg:justify-between">
-          <div className="max-w-3xl">
-            <p className="text-[0.68rem] font-semibold uppercase tracking-[0.34em] text-[var(--muted-foreground)]">
-              Invoice workspace
-            </p>
-            <h1 className="mt-4 max-w-2xl text-[2.6rem] leading-[0.98] tracking-[-0.05em] text-[var(--foreground)] md:text-[3.6rem]">
-              Invoice Generator
-            </h1>
-            <p className="mt-4 max-w-2xl text-[1.02rem] leading-8 text-[var(--muted-foreground)]">
-              Build client-ready invoices with branded headers, tax-aware line items,
-              clear totals, and a live A4 preview ready for the export phase.
-            </p>
-          </div>
-          <div className="flex flex-wrap gap-3">
-            <Link
-              href="/"
-              className="inline-flex items-center justify-center rounded-full border border-[var(--border-strong)] bg-white px-4 py-2 text-sm font-medium text-[var(--foreground)] shadow-[0_10px_24px_rgba(15,23,42,0.04)] transition-colors hover:bg-[var(--surface-accent)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--background)]"
-            >
-              Back to home
-            </Link>
-            <button
-              type="button"
-              onClick={handlePrint}
-              disabled={actionState.status === "pending"}
-              className="inline-flex items-center justify-center rounded-full border border-[var(--border-strong)] bg-white px-4 py-2 text-sm font-medium text-[var(--foreground)] shadow-[0_10px_24px_rgba(15,23,42,0.04)] transition-colors hover:bg-[var(--surface-accent)] disabled:cursor-wait disabled:opacity-65"
-            >
-              {actionState.status === "pending" && actionState.action === "print"
-                ? "Preparing print"
-                : "Print invoice"}
-            </button>
-            <button
-              type="button"
-              onClick={() => handleDownload("pdf")}
-              disabled={actionState.status === "pending"}
-              className="inline-flex items-center justify-center rounded-full bg-[linear-gradient(135deg,var(--foreground),#1f2937)] px-4 py-2 text-sm font-medium text-[var(--background)] shadow-[0_16px_32px_rgba(15,23,42,0.14)] transition-colors hover:bg-[var(--foreground-soft)] disabled:cursor-wait disabled:opacity-65"
-            >
-              {actionState.status === "pending" && actionState.action === "pdf"
-                ? "Exporting PDF"
-                : "Export PDF"}
-            </button>
-            <button
-              type="button"
-              onClick={() => handleDownload("png")}
-              disabled={actionState.status === "pending"}
-              className="inline-flex items-center justify-center rounded-full bg-[var(--surface-accent)] px-4 py-2 text-sm font-medium text-[var(--foreground-soft)] shadow-[0_10px_24px_rgba(15,23,42,0.05)] transition-colors hover:bg-[var(--surface-accent-strong)] disabled:cursor-wait disabled:opacity-65"
-            >
-              {actionState.status === "pending" && actionState.action === "png"
-                ? "Exporting PNG"
-                : "Export PNG"}
-            </button>
-          </div>
-        </div>
-
-        {actionState.status === "error" ? (
-          <div className="rounded-[1.5rem] border border-[rgba(220,38,38,0.16)] bg-[rgba(220,38,38,0.06)] px-5 py-4 text-sm text-[var(--danger)] shadow-[var(--shadow-soft)]">
-            {actionState.message}
-          </div>
-        ) : null}
-
-        <div className="grid gap-6 xl:grid-cols-[minmax(23rem,29rem)_minmax(0,1fr)]">
-          <section className="rounded-[2.25rem] border border-[var(--border-strong)] bg-[linear-gradient(180deg,rgba(255,255,255,0.94),rgba(245,248,253,0.96))] p-5 shadow-[var(--shadow-soft)]">
-            <div className="mb-6 flex items-center justify-between">
-              <div>
-                <p className="text-[0.68rem] font-semibold uppercase tracking-[0.34em] text-[var(--muted-foreground)]">
-                  Invoice controls
-                </p>
-                <h2 className="mt-3 text-[1.55rem] leading-tight tracking-[-0.04em] text-[var(--foreground)]">
-                  Client-facing billing builder
-                </h2>
-              </div>
-              <span className="rounded-full border border-[var(--border-soft)] bg-white px-3 py-1 text-[0.68rem] font-semibold uppercase tracking-[0.24em] text-[var(--muted-foreground)] shadow-[0_8px_18px_rgba(15,23,42,0.04)]">
-                Export ready
-              </span>
-            </div>
-
-            <div className="space-y-4">
+    <DocumentWorkspaceLayout
+      eyebrow="Invoice workspace"
+      title="Invoice Generator"
+      description="Build client-ready invoices in a cleaner billing workspace with structured details, live preview, and export actions that stay easy to reach."
+      actions={[
+        { id: "home", label: "Back to home", href: "/", variant: "secondary" },
+        {
+          id: "print",
+          label:
+            actionState.status === "pending" && actionState.action === "print"
+              ? "Preparing print"
+              : "Print invoice",
+          onClick: handlePrint,
+          disabled: actionState.status === "pending",
+          variant: "secondary",
+        },
+        {
+          id: "pdf",
+          label:
+            actionState.status === "pending" && actionState.action === "pdf"
+              ? "Exporting PDF"
+              : "Export PDF",
+          onClick: () => handleDownload("pdf"),
+          disabled: actionState.status === "pending",
+          variant: "primary",
+        },
+        {
+          id: "png",
+          label:
+            actionState.status === "pending" && actionState.action === "png"
+              ? "Exporting PNG"
+              : "Export PNG",
+          onClick: () => handleDownload("png"),
+          disabled: actionState.status === "pending",
+          variant: "subtle",
+        },
+      ] satisfies WorkspaceAction[]}
+      errorMessage={actionState.status === "error" ? actionState.message : undefined}
+      builderEyebrow="Invoice controls"
+      builderTitle="Build the invoice"
+      builderDescription="Move from setup through client details, billing rows, and footer controls while keeping the live document visible."
+      sections={invoiceWorkspaceSections}
+      previewEyebrow="Preview"
+      previewTitle="Live A4 document"
+      previewDescription="Review the invoice while you edit. Branding, line items, taxes, and payment summary update immediately."
+      builderContent={
+        <>
+          <div id="invoice-setup" className="scroll-mt-28">
               <FormSection
                 eyebrow="Template"
                 title="Template and branding"
@@ -430,7 +412,9 @@ function InvoicePanel() {
                   />
                 </div>
               </FormSection>
+          </div>
 
+          <div id="invoice-client" className="scroll-mt-28">
               <FormSection
                 eyebrow="Client"
                 title="Client details"
@@ -472,7 +456,9 @@ function InvoicePanel() {
                   placeholder="GSTIN 32AAACA1122R1ZV"
                 />
               </FormSection>
+          </div>
 
+          <div id="invoice-meta" className="scroll-mt-28">
               <FormSection
                 eyebrow="Meta"
                 title="Invoice metadata"
@@ -511,7 +497,9 @@ function InvoicePanel() {
                   />
                 </div>
               </FormSection>
+          </div>
 
+          <div id="invoice-billing" className="scroll-mt-28">
               <FormSection
                 eyebrow="Billing"
                 title="Line items and totals"
@@ -533,7 +521,9 @@ function InvoicePanel() {
                   />
                 </div>
               </FormSection>
+          </div>
 
+          <div id="invoice-footer" className="scroll-mt-28">
               <FormSection
                 eyebrow="Footer"
                 title="Notes, terms, bank details, and signature"
@@ -576,7 +566,9 @@ function InvoicePanel() {
                   />
                 </div>
               </FormSection>
+          </div>
 
+          <div id="invoice-visibility" className="scroll-mt-28">
               <FormSection
                 eyebrow="Visibility"
                 title="Optional sections"
@@ -653,15 +645,11 @@ function InvoicePanel() {
                   />
                 </div>
               </FormSection>
-            </div>
-          </section>
-
-          <section>
-            <InvoicePreview document={previewDocument} />
-          </section>
-        </div>
-      </div>
-    </main>
+          </div>
+        </>
+      }
+      previewContent={<InvoicePreview document={previewDocument} />}
+    />
   );
 }
 

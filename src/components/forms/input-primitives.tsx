@@ -12,7 +12,7 @@ import { cn } from "@/lib/utils";
 
 function baseInputClass(hasError?: boolean) {
   return cn(
-    "w-full rounded-[1rem] border bg-white px-4 py-3 text-sm text-[var(--foreground)] shadow-[0_12px_30px_rgba(38,30,20,0.04)] outline-none transition-colors",
+    "w-full rounded-[1rem] border bg-white px-4 py-3 text-sm text-[var(--foreground)] shadow-[0_10px_24px_rgba(15,23,42,0.04)] outline-none transition-colors",
     hasError
       ? "border-[var(--danger)] focus:border-[var(--danger)]"
       : "border-[var(--border-soft)] focus:border-[var(--accent)]",
@@ -182,7 +182,7 @@ export function ToggleField<TFormValues extends FieldValues>({
             aria-checked={Boolean(field.value)}
             onClick={() => field.onChange(!field.value)}
             className={cn(
-              "flex w-full items-center justify-between rounded-[1rem] border px-4 py-3 text-left shadow-[0_12px_30px_rgba(38,30,20,0.04)]",
+              "flex w-full items-center justify-between rounded-[1rem] border px-4 py-3 text-left shadow-[0_10px_24px_rgba(15,23,42,0.04)]",
               field.value
                 ? "border-[var(--accent)] bg-white"
                 : "border-[var(--border-soft)] bg-white/80",
@@ -233,7 +233,7 @@ export function ColorField<TFormValues extends FieldValues>({
       hint={hint}
       error={typeof fieldError === "string" ? fieldError : undefined}
     >
-      <div className="flex items-center gap-3 rounded-[1rem] border border-[var(--border-soft)] bg-white px-3 py-2 shadow-[0_12px_30px_rgba(38,30,20,0.04)]">
+      <div className="flex items-center gap-3 rounded-[1rem] border border-[var(--border-soft)] bg-white px-3 py-2 shadow-[0_10px_24px_rgba(15,23,42,0.04)]">
         <input
           id={name}
           type="color"
@@ -272,7 +272,7 @@ export function FileUploadField<TFormValues extends FieldValues>({
           hint={hint}
           error={fieldState.error?.message}
         >
-          <div className="space-y-3 rounded-[1rem] border border-[var(--border-soft)] bg-white p-4 shadow-[0_12px_30px_rgba(38,30,20,0.04)]">
+          <div className="space-y-3 rounded-[1rem] border border-[var(--border-soft)] bg-white p-4 shadow-[0_10px_24px_rgba(15,23,42,0.04)]">
             <input
               type="file"
               accept="image/png,image/jpeg,image/webp,image/svg+xml"

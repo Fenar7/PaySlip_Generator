@@ -9,7 +9,7 @@ describe("SalarySlipPage", () => {
       screen.getByRole("heading", { name: "Salary Slip Generator", level: 1 }),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole("heading", { name: /payroll document builder/i }),
+      screen.getByRole("heading", { name: /build the payroll document/i }),
     ).toBeInTheDocument();
     expect(
       screen.getByRole("heading", { name: /template and branding/i }),
