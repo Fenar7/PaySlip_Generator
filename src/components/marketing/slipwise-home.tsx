@@ -2,9 +2,8 @@
 
 import Link from "next/link";
 import { motion } from "motion/react";
-import { ModuleCard } from "@/components/foundation/module-card";
+import { SlipwiseProductMockup } from "@/components/marketing/slipwise-product-mockup";
 import { cn } from "@/lib/utils";
-import { productModules } from "@/lib/modules";
 
 type SlipwiseHomeProps = {
   className?: string;
@@ -12,35 +11,38 @@ type SlipwiseHomeProps = {
 
 const featureCards = [
   {
-    title: "Live preview first",
-    body: "See every document update immediately in a clean A4 frame before exporting it.",
+    title: "Live preview that feels immediate",
+    body: "See every edit settle into a clean canvas before you export. The layout stays readable, premium, and easy to trust.",
   },
   {
-    title: "Brand-ready exports",
-    body: "Keep company identity, logos, and accent color aligned across all three generators.",
+    title: "Brand-ready documents",
+    body: "Logos, accent color, and company identity stay visually aligned across vouchers, salary slips, and invoices.",
   },
   {
-    title: "Minimal friction",
-    body: "No spreadsheet wrangling, no design tooling, no complex setup to create something professional.",
+    title: "One product, three workflows",
+    body: "Slipwise keeps the three document types inside one coherent SaaS experience instead of forcing a scattered toolchain.",
   },
   {
-    title: "Serverless deployability",
-    body: "The current architecture stays simple enough to ship on Vercel without extra infrastructure.",
+    title: "Deployable without platform overhead",
+    body: "The app remains serverless-friendly and easy to host on Vercel without introducing new infrastructure.",
   },
 ];
 
 const useCases = [
   {
-    title: "SMB Ops",
-    body: "Create vouchers and admin-facing approvals without switching tools.",
+    eyebrow: "HR / People Ops",
+    title: "Salary slips that feel organized and credible.",
+    body: "Use a calmer workflow for employee details, pay breakdowns, and disbursement output that looks ready for internal circulation.",
   },
   {
-    title: "HR / People Ops",
-    body: "Produce salary slips with a clean employee, earnings, and disbursement flow.",
+    eyebrow: "Operations",
+    title: "Vouchers that read like a real approval surface.",
+    body: "Generate payment and receipt vouchers with a presentation quality that feels closer to software than a form.",
   },
   {
-    title: "Finance / Accounts",
-    body: "Prepare branded invoices with taxes, line items, and payment summaries already structured.",
+    eyebrow: "Finance / Accounts",
+    title: "Invoices with strong structure and export confidence.",
+    body: "Keep line items, taxes, totals, and payment summary information visually organized for faster review.",
   },
 ];
 
@@ -48,40 +50,63 @@ const workflow = [
   {
     step: "01",
     title: "Enter details",
-    body: "Fill in the fields for the document type you need. Slipwise keeps each module focused and readable.",
+    body: "Fill in the module you need. Slipwise keeps each generator focused, legible, and easy to scan.",
   },
   {
     step: "02",
     title: "Review instantly",
-    body: "The preview updates as you work, so you can catch layout or content issues before exporting.",
+    body: "The preview updates in place so layout or content problems are visible before you export anything.",
   },
   {
     step: "03",
-    title: "Export cleanly",
-    body: "Download PDF, PNG, or open the print surface with professional output ready to share.",
+    title: "Export professionally",
+    body: "Download a polished PDF, create a PNG, or open the print surface with confidence.",
   },
 ];
 
-const faqs = [
+const faqItems = [
   {
     q: "What does Slipwise generate?",
-    a: "Slipwise supports vouchers, salary slips, and invoices in one browser-based product.",
+    a: "Slipwise generates vouchers, salary slips, and invoices in one browser-based product.",
   },
   {
     q: "Does Slipwise store my data?",
-    a: "Not in this phase. The current product remains stateless and deployable without backend persistence.",
+    a: "Not in this phase. The product remains stateless and deployable without backend persistence.",
   },
   {
-    q: "Can I brand the output?",
-    a: "Yes. The product supports logo upload and accent color controls for the current document session.",
+    q: "Can I apply branding?",
+    a: "Yes. The product supports logo upload and accent color controls in the current session.",
   },
   {
-    q: "Is it suitable for production deployment?",
-    a: "Yes. The product is designed to remain serverless-friendly and deploy cleanly on Vercel.",
-  },
-  {
-    q: "What file outputs are available?",
+    q: "What outputs are available?",
     a: "Slipwise supports live preview, browser print, PDF export, and PNG export.",
+  },
+];
+
+const showcaseModules = [
+  {
+    eyebrow: "Operations",
+    title: "Voucher workflow",
+    description: "Clean approval-ready payment and receipt flows with a calmer document experience.",
+    highlights: ["Payment and receipt modes", "Structured narration", "Print, PDF, and PNG export"],
+    accent: "from-sky-500/12 via-white to-white",
+    href: "/voucher",
+  },
+  {
+    eyebrow: "HR / Admin",
+    title: "Salary slip system",
+    description: "Employee, payroll, bank, and disbursement details arranged with a premium visual rhythm.",
+    highlights: ["Payroll detail sections", "Live totals and preview", "Optional notes and signature blocks"],
+    accent: "from-indigo-500/12 via-white to-white",
+    href: "/salary-slip",
+  },
+  {
+    eyebrow: "Finance",
+    title: "Invoice studio",
+    description: "Line items, taxes, client metadata, and payment summary content organized for fast review.",
+    highlights: ["Line items and tax structure", "Client identity blocks", "Balance due and payment summary"],
+    accent: "from-emerald-500/12 via-white to-white",
+    href: "/invoice",
   },
 ];
 
@@ -101,13 +126,68 @@ function SectionHeading({
       <p className="text-[0.72rem] font-semibold uppercase tracking-[0.34em] text-slate-500">
         {eyebrow}
       </p>
-      <h2 className="mt-4 max-w-3xl font-[family-name:var(--font-sora)] text-3xl leading-tight text-slate-950 md:text-5xl">
+      <h2 className="mt-4 max-w-4xl font-[family-name:var(--font-sora)] text-4xl leading-tight tracking-[-0.05em] text-slate-950 md:text-6xl">
         {title}
       </h2>
-      <p className="mt-4 max-w-2xl text-base leading-8 text-slate-600">
+      <p className="mt-5 max-w-2xl text-base leading-8 text-slate-600 md:text-lg">
         {description}
       </p>
     </div>
+  );
+}
+
+function GeneratorCard({
+  eyebrow,
+  title,
+  description,
+  highlights,
+  accent,
+  href,
+  index,
+}: {
+  eyebrow: string;
+  title: string;
+  description: string;
+  highlights: string[];
+  accent: string;
+  href: string;
+  index: number;
+}) {
+  return (
+    <motion.article
+      initial={{ opacity: 0, y: 18 }}
+      whileInView={{ opacity: 1, y: 0 }}
+      viewport={{ once: true, amount: 0.25 }}
+      transition={{ duration: 0.4, delay: index * 0.06 }}
+      className="group flex h-full flex-col overflow-hidden rounded-[2rem] border border-slate-200 bg-[linear-gradient(180deg,rgba(255,255,255,0.96),rgba(248,250,252,0.98))] p-6 shadow-[0_20px_50px_rgba(15,23,42,0.06)]"
+    >
+      <div className={cn("rounded-[1.4rem] border border-slate-200 bg-gradient-to-br p-4", accent)}>
+        <p className="text-[0.68rem] font-semibold uppercase tracking-[0.34em] text-slate-500">
+          {eyebrow}
+        </p>
+        <h3 className="mt-3 font-[family-name:var(--font-sora)] text-2xl tracking-[-0.04em] text-slate-950">
+          {title}
+        </h3>
+        <p className="mt-3 text-sm leading-7 text-slate-600">{description}</p>
+      </div>
+
+      <ul className="mt-6 space-y-3 text-sm text-slate-700">
+        {highlights.map((item) => (
+          <li key={item} className="flex items-start gap-3">
+            <span className="mt-1.5 h-2.5 w-2.5 rounded-full bg-sky-500" />
+            <span>{item}</span>
+          </li>
+        ))}
+      </ul>
+
+      <Link
+        href={href}
+        className="mt-8 inline-flex w-fit items-center gap-2 rounded-full bg-slate-950 px-4 py-2.5 text-sm font-semibold text-white transition-transform hover:-translate-y-0.5"
+      >
+        Open generator
+        <span aria-hidden="true">→</span>
+      </Link>
+    </motion.article>
   );
 }
 
@@ -115,30 +195,34 @@ export function SlipwiseHome({ className }: SlipwiseHomeProps) {
   return (
     <main
       className={cn(
-        "min-h-screen overflow-hidden bg-[radial-gradient(circle_at_top_left,rgba(37,99,235,0.10),transparent_28%),radial-gradient(circle_at_top_right,rgba(59,130,246,0.08),transparent_32%),linear-gradient(180deg,#ffffff_0%,#f8fbff_48%,#f7f9fc_100%)] font-[family-name:var(--font-manrope)] text-slate-900",
+        "relative isolate min-h-screen overflow-hidden bg-[radial-gradient(circle_at_top_left,rgba(37,99,235,0.14),transparent_30%),radial-gradient(circle_at_top_right,rgba(14,165,233,0.12),transparent_28%),linear-gradient(180deg,#ffffff_0%,#f7faff_42%,#f3f7fd_100%)] text-slate-900",
         className,
       )}
     >
-      <div className="absolute inset-x-0 top-0 -z-10 h-96 bg-[radial-gradient(circle_at_top,rgba(59,130,246,0.12),transparent_38%)]" />
-      <div className="absolute inset-x-0 top-[32rem] -z-10 h-64 bg-[radial-gradient(circle_at_25%_25%,rgba(14,165,233,0.08),transparent_36%)]" />
+      <div className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-[34rem] bg-[radial-gradient(circle_at_top,rgba(59,130,246,0.18),transparent_42%)]" />
+      <div className="pointer-events-none absolute left-[12%] top-[22rem] -z-10 h-80 w-80 rounded-full bg-sky-300/18 blur-3xl" />
+      <div className="pointer-events-none absolute right-[8%] top-[48rem] -z-10 h-72 w-72 rounded-full bg-indigo-300/16 blur-3xl" />
 
-      <div className="mx-auto flex w-full max-w-7xl flex-col gap-16 px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
-        <header className="flex flex-wrap items-center justify-between gap-4 rounded-full border border-slate-200 bg-white/80 px-4 py-3 shadow-[0_18px_50px_rgba(15,23,42,0.06)] backdrop-blur">
+      <div className="mx-auto flex w-full max-w-[96rem] flex-col gap-20 px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
+        <header className="sticky top-4 z-20 flex flex-wrap items-center justify-between gap-4 rounded-full border border-slate-200/80 bg-white/80 px-4 py-3 shadow-[0_18px_50px_rgba(15,23,42,0.08)] backdrop-blur-xl">
           <Link href="/" className="flex items-center gap-3">
-            <span className="flex h-11 w-11 items-center justify-center rounded-2xl border border-slate-200 bg-slate-950 text-sm font-semibold text-white shadow-[0_16px_30px_rgba(15,23,42,0.15)]">
+            <span className="flex h-11 w-11 items-center justify-center rounded-2xl border border-slate-200 bg-slate-950 text-sm font-semibold text-white shadow-[0_16px_30px_rgba(15,23,42,0.16)]">
               S
             </span>
             <div>
               <p className="text-xs font-semibold uppercase tracking-[0.34em] text-slate-500">
                 Slipwise
               </p>
-              <p className="text-sm text-slate-700">Business documents without the spreadsheet chaos.</p>
+              <p className="text-sm text-slate-700">
+                Business documents without the spreadsheet chaos.
+              </p>
             </div>
           </Link>
 
-          <nav className="flex flex-wrap items-center gap-2 text-sm text-slate-700">
+          <nav className="flex flex-wrap items-center gap-1 text-sm text-slate-700">
             {[
-              ["Product", "#features"],
+              ["Product", "#product"],
+              ["Features", "#features"],
               ["Use cases", "#use-cases"],
               ["Workflow", "#workflow"],
               ["FAQ", "#faq"],
@@ -162,29 +246,35 @@ export function SlipwiseHome({ className }: SlipwiseHomeProps) {
             </Link>
             <Link
               href="/voucher"
-              className="rounded-full bg-slate-950 px-5 py-2.5 text-sm font-semibold text-white shadow-[0_16px_30px_rgba(15,23,42,0.16)] transition-transform hover:-translate-y-0.5"
+              className="rounded-full bg-slate-950 px-5 py-2.5 text-sm font-semibold text-white shadow-[0_18px_35px_rgba(15,23,42,0.18)] transition-transform hover:-translate-y-0.5"
             >
               Start free
             </Link>
           </div>
         </header>
 
-        <section className="grid gap-12 lg:grid-cols-[minmax(0,1.12fr)_minmax(26rem,0.88fr)] lg:items-center">
+        <section
+          id="product"
+          className="grid items-center gap-10 lg:grid-cols-[minmax(0,1.03fr)_minmax(36rem,0.97fr)] lg:gap-14"
+        >
           <div className="max-w-3xl">
             <div className="inline-flex items-center gap-2 rounded-full border border-sky-100 bg-sky-50 px-4 py-2 text-xs font-semibold uppercase tracking-[0.3em] text-sky-700">
-              SaaS document generation for SMB teams
+              Atmospheric SaaS for document operations
             </div>
-            <h1 className="mt-6 max-w-4xl font-[family-name:var(--font-sora)] text-5xl leading-[0.95] tracking-[-0.05em] text-slate-950 md:text-7xl">
-              A production-ready way to create vouchers, salary slips, and invoices that look polished from the first scroll.
+            <h1 className="mt-7 max-w-5xl font-[family-name:var(--font-sora)] text-[clamp(3.7rem,7vw,7.7rem)] leading-[0.92] tracking-[-0.07em] text-slate-950">
+              A production-ready way to create vouchers, salary slips, and invoices
+              <span className="text-slate-700"> that feel like a premium SaaS product.</span>
             </h1>
-            <p className="mt-6 max-w-2xl text-lg leading-8 text-slate-600 md:text-xl">
-              Slipwise turns everyday admin documents into a clean SaaS workflow: enter details, preview instantly, and export professional output without opening a design tool or fixing spreadsheet formatting.
+            <p className="mt-7 max-w-3xl text-lg leading-8 text-slate-600 md:text-xl">
+              Slipwise turns everyday admin documents into a polished browser workflow:
+              enter details, preview the result, and export professional output without
+              opening a design tool or cleaning up spreadsheet formatting.
             </p>
 
-            <div className="mt-8 flex flex-wrap gap-3">
+            <div className="mt-9 flex flex-wrap gap-3">
               <Link
                 href="/voucher"
-                className="rounded-full bg-slate-950 px-6 py-3.5 text-sm font-semibold text-white shadow-[0_18px_35px_rgba(15,23,42,0.16)] transition-transform hover:-translate-y-0.5"
+                className="rounded-full bg-slate-950 px-6 py-3.5 text-sm font-semibold text-white shadow-[0_18px_35px_rgba(15,23,42,0.18)] transition-transform hover:-translate-y-0.5"
               >
                 Start with vouchers
               </Link>
@@ -204,7 +294,7 @@ export function SlipwiseHome({ className }: SlipwiseHomeProps) {
               ].map((item) => (
                 <div
                   key={item}
-                  className="rounded-2xl border border-slate-200 bg-white p-4 text-sm leading-7 text-slate-600 shadow-[0_14px_35px_rgba(15,23,42,0.05)]"
+                  className="rounded-[1.5rem] border border-slate-200 bg-white p-4 text-sm leading-7 text-slate-600 shadow-[0_16px_40px_rgba(15,23,42,0.05)]"
                 >
                   {item}
                 </div>
@@ -212,109 +302,52 @@ export function SlipwiseHome({ className }: SlipwiseHomeProps) {
             </div>
           </div>
 
-          <motion.div
-            initial={{ opacity: 0, y: 18 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.45 }}
-            className="relative"
-          >
-            <div className="absolute -inset-4 -z-10 rounded-[2.5rem] bg-[radial-gradient(circle_at_top,rgba(59,130,246,0.20),transparent_50%)] blur-2xl" />
-            <div className="rounded-[2rem] border border-slate-200 bg-white p-5 shadow-[0_36px_90px_rgba(15,23,42,0.09)]">
-              <div className="flex items-center justify-between border-b border-slate-200 pb-4">
-                <div>
-                  <p className="text-[0.7rem] font-semibold uppercase tracking-[0.32em] text-slate-500">
-                    Product preview
-                  </p>
-                  <p className="mt-2 text-sm text-slate-600">
-                    A clean SaaS workspace for business documents.
-                  </p>
-                </div>
-                <span className="rounded-full border border-slate-200 px-3 py-1 text-xs font-medium text-slate-500">
-                  Live preview
-                </span>
-              </div>
-
-              <div className="mt-5 grid gap-4">
-                {[
-                  {
-                    title: "Salary slip",
-                    value: "Net salary",
-                    amount: "₹45,500.00",
-                    tone: "from-sky-500/12 via-white to-white",
-                  },
-                  {
-                    title: "Invoice",
-                    value: "Balance due",
-                    amount: "₹39,100.00",
-                    tone: "from-indigo-500/12 via-white to-white",
-                  },
-                  {
-                    title: "Voucher",
-                    value: "Approved amount",
-                    amount: "₹1,850.00",
-                    tone: "from-emerald-500/12 via-white to-white",
-                  },
-                ].map((item, index) => (
-                  <motion.div
-                    key={item.title}
-                    initial={{ opacity: 0, y: 16 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.35, delay: index * 0.07 }}
-                    className={cn(
-                      "rounded-[1.5rem] border border-slate-200 bg-gradient-to-br p-4 shadow-[0_16px_30px_rgba(15,23,42,0.05)]",
-                      item.tone,
-                    )}
-                  >
-                    <div className="flex items-center justify-between gap-4">
-                      <div>
-                        <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">
-                          {item.title}
-                        </p>
-                        <p className="mt-2 text-sm text-slate-600">{item.value}</p>
-                      </div>
-                      <p className="text-lg font-semibold text-slate-950">{item.amount}</p>
-                    </div>
-                  </motion.div>
-                ))}
-              </div>
-
-              <div className="mt-5 rounded-[1.5rem] border border-slate-200 bg-slate-950 p-5 text-white">
-                <p className="text-[0.7rem] font-semibold uppercase tracking-[0.3em] text-sky-200">
-                  Slipwise benefit
-                </p>
-                <p className="mt-3 text-xl font-semibold">
-                  Fast enough for admins. Polished enough for the business.
-                </p>
-                <p className="mt-2 text-sm leading-7 text-slate-300">
-                  Keep every document consistent across preview, print, PDF, and PNG without changing your workflow.
-                </p>
-              </div>
-            </div>
-          </motion.div>
+          <SlipwiseProductMockup />
         </section>
 
-        <section id="features" className="rounded-[2.25rem] border border-slate-200 bg-white p-6 shadow-[0_24px_70px_rgba(15,23,42,0.05)] md:p-8">
+        <section
+          id="features"
+          className="rounded-[2.6rem] border border-slate-200 bg-white p-6 shadow-[0_28px_80px_rgba(15,23,42,0.06)] md:p-8 lg:p-10"
+        >
           <SectionHeading
             eyebrow="Feature story"
-            title="Slipwise brings the whole document workflow into one clean product system."
-            description="The homepage should sell the same thing the app delivers: a clear, premium, browser-based way to create business documents without the mess of manual formatting."
+            title="Slipwise brings the document workflow into one clean product system."
+            description="The homepage should sell the same thing the app delivers: a clear, premium browser-based way to create business documents without the mess of manual formatting."
           />
 
-          <div className="mt-8 grid gap-5 lg:grid-cols-2">
+          <div className="mt-10 grid gap-5 xl:grid-cols-[1.12fr_0.88fr]">
             <motion.div
-              initial={{ opacity: 0, y: 14 }}
+              initial={{ opacity: 0, y: 18 }}
               whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true, amount: 0.3 }}
-              transition={{ duration: 0.35 }}
-              className="rounded-[1.75rem] border border-slate-200 bg-slate-50 p-6"
+              viewport={{ once: true, amount: 0.25 }}
+              transition={{ duration: 0.4 }}
+              className="rounded-[2rem] border border-slate-200 bg-[linear-gradient(180deg,#0f172a_0%,#111827_65%,#0b1220_100%)] p-6 text-white shadow-[0_24px_60px_rgba(15,23,42,0.18)]"
             >
-              <p className="text-sm font-semibold uppercase tracking-[0.28em] text-slate-500">
+              <p className="text-[0.7rem] font-semibold uppercase tracking-[0.34em] text-sky-200/80">
                 Why it feels different
               </p>
-              <div className="mt-5 space-y-4 text-slate-700">
-                <p>Slipwise is meant to feel like a real SaaS product, not a shell or an internal tool.</p>
-                <p>It presents the three document flows as part of one coherent system, with a brand-first public site and a calmer app experience.</p>
-                <p>It is designed to be simple enough for daily use while staying polished enough for a serious demo or production rollout.</p>
+              <h3 className="mt-4 max-w-2xl font-[family-name:var(--font-sora)] text-3xl leading-tight tracking-[-0.05em] md:text-5xl">
+                Slipwise is designed to look like a product teams can trust on day one.
+              </h3>
+              <p className="mt-4 max-w-2xl text-base leading-8 text-slate-300 md:text-lg">
+                It presents the three document flows as part of one coherent system,
+                with a brand-first public site, a stronger visual identity, and a calmer
+                app experience underneath.
+              </p>
+              <div className="mt-6 grid gap-3 sm:grid-cols-2">
+                {[
+                  "Large-scale product mockup",
+                  "White-theme with deep contrast",
+                  "Premium spacing and hierarchy",
+                  "Cleaner app and homepage cohesion",
+                ].map((item) => (
+                  <div
+                    key={item}
+                    className="rounded-[1.25rem] border border-white/10 bg-white/6 px-4 py-4 text-sm leading-7 text-slate-200"
+                  >
+                    {item}
+                  </div>
+                ))}
               </div>
             </motion.div>
 
@@ -322,13 +355,16 @@ export function SlipwiseHome({ className }: SlipwiseHomeProps) {
               {featureCards.map((card, index) => (
                 <motion.article
                   key={card.title}
-                  initial={{ opacity: 0, y: 14 }}
+                  initial={{ opacity: 0, y: 16 }}
                   whileInView={{ opacity: 1, y: 0 }}
-                  viewport={{ once: true, amount: 0.3 }}
-                  transition={{ duration: 0.35, delay: index * 0.05 }}
-                  className="rounded-[1.6rem] border border-slate-200 bg-white p-5 shadow-[0_16px_40px_rgba(15,23,42,0.04)]"
+                  viewport={{ once: true, amount: 0.25 }}
+                  transition={{ duration: 0.36, delay: index * 0.05 }}
+                  className="rounded-[1.65rem] border border-slate-200 bg-[linear-gradient(180deg,#ffffff_0%,#f8fbff_100%)] p-5 shadow-[0_18px_45px_rgba(15,23,42,0.05)]"
                 >
-                  <p className="text-sm font-semibold text-slate-950">{card.title}</p>
+                  <div className="h-11 w-11 rounded-2xl border border-slate-200 bg-[radial-gradient(circle_at_top,rgba(59,130,246,0.18),rgba(255,255,255,1))]" />
+                  <p className="mt-5 text-lg font-semibold tracking-[-0.03em] text-slate-950">
+                    {card.title}
+                  </p>
                   <p className="mt-3 text-sm leading-7 text-slate-600">{card.body}</p>
                 </motion.article>
               ))}
@@ -336,87 +372,135 @@ export function SlipwiseHome({ className }: SlipwiseHomeProps) {
           </div>
         </section>
 
-        <section id="use-cases" className="rounded-[2.25rem] border border-slate-200 bg-white p-6 shadow-[0_24px_70px_rgba(15,23,42,0.05)] md:p-8">
+        <section
+          id="use-cases"
+          className="rounded-[2.6rem] border border-slate-200 bg-white p-6 shadow-[0_28px_80px_rgba(15,23,42,0.06)] md:p-8 lg:p-10"
+        >
           <SectionHeading
             eyebrow="Use cases"
             title="Built for the people who actually prepare documents every week."
             description="The product should clearly speak to the users who need speed, consistency, and export quality in a small business setting."
           />
 
-          <div className="mt-8 grid gap-5 lg:grid-cols-3">
+          <div className="mt-10 grid gap-5 lg:grid-cols-3">
             {useCases.map((item, index) => (
               <motion.article
                 key={item.title}
                 initial={{ opacity: 0, y: 16 }}
                 whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true, amount: 0.3 }}
-                transition={{ duration: 0.35, delay: index * 0.06 }}
-                className="rounded-[1.6rem] border border-slate-200 bg-slate-50 p-6"
+                viewport={{ once: true, amount: 0.25 }}
+                transition={{ duration: 0.36, delay: index * 0.06 }}
+                className="rounded-[2rem] border border-slate-200 bg-[linear-gradient(180deg,#ffffff_0%,#f8fbff_100%)] p-6 shadow-[0_20px_50px_rgba(15,23,42,0.05)]"
               >
-                <p className="text-xs font-semibold uppercase tracking-[0.28em] text-sky-700">
-                  {item.title}
+                <p className="text-xs font-semibold uppercase tracking-[0.34em] text-sky-700">
+                  {item.eyebrow}
                 </p>
-                <p className="mt-4 text-base leading-8 text-slate-700">{item.body}</p>
+                <h3 className="mt-4 max-w-sm font-[family-name:var(--font-sora)] text-2xl leading-tight tracking-[-0.04em] text-slate-950">
+                  {item.title}
+                </h3>
+                <p className="mt-4 text-sm leading-7 text-slate-600">{item.body}</p>
+                <div className="mt-6 h-px bg-slate-200" />
+                <p className="mt-5 text-sm font-medium text-slate-700">
+                  Designed to feel calm, direct, and easy to trust.
+                </p>
               </motion.article>
             ))}
           </div>
         </section>
 
-        <section id="workflow" className="rounded-[2.25rem] border border-slate-200 bg-white p-6 shadow-[0_24px_70px_rgba(15,23,42,0.05)] md:p-8">
+        <section
+          id="workflow"
+          className="rounded-[2.6rem] border border-slate-200 bg-white p-6 shadow-[0_28px_80px_rgba(15,23,42,0.06)] md:p-8 lg:p-10"
+        >
           <SectionHeading
-            eyebrow="How it works"
+            eyebrow="Workflow"
             title="Three steps from raw data to professional output."
-            description="Slipwise should make the workflow obvious enough that a first-time visitor immediately understands how the product behaves."
+            description="Slipwise should make the flow obvious enough that a first-time visitor immediately understands how the product behaves."
           />
 
-          <div className="mt-8 grid gap-5 lg:grid-cols-3">
-            {workflow.map((step, index) => (
-              <motion.article
-                key={step.step}
-                initial={{ opacity: 0, y: 16 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true, amount: 0.3 }}
-                transition={{ duration: 0.35, delay: index * 0.06 }}
-                className="rounded-[1.6rem] border border-slate-200 bg-white p-6 shadow-[0_16px_40px_rgba(15,23,42,0.04)]"
-              >
-                <p className="text-sm font-semibold uppercase tracking-[0.32em] text-sky-700">
-                  {step.step}
-                </p>
-                <h3 className="mt-4 font-[family-name:var(--font-sora)] text-2xl text-slate-950">
-                  {step.title}
-                </h3>
-                <p className="mt-3 text-sm leading-7 text-slate-600">{step.body}</p>
-              </motion.article>
-            ))}
+          <div className="mt-10 grid gap-5 xl:grid-cols-[1.05fr_0.95fr]">
+            <div className="grid gap-5 lg:grid-cols-3">
+              {workflow.map((step, index) => (
+                <motion.article
+                  key={step.step}
+                  initial={{ opacity: 0, y: 18 }}
+                  whileInView={{ opacity: 1, y: 0 }}
+                  viewport={{ once: true, amount: 0.25 }}
+                  transition={{ duration: 0.36, delay: index * 0.06 }}
+                  className="rounded-[2rem] border border-slate-200 bg-[linear-gradient(180deg,#ffffff_0%,#f8fbff_100%)] p-6 shadow-[0_18px_45px_rgba(15,23,42,0.05)]"
+                >
+                  <p className="text-xs font-semibold uppercase tracking-[0.34em] text-sky-700">
+                    {step.step}
+                  </p>
+                  <h3 className="mt-4 font-[family-name:var(--font-sora)] text-2xl tracking-[-0.04em] text-slate-950">
+                    {step.title}
+                  </h3>
+                  <p className="mt-3 text-sm leading-7 text-slate-600">{step.body}</p>
+                </motion.article>
+              ))}
+            </div>
+
+            <motion.div
+              initial={{ opacity: 0, y: 18 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true, amount: 0.25 }}
+              transition={{ duration: 0.4 }}
+              className="rounded-[2.1rem] border border-slate-200 bg-[linear-gradient(180deg,#0f172a_0%,#111827_58%,#0b1220_100%)] p-6 text-white shadow-[0_26px_60px_rgba(15,23,42,0.18)]"
+            >
+              <p className="text-[0.7rem] font-semibold uppercase tracking-[0.34em] text-sky-200/80">
+                What the user sees
+              </p>
+              <div className="mt-5 space-y-4">
+                {[
+                  "A clean form panel for the selected document type.",
+                  "An immediately updated preview surface with export context.",
+                  "A composed document experience that feels ready for business use.",
+                ].map((item, index) => (
+                  <div
+                    key={item}
+                    className="rounded-[1.3rem] border border-white/10 bg-white/8 px-4 py-4"
+                  >
+                    <p className="text-sm font-semibold text-white">0{index + 1}</p>
+                    <p className="mt-2 text-sm leading-7 text-slate-300">{item}</p>
+                  </div>
+                ))}
+              </div>
+            </motion.div>
           </div>
         </section>
 
-        <section className="rounded-[2.25rem] border border-slate-200 bg-white p-6 shadow-[0_24px_70px_rgba(15,23,42,0.05)] md:p-8">
+        <section
+          aria-label="Generator showcase"
+          className="rounded-[2.6rem] border border-slate-200 bg-white p-6 shadow-[0_28px_80px_rgba(15,23,42,0.06)] md:p-8 lg:p-10"
+        >
           <SectionHeading
             eyebrow="Generators"
             title="Three focused workspaces, one polished product."
             description="Keep the modules distinct so users can move directly into the workflow they need without losing the consistency of the Slipwise brand."
           />
 
-          <div className="mt-8 grid gap-5 lg:grid-cols-3">
-            {productModules.map((module, index) => (
-              <ModuleCard key={module.slug} module={module} index={index} />
+          <div className="mt-10 grid gap-5 xl:grid-cols-3">
+            {showcaseModules.map((module, index) => (
+              <GeneratorCard key={module.title} index={index} {...module} />
             ))}
           </div>
         </section>
 
-        <section id="faq" className="rounded-[2.25rem] border border-slate-200 bg-white p-6 shadow-[0_24px_70px_rgba(15,23,42,0.05)] md:p-8">
+        <section
+          id="faq"
+          className="rounded-[2.6rem] border border-slate-200 bg-white p-6 shadow-[0_28px_80px_rgba(15,23,42,0.06)] md:p-8 lg:p-10"
+        >
           <SectionHeading
             eyebrow="FAQ"
             title="Questions a buyer or tester would ask before trusting the product."
             description="The homepage should answer the most important product questions without forcing a user to dig through the app."
           />
 
-          <div className="mt-8 grid gap-4 lg:grid-cols-2">
-            {faqs.map((item) => (
+          <div className="mt-10 grid gap-4 lg:grid-cols-2">
+            {faqItems.map((item) => (
               <details
                 key={item.q}
-                className="group rounded-[1.4rem] border border-slate-200 bg-slate-50 p-5 open:bg-white"
+                className="group rounded-[1.5rem] border border-slate-200 bg-[linear-gradient(180deg,#ffffff_0%,#f8fbff_100%)] p-5 open:bg-white open:shadow-[0_18px_45px_rgba(15,23,42,0.06)]"
               >
                 <summary className="cursor-pointer list-none text-base font-semibold text-slate-950">
                   {item.q}
@@ -429,17 +513,19 @@ export function SlipwiseHome({ className }: SlipwiseHomeProps) {
           </div>
         </section>
 
-        <section className="rounded-[2.25rem] border border-slate-200 bg-slate-950 px-6 py-10 text-white shadow-[0_30px_90px_rgba(15,23,42,0.16)] md:px-10">
-          <div className="grid gap-8 lg:grid-cols-[1.2fr_0.8fr] lg:items-center">
+        <section className="overflow-hidden rounded-[2.6rem] border border-slate-200 bg-[linear-gradient(135deg,#0f172a_0%,#111827_52%,#0b1220_100%)] px-6 py-10 text-white shadow-[0_32px_90px_rgba(15,23,42,0.2)] md:px-10 md:py-12">
+          <div className="grid gap-8 lg:grid-cols-[1.15fr_0.85fr] lg:items-center">
             <div>
-              <p className="text-[0.72rem] font-semibold uppercase tracking-[0.34em] text-sky-200">
+              <p className="text-[0.72rem] font-semibold uppercase tracking-[0.34em] text-sky-200/80">
                 Ready to ship
               </p>
-              <h2 className="mt-4 max-w-3xl font-[family-name:var(--font-sora)] text-3xl leading-tight md:text-5xl">
+              <h2 className="mt-4 max-w-4xl font-[family-name:var(--font-sora)] text-4xl leading-tight tracking-[-0.05em] md:text-6xl">
                 Slipwise should look like a product teams can trust on day one.
               </h2>
-              <p className="mt-4 max-w-2xl text-base leading-8 text-slate-300">
-                The goal of this rebrand is not to add scope. It is to present the existing product with the clarity, confidence, and polish expected from a real SaaS launch.
+              <p className="mt-5 max-w-2xl text-base leading-8 text-slate-300 md:text-lg">
+                The goal of this branch is not to add scope. It is to present the
+                existing product with the clarity, confidence, and polish expected
+                from a real SaaS launch.
               </p>
             </div>
 
@@ -464,12 +550,14 @@ export function SlipwiseHome({ className }: SlipwiseHomeProps) {
           <div>
             <p className="font-semibold text-slate-950">Slipwise</p>
             <p className="mt-2 max-w-xl leading-7">
-              Minimal SaaS document generation for teams that need professional vouchers, salary slips, and invoices without the spreadsheet overhead.
+              Atmospheric SaaS document generation for teams that need professional
+              vouchers, salary slips, and invoices without the spreadsheet overhead.
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-4">
             {[
-              ["Product", "#features"],
+              ["Product", "#product"],
+              ["Features", "#features"],
               ["Use cases", "#use-cases"],
               ["Workflow", "#workflow"],
               ["FAQ", "#faq"],
