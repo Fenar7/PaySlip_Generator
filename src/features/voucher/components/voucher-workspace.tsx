@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useState } from "react";
 import {
   FormProvider,
@@ -20,6 +19,11 @@ import {
   ToggleField,
 } from "@/components/forms/input-primitives";
 import {
+  DocumentWorkspaceLayout,
+  type WorkspaceAction,
+  type WorkspaceSectionMeta,
+} from "@/components/foundation/document-workspace-layout";
+import {
   voucherDefaultValues,
   voucherTemplateOptions,
 } from "@/features/voucher/constants";
@@ -34,6 +38,14 @@ type VoucherActionState =
   | { status: "idle" }
   | { status: "pending"; action: "print" | "pdf" | "png" }
   | { status: "error"; message: string };
+
+const voucherWorkspaceSections: WorkspaceSectionMeta[] = [
+  { id: "voucher-setup", label: "Setup" },
+  { id: "voucher-branding", label: "Brand" },
+  { id: "voucher-details", label: "Details" },
+  { id: "voucher-approvals", label: "Approvals" },
+  { id: "voucher-visibility", label: "Visibility" },
+];
 
 async function parseExportError(response: Response, format: "pdf" | "png") {
   try {
@@ -178,85 +190,54 @@ function VoucherPanel() {
   }
 
   return (
-    <main className="slipwise-shell-bg relative isolate overflow-hidden">
-      <div className="absolute inset-x-0 top-0 -z-10 h-[34rem] bg-[radial-gradient(circle_at_top,rgba(45,107,255,0.18),transparent_36%),radial-gradient(circle_at_80%_10%,rgba(103,203,255,0.12),transparent_26%)]" />
-      <div className="mx-auto flex w-full max-w-[var(--container-shell)] flex-col gap-8 px-4 py-8 sm:px-5 lg:px-6 lg:py-12">
-        <div className="flex flex-col gap-6 rounded-[2.5rem] border border-[var(--border-strong)] bg-[linear-gradient(180deg,rgba(255,255,255,0.92),rgba(245,248,253,0.96))] p-6 shadow-[var(--shadow-card)] backdrop-blur-sm lg:flex-row lg:items-end lg:justify-between">
-          <div className="max-w-3xl">
-            <p className="text-[0.68rem] font-semibold uppercase tracking-[0.34em] text-[var(--muted-foreground)]">
-              Voucher workspace
-            </p>
-            <h1 className="mt-4 max-w-2xl text-[2.6rem] leading-[0.98] tracking-[-0.05em] text-[var(--foreground)] md:text-[3.6rem]">
-              Voucher Generator
-            </h1>
-            <p className="mt-4 max-w-2xl text-[1.02rem] leading-8 text-[var(--muted-foreground)]">
-              Create payment and receipt vouchers with brand controls, field
-              visibility, export actions, and a live A4 preview.
-            </p>
-          </div>
-          <div className="flex flex-wrap gap-3">
-            <Link
-              href="/"
-              className="inline-flex items-center justify-center rounded-full border border-[var(--border-strong)] bg-white px-4 py-2 text-sm font-medium text-[var(--foreground)] shadow-[0_10px_24px_rgba(15,23,42,0.04)] transition-colors hover:bg-[var(--surface-accent)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--background)]"
-            >
-              Back to home
-            </Link>
-            <button
-              type="button"
-              onClick={handlePrint}
-              disabled={actionState.status === "pending"}
-              className="inline-flex items-center justify-center rounded-full border border-[var(--border-strong)] bg-white px-4 py-2 text-sm font-medium text-[var(--foreground)] shadow-[0_10px_24px_rgba(15,23,42,0.04)] transition-colors hover:bg-[var(--surface-accent)] disabled:cursor-wait disabled:opacity-65"
-            >
-              {actionState.status === "pending" && actionState.action === "print"
-                ? "Preparing print"
-                : "Print voucher"}
-            </button>
-            <button
-              type="button"
-              onClick={() => handleDownload("pdf")}
-              disabled={actionState.status === "pending"}
-              className="inline-flex items-center justify-center rounded-full bg-[linear-gradient(135deg,var(--foreground),#1f2937)] px-4 py-2 text-sm font-medium text-[var(--background)] shadow-[0_16px_32px_rgba(15,23,42,0.14)] transition-colors hover:bg-[var(--foreground-soft)] disabled:cursor-wait disabled:opacity-65"
-            >
-              {actionState.status === "pending" && actionState.action === "pdf"
-                ? "Exporting PDF"
-                : "Export PDF"}
-            </button>
-            <button
-              type="button"
-              onClick={() => handleDownload("png")}
-              disabled={actionState.status === "pending"}
-              className="inline-flex items-center justify-center rounded-full bg-[var(--surface-accent)] px-4 py-2 text-sm font-medium text-[var(--foreground-soft)] shadow-[0_10px_24px_rgba(15,23,42,0.05)] transition-colors hover:bg-[var(--surface-accent-strong)] disabled:cursor-wait disabled:opacity-65"
-            >
-              {actionState.status === "pending" && actionState.action === "png"
-                ? "Exporting PNG"
-                : "Export PNG"}
-            </button>
-          </div>
-        </div>
-
-        {actionState.status === "error" ? (
-          <div className="rounded-[1.5rem] border border-[rgba(220,38,38,0.16)] bg-[rgba(220,38,38,0.06)] px-5 py-4 text-sm text-[var(--danger)] shadow-[var(--shadow-soft)]">
-            {actionState.message}
-          </div>
-        ) : null}
-
-        <div className="grid gap-6 xl:grid-cols-[minmax(23rem,29rem)_minmax(0,1fr)]">
-          <section className="rounded-[2.25rem] border border-[var(--border-strong)] bg-[linear-gradient(180deg,rgba(255,255,255,0.94),rgba(245,248,253,0.96))] p-5 shadow-[var(--shadow-soft)]">
-            <div className="mb-6 flex items-center justify-between">
-              <div>
-                <p className="text-[0.68rem] font-semibold uppercase tracking-[0.34em] text-[var(--muted-foreground)]">
-                  Voucher controls
-                </p>
-                <h2 className="mt-3 text-[1.55rem] leading-tight tracking-[-0.04em] text-[var(--foreground)]">
-                  Real-time document builder
-                </h2>
-              </div>
-              <span className="rounded-full border border-[var(--border-soft)] bg-white px-3 py-1 text-[0.68rem] font-semibold uppercase tracking-[0.24em] text-[var(--muted-foreground)] shadow-[0_8px_18px_rgba(15,23,42,0.04)]">
-                Export ready
-              </span>
-            </div>
-
-            <div className="space-y-4">
+    <DocumentWorkspaceLayout
+      eyebrow="Voucher workspace"
+      title="Voucher Generator"
+      description="Create payment and receipt vouchers in a cleaner workspace with live preview, structured input, and export actions that stay close to the document."
+      actions={[
+        { id: "home", label: "Back to home", href: "/", variant: "secondary" },
+        {
+          id: "print",
+          label:
+            actionState.status === "pending" && actionState.action === "print"
+              ? "Preparing print"
+              : "Print voucher",
+          onClick: handlePrint,
+          disabled: actionState.status === "pending",
+          variant: "secondary",
+        },
+        {
+          id: "pdf",
+          label:
+            actionState.status === "pending" && actionState.action === "pdf"
+              ? "Exporting PDF"
+              : "Export PDF",
+          onClick: () => handleDownload("pdf"),
+          disabled: actionState.status === "pending",
+          variant: "primary",
+        },
+        {
+          id: "png",
+          label:
+            actionState.status === "pending" && actionState.action === "png"
+              ? "Exporting PNG"
+              : "Export PNG",
+          onClick: () => handleDownload("png"),
+          disabled: actionState.status === "pending",
+          variant: "subtle",
+        },
+      ] satisfies WorkspaceAction[]}
+      errorMessage={actionState.status === "error" ? actionState.message : undefined}
+      builderEyebrow="Voucher controls"
+      builderTitle="Build the document"
+      builderDescription="Move from setup to core details, approvals, and visibility without losing the live preview on the right."
+      sections={voucherWorkspaceSections}
+      previewEyebrow="Preview"
+      previewTitle="Live A4 document"
+      previewDescription="Review the final voucher while you edit. Template, branding, and field visibility update immediately."
+      builderContent={
+        <>
+          <div id="voucher-setup" className="scroll-mt-28">
               <FormSection
                 eyebrow="Template"
                 title="Template and voucher mode"
@@ -315,7 +296,9 @@ function VoucherPanel() {
                   ]}
                 />
               </FormSection>
+          </div>
 
+          <div id="voucher-branding" className="scroll-mt-28">
               <FormSection
                 eyebrow="Branding"
                 title="Business identity"
@@ -356,7 +339,9 @@ function VoucherPanel() {
                   />
                 </div>
               </FormSection>
+          </div>
 
+          <div id="voucher-details" className="scroll-mt-28">
               <FormSection
                 eyebrow="Voucher details"
                 title="Core voucher information"
@@ -420,7 +405,9 @@ function VoucherPanel() {
                   />
                 ) : null}
               </FormSection>
+          </div>
 
+          <div id="voucher-approvals" className="scroll-mt-28">
               <FormSection
                 eyebrow="Approvals"
                 title="Signature and authorization"
@@ -441,7 +428,9 @@ function VoucherPanel() {
                   />
                 ) : null}
               </FormSection>
+          </div>
 
+          <div id="voucher-visibility" className="scroll-mt-28">
               <FormSection
                 eyebrow="Visibility"
                 title="Show or hide optional fields"
@@ -486,15 +475,11 @@ function VoucherPanel() {
                   />
                 </div>
               </FormSection>
-            </div>
-          </section>
-
-          <section>
-            <VoucherPreview document={previewDocument} />
-          </section>
-        </div>
-      </div>
-    </main>
+          </div>
+        </>
+      }
+      previewContent={<VoucherPreview document={previewDocument} />}
+    />
   );
 }
 
