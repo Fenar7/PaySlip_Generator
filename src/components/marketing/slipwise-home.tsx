@@ -14,70 +14,70 @@ type SlipwiseHomeProps = {
 const featurePillars = [
   {
     title: "Live preview",
-    body: "See the document update as you work, so teams can review structure before export.",
+    body: "Review the finished document as you work, so layout, totals, and branding are already right before export.",
   },
   {
-    title: "Brand-ready output",
-    body: "Keep logo, company identity, and accent color aligned without leaving the workflow.",
+    title: "Brand controls",
+    body: "Keep logos, company details, and visual styling consistent across every document you send out.",
   },
   {
-    title: "Clean export flow",
-    body: "Print, PDF, and PNG stay inside one product built specifically for business documents.",
+    title: "Export-ready output",
+    body: "Move straight from final review to print, PDF, or PNG without rebuilding the document somewhere else.",
   },
 ];
 
 const solutions = [
   {
     role: "HR / Admin",
-    headline: "Salary slips that look ready to share.",
-    body: "Prepare employee, payroll, notes, and disbursement details in one clean workspace.",
+    headline: "Issue salary slips without reformatting payroll data.",
+    body: "Prepare employee details, earnings, deductions, and disbursement details in one workspace that stays clear from first input to final export.",
   },
   {
     role: "Operations",
-    headline: "Vouchers with structure built in.",
-    body: "Move from internal approvals to export-ready vouchers without reformatting the document each time.",
+    headline: "Prepare vouchers with the structure teams already expect.",
+    body: "Create payment or receipt vouchers with clean narration, approval context, and export-ready formatting in one pass.",
   },
   {
     role: "Finance / Accounts",
-    headline: "Invoices that stay clean under pressure.",
-    body: "Keep branding, tax structure, line items, and payment summaries aligned in one product flow.",
+    headline: "Send invoices that stay clear from line items to balance due.",
+    body: "Keep client details, tax structure, payment summaries, and branding aligned without losing clarity in the final document.",
   },
 ];
 
 const workflow = [
   {
     step: "01",
-    title: "Enter details once",
-    body: "Each generator keeps its fields structured, so the form feels clear instead of crowded.",
+    title: "Enter the details",
+    body: "Each generator is structured around the fields teams actually need, so data entry stays straightforward.",
   },
   {
     step: "02",
-    title: "Review the document live",
-    body: "The preview updates as you work, which makes internal review and visual QA faster.",
+    title: "Review it live",
+    body: "The document updates instantly, which makes review faster and catches layout issues before they matter.",
   },
   {
     step: "03",
-    title: "Export with confidence",
-    body: "Use print, PDF, or PNG without rebuilding the document in another tool.",
+    title: "Export and share",
+    body: "When the document looks right, export it in the format your team needs and send it on.",
   },
 ];
 
 const faqs = [
   {
     q: "What can teams generate with Slipwise?",
-    a: "Slipwise currently supports vouchers, salary slips, and invoices as three focused workflows inside one product.",
+    a: "Slipwise supports salary slips, invoices, and vouchers in one browser-based product.",
   },
   {
     q: "Does Slipwise need a database or account system?",
-    a: "No. The product stays stateless in this phase and remains simple to deploy on Vercel.",
+    a: "No. Slipwise stays stateless in this phase and remains simple to deploy on Vercel.",
   },
   {
     q: "Can the output be branded?",
-    a: "Yes. Logo upload and accent color controls are already part of the active document session.",
+    a: "Yes. Logo upload, company details, and accent color controls are part of the active document session.",
   },
   {
     q: "What export formats are available?",
-    a: "Slipwise supports browser print, PDF export, and PNG export alongside the live preview surface.",
+    a: "Slipwise supports browser print, PDF export, and PNG export alongside the live preview.",
   },
 ];
 
@@ -166,15 +166,15 @@ export function SlipwiseHome({ className }: SlipwiseHomeProps) {
         <section className="grid gap-10 pt-8 lg:min-h-[calc(100vh-8rem)] lg:grid-cols-[minmax(0,0.96fr)_minmax(32rem,0.94fr)] lg:items-center lg:pt-10">
           <div className="max-w-3xl self-center">
             <div className="inline-flex items-center gap-2 rounded-full border border-[var(--accent-soft)] bg-white/75 px-4 py-2 text-[0.72rem] font-semibold uppercase tracking-[0.28em] text-[var(--accent-strong)] shadow-[var(--shadow-soft)] backdrop-blur">
-              Business documents for modern teams
+              For HR, ops, and finance teams
             </div>
 
             <h1 className="mt-5 max-w-3xl text-[3rem] leading-[0.94] text-[var(--foreground)] md:text-[3.65rem] xl:text-[4.2rem]">
-              Create salary slips, invoices, and vouchers without the spreadsheet mess.
+              Create salary slips, invoices, and vouchers without rebuilding them in spreadsheets.
             </h1>
 
             <p className="mt-5 max-w-xl text-[1.02rem] leading-8 text-[var(--muted-foreground)] md:text-[1.08rem]">
-              Slipwise gives HR, admin, and finance teams a clean workspace to prepare branded business documents, review them live, and export polished output in minutes.
+              Slipwise gives teams one clean workspace to prepare recurring business documents, review them live, and export polished output that is ready to send.
             </p>
 
             <div className="mt-7 flex flex-wrap gap-4">
@@ -182,21 +182,21 @@ export function SlipwiseHome({ className }: SlipwiseHomeProps) {
                 href="/voucher"
                 className="rounded-full bg-[var(--foreground)] px-6 py-3.5 text-sm font-semibold text-white shadow-[var(--shadow-lift)] hover:-translate-y-0.5"
               >
-                Open product
+                Open the product
               </Link>
               <a
                 href="#generators"
                 className="rounded-full border border-[var(--border-strong)] bg-white/80 px-6 py-3.5 text-sm font-semibold text-[var(--foreground-soft)] shadow-[var(--shadow-soft)] backdrop-blur hover:border-[var(--accent)] hover:text-[var(--foreground)]"
               >
-                View generators
+                Explore generators
               </a>
             </div>
 
             <div className="mt-7 grid gap-3 sm:grid-cols-3">
               {[
-                "Live preview built in",
-                "PDF, PNG, and print export",
-                "Brand-ready documents",
+                "Live preview across all three workflows",
+                "PDF, PNG, and print built in",
+                "Brand-ready output without design work",
               ].map((item) => (
                 <div
                   key={item}
@@ -219,7 +219,7 @@ export function SlipwiseHome({ className }: SlipwiseHomeProps) {
             <SectionHeading
               eyebrow="Feature story"
               title="One product for the documents teams create every week."
-              description="Slipwise keeps vouchers, salary slips, and invoices inside a clean browser workflow with live preview and polished export."
+              description="Slipwise brings recurring document work into one browser-based product, with structured inputs, live preview, and export-ready output from the start."
             />
 
             <div className="mt-8 rounded-[1.5rem] border border-[var(--border-soft)] bg-[var(--surface-soft)] p-6">
@@ -227,9 +227,9 @@ export function SlipwiseHome({ className }: SlipwiseHomeProps) {
                 Product focus
               </p>
               <div className="mt-4 space-y-4 text-base leading-8 text-[var(--foreground-soft)]">
-                <p>Slipwise is designed for teams that need business documents to look right without extra formatting work.</p>
-                <p>The homepage should explain that value quickly, then move people straight into the product.</p>
-                <p>The design goal is minimal SaaS: clear, modern, and product-first.</p>
+                <p>Slipwise is built for teams that prepare the same operational documents every month, every cycle, and every week.</p>
+                <p>It replaces spreadsheet cleanup and manual document formatting with a workflow that is easier to repeat and easier to trust.</p>
+                <p>The product stays focused: structured inputs, a live document view, and exports that are ready to share.</p>
               </div>
             </div>
           </div>
@@ -268,10 +268,10 @@ export function SlipwiseHome({ className }: SlipwiseHomeProps) {
                 Core benefit
               </p>
               <p className="mt-4 text-2xl font-semibold text-[var(--foreground)]">
-                Fast enough for admins. Clean enough for the business.
+                Faster to prepare. Easier to trust.
               </p>
               <p className="mt-4 text-base leading-8 text-[var(--muted-foreground)]">
-                The visual system should support the workflow, not overpower it.
+                Slipwise gives teams a cleaner way to produce recurring business documents without adding another formatting tool to the process.
               </p>
             </motion.article>
           </div>
@@ -285,7 +285,7 @@ export function SlipwiseHome({ className }: SlipwiseHomeProps) {
             <SectionHeading
               eyebrow="Solutions"
               title="Built for the people who actually prepare these documents every week."
-              description="The strongest story for Slipwise is not abstract productivity. It is focused workflow quality for the teams doing real payroll, admin, and billing work."
+              description="Slipwise is designed for payroll, admin, operations, and finance teams that need documents to be accurate, presentable, and quick to turn around."
             />
           </div>
 
@@ -317,7 +317,7 @@ export function SlipwiseHome({ className }: SlipwiseHomeProps) {
             <SectionHeading
               eyebrow="Workflow"
               title="Three steps from structured input to clean export."
-              description="The product story should be immediate. Users enter data, review the live document, and export without leaving the workflow."
+              description="The workflow stays simple from start to finish: enter the details, review the document, and export it without switching tools."
             />
           </div>
 
@@ -346,8 +346,8 @@ export function SlipwiseHome({ className }: SlipwiseHomeProps) {
         <section className="rounded-[2.7rem] border border-[var(--border-strong)] bg-white/72 p-6 shadow-[var(--shadow-card)] backdrop-blur md:p-8">
           <SectionHeading
             eyebrow="Generators"
-            title="Three real document modules, presented as one product."
-            description="The marketing page and the app shell should both reinforce the same story: Slipwise is one software product with three focused workflows inside it."
+            title="Three focused generators, one consistent product."
+            description="Choose the workflow you need and get the same structured editing, live preview, and polished export experience every time."
           />
 
           <div className="mt-8 grid gap-6 xl:grid-cols-3">
@@ -363,8 +363,8 @@ export function SlipwiseHome({ className }: SlipwiseHomeProps) {
         >
           <SectionHeading
             eyebrow="FAQ"
-            title="The questions buyers and testers ask before they trust the product."
-            description="Slipwise should answer the important product questions without making people dig through the app."
+            title="The essentials, answered clearly."
+            description="Everything important about the product should be easy to understand before someone commits to using it."
           />
 
           <div className="grid gap-4">
@@ -391,10 +391,10 @@ export function SlipwiseHome({ className }: SlipwiseHomeProps) {
                 Ready to ship
               </p>
               <h2 className="mt-4 max-w-3xl text-4xl leading-[1] text-[var(--foreground)] md:text-5xl">
-                A cleaner product surface for teams that need business documents done right.
+                A simpler way to prepare the documents your team sends every day.
               </h2>
               <p className="mt-5 max-w-2xl text-lg leading-8 text-[var(--muted-foreground)]">
-                Slipwise keeps the workflow simple: enter the details, review the document, and export with confidence.
+                Slipwise keeps the process clean from start to finish: enter the details, review the document, and export professional output when it is ready.
               </p>
             </div>
 
