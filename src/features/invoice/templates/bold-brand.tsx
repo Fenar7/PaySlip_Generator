@@ -14,7 +14,7 @@ export function BoldBrandInvoiceTemplate({
   return (
     <div className="space-y-6 text-[var(--voucher-ink)]">
       <section
-        className="rounded-[1.8rem] p-6 text-white"
+        className="document-break-inside-avoid rounded-[1.8rem] p-6 text-white"
         style={{
           background:
             "linear-gradient(135deg, color-mix(in srgb, var(--voucher-accent) 94%, white 6%), #7f5a22)",
@@ -52,12 +52,12 @@ export function BoldBrandInvoiceTemplate({
         </div>
       </section>
 
-      <section
-        className={cn(
-          "grid gap-4",
-          printLike ? "grid-cols-[0.95fr_1.05fr]" : "md:grid-cols-[0.95fr_1.05fr]",
-        )}
-      >
+        <section
+          className={cn(
+            "document-break-inside-avoid grid gap-4",
+            printLike ? "grid-cols-[0.95fr_1.05fr]" : "md:grid-cols-[0.95fr_1.05fr]",
+          )}
+        >
         <div className="rounded-[1.5rem] border border-[rgba(29,23,16,0.08)] bg-[rgba(255,255,255,0.92)] p-5">
           <p className="text-[0.68rem] uppercase tracking-[0.25em] text-[rgba(29,23,16,0.45)]">Bill to</p>
           <p className="mt-3 text-lg font-medium">{document.clientName}</p>
@@ -98,7 +98,7 @@ export function BoldBrandInvoiceTemplate({
       {document.shippingAddress || document.placeOfSupply ? (
         <section
           className={cn(
-            "grid gap-4",
+            "document-break-inside-avoid grid gap-4",
             printLike ? "grid-cols-2" : "md:grid-cols-2",
           )}
         >
@@ -119,7 +119,10 @@ export function BoldBrandInvoiceTemplate({
 
       <section className="overflow-hidden rounded-[1.6rem] border border-[rgba(29,23,16,0.08)] bg-[rgba(255,255,255,0.96)]">
         <table className="w-full border-collapse text-left text-[0.82rem]">
-          <thead style={{ backgroundColor: "color-mix(in srgb, var(--voucher-accent) 16%, white 84%)" }}>
+          <thead
+            className="document-table-head"
+            style={{ backgroundColor: "color-mix(in srgb, var(--voucher-accent) 16%, white 84%)" }}
+          >
             <tr className="text-[0.68rem] uppercase tracking-[0.2em] text-[rgba(29,23,16,0.58)]">
               <th className="px-4 py-3">Description</th>
               <th className="px-4 py-3">Qty</th>
@@ -131,7 +134,7 @@ export function BoldBrandInvoiceTemplate({
           </thead>
           <tbody>
             {document.lineItems.map((item) => (
-              <tr key={`${item.description}-${item.lineTotal}`} className="border-t border-[rgba(29,23,16,0.08)]">
+              <tr key={`${item.description}-${item.lineTotal}`} className="document-table-row-avoid border-t border-[rgba(29,23,16,0.08)]">
                 <td className="px-4 py-4 text-[rgba(29,23,16,0.84)]">{item.description}</td>
                 <td className="px-4 py-4">{item.quantity}</td>
                 <td className="px-4 py-4">{item.unitPriceFormatted}</td>
@@ -152,19 +155,19 @@ export function BoldBrandInvoiceTemplate({
       >
         <div className="space-y-4">
           {document.notes ? (
-            <div className="rounded-[1.5rem] border border-[rgba(29,23,16,0.08)] bg-[rgba(255,255,255,0.9)] p-5">
+            <div className="document-break-inside-avoid rounded-[1.5rem] border border-[rgba(29,23,16,0.08)] bg-[rgba(255,255,255,0.9)] p-5">
               <p className="text-[0.68rem] uppercase tracking-[0.25em] text-[rgba(29,23,16,0.45)]">Notes</p>
               <p className="mt-3 text-sm leading-7 text-[rgba(29,23,16,0.82)]">{document.notes}</p>
             </div>
           ) : null}
           {document.terms ? (
-            <div className="rounded-[1.5rem] border border-[rgba(29,23,16,0.08)] bg-[rgba(255,255,255,0.9)] p-5">
+            <div className="document-break-inside-avoid rounded-[1.5rem] border border-[rgba(29,23,16,0.08)] bg-[rgba(255,255,255,0.9)] p-5">
               <p className="text-[0.68rem] uppercase tracking-[0.25em] text-[rgba(29,23,16,0.45)]">Terms</p>
               <p className="mt-3 text-sm leading-7 text-[rgba(29,23,16,0.82)]">{document.terms}</p>
             </div>
           ) : null}
           {document.bankName || document.bankAccountNumber || document.bankIfsc ? (
-            <div className="rounded-[1.5rem] border border-[rgba(29,23,16,0.08)] bg-[rgba(255,255,255,0.9)] p-5">
+            <div className="document-break-inside-avoid rounded-[1.5rem] border border-[rgba(29,23,16,0.08)] bg-[rgba(255,255,255,0.9)] p-5">
               <p className="text-[0.68rem] uppercase tracking-[0.25em] text-[rgba(29,23,16,0.45)]">Remit to</p>
               <div className="mt-3 space-y-1.5 text-sm leading-6 text-[rgba(29,23,16,0.82)]">
                 {document.bankName ? <p>{document.bankName}</p> : null}
@@ -175,7 +178,7 @@ export function BoldBrandInvoiceTemplate({
           ) : null}
         </div>
 
-        <div className="rounded-[1.5rem] border border-[rgba(29,23,16,0.08)] bg-[rgba(255,255,255,0.98)] p-5">
+        <div className="document-break-inside-avoid rounded-[1.5rem] border border-[rgba(29,23,16,0.08)] bg-[rgba(255,255,255,0.98)] p-5">
           <div className="space-y-3 text-sm">
             <div className="flex items-center justify-between"><span>Subtotal</span><span>{document.subtotalFormatted}</span></div>
             <div className="flex items-center justify-between"><span>Line discount</span><span>{document.totalDiscountFormatted}</span></div>

@@ -6,7 +6,7 @@ function InvoiceTable({ document }: { document: InvoiceDocument }) {
   return (
     <div className="overflow-hidden rounded-[1.5rem] border border-[rgba(29,23,16,0.08)]">
       <table className="w-full border-collapse text-left text-[0.82rem]">
-        <thead className="bg-[rgba(29,23,16,0.04)] text-[0.68rem] uppercase tracking-[0.2em] text-[rgba(29,23,16,0.52)]">
+        <thead className="document-table-head bg-[rgba(29,23,16,0.04)] text-[0.68rem] uppercase tracking-[0.2em] text-[rgba(29,23,16,0.52)]">
           <tr>
             <th className="px-4 py-3">Description</th>
             <th className="px-4 py-3">Qty</th>
@@ -18,7 +18,7 @@ function InvoiceTable({ document }: { document: InvoiceDocument }) {
         </thead>
         <tbody>
           {document.lineItems.map((item) => (
-            <tr key={`${item.description}-${item.lineTotal}`} className="border-t border-[rgba(29,23,16,0.07)] align-top">
+            <tr key={`${item.description}-${item.lineTotal}`} className="document-table-row-avoid border-t border-[rgba(29,23,16,0.07)] align-top">
               <td className="px-4 py-4 text-[rgba(29,23,16,0.84)]">{item.description}</td>
               <td className="px-4 py-4">{item.quantity}</td>
               <td className="px-4 py-4">{item.unitPriceFormatted}</td>
@@ -44,7 +44,7 @@ export function MinimalInvoiceTemplate({
 
   return (
     <div className="space-y-6 text-[var(--voucher-ink)]">
-      <section className="flex items-start justify-between gap-6 border-b border-[rgba(29,23,16,0.08)] pb-6">
+      <section className="document-break-inside-avoid flex items-start justify-between gap-6 border-b border-[rgba(29,23,16,0.08)] pb-6">
         <div className="flex items-start gap-4">
           <DocumentBrandMark branding={document.branding} />
           <div className="space-y-4">
@@ -92,12 +92,12 @@ export function MinimalInvoiceTemplate({
         </div>
       </section>
 
-      <section
-        className={cn(
-          "grid gap-4",
-          printLike ? "grid-cols-[1.1fr_0.9fr]" : "md:grid-cols-[1.1fr_0.9fr]",
-        )}
-      >
+        <section
+          className={cn(
+            "document-break-inside-avoid grid gap-4",
+            printLike ? "grid-cols-[1.1fr_0.9fr]" : "md:grid-cols-[1.1fr_0.9fr]",
+          )}
+        >
         <div className="rounded-[1.5rem] border border-[rgba(29,23,16,0.08)] bg-[rgba(255,255,255,0.86)] p-5">
           <p className="text-[0.68rem] font-semibold uppercase tracking-[0.25em] text-[rgba(29,23,16,0.45)]">
             Bill to
@@ -122,7 +122,7 @@ export function MinimalInvoiceTemplate({
       {document.shippingAddress || document.placeOfSupply ? (
         <section
           className={cn(
-            "grid gap-4",
+            "document-break-inside-avoid grid gap-4",
             printLike ? "grid-cols-2" : "md:grid-cols-2",
           )}
         >
@@ -159,7 +159,7 @@ export function MinimalInvoiceTemplate({
       >
         <div className="space-y-4">
           {document.notes ? (
-            <div className="rounded-[1.5rem] border border-dashed border-[rgba(29,23,16,0.12)] bg-[rgba(255,255,255,0.72)] p-5">
+            <div className="document-break-inside-avoid rounded-[1.5rem] border border-dashed border-[rgba(29,23,16,0.12)] bg-[rgba(255,255,255,0.72)] p-5">
               <p className="text-[0.68rem] uppercase tracking-[0.25em] text-[rgba(29,23,16,0.45)]">
                 Notes
               </p>
@@ -167,7 +167,7 @@ export function MinimalInvoiceTemplate({
             </div>
           ) : null}
           {document.terms ? (
-            <div className="rounded-[1.5rem] border border-[rgba(29,23,16,0.08)] bg-[rgba(255,255,255,0.84)] p-5">
+            <div className="document-break-inside-avoid rounded-[1.5rem] border border-[rgba(29,23,16,0.08)] bg-[rgba(255,255,255,0.84)] p-5">
               <p className="text-[0.68rem] uppercase tracking-[0.25em] text-[rgba(29,23,16,0.45)]">
                 Terms
               </p>
@@ -176,7 +176,7 @@ export function MinimalInvoiceTemplate({
           ) : null}
         </div>
 
-        <div className="rounded-[1.5rem] border border-[rgba(29,23,16,0.08)] bg-[rgba(255,255,255,0.92)] p-5">
+        <div className="document-break-inside-avoid rounded-[1.5rem] border border-[rgba(29,23,16,0.08)] bg-[rgba(255,255,255,0.92)] p-5">
           <div className="space-y-3 text-sm">
             <div className="flex items-center justify-between">
               <span>Subtotal</span>

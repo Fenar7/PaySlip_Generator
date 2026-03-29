@@ -19,7 +19,7 @@ function MoneyTable({
   totalValue: string;
 }) {
   return (
-    <section className="rounded-[1.35rem] border border-[rgba(29,23,16,0.08)] bg-[rgba(255,255,255,0.94)] p-5">
+    <section className="document-break-inside-avoid rounded-[1.35rem] border border-[rgba(29,23,16,0.08)] bg-[rgba(255,255,255,0.94)] p-5">
       <div className="flex items-center justify-between gap-4 border-b border-[rgba(29,23,16,0.08)] pb-3">
         <p className="text-[0.68rem] font-semibold uppercase tracking-[0.25em] text-[rgba(29,23,16,0.45)]">
           {title}
@@ -50,7 +50,7 @@ export function CorporateCleanSalarySlipTemplate({
 
   return (
     <div className="space-y-6 text-[var(--voucher-ink)]">
-      <section className="rounded-[1.5rem] border border-[rgba(29,23,16,0.08)] bg-[rgba(255,255,255,0.96)] p-6">
+      <section className="document-break-inside-avoid rounded-[1.5rem] border border-[rgba(29,23,16,0.08)] bg-[rgba(255,255,255,0.96)] p-6">
         <div className="flex items-start justify-between gap-6 border-b border-[rgba(29,23,16,0.08)] pb-5">
           <div className="flex items-start gap-4">
             <DocumentBrandMark branding={document.branding} />
@@ -116,7 +116,7 @@ export function CorporateCleanSalarySlipTemplate({
       {document.visibility.showAttendance ? (
         <section
           className={cn(
-            "grid gap-4",
+            "document-break-inside-avoid grid gap-4",
             printLikeMode ? "grid-cols-4" : "sm:grid-cols-2 lg:grid-cols-4",
           )}
         >
@@ -143,7 +143,7 @@ export function CorporateCleanSalarySlipTemplate({
 
       <section
         className={cn(
-          "grid gap-4",
+          "document-break-inside-avoid grid gap-4",
           printLikeMode ? "grid-cols-2" : "md:grid-cols-2",
         )}
       >
@@ -162,7 +162,7 @@ export function CorporateCleanSalarySlipTemplate({
       </section>
 
       {document.visibility.showBankDetails && (document.bankName || document.bankAccountNumber) ? (
-        <section className="rounded-[1.35rem] border border-[rgba(29,23,16,0.08)] bg-[rgba(255,255,255,0.92)] p-5">
+        <section className="document-break-inside-avoid rounded-[1.35rem] border border-[rgba(29,23,16,0.08)] bg-[rgba(255,255,255,0.92)] p-5">
           <p className="text-[0.68rem] uppercase tracking-[0.25em] text-[rgba(29,23,16,0.45)]">
             Disbursement details
           </p>
@@ -182,7 +182,7 @@ export function CorporateCleanSalarySlipTemplate({
       ) : null}
 
       {document.notes ? (
-        <section className="rounded-[1.35rem] border border-dashed border-[rgba(29,23,16,0.14)] bg-[rgba(255,255,255,0.82)] p-5">
+        <section className="document-break-inside-avoid rounded-[1.35rem] border border-dashed border-[rgba(29,23,16,0.14)] bg-[rgba(255,255,255,0.82)] p-5">
           <p className="text-[0.68rem] uppercase tracking-[0.25em] text-[rgba(29,23,16,0.45)]">Notes</p>
           <p className="mt-3 text-sm leading-7 text-[rgba(29,23,16,0.8)]">{document.notes}</p>
         </section>
@@ -191,7 +191,7 @@ export function CorporateCleanSalarySlipTemplate({
       {document.visibility.showSignature ? (
         <section
           className={cn(
-            "grid gap-4",
+            "document-break-inside-avoid grid gap-4",
             printLikeMode ? "grid-cols-2" : "md:grid-cols-2",
           )}
         >

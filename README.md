@@ -45,6 +45,36 @@ This phase includes:
 - PDF export, PNG export, and browser print flows
 - unit and E2E coverage for preview, print, and export paths
 
+## Deployment
+
+The app is designed to stay stateless and deploy cleanly on Vercel.
+
+- deploy target: Vercel
+- runtime expectation for export routes: Node.js serverless functions
+- export rendering uses local Chromium in development and `@sparticuz/chromium` on Vercel/Linux
+- no database, auth provider, object storage, or background jobs are required for Phase 1
+
+Recommended deployment checks after creating a Vercel preview:
+
+1. Open `/voucher`, `/salary-slip`, and `/invoice`.
+2. Confirm each workspace renders and template switching still works.
+3. Export one PDF and one PNG from each module.
+4. Confirm browser print opens the correct print surface for each module.
+5. Verify exported PDFs keep selectable text and PNG downloads complete without server errors.
+
+## Release Verification
+
+Use this sequence before merging release-facing changes:
+
+```bash
+npm run lint
+npm test
+npm run build
+npm run test:e2e
+```
+
+If `npm run test:e2e` is rerun multiple times locally in the same shell session, make sure the previous Playwright web server has exited before starting another run.
+
 ## Repository Notes
 
 - default branch target: `master`
@@ -64,3 +94,5 @@ This phase includes:
 ## PRD
 
 The original PRD is stored in the repo root as `Phase 1 Product Requirements Document (PRD) v1.1.docx`.
+
+The implementation status and acceptance checklist are documented in `docs/phase1-checklist.md`.

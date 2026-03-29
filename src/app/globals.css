@@ -83,6 +83,25 @@ select {
   margin: 0;
 }
 
+.document-break-inside-avoid {
+  break-inside: avoid;
+  page-break-inside: avoid;
+}
+
+.document-break-before-page {
+  break-before: page;
+  page-break-before: always;
+}
+
+.document-table-head {
+  display: table-header-group;
+}
+
+.document-table-row-avoid {
+  break-inside: avoid;
+  page-break-inside: avoid;
+}
+
 @media print {
   html,
   body {
