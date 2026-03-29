@@ -77,28 +77,40 @@ export function DocumentPreviewSurface({
   );
 
   return (
-    <div className="relative overflow-hidden rounded-[1.85rem] border border-[var(--border-strong)] bg-[linear-gradient(180deg,rgba(236,244,255,0.96),rgba(229,239,252,0.92))] p-3 shadow-[var(--shadow-card)] sm:p-4">
-      <div className="absolute inset-x-10 top-0 h-20 rounded-full bg-[radial-gradient(circle,rgba(45,107,255,0.16),transparent_72%)] blur-3xl" />
+    <div className="relative overflow-hidden rounded-[1.9rem] border border-[rgba(15,23,42,0.08)] bg-[linear-gradient(180deg,rgba(244,248,255,0.82),rgba(255,255,255,0.98))] p-3 shadow-[var(--shadow-card)] sm:p-4">
       <div className="relative space-y-4">
-        <div className="flex flex-wrap items-center justify-between gap-3 rounded-[1.25rem] border border-[var(--border-soft)] bg-white/82 px-4 py-3">
-          <div>
-            <p className="text-[0.65rem] font-semibold uppercase tracking-[0.3em] text-[var(--muted-foreground)]">
-              Live preview
-            </p>
-            <p className="mt-1 text-sm text-[var(--foreground-soft)]">
-              {title} · {templateName}
-            </p>
+        <div className="rounded-[1.25rem] border border-[rgba(15,23,42,0.08)] bg-white/92 px-4 py-4 shadow-[0_10px_24px_rgba(15,23,42,0.04)]">
+          <div className="flex items-center gap-2">
+            <span className="h-2.5 w-2.5 rounded-full bg-[rgba(248,113,113,0.85)]" />
+            <span className="h-2.5 w-2.5 rounded-full bg-[rgba(251,191,36,0.85)]" />
+            <span className="h-2.5 w-2.5 rounded-full bg-[rgba(74,222,128,0.85)]" />
           </div>
-          <span className="rounded-full border border-[var(--border-soft)] px-3 py-1 text-xs text-[var(--muted-foreground)]">
-            A4 workspace
-          </span>
+
+          <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <p className="text-[0.65rem] font-semibold uppercase tracking-[0.3em] text-[var(--muted-foreground)]">
+                Live preview
+              </p>
+              <p className="mt-1 text-sm text-[var(--foreground-soft)]">
+                {title} · {templateName}
+              </p>
+            </div>
+            <span className="rounded-full border border-[var(--border-soft)] px-3 py-1 text-xs text-[var(--muted-foreground)]">
+              A4 workspace
+            </span>
+          </div>
         </div>
 
         <div
           ref={viewportRef}
           data-testid="document-preview-viewport"
-          className="overflow-hidden rounded-[1.5rem] border border-[var(--border-soft)] bg-[linear-gradient(180deg,#fffdf8,#faf5ec)] p-1.5 sm:p-2.5"
+          className="overflow-hidden rounded-[1.7rem] border border-[rgba(15,23,42,0.08)] bg-[linear-gradient(180deg,#f8fbff,#eef4ff)] p-2.5 sm:p-3.5"
         >
+          <div className="mb-3 flex items-center justify-between rounded-[1rem] border border-[rgba(15,23,42,0.08)] bg-white/88 px-3 py-2 text-[0.72rem] font-semibold uppercase tracking-[0.22em] text-[var(--muted-foreground)]">
+            <span>Document canvas</span>
+            <span>Synced</span>
+          </div>
+
           <div
             className="mx-auto flex max-w-full justify-center"
             style={{
@@ -108,7 +120,7 @@ export function DocumentPreviewSurface({
           >
             <div
               ref={documentFrameRef}
-              className="overflow-hidden rounded-[1.25rem] border border-[rgba(29,23,16,0.08)] shadow-[0_24px_48px_rgba(38,30,20,0.08)]"
+              className="overflow-hidden rounded-[1.25rem] border border-[rgba(15,23,42,0.08)] bg-white shadow-[0_28px_52px_rgba(15,23,42,0.12)]"
               style={{
                 width: `${PREVIEW_DOCUMENT_FRAME_WIDTH - 2}px`,
                 minHeight: `${A4_DOCUMENT_HEIGHT}px`,
