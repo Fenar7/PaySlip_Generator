@@ -2,12 +2,10 @@
 
 import Link from "next/link";
 import type { SVGProps } from "react";
-import { motion } from "motion/react";
 import type { ProductModule } from "@/lib/modules";
 
 type ModuleCardProps = {
   module: ProductModule;
-  index: number;
 };
 
 type IconProps = SVGProps<SVGSVGElement>;
@@ -44,7 +42,7 @@ function InvoiceIcon(props: IconProps) {
   );
 }
 
-export function ModuleCard({ module, index }: ModuleCardProps) {
+export function ModuleCard({ module }: ModuleCardProps) {
   const Icon =
     module.slug === "voucher"
       ? VoucherIcon
@@ -53,10 +51,8 @@ export function ModuleCard({ module, index }: ModuleCardProps) {
         : InvoiceIcon;
 
   return (
-    <motion.article
-      initial={{ opacity: 0, y: 24 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.2, delay: index * 0.05 }}
+    <article
+      data-animate="generator-card"
       className="group relative overflow-hidden rounded-[2.25rem] border border-[var(--border-strong)] bg-[linear-gradient(180deg,rgba(255,255,255,0.96),rgba(243,247,253,0.98))] p-6 shadow-[var(--shadow-soft)]"
     >
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(49,93,246,0.18),transparent_42%),radial-gradient(circle_at_bottom_left,rgba(14,165,233,0.08),transparent_32%)] opacity-0 transition-opacity duration-200 group-hover:opacity-100" />
@@ -96,6 +92,6 @@ export function ModuleCard({ module, index }: ModuleCardProps) {
           <span aria-hidden="true">→</span>
         </Link>
       </div>
-    </motion.article>
+    </article>
   );
 }
