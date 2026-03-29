@@ -12,10 +12,10 @@ import { cn } from "@/lib/utils";
 
 function baseInputClass(hasError?: boolean) {
   return cn(
-    "w-full rounded-[1rem] border bg-white px-4 py-3 text-sm text-[var(--foreground)] shadow-[0_10px_24px_rgba(15,23,42,0.04)] outline-none transition-colors",
+    "w-full rounded-[1rem] border bg-white px-4 py-3.5 text-sm text-[var(--foreground)] shadow-[0_8px_20px_rgba(15,23,42,0.03)] outline-none transition-[border-color,box-shadow]",
     hasError
-      ? "border-[var(--danger)] focus:border-[var(--danger)]"
-      : "border-[var(--border-soft)] focus:border-[var(--accent)]",
+      ? "border-[var(--danger)] focus:border-[var(--danger)] focus:shadow-[0_0_0_4px_rgba(220,38,38,0.08)]"
+      : "border-[var(--border-soft)] focus:border-[var(--accent)] focus:shadow-[0_0_0_4px_rgba(45,107,255,0.09)]",
   );
 }
 
@@ -182,14 +182,19 @@ export function ToggleField<TFormValues extends FieldValues>({
             aria-checked={Boolean(field.value)}
             onClick={() => field.onChange(!field.value)}
             className={cn(
-              "flex w-full items-center justify-between rounded-[1rem] border px-4 py-3 text-left shadow-[0_10px_24px_rgba(15,23,42,0.04)]",
+              "flex w-full items-center justify-between rounded-[1rem] border px-4 py-3 text-left shadow-[0_8px_20px_rgba(15,23,42,0.03)] transition-colors",
               field.value
                 ? "border-[var(--accent)] bg-white"
-                : "border-[var(--border-soft)] bg-white/80",
+                : "border-[var(--border-soft)] bg-[var(--surface-soft)]",
             )}
           >
-            <span className="text-sm text-[var(--foreground)]">
-              {field.value ? "Visible in preview" : "Hidden from preview"}
+            <span>
+              <span className="block text-sm font-medium text-[var(--foreground)]">
+                {field.value ? "Visible in preview" : "Hidden from preview"}
+              </span>
+              <span className="mt-1 block text-xs text-[var(--muted-foreground)]">
+                Toggle this block in the live document.
+              </span>
             </span>
             <span
               className={cn(
@@ -233,7 +238,7 @@ export function ColorField<TFormValues extends FieldValues>({
       hint={hint}
       error={typeof fieldError === "string" ? fieldError : undefined}
     >
-      <div className="flex items-center gap-3 rounded-[1rem] border border-[var(--border-soft)] bg-white px-3 py-2 shadow-[0_10px_24px_rgba(15,23,42,0.04)]">
+      <div className="flex items-center gap-3 rounded-[1rem] border border-[var(--border-soft)] bg-white px-3 py-3 shadow-[0_8px_20px_rgba(15,23,42,0.03)]">
         <input
           id={name}
           type="color"
@@ -272,7 +277,7 @@ export function FileUploadField<TFormValues extends FieldValues>({
           hint={hint}
           error={fieldState.error?.message}
         >
-          <div className="space-y-3 rounded-[1rem] border border-[var(--border-soft)] bg-white p-4 shadow-[0_10px_24px_rgba(15,23,42,0.04)]">
+          <div className="space-y-3 rounded-[1rem] border border-[var(--border-soft)] bg-white p-4 shadow-[0_8px_20px_rgba(15,23,42,0.03)]">
             <input
               type="file"
               accept="image/png,image/jpeg,image/webp,image/svg+xml"
@@ -318,7 +323,7 @@ export function FileUploadField<TFormValues extends FieldValues>({
                 clearErrors(name);
                 field.onChange(dataUrl);
               }}
-              className="block w-full text-sm text-[var(--foreground)] file:mr-4 file:rounded-full file:border-0 file:bg-[var(--foreground)] file:px-4 file:py-2 file:text-sm file:font-medium file:text-[var(--background)]"
+              className="block w-full text-sm text-[var(--foreground)] file:mr-4 file:rounded-full file:border-0 file:bg-[var(--foreground)] file:px-4 file:py-2.5 file:text-sm file:font-medium file:text-[var(--background)]"
             />
 
             {field.value ? (
