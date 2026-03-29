@@ -163,36 +163,36 @@ export function SlipwiseHome({ className }: SlipwiseHomeProps) {
           </div>
         </header>
 
-        <section className="grid gap-12 pt-10 lg:grid-cols-[minmax(0,1.02fr)_minmax(36rem,0.98fr)] lg:items-center lg:pt-16">
-          <div className="max-w-4xl">
+        <section className="grid gap-10 pt-8 lg:min-h-[calc(100vh-8rem)] lg:grid-cols-[minmax(0,0.96fr)_minmax(32rem,0.94fr)] lg:items-center lg:pt-10">
+          <div className="max-w-3xl self-center">
             <div className="inline-flex items-center gap-2 rounded-full border border-[var(--accent-soft)] bg-white/75 px-4 py-2 text-[0.72rem] font-semibold uppercase tracking-[0.28em] text-[var(--accent-strong)] shadow-[var(--shadow-soft)] backdrop-blur">
               Business documents for modern teams
             </div>
 
-            <h1 className="mt-6 max-w-4xl text-5xl leading-[0.92] text-[var(--foreground)] md:text-6xl xl:text-[4.8rem]">
+            <h1 className="mt-5 max-w-3xl text-[3rem] leading-[0.94] text-[var(--foreground)] md:text-[3.65rem] xl:text-[4.2rem]">
               Create salary slips, invoices, and vouchers without the spreadsheet mess.
             </h1>
 
-            <p className="mt-6 max-w-2xl text-lg leading-8 text-[var(--muted-foreground)] md:text-[1.15rem]">
+            <p className="mt-5 max-w-xl text-[1.02rem] leading-8 text-[var(--muted-foreground)] md:text-[1.08rem]">
               Slipwise gives HR, admin, and finance teams a clean workspace to prepare branded business documents, review them live, and export polished output in minutes.
             </p>
 
-            <div className="mt-8 flex flex-wrap gap-4">
+            <div className="mt-7 flex flex-wrap gap-4">
               <Link
                 href="/voucher"
-                className="rounded-full bg-[var(--foreground)] px-7 py-4 text-sm font-semibold text-white shadow-[var(--shadow-lift)] hover:-translate-y-0.5"
+                className="rounded-full bg-[var(--foreground)] px-6 py-3.5 text-sm font-semibold text-white shadow-[var(--shadow-lift)] hover:-translate-y-0.5"
               >
                 Open product
               </Link>
               <a
                 href="#generators"
-                className="rounded-full border border-[var(--border-strong)] bg-white/80 px-7 py-4 text-sm font-semibold text-[var(--foreground-soft)] shadow-[var(--shadow-soft)] backdrop-blur hover:border-[var(--accent)] hover:text-[var(--foreground)]"
+                className="rounded-full border border-[var(--border-strong)] bg-white/80 px-6 py-3.5 text-sm font-semibold text-[var(--foreground-soft)] shadow-[var(--shadow-soft)] backdrop-blur hover:border-[var(--accent)] hover:text-[var(--foreground)]"
               >
                 View generators
               </a>
             </div>
 
-            <div className="mt-8 grid gap-4 sm:grid-cols-3">
+            <div className="mt-7 grid gap-3 sm:grid-cols-3">
               {[
                 "Live preview built in",
                 "PDF, PNG, and print export",
@@ -200,7 +200,7 @@ export function SlipwiseHome({ className }: SlipwiseHomeProps) {
               ].map((item) => (
                 <div
                   key={item}
-                  className="rounded-[1.4rem] border border-[var(--border-soft)] bg-white/70 px-4 py-4 text-sm leading-7 text-[var(--foreground-soft)] shadow-[var(--shadow-soft)] backdrop-blur"
+                  className="rounded-[1.15rem] border border-[var(--border-soft)] bg-white/70 px-4 py-3 text-sm leading-7 text-[var(--foreground-soft)] shadow-[var(--shadow-soft)] backdrop-blur"
                 >
                   {item}
                 </div>
