@@ -3,7 +3,6 @@
 import Link from "next/link";
 import type { SVGProps } from "react";
 import { motion } from "motion/react";
-import { slipwiseBrand } from "@/components/foundation/slipwise-brand";
 import type { ProductModule } from "@/lib/modules";
 
 type ModuleCardProps = {
@@ -70,13 +69,10 @@ export function ModuleCard({ module, index }: ModuleCardProps) {
             <p className="text-[0.68rem] font-semibold uppercase tracking-[0.32em] text-[var(--muted-foreground)]">
               {module.eyebrow}
             </p>
-            <h3 className="mt-3 max-w-[14ch] text-[1.65rem] leading-[1.04] tracking-[-0.045em] text-[var(--foreground)] md:text-[1.9rem]">
+            <h3 className="mt-3 text-[1.45rem] leading-[1.08] tracking-[-0.04em] text-[var(--foreground)] md:text-[1.6rem]">
               {module.name}
             </h3>
           </div>
-          <span className="rounded-full border border-[var(--border-soft)] bg-white px-3 py-1 text-[0.68rem] font-semibold uppercase tracking-[0.28em] text-[var(--muted-foreground)] shadow-[0_8px_22px_rgba(15,23,42,0.04)]">
-            {slipwiseBrand.shellBadge}
-          </span>
         </div>
 
         <p className="max-w-sm text-[0.95rem] leading-7 text-[var(--muted-foreground)]">
