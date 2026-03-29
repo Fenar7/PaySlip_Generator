@@ -4,7 +4,7 @@ import { productModules } from "@/lib/modules";
 
 describe("ModuleCard", () => {
   it("renders module information and CTA", () => {
-    render(<ModuleCard module={productModules[0]} index={0} />);
+    render(<ModuleCard module={productModules[0]} />);
 
     expect(
       screen.getByRole("heading", { name: "Voucher Generator" }),

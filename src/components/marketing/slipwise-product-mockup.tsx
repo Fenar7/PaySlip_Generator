@@ -1,7 +1,5 @@
 "use client";
 
-import { motion } from "motion/react";
-
 const boardCards = [
   { label: "Salary slip", value: "₹45,500", tone: "bg-[rgba(103,203,255,0.12)]" },
   { label: "Invoice due", value: "₹39,100", tone: "bg-[rgba(45,107,255,0.12)]" },
@@ -10,18 +8,13 @@ const boardCards = [
 
 export function SlipwiseProductMockup() {
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 16 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.45 }}
-      className="relative mx-auto w-full max-w-[34rem]"
-    >
+    <div className="relative mx-auto w-full max-w-[34rem]">
       <div className="absolute -left-6 top-10 h-24 w-24 rounded-full bg-[rgba(103,203,255,0.1)] blur-3xl" />
       <div className="absolute -right-6 top-2 h-32 w-32 rounded-full bg-[rgba(45,107,255,0.1)] blur-3xl" />
 
-      <div className="relative overflow-hidden rounded-[1.75rem] border border-[var(--border-soft)] bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(244,248,255,0.96))] p-3 shadow-[var(--shadow-card)]">
+      <div data-animate="mockup-shell" className="relative overflow-hidden rounded-[1.75rem] border border-[var(--border-soft)] bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(244,248,255,0.96))] p-3 shadow-[var(--shadow-card)]">
         <div className="overflow-hidden rounded-[1.45rem] border border-[var(--border-soft)] bg-white p-4 text-[var(--foreground)]">
-          <div className="flex items-center justify-between rounded-[1rem] border border-[var(--border-soft)] bg-[var(--surface-soft)] px-3 py-3">
+          <div data-animate="mockup-pane" className="flex items-center justify-between rounded-[1rem] border border-[var(--border-soft)] bg-[var(--surface-soft)] px-3 py-3">
             <div className="flex items-center gap-3">
               <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-[var(--foreground)] text-sm font-semibold text-white">
                 S
@@ -52,7 +45,7 @@ export function SlipwiseProductMockup() {
           </div>
 
           <div className="mt-4 grid gap-3">
-            <section className="rounded-[1.25rem] border border-[var(--border-soft)] bg-[var(--surface-soft)] p-4">
+            <section data-animate="mockup-pane" className="rounded-[1.25rem] border border-[var(--border-soft)] bg-[var(--surface-soft)] p-4">
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-[0.68rem] font-semibold uppercase tracking-[0.3em] text-[var(--muted-foreground)]">
@@ -93,6 +86,7 @@ export function SlipwiseProductMockup() {
               {boardCards.map((card) => (
                 <div
                   key={card.label}
+                  data-animate="mockup-stat"
                   className={`rounded-[1rem] border border-[var(--border-soft)] px-4 py-3 ${card.tone}`}
                 >
                   <p className="text-xs uppercase tracking-[0.24em] text-[var(--muted-foreground)]">
@@ -105,7 +99,7 @@ export function SlipwiseProductMockup() {
               ))}
             </section>
 
-            <section className="rounded-[1.25rem] border border-[var(--border-soft)] bg-white p-4">
+            <section data-animate="mockup-pane" className="rounded-[1.25rem] border border-[var(--border-soft)] bg-white p-4">
               <div className="grid gap-3 md:grid-cols-3">
                 {["Brand setup", "Live preview", "Export flow"].map((item) => (
                   <div
@@ -123,6 +117,6 @@ export function SlipwiseProductMockup() {
           </div>
         </div>
       </div>
-    </motion.div>
+    </div>
   );
 }
