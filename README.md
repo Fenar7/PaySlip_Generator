@@ -1,4 +1,4 @@
-# Business Document Generator
+# Slipwise
 
 Phase 1 implementation of a premium document-generation product built with Next.js. The app supports vouchers, salary slips, and invoices through a shared shell, live preview, and export-ready layout system.
 

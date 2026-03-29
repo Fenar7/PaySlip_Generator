@@ -15,7 +15,7 @@ function HeaderBrand({ document }: VoucherTemplateProps) {
           {document.title}
         </p>
         <h2 className="mt-3 text-[1.85rem] font-medium leading-tight text-[var(--voucher-ink)]">
-          {document.branding.companyName || "Business Document Generator"}
+          {document.branding.companyName || "Slipwise"}
         </h2>
         <div className="mt-4 space-y-1.5 text-sm leading-6 text-[rgba(29,23,16,0.68)]">
           {document.visibility.showAddress && document.branding.address ? (

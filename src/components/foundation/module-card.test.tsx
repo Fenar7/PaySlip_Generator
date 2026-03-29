@@ -10,7 +10,7 @@ describe("ModuleCard", () => {
       screen.getByRole("heading", { name: "Voucher Generator" }),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole("link", { name: /open workspace/i }),
+      screen.getByRole("link", { name: /open generator/i }),
     ).toHaveAttribute("href", "/voucher");
   });
 });

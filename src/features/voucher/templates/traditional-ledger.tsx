@@ -53,7 +53,7 @@ export function TraditionalLedgerVoucherTemplate({
               </div>
             </div>
             <p className="text-right text-sm leading-7 text-white/82">
-              {document.branding.companyName || "Business Document Generator"}
+              {document.branding.companyName || "Slipwise"}
             </p>
           </div>
         </div>

@@ -12,11 +12,11 @@ export const productModules: ProductModule[] = [
     name: "Voucher Generator",
     eyebrow: "Operations",
     description:
-      "Create payment and receipt vouchers with clean layouts and approval-ready details.",
+      "Create payment and receipt vouchers with the right structure, clear narration, and export-ready formatting.",
     highlights: [
       "Payment and receipt flows",
-      "Structured narration and approvals",
-      "A4-ready preview surface",
+      "Approval-friendly layouts",
+      "A4-ready preview and export",
     ],
   },
   {
@@ -24,7 +24,7 @@ export const productModules: ProductModule[] = [
     name: "Salary Slip Generator",
     eyebrow: "People Ops",
     description:
-      "Build polished payslips with a calm workspace for employee details, earnings, and deductions.",
+      "Prepare salary slips with structured employee data, earnings, deductions, and disbursement details in one flow.",
     highlights: [
       "Repeatable earning rows",
       "Live total summaries",
@@ -36,7 +36,7 @@ export const productModules: ProductModule[] = [
     name: "Invoice Generator",
     eyebrow: "Finance",
     description:
-      "Prepare branded invoices with room for tax, line-item detail, and client-ready presentation.",
+      "Prepare branded invoices with clear line items, tax handling, and a final layout that is ready to send.",
     highlights: [
       "Line-item and tax structure",
       "Client and business identity blocks",

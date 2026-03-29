@@ -68,7 +68,7 @@ export function ModernPremiumSalarySlipTemplate({
           </div>
           <div className="max-w-[15rem] text-right text-sm leading-7 text-[rgba(29,23,16,0.72)]">
             <p className="font-medium text-[var(--voucher-ink)]">
-              {document.branding.companyName || "Business Document Generator"}
+              {document.branding.companyName || "Slipwise"}
             </p>
             {document.visibility.showAddress && document.branding.address ? (
               <p>{document.branding.address}</p>
