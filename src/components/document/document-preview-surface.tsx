@@ -77,10 +77,10 @@ export function DocumentPreviewSurface({
   );
 
   return (
-    <div className="relative overflow-hidden rounded-[2rem] border border-[var(--border-strong)] bg-[var(--paper)] p-4 shadow-[var(--shadow-card)]">
-      <div className="absolute inset-x-10 top-0 h-24 rounded-full bg-[radial-gradient(circle,rgba(198,152,84,0.18),transparent_70%)] blur-3xl" />
+    <div className="relative overflow-hidden rounded-[1.85rem] border border-[var(--border-strong)] bg-[linear-gradient(180deg,rgba(236,244,255,0.96),rgba(229,239,252,0.92))] p-3 shadow-[var(--shadow-card)] sm:p-4">
+      <div className="absolute inset-x-10 top-0 h-20 rounded-full bg-[radial-gradient(circle,rgba(45,107,255,0.16),transparent_72%)] blur-3xl" />
       <div className="relative space-y-4">
-        <div className="flex flex-wrap items-center justify-between gap-3 rounded-[1.25rem] border border-[var(--border-soft)] bg-white/68 px-4 py-3">
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-[1.25rem] border border-[var(--border-soft)] bg-white/82 px-4 py-3">
           <div>
             <p className="text-[0.65rem] font-semibold uppercase tracking-[0.3em] text-[var(--muted-foreground)]">
               Live preview
@@ -97,7 +97,7 @@ export function DocumentPreviewSurface({
         <div
           ref={viewportRef}
           data-testid="document-preview-viewport"
-          className="overflow-hidden rounded-[1.6rem] border border-[var(--border-soft)] bg-[linear-gradient(180deg,#fffdf8,#f8f2e8)] p-2 sm:p-3"
+          className="overflow-hidden rounded-[1.5rem] border border-[var(--border-soft)] bg-[linear-gradient(180deg,#fffdf8,#faf5ec)] p-1.5 sm:p-2.5"
         >
           <div
             className="mx-auto flex max-w-full justify-center"
