@@ -226,12 +226,16 @@ test("home page exposes the module entry points", async ({ page }) => {
 
   await expect(
     page.getByRole("heading", {
-      name: /generate vouchers, salary slips, and invoices/i,
+      name: /a production-ready way to create vouchers, salary slips, and invoices/i,
     }),
   ).toBeVisible();
 
   await expect(
-    page.getByRole("link", { name: /open workspace/i }).first(),
+    page.getByRole("link", { name: /start free/i }).first(),
+  ).toBeVisible();
+
+  await expect(
+    page.getByRole("link", { name: /view generators/i }).first(),
   ).toBeVisible();
 });
 
