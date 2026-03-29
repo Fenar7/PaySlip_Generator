@@ -20,11 +20,11 @@ export default function Error({
           Unexpected issue
         </p>
         <h1 className="mt-4 text-4xl text-[var(--foreground)]">
-          The shell hit an error.
+          Slipwise hit an unexpected error.
         </h1>
         <p className="mt-4 text-base leading-8 text-[var(--muted-foreground)]">
-          The foundation phase includes a recovery path so the workspace does not
-          fail silently while later generator features are added.
+          Reload the current view and try the action again. The recovery path is
+          here so the workspace never fails silently while you are working.
         </p>
         <button
           type="button"

@@ -51,7 +51,7 @@ export function ModuleCard({ module, index }: ModuleCardProps) {
           href={`/${module.slug}`}
           className="mt-auto inline-flex w-fit items-center gap-2 rounded-full bg-[var(--foreground)] px-4 py-2 text-sm font-medium text-[var(--background)] transition-all duration-200 hover:-translate-y-0.5 hover:bg-[var(--foreground-soft)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--background)]"
         >
-          Open workspace
+          Open generator
           <span aria-hidden="true">→</span>
         </Link>
       </div>

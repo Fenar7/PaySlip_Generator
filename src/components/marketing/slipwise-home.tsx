@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { motion } from "motion/react";
+import { ModuleCard } from "@/components/foundation/module-card";
 import { cn } from "@/lib/utils";
 import { productModules } from "@/lib/modules";
 
@@ -399,47 +400,7 @@ export function SlipwiseHome({ className }: SlipwiseHomeProps) {
 
           <div className="mt-8 grid gap-5 lg:grid-cols-3">
             {productModules.map((module, index) => (
-              <motion.article
-                key={module.slug}
-                initial={{ opacity: 0, y: 16 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true, amount: 0.3 }}
-                transition={{ duration: 0.35, delay: index * 0.06 }}
-                className="group flex h-full flex-col rounded-[1.75rem] border border-slate-200 bg-gradient-to-br from-white to-slate-50 p-6 shadow-[0_20px_45px_rgba(15,23,42,0.05)]"
-              >
-                <div className="flex items-start justify-between gap-4">
-                  <div>
-                    <p className="text-xs font-semibold uppercase tracking-[0.28em] text-slate-500">
-                      {module.eyebrow}
-                    </p>
-                    <h3 className="mt-3 font-[family-name:var(--font-sora)] text-2xl text-slate-950">
-                      {module.name}
-                    </h3>
-                  </div>
-                  <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-medium text-slate-500">
-                    SaaS ready
-                  </span>
-                </div>
-
-                <p className="mt-4 text-sm leading-7 text-slate-600">{module.description}</p>
-
-                <ul className="mt-6 space-y-3 text-sm text-slate-700">
-                  {module.highlights.map((highlight) => (
-                    <li key={highlight} className="flex items-start gap-3">
-                      <span className="mt-1.5 h-2.5 w-2.5 rounded-full bg-sky-500" />
-                      <span>{highlight}</span>
-                    </li>
-                  ))}
-                </ul>
-
-                <Link
-                  href={`/${module.slug}`}
-                  className="mt-8 inline-flex w-fit items-center gap-2 rounded-full bg-slate-950 px-4 py-2.5 text-sm font-semibold text-white transition-transform hover:-translate-y-0.5"
-                >
-                  Open {module.name}
-                  <span aria-hidden="true">→</span>
-                </Link>
-              </motion.article>
+              <ModuleCard key={module.slug} module={module} index={index} />
             ))}
           </div>
         </section>
