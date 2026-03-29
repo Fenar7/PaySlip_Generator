@@ -184,8 +184,10 @@ function SalarySlipPanel() {
       const link = window.document.createElement("a");
       link.href = downloadUrl;
       link.download = buildSalarySlipFilename(document, format);
+      window.document.body.appendChild(link);
       link.click();
-      URL.revokeObjectURL(downloadUrl);
+      link.remove();
+      window.setTimeout(() => URL.revokeObjectURL(downloadUrl), 1000);
       setActionState({ status: "idle" });
     } catch (error) {
       setActionState({

@@ -9,8 +9,8 @@ const boardCards = [
 export function SlipwiseProductMockup() {
   return (
     <div className="relative mx-auto w-full max-w-[34rem]">
-      <div className="absolute -left-6 top-10 h-24 w-24 rounded-full bg-[rgba(103,203,255,0.1)] blur-3xl" />
-      <div className="absolute -right-6 top-2 h-32 w-32 rounded-full bg-[rgba(45,107,255,0.1)] blur-3xl" />
+      <div className="absolute -left-6 top-10 h-24 w-24 rounded-full bg-[rgba(103,203,255,0.08)] blur-[70px]" />
+      <div className="absolute -right-6 top-2 h-32 w-32 rounded-full bg-[rgba(45,107,255,0.08)] blur-[80px]" />
 
       <div data-animate="mockup-shell" className="relative overflow-hidden rounded-[1.75rem] border border-[var(--border-soft)] bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(244,248,255,0.96))] p-3 shadow-[var(--shadow-card)]">
         <div className="overflow-hidden rounded-[1.45rem] border border-[var(--border-soft)] bg-white p-4 text-[var(--foreground)]">

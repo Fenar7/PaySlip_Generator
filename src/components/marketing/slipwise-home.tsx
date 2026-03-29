@@ -173,7 +173,7 @@ const faqs = [
   },
 ];
 
-const heroTitleLines = [
+const heroLines = [
   "Create salary slips,",
   "invoices, and vouchers",
   "without rebuilding them",
@@ -214,27 +214,19 @@ export function SlipwiseHome({ className }: SlipwiseHomeProps) {
   return (
     <main ref={rootRef} className={cn("relative isolate overflow-hidden", className)}>
       <div className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-[48rem] bg-[radial-gradient(circle_at_top,rgba(45,107,255,0.18),transparent_34%)]" />
-      <div data-animate="hero-glow-left" className="pointer-events-none absolute left-[-9rem] top-36 -z-10 h-72 w-72 rounded-full bg-[rgba(103,203,255,0.18)] blur-3xl" />
-      <div data-animate="hero-glow-right" className="pointer-events-none absolute right-[-6rem] top-24 -z-10 h-80 w-80 rounded-full bg-[rgba(45,107,255,0.18)] blur-3xl" />
+      <div data-animate="hero-glow-left" className="pointer-events-none absolute left-[-7rem] top-40 -z-10 h-56 w-56 rounded-full bg-[rgba(103,203,255,0.12)] blur-[90px]" />
+      <div data-animate="hero-glow-right" className="pointer-events-none absolute right-[-5rem] top-28 -z-10 h-64 w-64 rounded-full bg-[rgba(45,107,255,0.12)] blur-[100px]" />
 
       <div className="mx-auto flex w-full max-w-[95rem] flex-col gap-8 px-4 py-5 sm:px-6 lg:px-8 lg:py-8">
-        <header data-animate="header" className="sticky top-4 z-30 rounded-full border border-[var(--border-soft)] bg-white/78 px-4 py-3 shadow-[var(--shadow-soft)] backdrop-blur-xl">
-          <div className="flex flex-wrap items-center justify-between gap-4">
-            <Link href="/" className="flex items-center gap-3">
-              <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[var(--foreground)] text-sm font-semibold text-white shadow-[var(--shadow-soft)]">
-                S
-              </span>
-              <div>
-                <p className="text-[0.7rem] font-semibold uppercase tracking-[0.34em] text-[var(--muted-foreground)]">
-                  Slipwise
-                </p>
-                <p className="mt-1 text-sm text-[var(--foreground-soft)]">
-                  Business documents without spreadsheet chaos.
-                </p>
-              </div>
+        <header data-animate="header" className="sticky top-4 z-30 rounded-full border border-[var(--border-soft)] bg-white/92 px-4 py-3 shadow-[var(--shadow-soft)]">
+          <div className="flex items-center justify-between gap-4 md:grid md:grid-cols-[auto_1fr_auto] md:gap-6">
+            <Link href="/" className="flex items-center md:justify-self-start">
+              <p className="text-[1.45rem] font-semibold tracking-[-0.08em] text-[var(--foreground)] md:text-[1.6rem]">
+                Slipwise
+              </p>
             </Link>
 
-            <nav className="hidden items-center gap-2 text-sm text-[var(--foreground-soft)] md:flex">
+            <nav className="hidden items-center justify-center gap-2 text-sm text-[var(--foreground-soft)] md:flex">
               {[
                 ["Features", "#features"],
                 ["Solutions", "#solutions"],
@@ -252,7 +244,7 @@ export function SlipwiseHome({ className }: SlipwiseHomeProps) {
               ))}
             </nav>
 
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-3 md:justify-self-end">
               <Link
                 href="/voucher"
                 data-animate="header-cta"
@@ -278,9 +270,11 @@ export function SlipwiseHome({ className }: SlipwiseHomeProps) {
             </div>
 
             <h1 className="mt-5 max-w-3xl text-[3rem] leading-[0.94] text-[var(--foreground)] md:text-[3.65rem] xl:text-[4.2rem]">
-              {heroTitleLines.map((line) => (
-                <span key={line} data-animate="hero-line" className="block">
-                  {line}
+              {heroLines.map((line) => (
+                <span key={line} className="block overflow-hidden pb-1">
+                  <span data-animate="hero-line" className="block origin-left will-change-transform">
+                    {line}
+                  </span>
                 </span>
               ))}
             </h1>
@@ -317,7 +311,7 @@ export function SlipwiseHome({ className }: SlipwiseHomeProps) {
                 <div
                   key={item.label}
                   data-animate="hero-chip"
-                  className="flex items-start gap-3 rounded-[1.15rem] border border-[var(--border-soft)] bg-white/70 px-4 py-3 text-sm leading-7 text-[var(--foreground-soft)] shadow-[var(--shadow-soft)] backdrop-blur"
+                  className="flex items-start gap-3 rounded-[1.15rem] border border-[var(--border-soft)] bg-white/88 px-4 py-3 text-sm leading-7 text-[var(--foreground-soft)] shadow-[var(--shadow-soft)]"
                 >
                   <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[var(--surface-soft)] text-[var(--accent-strong)]">
                     <Icon className="h-4.5 w-4.5" />
@@ -335,7 +329,7 @@ export function SlipwiseHome({ className }: SlipwiseHomeProps) {
         <section
           id="features"
           data-animate="features-section"
-          className="mt-6 grid gap-6 rounded-[2.7rem] border border-[var(--border-strong)] bg-white/70 p-6 shadow-[var(--shadow-card)] backdrop-blur md:p-8 xl:grid-cols-[1.05fr_0.95fr]"
+          className="mt-6 grid gap-6 rounded-[2.7rem] border border-[var(--border-strong)] bg-white/88 p-6 shadow-[var(--shadow-card)] md:p-8 xl:grid-cols-[1.05fr_0.95fr]"
         >
           <div className="rounded-[2.2rem] bg-[linear-gradient(180deg,rgba(255,255,255,0.96),rgba(236,244,255,0.84))] p-7 shadow-[var(--shadow-soft)]">
             <SectionHeading
@@ -400,54 +394,54 @@ export function SlipwiseHome({ className }: SlipwiseHomeProps) {
         <section
           id="solutions"
           data-animate="solutions-section"
-          className="grid gap-6 rounded-[2.7rem] border border-[var(--border-strong)] bg-white/72 p-6 shadow-[var(--shadow-card)] backdrop-blur md:p-8 lg:grid-cols-3"
+          className="rounded-[2.7rem] border border-[var(--border-strong)] bg-white/88 p-6 shadow-[var(--shadow-card)] md:p-8"
         >
-          <div className="lg:col-span-3">
+          <div data-animate="section-heading">
             <SectionHeading
               eyebrow="Solutions"
               title="Built for the people who actually prepare these documents every week."
               description="Slipwise is designed for payroll, admin, operations, and finance teams that need documents to be accurate, presentable, and quick to turn around."
-              animate
             />
           </div>
 
-          {solutions.map((item) => (
-            <article
-              key={item.role}
-              data-animate="solution-card"
-              className="rounded-[1.8rem] border border-[var(--border-soft)] bg-[linear-gradient(180deg,rgba(255,255,255,0.96),rgba(240,246,255,0.9))] p-6 shadow-[var(--shadow-soft)]"
-            >
-              <div className="flex items-center gap-3">
-                <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-white text-[var(--accent-strong)] shadow-[var(--shadow-soft)]">
-                  <item.icon className="h-5 w-5" />
-                </span>
-                <p className="text-[0.72rem] font-semibold uppercase tracking-[0.32em] text-[var(--accent-strong)]">
-                  {item.role}
+          <div className="mt-8 grid gap-5 md:grid-cols-2 xl:grid-cols-3">
+            {solutions.map((item) => (
+              <article
+                key={item.role}
+                data-animate="solution-card"
+                className="rounded-[1.8rem] border border-[var(--border-soft)] bg-[linear-gradient(180deg,rgba(255,255,255,0.96),rgba(240,246,255,0.9))] p-6 shadow-[var(--shadow-soft)]"
+              >
+                <div className="flex items-center gap-3">
+                  <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-white text-[var(--accent-strong)] shadow-[var(--shadow-soft)]">
+                    <item.icon className="h-5 w-5" />
+                  </span>
+                  <p className="text-[0.72rem] font-semibold uppercase tracking-[0.32em] text-[var(--accent-strong)]">
+                    {item.role}
+                  </p>
+                </div>
+                <h3 className="mt-4 text-2xl text-[var(--foreground)]">{item.headline}</h3>
+                <p className="mt-4 text-base leading-8 text-[var(--muted-foreground)]">
+                  {item.body}
                 </p>
-              </div>
-              <h3 className="mt-4 text-2xl text-[var(--foreground)]">{item.headline}</h3>
-              <p className="mt-4 text-base leading-8 text-[var(--muted-foreground)]">
-                {item.body}
-              </p>
-            </article>
-          ))}
+              </article>
+            ))}
+          </div>
         </section>
 
         <section
           id="workflow"
           data-animate="workflow-section"
-          className="grid gap-6 rounded-[2.7rem] border border-[var(--border-strong)] bg-white/75 p-6 shadow-[var(--shadow-card)] backdrop-blur md:p-8 xl:grid-cols-[0.8fr_1.2fr]"
+          className="rounded-[2.7rem] border border-[var(--border-strong)] bg-white/90 p-6 shadow-[var(--shadow-card)] md:p-8"
         >
-          <div className="rounded-[2rem] bg-[linear-gradient(180deg,rgba(255,255,255,0.96),rgba(239,245,255,0.92))] p-6 shadow-[var(--shadow-soft)]">
+          <div data-animate="section-heading" className="rounded-[2rem] bg-[linear-gradient(180deg,rgba(255,255,255,0.96),rgba(239,245,255,0.92))] p-6 shadow-[var(--shadow-soft)]">
             <SectionHeading
               eyebrow="Workflow"
               title="Three steps from structured input to clean export."
               description="The workflow stays simple from start to finish: enter the details, review the document, and export it without switching tools."
-              animate
             />
           </div>
 
-          <div className="grid gap-5 md:grid-cols-3">
+          <div className="mt-8 grid gap-5 md:grid-cols-3">
             {workflow.map((item) => (
               <article
                 key={item.step}
@@ -471,13 +465,14 @@ export function SlipwiseHome({ className }: SlipwiseHomeProps) {
           </div>
         </section>
 
-        <section data-animate="generators-section" className="rounded-[2.7rem] border border-[var(--border-strong)] bg-white/72 p-6 shadow-[var(--shadow-card)] backdrop-blur md:p-8">
-          <SectionHeading
-            eyebrow="Generators"
-            title="Three focused generators, one consistent product."
-            description="Choose the workflow you need and get the same structured editing, live preview, and polished export experience every time."
-            animate
-          />
+        <section data-animate="generators-section" className="rounded-[2.7rem] border border-[var(--border-strong)] bg-white/88 p-6 shadow-[var(--shadow-card)] md:p-8">
+          <div data-animate="section-heading">
+            <SectionHeading
+              eyebrow="Generators"
+              title="Three focused generators, one consistent product."
+              description="Choose the workflow you need and get the same structured editing, live preview, and polished export experience every time."
+            />
+          </div>
 
           <div className="mt-8 grid gap-6 xl:grid-cols-3">
             {productModules.map((module) => (
@@ -489,14 +484,15 @@ export function SlipwiseHome({ className }: SlipwiseHomeProps) {
         <section
           id="faq"
           data-animate="faq-section"
-          className="grid gap-6 rounded-[2.7rem] border border-[var(--border-strong)] bg-white/72 p-6 shadow-[var(--shadow-card)] backdrop-blur md:p-8 lg:grid-cols-[0.8fr_1.2fr]"
+          className="grid gap-6 rounded-[2.7rem] border border-[var(--border-strong)] bg-white/88 p-6 shadow-[var(--shadow-card)] md:p-8 lg:grid-cols-[0.8fr_1.2fr]"
         >
-          <SectionHeading
-            eyebrow="FAQ"
-            title="The essentials, answered clearly."
-            description="Everything important about the product should be easy to understand before someone commits to using it."
-            animate
-          />
+          <div data-animate="section-heading">
+            <SectionHeading
+              eyebrow="FAQ"
+              title="The essentials, answered clearly."
+              description="Everything important about the product should be easy to understand before someone commits to using it."
+            />
+          </div>
 
           <div className="grid gap-4">
             {faqs.map((item) => (

@@ -62,7 +62,7 @@ export function ModuleCard({ module }: ModuleCardProps) {
             <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white text-[var(--accent-strong)] shadow-[0_12px_26px_rgba(15,23,42,0.08)]">
               <Icon className="h-5 w-5" />
             </span>
-            <p className="text-[0.68rem] font-semibold uppercase tracking-[0.32em] text-[var(--muted-foreground)]">
+            <p className="mt-4 text-[0.68rem] font-semibold uppercase tracking-[0.32em] text-[var(--muted-foreground)]">
               {module.eyebrow}
             </p>
             <h3 className="mt-3 text-[1.45rem] leading-[1.08] tracking-[-0.04em] text-[var(--foreground)] md:text-[1.6rem]">
