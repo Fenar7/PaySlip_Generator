@@ -13,34 +13,34 @@ type SlipwiseHomeProps = {
 
 const featurePillars = [
   {
-    title: "Live preview, not blind edits",
-    body: "Every change lands in a document preview immediately, so teams can review structure before export.",
+    title: "Live preview",
+    body: "See the document update as you work, so teams can review structure before export.",
   },
   {
-    title: "Branded output without design tooling",
-    body: "Logo, company identity, and accent color stay inside a workflow built for operations, HR, and finance.",
+    title: "Brand-ready output",
+    body: "Keep logo, company identity, and accent color aligned without leaving the workflow.",
   },
   {
-    title: "Exports that feel production ready",
-    body: "Print, PDF, and PNG are part of the core workflow rather than an afterthought bolted onto a form.",
+    title: "Clean export flow",
+    body: "Print, PDF, and PNG stay inside one product built specifically for business documents.",
   },
 ];
 
 const solutions = [
   {
     role: "HR / Admin",
-    headline: "Salary slips that look ready to send.",
-    body: "Group employee details, payroll blocks, notes, and disbursement information in one clean workflow.",
+    headline: "Salary slips that look ready to share.",
+    body: "Prepare employee, payroll, notes, and disbursement details in one clean workspace.",
   },
   {
     role: "Operations",
-    headline: "Vouchers with structure, not guesswork.",
-    body: "Move from internal approvals to export-ready vouchers without formatting them manually each time.",
+    headline: "Vouchers with structure built in.",
+    body: "Move from internal approvals to export-ready vouchers without reformatting the document each time.",
   },
   {
     role: "Finance / Accounts",
-    headline: "Invoices that feel polished from the start.",
-    body: "Keep branding, tax structure, line items, and payment summaries aligned in one product system.",
+    headline: "Invoices that stay clean under pressure.",
+    body: "Keep branding, tax structure, line items, and payment summaries aligned in one product flow.",
   },
 ];
 
@@ -48,17 +48,17 @@ const workflow = [
   {
     step: "01",
     title: "Enter details once",
-    body: "Slipwise keeps each document flow structured, so the form feels purposeful instead of crowded.",
+    body: "Each generator keeps its fields structured, so the form feels clear instead of crowded.",
   },
   {
     step: "02",
     title: "Review the document live",
-    body: "Preview framing is part of the workflow, which makes visual QA and internal review faster.",
+    body: "The preview updates as you work, which makes internal review and visual QA faster.",
   },
   {
     step: "03",
     title: "Export with confidence",
-    body: "Share through print, PDF, or PNG without rebuilding the document in another tool.",
+    body: "Use print, PDF, or PNG without rebuilding the document in another tool.",
   },
 ];
 
@@ -165,38 +165,38 @@ export function SlipwiseHome({ className }: SlipwiseHomeProps) {
 
         <section className="grid gap-12 pt-10 lg:grid-cols-[minmax(0,1.02fr)_minmax(36rem,0.98fr)] lg:items-center lg:pt-16">
           <div className="max-w-4xl">
-            <div className="inline-flex items-center gap-2 rounded-full border border-[var(--accent-soft)] bg-white/75 px-4 py-2 text-[0.72rem] font-semibold uppercase tracking-[0.32em] text-[var(--accent-strong)] shadow-[var(--shadow-soft)] backdrop-blur">
-              Atmospheric SaaS workflow for business documents
+            <div className="inline-flex items-center gap-2 rounded-full border border-[var(--accent-soft)] bg-white/75 px-4 py-2 text-[0.72rem] font-semibold uppercase tracking-[0.28em] text-[var(--accent-strong)] shadow-[var(--shadow-soft)] backdrop-blur">
+              Business documents for modern teams
             </div>
 
-            <h1 className="mt-7 max-w-5xl text-6xl leading-[0.9] text-[var(--foreground)] md:text-7xl xl:text-[5.8rem]">
-              A production-ready way to create vouchers, salary slips, and invoices that feel like a premium SaaS product.
+            <h1 className="mt-6 max-w-4xl text-5xl leading-[0.92] text-[var(--foreground)] md:text-6xl xl:text-[4.8rem]">
+              Create salary slips, invoices, and vouchers without the spreadsheet mess.
             </h1>
 
-            <p className="mt-7 max-w-3xl text-xl leading-9 text-[var(--muted-foreground)]">
-              Slipwise turns repetitive business documents into a cleaner software workflow. Teams enter structured details, review the document live, and export polished output without rebuilding it in spreadsheets or design tools.
+            <p className="mt-6 max-w-2xl text-lg leading-8 text-[var(--muted-foreground)] md:text-[1.15rem]">
+              Slipwise gives HR, admin, and finance teams a clean workspace to prepare branded business documents, review them live, and export polished output in minutes.
             </p>
 
-            <div className="mt-9 flex flex-wrap gap-4">
+            <div className="mt-8 flex flex-wrap gap-4">
               <Link
                 href="/voucher"
                 className="rounded-full bg-[var(--foreground)] px-7 py-4 text-sm font-semibold text-white shadow-[var(--shadow-lift)] hover:-translate-y-0.5"
               >
-                Start free
+                Open product
               </Link>
               <a
-                href="#features"
+                href="#generators"
                 className="rounded-full border border-[var(--border-strong)] bg-white/80 px-7 py-4 text-sm font-semibold text-[var(--foreground-soft)] shadow-[var(--shadow-soft)] backdrop-blur hover:border-[var(--accent)] hover:text-[var(--foreground)]"
               >
-                Explore the workflow
+                View generators
               </a>
             </div>
 
-            <div className="mt-10 grid gap-4 sm:grid-cols-3">
+            <div className="mt-8 grid gap-4 sm:grid-cols-3">
               {[
-                "Voucher, salary slip, and invoice flows",
-                "Browser print, PDF, and PNG export",
-                "Stateless and deployable on Vercel",
+                "Live preview built in",
+                "PDF, PNG, and print export",
+                "Brand-ready documents",
               ].map((item) => (
                 <div
                   key={item}
@@ -218,18 +218,18 @@ export function SlipwiseHome({ className }: SlipwiseHomeProps) {
           <div className="rounded-[2.2rem] bg-[linear-gradient(180deg,rgba(255,255,255,0.96),rgba(236,244,255,0.84))] p-7 shadow-[var(--shadow-soft)]">
             <SectionHeading
               eyebrow="Feature story"
-              title="Slipwise brings the whole document workflow into one stronger product surface."
-              description="The redesign has to sell a serious SaaS experience, not a neat utility. That means larger sections, stronger hierarchy, richer visual composition, and clearer product proof at every fold."
+              title="One product for the documents teams create every week."
+              description="Slipwise keeps vouchers, salary slips, and invoices inside a clean browser workflow with live preview and polished export."
             />
 
-            <div className="mt-8 rounded-[1.8rem] border border-[var(--border-soft)] bg-[var(--surface-soft)] p-6">
+            <div className="mt-8 rounded-[1.5rem] border border-[var(--border-soft)] bg-[var(--surface-soft)] p-6">
               <p className="text-[0.72rem] font-semibold uppercase tracking-[0.3em] text-[var(--muted-foreground)]">
-                Why this direction
+                Product focus
               </p>
               <div className="mt-4 space-y-4 text-base leading-8 text-[var(--foreground-soft)]">
-                <p>Slipwise should feel like software that a team can trust before the first export.</p>
-                <p>The public site and the application shell have to look like one brand, not separate layers built at different quality bars.</p>
-                <p>This phase is about product confidence: bigger visual moves, clearer composition, and a stronger sense of software depth.</p>
+                <p>Slipwise is designed for teams that need business documents to look right without extra formatting work.</p>
+                <p>The homepage should explain that value quickly, then move people straight into the product.</p>
+                <p>The design goal is minimal SaaS: clear, modern, and product-first.</p>
               </div>
             </div>
           </div>
@@ -262,16 +262,16 @@ export function SlipwiseHome({ className }: SlipwiseHomeProps) {
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true, amount: 0.25 }}
               transition={{ duration: 0.3, delay: 0.18 }}
-              className="rounded-[1.8rem] bg-[linear-gradient(180deg,rgba(8,15,28,0.97),rgba(12,21,40,0.97))] p-6 text-white shadow-[var(--shadow-lift)]"
+              className="rounded-[1.5rem] border border-[var(--border-soft)] bg-white p-6 shadow-[var(--shadow-soft)]"
             >
-              <p className="text-[0.72rem] font-semibold uppercase tracking-[0.32em] text-sky-100/80">
-                Product payoff
+              <p className="text-[0.72rem] font-semibold uppercase tracking-[0.32em] text-[var(--muted-foreground)]">
+                Core benefit
               </p>
-              <p className="mt-4 text-2xl font-semibold">
-                Fast enough for admins. Polished enough for the business.
+              <p className="mt-4 text-2xl font-semibold text-[var(--foreground)]">
+                Fast enough for admins. Clean enough for the business.
               </p>
-              <p className="mt-4 text-base leading-8 text-slate-300">
-                That is the standard for every section in the new homepage and every shared shell surface inside the app.
+              <p className="mt-4 text-base leading-8 text-[var(--muted-foreground)]">
+                The visual system should support the workflow, not overpower it.
               </p>
             </motion.article>
           </div>
@@ -384,30 +384,30 @@ export function SlipwiseHome({ className }: SlipwiseHomeProps) {
           </div>
         </section>
 
-        <section className="rounded-[2.9rem] bg-[linear-gradient(180deg,rgba(8,15,28,0.98),rgba(12,21,40,0.98))] px-6 py-10 text-white shadow-[var(--shadow-lift)] md:px-10 md:py-12">
+        <section className="rounded-[2.2rem] border border-[var(--border-strong)] bg-white px-6 py-10 shadow-[var(--shadow-card)] md:px-10 md:py-12">
           <div className="grid gap-8 lg:grid-cols-[1.05fr_0.95fr] lg:items-center">
             <div>
-              <p className="text-[0.72rem] font-semibold uppercase tracking-[0.34em] text-sky-100/75">
+              <p className="text-[0.72rem] font-semibold uppercase tracking-[0.34em] text-[var(--muted-foreground)]">
                 Ready to ship
               </p>
-              <h2 className="mt-4 max-w-3xl text-4xl leading-[1] text-white md:text-5xl">
-                Slipwise should look like software teams can trust on day one.
+              <h2 className="mt-4 max-w-3xl text-4xl leading-[1] text-[var(--foreground)] md:text-5xl">
+                A cleaner product surface for teams that need business documents done right.
               </h2>
-              <p className="mt-5 max-w-2xl text-lg leading-8 text-slate-300">
-                Phase 1 is not about adding more scope. It is about upgrading the visual quality, product confidence, and shared shell so the existing workflows feel genuinely launchable.
+              <p className="mt-5 max-w-2xl text-lg leading-8 text-[var(--muted-foreground)]">
+                Slipwise keeps the workflow simple: enter the details, review the document, and export with confidence.
               </p>
             </div>
 
             <div className="flex flex-wrap gap-4 lg:justify-end">
               <Link
                 href="/voucher"
-                className="rounded-full bg-white px-7 py-4 text-sm font-semibold text-slate-950 shadow-[var(--shadow-soft)] hover:-translate-y-0.5"
+                className="rounded-full bg-[var(--foreground)] px-7 py-4 text-sm font-semibold text-white shadow-[var(--shadow-soft)] hover:-translate-y-0.5"
               >
                 Start free
               </Link>
               <a
                 href="#features"
-                className="rounded-full border border-white/15 px-7 py-4 text-sm font-semibold text-white hover:bg-white/10"
+                className="rounded-full border border-[var(--border-strong)] px-7 py-4 text-sm font-semibold text-[var(--foreground)] hover:bg-[var(--surface-soft)]"
               >
                 Review the workflow
               </a>

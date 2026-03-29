@@ -11,27 +11,26 @@ const boardCards = [
 export function SlipwiseProductMockup() {
   return (
     <motion.div
-      initial={{ opacity: 0, y: 24 }}
+      initial={{ opacity: 0, y: 16 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.55 }}
-      className="relative mx-auto w-full max-w-[42rem]"
+      transition={{ duration: 0.45 }}
+      className="relative mx-auto w-full max-w-[38rem]"
     >
-      <div className="absolute -left-10 top-14 h-40 w-40 rounded-full bg-[rgba(103,203,255,0.22)] blur-3xl" />
-      <div className="absolute -right-10 top-0 h-48 w-48 rounded-full bg-[rgba(45,107,255,0.24)] blur-3xl" />
-      <div className="absolute bottom-8 right-10 h-28 w-28 rounded-full bg-[rgba(145,237,207,0.24)] blur-3xl" />
+      <div className="absolute -left-8 top-10 h-28 w-28 rounded-full bg-[rgba(103,203,255,0.14)] blur-3xl" />
+      <div className="absolute -right-8 top-2 h-36 w-36 rounded-full bg-[rgba(45,107,255,0.14)] blur-3xl" />
 
-      <div className="relative overflow-hidden rounded-[2.7rem] border border-white/55 bg-[linear-gradient(180deg,rgba(255,255,255,0.86),rgba(238,244,255,0.72))] p-4 shadow-[var(--shadow-lift)] backdrop-blur-xl">
-        <div className="overflow-hidden rounded-[2.2rem] border border-[var(--border-strong)] bg-[linear-gradient(180deg,rgba(8,15,28,0.98),rgba(12,21,40,0.98))] p-4 text-white">
-          <div className="flex items-center justify-between rounded-[1.4rem] border border-white/10 bg-white/6 px-4 py-3">
+      <div className="relative overflow-hidden rounded-[2rem] border border-[var(--border-soft)] bg-[linear-gradient(180deg,rgba(255,255,255,0.96),rgba(242,247,255,0.96))] p-4 shadow-[var(--shadow-card)]">
+        <div className="overflow-hidden rounded-[1.7rem] border border-[var(--border-soft)] bg-white p-4 text-[var(--foreground)]">
+          <div className="flex items-center justify-between rounded-[1.2rem] border border-[var(--border-soft)] bg-[var(--surface-soft)] px-4 py-3">
             <div className="flex items-center gap-3">
-              <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-white/12 text-sm font-semibold">
+              <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-[var(--foreground)] text-sm font-semibold text-white">
                 S
               </span>
               <div>
-                <p className="text-[0.68rem] font-semibold uppercase tracking-[0.34em] text-sky-100/90">
+                <p className="text-[0.68rem] font-semibold uppercase tracking-[0.34em] text-[var(--muted-foreground)]">
                   Slipwise
                 </p>
-                <p className="mt-1 text-sm text-slate-300">
+                <p className="mt-1 text-sm text-[var(--foreground-soft)]">
                   Multi-document workspace
                 </p>
               </div>
@@ -42,8 +41,8 @@ export function SlipwiseProductMockup() {
                   key={item}
                   className={`rounded-full px-3 py-1.5 text-xs font-medium ${
                     index === 0
-                      ? "bg-white text-slate-950"
-                      : "border border-white/12 bg-white/6 text-slate-200"
+                      ? "bg-[var(--foreground)] text-white"
+                      : "border border-[var(--border-soft)] bg-white text-[var(--foreground-soft)]"
                   }`}
                 >
                   {item}
@@ -53,8 +52,8 @@ export function SlipwiseProductMockup() {
           </div>
 
           <div className="mt-4 grid gap-4 lg:grid-cols-[0.75fr_1.25fr]">
-            <aside className="rounded-[1.8rem] border border-white/10 bg-white/6 p-4">
-              <p className="text-[0.7rem] font-semibold uppercase tracking-[0.3em] text-sky-100/75">
+            <aside className="rounded-[1.5rem] border border-[var(--border-soft)] bg-[var(--surface-soft)] p-4">
+              <p className="text-[0.7rem] font-semibold uppercase tracking-[0.3em] text-[var(--muted-foreground)]">
                 Workflow stack
               </p>
               <div className="mt-4 space-y-3">
@@ -68,12 +67,12 @@ export function SlipwiseProductMockup() {
                     key={title}
                     className={`rounded-[1.2rem] border px-4 py-3 ${
                       index === 2
-                        ? "border-sky-300/30 bg-sky-300/10"
-                        : "border-white/10 bg-white/5"
+                        ? "border-[rgba(45,107,255,0.2)] bg-[rgba(45,107,255,0.08)]"
+                        : "border-[var(--border-soft)] bg-white"
                     }`}
                   >
-                    <p className="text-sm font-semibold text-white">{title}</p>
-                    <p className="mt-1 text-xs leading-6 text-slate-300">{body}</p>
+                    <p className="text-sm font-semibold text-[var(--foreground)]">{title}</p>
+                    <p className="mt-1 text-xs leading-6 text-[var(--muted-foreground)]">{body}</p>
                   </div>
                 ))}
               </div>
@@ -81,22 +80,22 @@ export function SlipwiseProductMockup() {
 
             <div className="space-y-4">
               <div className="grid gap-4 md:grid-cols-[1.15fr_0.85fr]">
-                <section className="rounded-[1.8rem] border border-white/10 bg-white/6 p-4">
+                <section className="rounded-[1.5rem] border border-[var(--border-soft)] bg-[var(--surface-soft)] p-4">
                   <div className="flex items-center justify-between">
                     <div>
-                      <p className="text-[0.68rem] font-semibold uppercase tracking-[0.3em] text-sky-100/75">
+                      <p className="text-[0.68rem] font-semibold uppercase tracking-[0.3em] text-[var(--muted-foreground)]">
                         Live preview
                       </p>
-                      <p className="mt-2 text-sm text-slate-300">
+                      <p className="mt-2 text-sm text-[var(--foreground-soft)]">
                         Salary slip · Corporate Clean
                       </p>
                     </div>
-                    <span className="rounded-full border border-white/12 bg-white/6 px-3 py-1 text-xs text-slate-200">
+                    <span className="rounded-full border border-[var(--border-soft)] bg-white px-3 py-1 text-xs text-[var(--muted-foreground)]">
                       Export ready
                     </span>
                   </div>
 
-                  <div className="mt-4 rounded-[1.4rem] bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(238,244,255,0.98))] p-4 text-slate-900">
+                  <div className="mt-4 rounded-[1.25rem] bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(242,247,255,0.98))] p-4 text-slate-900">
                     <div className="flex items-start justify-between">
                       <div>
                         <div className="h-2.5 w-24 rounded-full bg-slate-200" />
@@ -136,20 +135,20 @@ export function SlipwiseProductMockup() {
                 </section>
 
                 <div className="space-y-4">
-                  <section className="rounded-[1.8rem] border border-white/10 bg-white/6 p-4">
-                    <p className="text-[0.68rem] font-semibold uppercase tracking-[0.3em] text-sky-100/75">
+                  <section className="rounded-[1.5rem] border border-[var(--border-soft)] bg-white p-4">
+                    <p className="text-[0.68rem] font-semibold uppercase tracking-[0.3em] text-[var(--muted-foreground)]">
                       Team snapshot
                     </p>
                     <div className="mt-4 space-y-3">
                       {boardCards.map((card) => (
                         <div
                           key={card.label}
-                          className={`rounded-[1rem] border border-white/10 px-4 py-3 ${card.tone}`}
+                          className={`rounded-[1rem] border border-[var(--border-soft)] px-4 py-3 ${card.tone}`}
                         >
-                          <p className="text-xs uppercase tracking-[0.24em] text-slate-200">
+                          <p className="text-xs uppercase tracking-[0.24em] text-[var(--muted-foreground)]">
                             {card.label}
                           </p>
-                          <p className="mt-2 text-2xl font-semibold text-white">
+                          <p className="mt-2 text-2xl font-semibold text-[var(--foreground)]">
                             {card.value}
                           </p>
                         </div>
@@ -157,21 +156,21 @@ export function SlipwiseProductMockup() {
                     </div>
                   </section>
 
-                  <section className="rounded-[1.8rem] border border-sky-300/20 bg-[linear-gradient(180deg,rgba(45,107,255,0.22),rgba(103,203,255,0.14))] p-4">
-                    <p className="text-[0.68rem] font-semibold uppercase tracking-[0.3em] text-sky-50/90">
-                      Slipwise benefit
+                  <section className="rounded-[1.5rem] border border-[var(--border-soft)] bg-[var(--foreground)] p-4">
+                    <p className="text-[0.68rem] font-semibold uppercase tracking-[0.3em] text-slate-300">
+                      Product benefit
                     </p>
                     <p className="mt-3 text-lg font-semibold text-white">
                       One product for structured inputs, instant preview, and professional export.
                     </p>
-                    <p className="mt-2 text-sm leading-7 text-sky-50/80">
+                    <p className="mt-2 text-sm leading-7 text-slate-300">
                       The same system supports vouchers, salary slips, and invoices without sending teams back to spreadsheets.
                     </p>
                   </section>
                 </div>
               </div>
 
-              <section className="rounded-[1.8rem] border border-white/10 bg-white/6 p-4">
+              <section className="rounded-[1.5rem] border border-[var(--border-soft)] bg-[var(--surface-soft)] p-4">
                 <div className="grid gap-3 md:grid-cols-3">
                   {[
                     "Brand setup",
@@ -182,12 +181,12 @@ export function SlipwiseProductMockup() {
                       key={item}
                       className={`rounded-[1.1rem] border px-4 py-3 ${
                         index === 1
-                          ? "border-sky-300/30 bg-sky-300/10"
-                          : "border-white/10 bg-white/5"
+                          ? "border-[rgba(45,107,255,0.2)] bg-[rgba(45,107,255,0.08)]"
+                          : "border-[var(--border-soft)] bg-white"
                       }`}
                     >
-                      <p className="text-sm font-semibold text-white">{item}</p>
-                      <p className="mt-1 text-xs leading-6 text-slate-300">
+                      <p className="text-sm font-semibold text-[var(--foreground)]">{item}</p>
+                      <p className="mt-1 text-xs leading-6 text-[var(--muted-foreground)]">
                         Product-grade workflow blocks that stay cohesive across the app.
                       </p>
                     </div>

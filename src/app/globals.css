@@ -25,7 +25,7 @@
   --ink-soft: #89a0c4;
   --danger: #dc2626;
   --font-sans-stack: var(--font-manrope), "Manrope", "Inter", "Helvetica Neue", "Segoe UI", sans-serif;
-  --font-display-stack: var(--font-sora), "Sora", "Manrope", Georgia, serif;
+  --font-display-stack: var(--font-manrope), "Manrope", "Inter", "Helvetica Neue", "Segoe UI", sans-serif;
   --brand-glow: rgba(45, 107, 255, 0.22);
   --brand-glow-soft: rgba(103, 203, 255, 0.14);
   --brand-glow-mint: rgba(145, 237, 207, 0.14);
@@ -73,7 +73,7 @@ h3 {
 }
 
 h1 {
-  letter-spacing: -0.065em;
+  letter-spacing: -0.05em;
 }
 
 a,
