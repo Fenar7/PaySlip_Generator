@@ -263,18 +263,18 @@ function InvoicePanel() {
   }
 
   return (
-    <main className="relative isolate overflow-hidden">
-      <div className="absolute inset-x-0 top-0 -z-10 h-[32rem] bg-[radial-gradient(circle_at_top,rgba(198,152,84,0.16),transparent_38%)]" />
-      <div className="mx-auto flex w-full max-w-[92rem] flex-col gap-8 px-4 py-8 sm:px-5 lg:px-6 lg:py-12">
-        <div className="flex flex-col gap-6 rounded-[2rem] border border-[var(--border-strong)] bg-[var(--surface-elevated)] p-6 shadow-[var(--shadow-card)] lg:flex-row lg:items-end lg:justify-between">
+    <main className="slipwise-shell-bg relative isolate overflow-hidden">
+      <div className="absolute inset-x-0 top-0 -z-10 h-[34rem] bg-[radial-gradient(circle_at_top,rgba(45,107,255,0.18),transparent_36%),radial-gradient(circle_at_80%_10%,rgba(103,203,255,0.12),transparent_26%)]" />
+      <div className="mx-auto flex w-full max-w-[var(--container-shell)] flex-col gap-8 px-4 py-8 sm:px-5 lg:px-6 lg:py-12">
+        <div className="flex flex-col gap-6 rounded-[2.5rem] border border-[var(--border-strong)] bg-[linear-gradient(180deg,rgba(255,255,255,0.92),rgba(245,248,253,0.96))] p-6 shadow-[var(--shadow-card)] backdrop-blur-sm lg:flex-row lg:items-end lg:justify-between">
           <div className="max-w-3xl">
-            <p className="text-xs font-semibold uppercase tracking-[0.3em] text-[var(--muted-foreground)]">
+            <p className="text-[0.68rem] font-semibold uppercase tracking-[0.34em] text-[var(--muted-foreground)]">
               Invoice workspace
             </p>
-            <h1 className="mt-4 text-4xl leading-tight text-[var(--foreground)] md:text-5xl">
+            <h1 className="mt-4 max-w-2xl text-[2.6rem] leading-[0.98] tracking-[-0.05em] text-[var(--foreground)] md:text-[3.6rem]">
               Invoice Generator
             </h1>
-            <p className="mt-4 max-w-2xl text-base leading-8 text-[var(--muted-foreground)]">
+            <p className="mt-4 max-w-2xl text-[1.02rem] leading-8 text-[var(--muted-foreground)]">
               Build client-ready invoices with branded headers, tax-aware line items,
               clear totals, and a live A4 preview ready for the export phase.
             </p>
@@ -282,7 +282,7 @@ function InvoicePanel() {
           <div className="flex flex-wrap gap-3">
             <Link
               href="/"
-              className="inline-flex items-center justify-center rounded-full border border-[var(--border-strong)] px-4 py-2 text-sm font-medium text-[var(--foreground)] transition-colors hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--background)]"
+              className="inline-flex items-center justify-center rounded-full border border-[var(--border-strong)] bg-white px-4 py-2 text-sm font-medium text-[var(--foreground)] shadow-[0_10px_24px_rgba(15,23,42,0.04)] transition-colors hover:bg-[var(--surface-accent)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--background)]"
             >
               Back to home
             </Link>
@@ -290,7 +290,7 @@ function InvoicePanel() {
               type="button"
               onClick={handlePrint}
               disabled={actionState.status === "pending"}
-              className="inline-flex items-center justify-center rounded-full border border-[var(--border-strong)] px-4 py-2 text-sm font-medium text-[var(--foreground)] transition-colors hover:bg-white disabled:cursor-wait disabled:opacity-65"
+              className="inline-flex items-center justify-center rounded-full border border-[var(--border-strong)] bg-white px-4 py-2 text-sm font-medium text-[var(--foreground)] shadow-[0_10px_24px_rgba(15,23,42,0.04)] transition-colors hover:bg-[var(--surface-accent)] disabled:cursor-wait disabled:opacity-65"
             >
               {actionState.status === "pending" && actionState.action === "print"
                 ? "Preparing print"
@@ -300,7 +300,7 @@ function InvoicePanel() {
               type="button"
               onClick={() => handleDownload("pdf")}
               disabled={actionState.status === "pending"}
-              className="inline-flex items-center justify-center rounded-full bg-[var(--foreground)] px-4 py-2 text-sm font-medium text-[var(--background)] transition-colors hover:bg-[var(--foreground-soft)] disabled:cursor-wait disabled:opacity-65"
+              className="inline-flex items-center justify-center rounded-full bg-[linear-gradient(135deg,var(--foreground),#1f2937)] px-4 py-2 text-sm font-medium text-[var(--background)] shadow-[0_16px_32px_rgba(15,23,42,0.14)] transition-colors hover:bg-[var(--foreground-soft)] disabled:cursor-wait disabled:opacity-65"
             >
               {actionState.status === "pending" && actionState.action === "pdf"
                 ? "Exporting PDF"
@@ -310,7 +310,7 @@ function InvoicePanel() {
               type="button"
               onClick={() => handleDownload("png")}
               disabled={actionState.status === "pending"}
-              className="inline-flex items-center justify-center rounded-full bg-[rgba(29,23,16,0.12)] px-4 py-2 text-sm font-medium text-[var(--foreground-soft)] transition-colors hover:bg-[rgba(29,23,16,0.18)] disabled:cursor-wait disabled:opacity-65"
+              className="inline-flex items-center justify-center rounded-full bg-[var(--surface-accent)] px-4 py-2 text-sm font-medium text-[var(--foreground-soft)] shadow-[0_10px_24px_rgba(15,23,42,0.05)] transition-colors hover:bg-[var(--surface-accent-strong)] disabled:cursor-wait disabled:opacity-65"
             >
               {actionState.status === "pending" && actionState.action === "png"
                 ? "Exporting PNG"
@@ -320,23 +320,23 @@ function InvoicePanel() {
         </div>
 
         {actionState.status === "error" ? (
-          <div className="rounded-[1.5rem] border border-[rgba(178,85,54,0.2)] bg-[rgba(178,85,54,0.08)] px-5 py-4 text-sm text-[var(--danger)]">
+          <div className="rounded-[1.5rem] border border-[rgba(220,38,38,0.16)] bg-[rgba(220,38,38,0.06)] px-5 py-4 text-sm text-[var(--danger)] shadow-[var(--shadow-soft)]">
             {actionState.message}
           </div>
         ) : null}
 
         <div className="grid gap-6 xl:grid-cols-[minmax(23rem,29rem)_minmax(0,1fr)]">
-          <section className="rounded-[2rem] border border-[var(--border-strong)] bg-[var(--surface-elevated)] p-5 shadow-[var(--shadow-card)]">
+          <section className="rounded-[2.25rem] border border-[var(--border-strong)] bg-[linear-gradient(180deg,rgba(255,255,255,0.94),rgba(245,248,253,0.96))] p-5 shadow-[var(--shadow-soft)]">
             <div className="mb-6 flex items-center justify-between">
               <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.3em] text-[var(--muted-foreground)]">
+                <p className="text-[0.68rem] font-semibold uppercase tracking-[0.34em] text-[var(--muted-foreground)]">
                   Invoice controls
                 </p>
-                <h2 className="mt-3 text-2xl text-[var(--foreground)]">
+                <h2 className="mt-3 text-[1.55rem] leading-tight tracking-[-0.04em] text-[var(--foreground)]">
                   Client-facing billing builder
                 </h2>
               </div>
-              <span className="rounded-full border border-[var(--border-soft)] px-3 py-1 text-xs text-[var(--muted-foreground)]">
+              <span className="rounded-full border border-[var(--border-soft)] bg-white px-3 py-1 text-[0.68rem] font-semibold uppercase tracking-[0.24em] text-[var(--muted-foreground)] shadow-[0_8px_18px_rgba(15,23,42,0.04)]">
                 Export ready
               </span>
             </div>

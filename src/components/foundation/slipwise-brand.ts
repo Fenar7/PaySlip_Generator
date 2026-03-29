@@ -1,12 +1,12 @@
 export const slipwiseBrand = {
   name: "Slipwise",
   shortName: "Slipwise",
-  productDescriptor: "Modern document generation for vouchers, salary slips, and invoices.",
+  productDescriptor: "Atmospheric SaaS for vouchers, salary slips, and invoices.",
   metadataDescription:
-    "Slipwise is a modern browser-based SaaS for creating professional vouchers, salary slips, and invoices.",
-  shellBadge: "Slipwise",
-  shellStatus: "SaaS-ready shell",
-  homepageEyebrow: "Modern document generation",
+    "Slipwise is a modern browser-based SaaS for creating professional vouchers, salary slips, and invoices with a premium white-theme shell.",
+  shellBadge: "Ready now",
+  shellStatus: "Premium shell",
+  homepageEyebrow: "Atmospheric SaaS document workflows",
   homepageLead:
-    "Create professional vouchers, salary slips, and invoices with a clean browser workflow.",
+    "Create professional vouchers, salary slips, and invoices with a clean browser workflow and a premium product feel.",
 };

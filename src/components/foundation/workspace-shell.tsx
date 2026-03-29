@@ -19,45 +19,45 @@ export function WorkspaceShell({
 }: WorkspaceShellProps) {
   return (
     <main className="relative isolate overflow-hidden">
-      <div className="absolute inset-x-0 top-0 -z-10 h-[32rem] bg-[radial-gradient(circle_at_top,rgba(37,99,235,0.16),transparent_38%)]" />
-      <div className="mx-auto flex w-full max-w-[92rem] flex-col gap-8 px-4 py-8 sm:px-5 lg:px-6 lg:py-12">
-        <div className="flex flex-col gap-6 rounded-[2rem] border border-[var(--border-strong)] bg-[var(--surface-elevated)] p-6 shadow-[var(--shadow-card)] backdrop-blur-sm lg:flex-row lg:items-end lg:justify-between">
+      <div className="absolute inset-x-0 top-0 -z-10 h-[34rem] bg-[radial-gradient(circle_at_top,rgba(49,93,246,0.18),transparent_36%),radial-gradient(circle_at_80%_10%,rgba(14,165,233,0.1),transparent_26%)]" />
+      <div className="mx-auto flex w-full max-w-[var(--container-shell)] flex-col gap-8 px-4 py-8 sm:px-5 lg:px-6 lg:py-12">
+        <div className="flex flex-col gap-6 rounded-[2.5rem] border border-[var(--border-strong)] bg-[linear-gradient(180deg,rgba(255,255,255,0.92),rgba(245,248,253,0.96))] p-6 shadow-[var(--shadow-card)] backdrop-blur-sm lg:flex-row lg:items-end lg:justify-between">
           <div className="max-w-3xl">
-            <p className="text-xs font-semibold uppercase tracking-[0.3em] text-[var(--muted-foreground)]">
+            <p className="text-[0.68rem] font-semibold uppercase tracking-[0.34em] text-[var(--muted-foreground)]">
               {eyebrow}
             </p>
-            <h1 className="mt-4 text-4xl leading-tight text-[var(--foreground)] md:text-5xl">
+            <h1 className="mt-4 max-w-2xl text-[2.6rem] leading-[0.98] tracking-[-0.05em] text-[var(--foreground)] md:text-[3.6rem]">
               {title}
             </h1>
-            <p className="mt-4 max-w-2xl text-base leading-8 text-[var(--muted-foreground)]">
+            <p className="mt-4 max-w-2xl text-[1.02rem] leading-8 text-[var(--muted-foreground)]">
               {description}
             </p>
           </div>
           <div className="flex flex-wrap gap-3">
             <Link
               href="/"
-              className="inline-flex items-center justify-center rounded-full border border-[var(--border-strong)] px-4 py-2 text-sm font-medium text-[var(--foreground)] transition-colors hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--background)]"
+              className="inline-flex items-center justify-center rounded-full border border-[var(--border-strong)] bg-white px-4 py-2 text-sm font-medium text-[var(--foreground)] shadow-[0_10px_24px_rgba(15,23,42,0.04)] transition-colors hover:bg-[var(--surface-accent)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--background)]"
             >
               Back to home
             </Link>
-            <span className="inline-flex items-center justify-center rounded-full bg-[var(--foreground)] px-4 py-2 text-sm font-medium text-[var(--background)]">
+            <span className="inline-flex items-center justify-center rounded-full bg-[linear-gradient(135deg,var(--foreground),#1f2937)] px-4 py-2 text-sm font-medium text-[var(--background)] shadow-[0_16px_32px_rgba(15,23,42,0.14)]">
               {slipwiseBrand.shellStatus}
             </span>
           </div>
         </div>
 
-        <div className="grid gap-6 xl:grid-cols-[minmax(20rem,27rem)_minmax(0,1fr)]">
-          <section className="rounded-[2rem] border border-[var(--border-strong)] bg-[var(--surface-elevated)] p-5 shadow-[var(--shadow-card)]">
+        <div className="grid gap-6 xl:grid-cols-[minmax(22rem,29rem)_minmax(0,1fr)]">
+          <section className="rounded-[2.25rem] border border-[var(--border-strong)] bg-[linear-gradient(180deg,rgba(255,255,255,0.94),rgba(245,248,253,0.96))] p-5 shadow-[var(--shadow-soft)]">
             <div className="mb-6 flex items-center justify-between">
               <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.3em] text-[var(--muted-foreground)]">
+                <p className="text-[0.68rem] font-semibold uppercase tracking-[0.34em] text-[var(--muted-foreground)]">
                   Configuration panel
                 </p>
-                <h2 className="mt-3 text-2xl text-[var(--foreground)]">
+                <h2 className="mt-3 text-[1.55rem] leading-tight tracking-[-0.04em] text-[var(--foreground)]">
                   Form and controls shell
                 </h2>
               </div>
-              <span className="rounded-full border border-[var(--border-soft)] px-3 py-1 text-xs text-[var(--muted-foreground)]">
+              <span className="rounded-full border border-[var(--border-soft)] bg-white px-3 py-1 text-[0.68rem] font-semibold uppercase tracking-[0.24em] text-[var(--muted-foreground)] shadow-[0_8px_18px_rgba(15,23,42,0.04)]">
                 Slipwise
               </span>
             </div>
@@ -66,18 +66,18 @@ export function WorkspaceShell({
               {configurationSections.map((section) => (
                 <article
                   key={section}
-                  className="rounded-[1.5rem] border border-[var(--border-soft)] bg-white p-4"
+                  className="rounded-[1.5rem] border border-[var(--border-soft)] bg-white p-4 shadow-[0_10px_22px_rgba(15,23,42,0.03)]"
                 >
                   <div className="flex items-center justify-between gap-4">
                     <div>
-                      <h3 className="text-base font-medium text-[var(--foreground)]">
+                      <h3 className="text-[1rem] font-semibold tracking-[-0.02em] text-[var(--foreground)]">
                         {section}
                       </h3>
                       <p className="mt-1 text-sm leading-7 text-[var(--muted-foreground)]">
                         This section belongs to the Slipwise product shell.
                       </p>
                     </div>
-                    <span className="h-9 w-9 rounded-full border border-[var(--border-soft)] bg-[linear-gradient(180deg,rgba(37,99,235,0.08),rgba(255,255,255,1))]" />
+                    <span className="h-10 w-10 rounded-2xl border border-[var(--border-soft)] bg-[linear-gradient(180deg,rgba(49,93,246,0.08),rgba(255,255,255,1))] shadow-[0_10px_24px_rgba(15,23,42,0.03)]" />
                   </div>
                 </article>
               ))}

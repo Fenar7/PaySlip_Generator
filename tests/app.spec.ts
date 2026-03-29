@@ -226,7 +226,7 @@ test("home page exposes the module entry points", async ({ page }) => {
 
   await expect(
     page.getByRole("heading", {
-      name: /a production-ready way to create vouchers, salary slips, and invoices/i,
+      name: /a production-ready way to create vouchers, salary slips, and invoices that feel like a premium saas product/i,
     }),
   ).toBeVisible();
 

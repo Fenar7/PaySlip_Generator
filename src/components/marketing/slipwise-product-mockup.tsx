@@ -1,233 +1,199 @@
 "use client";
 
 import { motion } from "motion/react";
-import { cn } from "@/lib/utils";
 
-const workflowRows = [
-  {
-    label: "Salary slip",
-    tone: "from-sky-500/10 via-white to-white",
-    value: "Net salary",
-    amount: "₹45,500.00",
-  },
-  {
-    label: "Invoice",
-    tone: "from-indigo-500/10 via-white to-white",
-    value: "Balance due",
-    amount: "₹39,100.00",
-  },
-  {
-    label: "Voucher",
-    tone: "from-emerald-500/10 via-white to-white",
-    value: "Approved amount",
-    amount: "₹1,850.00",
-  },
-];
-
-const railItems = [
-  {
-    label: "Voucher workflow",
-    hint: "Approval-ready and fast to export.",
-  },
-  {
-    label: "Salary slip flow",
-    hint: "Employee, payroll, and disbursement details in one view.",
-  },
-  {
-    label: "Invoice flow",
-    hint: "Line items, taxes, and payment summary organized cleanly.",
-  },
+const boardCards = [
+  { label: "Salary slip", value: "₹45,500", tone: "bg-[rgba(103,203,255,0.12)]" },
+  { label: "Invoice due", value: "₹39,100", tone: "bg-[rgba(45,107,255,0.12)]" },
+  { label: "Voucher ready", value: "₹1,850", tone: "bg-[rgba(145,237,207,0.16)]" },
 ];
 
 export function SlipwiseProductMockup() {
   return (
     <motion.div
-      initial={{ opacity: 0, y: 24, scale: 0.98 }}
-      animate={{ opacity: 1, y: 0, scale: 1 }}
-      transition={{ duration: 0.55, ease: "easeOut" }}
-      className="relative"
+      initial={{ opacity: 0, y: 24 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.55 }}
+      className="relative mx-auto w-full max-w-[42rem]"
     >
-      <div className="absolute -inset-8 -z-10 rounded-[3rem] bg-[radial-gradient(circle_at_top,rgba(59,130,246,0.25),transparent_45%),radial-gradient(circle_at_bottom,rgba(14,165,233,0.16),transparent_40%)] blur-3xl" />
+      <div className="absolute -left-10 top-14 h-40 w-40 rounded-full bg-[rgba(103,203,255,0.22)] blur-3xl" />
+      <div className="absolute -right-10 top-0 h-48 w-48 rounded-full bg-[rgba(45,107,255,0.24)] blur-3xl" />
+      <div className="absolute bottom-8 right-10 h-28 w-28 rounded-full bg-[rgba(145,237,207,0.24)] blur-3xl" />
 
-      <div className="overflow-hidden rounded-[2.6rem] border border-slate-200/80 bg-white shadow-[0_44px_120px_rgba(15,23,42,0.16)]">
-        <div className="flex items-center justify-between border-b border-slate-200 bg-slate-50/90 px-5 py-4 backdrop-blur">
-          <div className="flex items-center gap-3">
-            <div className="flex gap-1.5">
-              <span className="h-3 w-3 rounded-full bg-rose-400/90" />
-              <span className="h-3 w-3 rounded-full bg-amber-400/90" />
-              <span className="h-3 w-3 rounded-full bg-emerald-400/90" />
+      <div className="relative overflow-hidden rounded-[2.7rem] border border-white/55 bg-[linear-gradient(180deg,rgba(255,255,255,0.86),rgba(238,244,255,0.72))] p-4 shadow-[var(--shadow-lift)] backdrop-blur-xl">
+        <div className="overflow-hidden rounded-[2.2rem] border border-[var(--border-strong)] bg-[linear-gradient(180deg,rgba(8,15,28,0.98),rgba(12,21,40,0.98))] p-4 text-white">
+          <div className="flex items-center justify-between rounded-[1.4rem] border border-white/10 bg-white/6 px-4 py-3">
+            <div className="flex items-center gap-3">
+              <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-white/12 text-sm font-semibold">
+                S
+              </span>
+              <div>
+                <p className="text-[0.68rem] font-semibold uppercase tracking-[0.34em] text-sky-100/90">
+                  Slipwise
+                </p>
+                <p className="mt-1 text-sm text-slate-300">
+                  Multi-document workspace
+                </p>
+              </div>
             </div>
-            <div>
-              <p className="text-[0.7rem] font-semibold uppercase tracking-[0.36em] text-slate-500">
-                Slipwise control room
-              </p>
-              <p className="mt-1 text-sm text-slate-600">
-                One product for vouchers, salary slips, and invoices.
-              </p>
-            </div>
-          </div>
-          <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-medium text-slate-500">
-            Live preview
-          </span>
-        </div>
-
-        <div className="grid xl:grid-cols-[0.76fr_1.24fr]">
-          <aside className="border-r border-slate-800/60 bg-[linear-gradient(180deg,#0f172a_0%,#111827_58%,#0b1220_100%)] px-5 py-6 text-white">
-            <p className="text-[0.68rem] font-semibold uppercase tracking-[0.34em] text-sky-200/80">
-              Current workspace
-            </p>
-            <div className="mt-4 space-y-3">
-              {railItems.map((item, index) => (
-                <div
-                  key={item.label}
-                  className={cn(
-                    "rounded-[1.35rem] border px-4 py-4 transition-transform duration-200",
+            <div className="hidden items-center gap-2 md:flex">
+              {["Salary slip", "Invoice", "Voucher"].map((item, index) => (
+                <span
+                  key={item}
+                  className={`rounded-full px-3 py-1.5 text-xs font-medium ${
                     index === 0
-                      ? "border-sky-400/40 bg-white/10 shadow-[0_18px_30px_rgba(15,23,42,0.18)]"
-                      : "border-white/10 bg-white/5",
-                  )}
+                      ? "bg-white text-slate-950"
+                      : "border border-white/12 bg-white/6 text-slate-200"
+                  }`}
                 >
-                  <p className="text-sm font-semibold">{item.label}</p>
-                  <p className="mt-1.5 text-sm leading-6 text-slate-300">
-                    {item.hint}
-                  </p>
-                </div>
+                  {item}
+                </span>
               ))}
             </div>
+          </div>
 
-            <div className="mt-6 rounded-[1.4rem] border border-white/10 bg-[linear-gradient(180deg,rgba(59,130,246,0.18),rgba(15,23,42,0.32))] p-4">
-              <p className="text-[0.68rem] font-semibold uppercase tracking-[0.32em] text-sky-200/80">
-                What the team gets
+          <div className="mt-4 grid gap-4 lg:grid-cols-[0.75fr_1.25fr]">
+            <aside className="rounded-[1.8rem] border border-white/10 bg-white/6 p-4">
+              <p className="text-[0.7rem] font-semibold uppercase tracking-[0.3em] text-sky-100/75">
+                Workflow stack
               </p>
-              <p className="mt-3 text-lg font-semibold leading-7">
-                A calmer workflow that still feels sharp and premium.
-              </p>
-              <p className="mt-2 text-sm leading-7 text-slate-300">
-                Keep the preview, brand, and export story inside one polished product surface.
-              </p>
-            </div>
-          </aside>
-
-          <div className="bg-[linear-gradient(180deg,rgba(248,250,252,0.96),rgba(255,255,255,0.98))] p-5 lg:p-6">
-            <div className="grid gap-5 xl:grid-cols-[1.08fr_0.92fr]">
-              <div className="rounded-[2rem] border border-slate-200 bg-white p-5 shadow-[0_16px_40px_rgba(15,23,42,0.06)]">
-                <div className="flex items-center justify-between border-b border-slate-200 pb-4">
-                  <div>
-                    <p className="text-[0.68rem] font-semibold uppercase tracking-[0.34em] text-slate-500">
-                      Workspace preview
-                    </p>
-                    <h3 className="mt-2 text-xl text-slate-950">
-                      Ready to export without cleanup
-                    </h3>
+              <div className="mt-4 space-y-3">
+                {[
+                  ["Branding", "Logo, accent, identity"],
+                  ["Inputs", "Structured document fields"],
+                  ["Preview", "Live A4 output"],
+                  ["Export", "Print, PDF, PNG"],
+                ].map(([title, body], index) => (
+                  <div
+                    key={title}
+                    className={`rounded-[1.2rem] border px-4 py-3 ${
+                      index === 2
+                        ? "border-sky-300/30 bg-sky-300/10"
+                        : "border-white/10 bg-white/5"
+                    }`}
+                  >
+                    <p className="text-sm font-semibold text-white">{title}</p>
+                    <p className="mt-1 text-xs leading-6 text-slate-300">{body}</p>
                   </div>
-                  <span className="rounded-full border border-slate-200 px-3 py-1 text-xs font-medium text-slate-500">
-                    A4 canvas
-                  </span>
-                </div>
-
-                <div className="mt-5 rounded-[1.7rem] border border-slate-200 bg-[linear-gradient(180deg,#ffffff_0%,#f8fbff_100%)] p-4">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <div className="h-3 w-20 rounded-full bg-slate-900/10" />
-                      <div className="mt-3 h-5 w-52 rounded-full bg-slate-900/18" />
-                    </div>
-                    <div className="h-11 w-11 rounded-full border border-slate-200 bg-white shadow-[inset_0_1px_0_rgba(255,255,255,0.9)]" />
-                  </div>
-
-                  <div className="mt-5 grid gap-3 sm:grid-cols-2">
-                    {Array.from({ length: 4 }).map((_, index) => (
-                      <div
-                        key={index}
-                        className="rounded-[1.25rem] border border-slate-200 bg-white px-4 py-4"
-                      >
-                        <div className="h-2.5 w-20 rounded-full bg-slate-900/10" />
-                        <div className="mt-3 h-3.5 w-28 rounded-full bg-slate-900/16" />
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="mt-5 rounded-[1.7rem] border border-slate-200 bg-slate-950 p-4 text-white shadow-[0_22px_50px_rgba(15,23,42,0.2)]">
-                  <p className="text-[0.68rem] font-semibold uppercase tracking-[0.34em] text-sky-200">
-                    Export confidence
-                  </p>
-                  <p className="mt-3 text-lg font-semibold leading-7">
-                    Fast enough for admins. Polished enough for the business.
-                  </p>
-                  <p className="mt-2 text-sm leading-7 text-slate-300">
-                    Slipwise keeps preview, print, PDF, and PNG aligned without turning the workflow into design work.
-                  </p>
-                </div>
+                ))}
               </div>
+            </aside>
 
-              <div className="space-y-5">
-                <div className="rounded-[2rem] border border-slate-200 bg-white p-5 shadow-[0_16px_40px_rgba(15,23,42,0.05)]">
+            <div className="space-y-4">
+              <div className="grid gap-4 md:grid-cols-[1.15fr_0.85fr]">
+                <section className="rounded-[1.8rem] border border-white/10 bg-white/6 p-4">
                   <div className="flex items-center justify-between">
                     <div>
-                      <p className="text-[0.68rem] font-semibold uppercase tracking-[0.34em] text-slate-500">
-                        Snapshot
+                      <p className="text-[0.68rem] font-semibold uppercase tracking-[0.3em] text-sky-100/75">
+                        Live preview
                       </p>
-                      <p className="mt-2 text-lg text-slate-950">
-                        One surface, three document types.
+                      <p className="mt-2 text-sm text-slate-300">
+                        Salary slip · Corporate Clean
                       </p>
                     </div>
-                    <span className="rounded-full bg-sky-50 px-3 py-1 text-xs font-medium text-sky-700">
-                      Live
+                    <span className="rounded-full border border-white/12 bg-white/6 px-3 py-1 text-xs text-slate-200">
+                      Export ready
                     </span>
                   </div>
 
-                  <div className="mt-5 space-y-3">
-                    {workflowRows.map((row, index) => (
-                      <motion.div
-                        key={row.label}
-                        initial={{ opacity: 0, y: 10 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ duration: 0.3, delay: index * 0.06 }}
-                        className={cn(
-                          "rounded-[1.3rem] border border-slate-200 p-4 shadow-[0_14px_28px_rgba(15,23,42,0.04)]",
-                          `bg-gradient-to-br ${row.tone}`,
-                        )}
-                      >
-                        <div className="flex items-center justify-between gap-4">
-                          <div>
-                            <p className="text-xs font-semibold uppercase tracking-[0.28em] text-slate-500">
-                              {row.label}
-                            </p>
-                            <p className="mt-2 text-sm text-slate-600">{row.value}</p>
-                          </div>
-                          <p className="text-lg font-semibold text-slate-950">{row.amount}</p>
+                  <div className="mt-4 rounded-[1.4rem] bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(238,244,255,0.98))] p-4 text-slate-900">
+                    <div className="flex items-start justify-between">
+                      <div>
+                        <div className="h-2.5 w-24 rounded-full bg-slate-200" />
+                        <div className="mt-3 h-4 w-40 rounded-full bg-slate-300" />
+                      </div>
+                      <div className="h-11 w-11 rounded-2xl border border-slate-200 bg-white" />
+                    </div>
+                    <div className="mt-5 grid gap-3 sm:grid-cols-2">
+                      {Array.from({ length: 4 }).map((_, index) => (
+                        <div
+                          key={index}
+                          className="rounded-[1rem] border border-slate-200 bg-white px-3 py-3"
+                        >
+                          <div className="h-2 w-16 rounded-full bg-slate-200" />
+                          <div className="mt-3 h-3 w-24 rounded-full bg-slate-300" />
                         </div>
-                      </motion.div>
-                    ))}
+                      ))}
+                    </div>
+                    <div className="mt-4 rounded-[1rem] bg-slate-50 px-3 py-3">
+                      <div className="flex items-center justify-between">
+                        <span className="h-2.5 w-24 rounded-full bg-slate-200" />
+                        <span className="h-3 w-16 rounded-full bg-sky-200" />
+                      </div>
+                      <div className="mt-3 space-y-2">
+                        {Array.from({ length: 3 }).map((_, index) => (
+                          <div
+                            key={index}
+                            className="flex items-center justify-between rounded-xl bg-white px-3 py-2"
+                          >
+                            <span className="h-2 w-20 rounded-full bg-slate-200" />
+                            <span className="h-2 w-10 rounded-full bg-slate-300" />
+                          </div>
+                        ))}
+                      </div>
+                    </div>
                   </div>
-                </div>
+                </section>
 
-                <div className="grid gap-3 sm:grid-cols-2">
+                <div className="space-y-4">
+                  <section className="rounded-[1.8rem] border border-white/10 bg-white/6 p-4">
+                    <p className="text-[0.68rem] font-semibold uppercase tracking-[0.3em] text-sky-100/75">
+                      Team snapshot
+                    </p>
+                    <div className="mt-4 space-y-3">
+                      {boardCards.map((card) => (
+                        <div
+                          key={card.label}
+                          className={`rounded-[1rem] border border-white/10 px-4 py-3 ${card.tone}`}
+                        >
+                          <p className="text-xs uppercase tracking-[0.24em] text-slate-200">
+                            {card.label}
+                          </p>
+                          <p className="mt-2 text-2xl font-semibold text-white">
+                            {card.value}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+                  </section>
+
+                  <section className="rounded-[1.8rem] border border-sky-300/20 bg-[linear-gradient(180deg,rgba(45,107,255,0.22),rgba(103,203,255,0.14))] p-4">
+                    <p className="text-[0.68rem] font-semibold uppercase tracking-[0.3em] text-sky-50/90">
+                      Slipwise benefit
+                    </p>
+                    <p className="mt-3 text-lg font-semibold text-white">
+                      One product for structured inputs, instant preview, and professional export.
+                    </p>
+                    <p className="mt-2 text-sm leading-7 text-sky-50/80">
+                      The same system supports vouchers, salary slips, and invoices without sending teams back to spreadsheets.
+                    </p>
+                  </section>
+                </div>
+              </div>
+
+              <section className="rounded-[1.8rem] border border-white/10 bg-white/6 p-4">
+                <div className="grid gap-3 md:grid-cols-3">
                   {[
-                    ["Modules", "3 workflows"],
-                    ["Exports", "Print, PDF, PNG"],
-                  ].map(([label, value]) => (
+                    "Brand setup",
+                    "Generator templates",
+                    "Print, PDF, PNG",
+                  ].map((item, index) => (
                     <div
-                      key={label}
-                      className="rounded-[1.5rem] border border-slate-200 bg-white p-4 shadow-[0_16px_40px_rgba(15,23,42,0.05)]"
+                      key={item}
+                      className={`rounded-[1.1rem] border px-4 py-3 ${
+                        index === 1
+                          ? "border-sky-300/30 bg-sky-300/10"
+                          : "border-white/10 bg-white/5"
+                      }`}
                     >
-                      <p className="text-xs font-semibold uppercase tracking-[0.28em] text-slate-500">
-                        {label}
+                      <p className="text-sm font-semibold text-white">{item}</p>
+                      <p className="mt-1 text-xs leading-6 text-slate-300">
+                        Product-grade workflow blocks that stay cohesive across the app.
                       </p>
-                      <p className="mt-3 text-lg font-semibold text-slate-950">{value}</p>
                     </div>
                   ))}
                 </div>
-
-                <div className="rounded-[2rem] border border-slate-200 bg-[linear-gradient(180deg,#eff6ff_0%,#ffffff_65%)] p-5 shadow-[0_16px_40px_rgba(15,23,42,0.05)]">
-                  <p className="text-[0.68rem] font-semibold uppercase tracking-[0.34em] text-sky-700">
-                    Slipwise signal
-                  </p>
-                  <p className="mt-3 text-base leading-7 text-slate-700">
-                    The product should feel like a launchable SaaS UI, not a utility shell.
-                  </p>
-                </div>
-              </div>
+              </section>
             </div>
           </div>
         </div>
