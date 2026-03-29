@@ -75,6 +75,14 @@ function InvoiceIcon(props: IconProps) {
   );
 }
 
+function ChevronIcon(props: IconProps) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" {...props}>
+      <path d="M6 9l6 6 6-6" />
+    </svg>
+  );
+}
+
 function SalaryIcon(props: IconProps) {
   return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" {...props}>
@@ -474,10 +482,13 @@ export function SlipwiseHome({ className }: SlipwiseHomeProps) {
             {faqs.map((item) => (
               <details
                 key={item.q}
-                className="rounded-[1.6rem] border border-[var(--border-soft)] bg-white/94 p-5 shadow-[var(--shadow-soft)] open:bg-[var(--surface-soft)]"
+                className="group rounded-[1.6rem] border border-[var(--border-soft)] bg-white/94 p-5 shadow-[var(--shadow-soft)] open:bg-[var(--surface-soft)]"
               >
-                <summary className="cursor-pointer list-none text-lg font-semibold text-[var(--foreground)]">
-                  {item.q}
+                <summary className="flex cursor-pointer list-none items-center justify-between gap-4 text-lg font-semibold text-[var(--foreground)]">
+                  <span>{item.q}</span>
+                  <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-[var(--border-soft)] bg-white text-[var(--muted-foreground)] transition-transform duration-200 group-open:rotate-180">
+                    <ChevronIcon className="h-4.5 w-4.5" />
+                  </span>
                 </summary>
                 <p className="mt-4 text-base leading-8 text-[var(--muted-foreground)]">
                   {item.a}
