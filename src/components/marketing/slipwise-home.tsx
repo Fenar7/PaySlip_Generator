@@ -331,7 +331,7 @@ export function SlipwiseHome({ className }: SlipwiseHomeProps) {
           data-animate="features-section"
           className="mt-6 grid gap-6 rounded-[2.7rem] border border-[var(--border-strong)] bg-white/88 p-6 shadow-[var(--shadow-card)] md:p-8 xl:grid-cols-[1.05fr_0.95fr]"
         >
-          <div className="rounded-[2.2rem] bg-[linear-gradient(180deg,rgba(255,255,255,0.96),rgba(236,244,255,0.84))] p-7 shadow-[var(--shadow-soft)]">
+          <div data-animate="feature-story" className="rounded-[2.2rem] bg-[linear-gradient(180deg,rgba(255,255,255,0.96),rgba(236,244,255,0.84))] p-7 shadow-[var(--shadow-soft)]">
             <SectionHeading
               eyebrow="Feature story"
               title="One product for the documents teams create every week."
@@ -449,7 +449,7 @@ export function SlipwiseHome({ className }: SlipwiseHomeProps) {
                 className="rounded-[1.8rem] border border-[var(--border-soft)] bg-white/92 p-6 shadow-[var(--shadow-soft)]"
               >
                 <div className="flex items-center justify-between gap-4">
-                  <span className="text-[0.78rem] font-semibold uppercase tracking-[0.34em] text-[var(--accent-strong)]">
+                  <span data-animate="workflow-step" className="text-[0.78rem] font-semibold uppercase tracking-[0.34em] text-[var(--accent-strong)]">
                     {item.step}
                   </span>
                   <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-[var(--surface-soft)] text-[var(--accent-strong)]">

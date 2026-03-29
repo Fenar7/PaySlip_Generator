@@ -104,6 +104,7 @@ export function SlipwiseProductMockup() {
                 {["Brand setup", "Live preview", "Export flow"].map((item) => (
                   <div
                     key={item}
+                    data-animate="mockup-capability"
                     className="rounded-[0.95rem] border border-[var(--border-soft)] bg-[var(--surface-soft)] px-4 py-3"
                   >
                     <p className="text-sm font-semibold text-[var(--foreground)]">{item}</p>
