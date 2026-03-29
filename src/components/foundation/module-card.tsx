@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import type { SVGProps } from "react";
 import { motion } from "motion/react";
 import { slipwiseBrand } from "@/components/foundation/slipwise-brand";
 import type { ProductModule } from "@/lib/modules";
@@ -10,7 +11,48 @@ type ModuleCardProps = {
   index: number;
 };
 
+type IconProps = SVGProps<SVGSVGElement>;
+
+function VoucherIcon(props: IconProps) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" {...props}>
+      <path d="M5 6h14a2 2 0 0 1 2 2v2a2.5 2.5 0 0 0 0 4v2a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-2a2.5 2.5 0 0 0 0-4V8a2 2 0 0 1 2-2Z" />
+      <path d="M9 10h6" />
+      <path d="M9 14h4" />
+    </svg>
+  );
+}
+
+function SalaryIcon(props: IconProps) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" {...props}>
+      <rect x="4" y="5" width="16" height="14" rx="2.5" />
+      <path d="M8 10h8" />
+      <path d="M8 14h5" />
+      <circle cx="17" cy="15.5" r="1.5" />
+    </svg>
+  );
+}
+
+function InvoiceIcon(props: IconProps) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" {...props}>
+      <path d="M7 3h8l4 4v14H7z" />
+      <path d="M15 3v4h4" />
+      <path d="M10 12h6" />
+      <path d="M10 16h6" />
+    </svg>
+  );
+}
+
 export function ModuleCard({ module, index }: ModuleCardProps) {
+  const Icon =
+    module.slug === "voucher"
+      ? VoucherIcon
+      : module.slug === "salary-slip"
+        ? SalaryIcon
+        : InvoiceIcon;
+
   return (
     <motion.article
       initial={{ opacity: 0, y: 24 }}
@@ -22,6 +64,9 @@ export function ModuleCard({ module, index }: ModuleCardProps) {
       <div className="relative flex h-full flex-col gap-6">
         <div className="flex items-start justify-between gap-4">
           <div>
+            <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white text-[var(--accent-strong)] shadow-[0_12px_26px_rgba(15,23,42,0.08)]">
+              <Icon className="h-5 w-5" />
+            </span>
             <p className="text-[0.68rem] font-semibold uppercase tracking-[0.32em] text-[var(--muted-foreground)]">
               {module.eyebrow}
             </p>

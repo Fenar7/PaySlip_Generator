@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import type { SVGProps } from "react";
 import { motion } from "motion/react";
 import { ModuleCard } from "@/components/foundation/module-card";
 import { SlipwiseProductMockup } from "@/components/marketing/slipwise-product-mockup";
@@ -11,16 +12,93 @@ type SlipwiseHomeProps = {
   className?: string;
 };
 
+type IconProps = SVGProps<SVGSVGElement>;
+
+function EyeIcon(props: IconProps) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" {...props}>
+      <path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12Z" />
+      <circle cx="12" cy="12" r="3.2" />
+    </svg>
+  );
+}
+
+function SparkIcon(props: IconProps) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" {...props}>
+      <path d="M12 3l1.6 4.4L18 9l-4.4 1.6L12 15l-1.6-4.4L6 9l4.4-1.6L12 3Z" />
+      <path d="M19 14l.8 2.2L22 17l-2.2.8L19 20l-.8-2.2L16 17l2.2-.8L19 14Z" />
+      <path d="M5 14l.8 2.2L8 17l-2.2.8L5 20l-.8-2.2L2 17l2.2-.8L5 14Z" />
+    </svg>
+  );
+}
+
+function ExportIcon(props: IconProps) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" {...props}>
+      <path d="M12 3v11" />
+      <path d="M8 10l4 4 4-4" />
+      <path d="M4 18v2h16v-2" />
+    </svg>
+  );
+}
+
+function TeamIcon(props: IconProps) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" {...props}>
+      <circle cx="9" cy="8" r="3" />
+      <circle cx="17" cy="9" r="2.5" />
+      <path d="M3 19c0-3.1 2.7-5 6-5s6 1.9 6 5" />
+      <path d="M15 18c.2-2 1.7-3.4 4-3.9 1.3-.3 2-.1 2.9.3" />
+    </svg>
+  );
+}
+
+function VoucherIcon(props: IconProps) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" {...props}>
+      <path d="M5 6h14a2 2 0 0 1 2 2v2a2.5 2.5 0 0 0 0 4v2a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-2a2.5 2.5 0 0 0 0-4V8a2 2 0 0 1 2-2Z" />
+      <path d="M9 10h6" />
+      <path d="M9 14h4" />
+    </svg>
+  );
+}
+
+function InvoiceIcon(props: IconProps) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" {...props}>
+      <path d="M7 3h8l4 4v14H7z" />
+      <path d="M15 3v4h4" />
+      <path d="M10 12h6" />
+      <path d="M10 16h6" />
+    </svg>
+  );
+}
+
+function SalaryIcon(props: IconProps) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" {...props}>
+      <rect x="4" y="5" width="16" height="14" rx="2.5" />
+      <path d="M8 10h8" />
+      <path d="M8 14h5" />
+      <circle cx="17" cy="15.5" r="1.5" />
+    </svg>
+  );
+}
+
 const featurePillars = [
   {
+    icon: EyeIcon,
     title: "Live preview",
     body: "Review the finished document as you work, so layout, totals, and branding are already right before export.",
   },
   {
+    icon: SparkIcon,
     title: "Brand controls",
     body: "Keep logos, company details, and visual styling consistent across every document you send out.",
   },
   {
+    icon: ExportIcon,
     title: "Export-ready output",
     body: "Move straight from final review to print, PDF, or PNG without rebuilding the document somewhere else.",
   },
@@ -28,16 +106,19 @@ const featurePillars = [
 
 const solutions = [
   {
+    icon: SalaryIcon,
     role: "HR / Admin",
     headline: "Issue salary slips without reformatting payroll data.",
     body: "Prepare employee details, earnings, deductions, and disbursement details in one workspace that stays clear from first input to final export.",
   },
   {
+    icon: VoucherIcon,
     role: "Operations",
     headline: "Prepare vouchers with the structure teams already expect.",
     body: "Create payment or receipt vouchers with clean narration, approval context, and export-ready formatting in one pass.",
   },
   {
+    icon: InvoiceIcon,
     role: "Finance / Accounts",
     headline: "Send invoices that stay clear from line items to balance due.",
     body: "Keep client details, tax structure, payment summaries, and branding aligned without losing clarity in the final document.",
@@ -47,16 +128,19 @@ const solutions = [
 const workflow = [
   {
     step: "01",
+    icon: TeamIcon,
     title: "Enter the details",
     body: "Each generator is structured around the fields teams actually need, so data entry stays straightforward.",
   },
   {
     step: "02",
+    icon: EyeIcon,
     title: "Review it live",
     body: "The document updates instantly, which makes review faster and catches layout issues before they matter.",
   },
   {
     step: "03",
+    icon: ExportIcon,
     title: "Export and share",
     body: "When the document looks right, export it in the format your team needs and send it on.",
   },
@@ -194,17 +278,23 @@ export function SlipwiseHome({ className }: SlipwiseHomeProps) {
 
             <div className="mt-7 grid gap-3 sm:grid-cols-3">
               {[
-                "Live preview across all three workflows",
-                "PDF, PNG, and print built in",
-                "Brand-ready output without design work",
-              ].map((item) => (
+                { icon: EyeIcon, label: "Live preview across all three workflows" },
+                { icon: ExportIcon, label: "PDF, PNG, and print built in" },
+                { icon: SparkIcon, label: "Brand-ready output without design work" },
+              ].map((item) => {
+                const Icon = item.icon;
+                return (
                 <div
-                  key={item}
-                  className="rounded-[1.15rem] border border-[var(--border-soft)] bg-white/70 px-4 py-3 text-sm leading-7 text-[var(--foreground-soft)] shadow-[var(--shadow-soft)] backdrop-blur"
+                  key={item.label}
+                  className="flex items-start gap-3 rounded-[1.15rem] border border-[var(--border-soft)] bg-white/70 px-4 py-3 text-sm leading-7 text-[var(--foreground-soft)] shadow-[var(--shadow-soft)] backdrop-blur"
                 >
-                  {item}
+                  <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[var(--surface-soft)] text-[var(--accent-strong)]">
+                    <Icon className="h-4.5 w-4.5" />
+                  </span>
+                  <span>{item.label}</span>
                 </div>
-              ))}
+                );
+              })}
             </div>
           </div>
 
@@ -248,6 +338,9 @@ export function SlipwiseHome({ className }: SlipwiseHomeProps) {
                     : "border-[var(--border-soft)] bg-white/90"
                 }`}
               >
+                <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[var(--surface-soft)] text-[var(--accent-strong)] shadow-[var(--shadow-soft)]">
+                  <item.icon className="h-5 w-5" />
+                </span>
                 <p className="text-xl font-semibold text-[var(--foreground)]">
                   {item.title}
                 </p>
@@ -298,9 +391,14 @@ export function SlipwiseHome({ className }: SlipwiseHomeProps) {
               transition={{ duration: 0.3, delay: index * 0.06 }}
               className="rounded-[1.8rem] border border-[var(--border-soft)] bg-[linear-gradient(180deg,rgba(255,255,255,0.96),rgba(240,246,255,0.9))] p-6 shadow-[var(--shadow-soft)]"
             >
-              <p className="text-[0.72rem] font-semibold uppercase tracking-[0.32em] text-[var(--accent-strong)]">
-                {item.role}
-              </p>
+              <div className="flex items-center gap-3">
+                <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-white text-[var(--accent-strong)] shadow-[var(--shadow-soft)]">
+                  <item.icon className="h-5 w-5" />
+                </span>
+                <p className="text-[0.72rem] font-semibold uppercase tracking-[0.32em] text-[var(--accent-strong)]">
+                  {item.role}
+                </p>
+              </div>
               <h3 className="mt-4 text-2xl text-[var(--foreground)]">{item.headline}</h3>
               <p className="mt-4 text-base leading-8 text-[var(--muted-foreground)]">
                 {item.body}
@@ -331,9 +429,14 @@ export function SlipwiseHome({ className }: SlipwiseHomeProps) {
                 transition={{ duration: 0.3, delay: index * 0.06 }}
                 className="rounded-[1.8rem] border border-[var(--border-soft)] bg-white/92 p-6 shadow-[var(--shadow-soft)]"
               >
-                <p className="text-[0.78rem] font-semibold uppercase tracking-[0.34em] text-[var(--accent-strong)]">
-                  {item.step}
-                </p>
+                <div className="flex items-center justify-between gap-4">
+                  <span className="text-[0.78rem] font-semibold uppercase tracking-[0.34em] text-[var(--accent-strong)]">
+                    {item.step}
+                  </span>
+                  <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-[var(--surface-soft)] text-[var(--accent-strong)]">
+                    <item.icon className="h-4.5 w-4.5" />
+                  </span>
+                </div>
                 <h3 className="mt-4 text-2xl text-[var(--foreground)]">{item.title}</h3>
                 <p className="mt-4 text-base leading-8 text-[var(--muted-foreground)]">
                   {item.body}
