@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { PreviewFrame } from "@/components/foundation/preview-frame";
+import { slipwiseBrand } from "@/components/foundation/slipwise-brand";
 
 type WorkspaceShellProps = {
   eyebrow: string;
@@ -18,9 +19,9 @@ export function WorkspaceShell({
 }: WorkspaceShellProps) {
   return (
     <main className="relative isolate overflow-hidden">
-      <div className="absolute inset-x-0 top-0 -z-10 h-[32rem] bg-[radial-gradient(circle_at_top,rgba(198,152,84,0.16),transparent_38%)]" />
+      <div className="absolute inset-x-0 top-0 -z-10 h-[32rem] bg-[radial-gradient(circle_at_top,rgba(37,99,235,0.16),transparent_38%)]" />
       <div className="mx-auto flex w-full max-w-[92rem] flex-col gap-8 px-4 py-8 sm:px-5 lg:px-6 lg:py-12">
-        <div className="flex flex-col gap-6 rounded-[2rem] border border-[var(--border-strong)] bg-[var(--surface-elevated)] p-6 shadow-[var(--shadow-card)] lg:flex-row lg:items-end lg:justify-between">
+        <div className="flex flex-col gap-6 rounded-[2rem] border border-[var(--border-strong)] bg-[var(--surface-elevated)] p-6 shadow-[var(--shadow-card)] backdrop-blur-sm lg:flex-row lg:items-end lg:justify-between">
           <div className="max-w-3xl">
             <p className="text-xs font-semibold uppercase tracking-[0.3em] text-[var(--muted-foreground)]">
               {eyebrow}
@@ -39,12 +40,9 @@ export function WorkspaceShell({
             >
               Back to home
             </Link>
-            <button
-              type="button"
-              className="inline-flex items-center justify-center rounded-full bg-[var(--foreground)] px-4 py-2 text-sm font-medium text-[var(--background)]"
-            >
-              Export actions soon
-            </button>
+            <span className="inline-flex items-center justify-center rounded-full bg-[var(--foreground)] px-4 py-2 text-sm font-medium text-[var(--background)]">
+              {slipwiseBrand.shellStatus}
+            </span>
           </div>
         </div>
 
@@ -60,7 +58,7 @@ export function WorkspaceShell({
                 </h2>
               </div>
               <span className="rounded-full border border-[var(--border-soft)] px-3 py-1 text-xs text-[var(--muted-foreground)]">
-                Phase 1
+                Slipwise
               </span>
             </div>
 
@@ -68,7 +66,7 @@ export function WorkspaceShell({
               {configurationSections.map((section) => (
                 <article
                   key={section}
-                  className="rounded-[1.5rem] border border-[var(--border-soft)] bg-[var(--surface-soft)] p-4"
+                  className="rounded-[1.5rem] border border-[var(--border-soft)] bg-white p-4"
                 >
                   <div className="flex items-center justify-between gap-4">
                     <div>
@@ -76,10 +74,10 @@ export function WorkspaceShell({
                         {section}
                       </h3>
                       <p className="mt-1 text-sm leading-7 text-[var(--muted-foreground)]">
-                        This section is staged for the next feature phase.
+                        This section belongs to the Slipwise product shell.
                       </p>
                     </div>
-                    <span className="h-9 w-9 rounded-full border border-[var(--border-soft)] bg-white" />
+                    <span className="h-9 w-9 rounded-full border border-[var(--border-soft)] bg-[linear-gradient(180deg,rgba(37,99,235,0.08),rgba(255,255,255,1))]" />
                   </div>
                 </article>
               ))}

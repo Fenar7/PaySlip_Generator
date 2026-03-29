@@ -5,8 +5,8 @@ type PreviewFrameProps = {
 
 export function PreviewFrame({ title, summary }: PreviewFrameProps) {
   return (
-    <div className="relative overflow-hidden rounded-[2rem] border border-[var(--border-strong)] bg-[var(--paper)] p-4 shadow-[var(--shadow-card)]">
-      <div className="absolute inset-x-10 top-0 h-24 rounded-full bg-[radial-gradient(circle,rgba(198,152,84,0.18),transparent_70%)] blur-3xl" />
+    <div className="relative overflow-hidden rounded-[2rem] border border-[var(--border-strong)] bg-[linear-gradient(180deg,rgba(255,255,255,0.88),rgba(241,245,249,0.98))] p-4 shadow-[var(--shadow-card)]">
+      <div className="absolute inset-x-10 top-0 h-24 rounded-full bg-[radial-gradient(circle,rgba(37,99,235,0.16),transparent_70%)] blur-3xl" />
       <div className="relative rounded-[1.5rem] border border-[var(--border-soft)] bg-white p-6">
         <div className="flex items-center justify-between border-b border-[var(--border-soft)] pb-4">
           <div>
@@ -16,7 +16,7 @@ export function PreviewFrame({ title, summary }: PreviewFrameProps) {
             <h3 className="mt-2 text-xl text-[var(--foreground)]">{title}</h3>
           </div>
           <span className="rounded-full border border-[var(--border-soft)] px-3 py-1 text-xs text-[var(--muted-foreground)]">
-            Draft shell
+            Slipwise canvas
           </span>
         </div>
 

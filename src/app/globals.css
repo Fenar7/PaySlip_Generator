@@ -1,27 +1,28 @@
-@import "@fontsource/inter/400.css";
-@import "@fontsource/inter/500.css";
-@import "@fontsource/inter/600.css";
-@import "@fontsource/source-serif-4/500.css";
-@import "@fontsource/source-serif-4/600.css";
+@import "@fontsource/manrope/400.css";
+@import "@fontsource/manrope/500.css";
+@import "@fontsource/manrope/600.css";
+@import "@fontsource/sora/500.css";
+@import "@fontsource/sora/600.css";
 @import "tailwindcss";
 
 :root {
-  --background: #f6f1e8;
-  --foreground: #1d1710;
-  --foreground-soft: #3d362e;
-  --muted-foreground: #6e675f;
-  --surface-elevated: rgba(255, 252, 247, 0.72);
-  --surface-soft: #f4ede2;
-  --paper: #efe7db;
-  --border-soft: rgba(73, 61, 48, 0.1);
-  --border-strong: rgba(73, 61, 48, 0.14);
-  --accent: #c69854;
-  --ring: rgba(198, 152, 84, 0.5);
-  --shadow-card: 0 24px 60px rgba(38, 30, 20, 0.08);
-  --ink-soft: #84776a;
-  --danger: #b25536;
-  --font-sans-stack: "Inter", "Helvetica Neue", "Segoe UI", sans-serif;
-  --font-display-stack: "Source Serif 4", Georgia, serif;
+  --background: #f8fafc;
+  --foreground: #0f172a;
+  --foreground-soft: #334155;
+  --muted-foreground: #64748b;
+  --surface-elevated: rgba(255, 255, 255, 0.86);
+  --surface-soft: #f1f5f9;
+  --paper: #e2e8f0;
+  --border-soft: rgba(15, 23, 42, 0.08);
+  --border-strong: rgba(15, 23, 42, 0.12);
+  --accent: #2563eb;
+  --ring: rgba(37, 99, 235, 0.34);
+  --shadow-card: 0 22px 56px rgba(15, 23, 42, 0.08);
+  --ink-soft: #475569;
+  --danger: #dc2626;
+  --font-sans-stack: "Manrope", "Inter", "Helvetica Neue", "Segoe UI", sans-serif;
+  --font-display-stack: "Sora", "Manrope", Georgia, serif;
+  --brand-glow: rgba(59, 130, 246, 0.16);
 }
 
 @theme inline {
@@ -37,6 +38,7 @@
 html {
   scroll-behavior: smooth;
   background: var(--background);
+  color-scheme: light;
 }
 
 body {
@@ -44,16 +46,17 @@ body {
   color: var(--foreground);
   font-family: var(--font-sans-stack);
   background-image:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.44), rgba(246, 241, 232, 0.92)),
-    radial-gradient(circle at top, rgba(255, 255, 255, 0.9), transparent 40%);
+    linear-gradient(180deg, rgba(255, 255, 255, 0.94), rgba(248, 250, 252, 0.92)),
+    radial-gradient(circle at top left, var(--brand-glow), transparent 34%),
+    radial-gradient(circle at top right, rgba(14, 165, 233, 0.08), transparent 28%);
 }
 
 h1,
 h2,
 h3 {
   font-family: var(--font-display-stack);
-  font-weight: 500;
-  letter-spacing: -0.03em;
+  font-weight: 600;
+  letter-spacing: -0.04em;
 }
 
 a,
@@ -70,7 +73,7 @@ select {
 }
 
 ::selection {
-  background: rgba(198, 152, 84, 0.22);
+  background: rgba(37, 99, 235, 0.16);
 }
 
 :focus-visible {

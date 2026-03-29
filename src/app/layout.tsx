@@ -1,10 +1,13 @@
 import type { Metadata } from "next";
+import { slipwiseBrand } from "@/components/foundation/slipwise-brand";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Business Document Generator",
-  description:
-    "A premium document generator for vouchers, salary slips, and invoices.",
+  title: {
+    default: slipwiseBrand.name,
+    template: `%s | ${slipwiseBrand.name}`,
+  },
+  description: slipwiseBrand.metadataDescription,
 };
 
 export default function RootLayout({

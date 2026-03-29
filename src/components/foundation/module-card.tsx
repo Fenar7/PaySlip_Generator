@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { motion } from "motion/react";
+import { slipwiseBrand } from "@/components/foundation/slipwise-brand";
 import type { ProductModule } from "@/lib/modules";
 
 type ModuleCardProps = {
@@ -15,9 +16,9 @@ export function ModuleCard({ module, index }: ModuleCardProps) {
       initial={{ opacity: 0, y: 24 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.2, delay: index * 0.05 }}
-      className="group relative overflow-hidden rounded-[2rem] border border-[var(--border-strong)] bg-[linear-gradient(180deg,rgba(255,255,255,0.9),rgba(250,247,240,0.94))] p-6 shadow-[var(--shadow-card)]"
+      className="group relative overflow-hidden rounded-[2rem] border border-[var(--border-strong)] bg-[linear-gradient(180deg,rgba(255,255,255,0.95),rgba(248,250,252,0.96))] p-6 shadow-[var(--shadow-card)]"
     >
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(198,152,84,0.18),transparent_42%)] opacity-0 transition-opacity duration-200 group-hover:opacity-100" />
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(37,99,235,0.16),transparent_42%)] opacity-0 transition-opacity duration-200 group-hover:opacity-100" />
       <div className="relative flex h-full flex-col gap-6">
         <div className="flex items-start justify-between gap-4">
           <div>
@@ -29,7 +30,7 @@ export function ModuleCard({ module, index }: ModuleCardProps) {
             </h3>
           </div>
           <span className="rounded-full border border-[var(--border-soft)] px-3 py-1 text-xs text-[var(--muted-foreground)]">
-            Phase 1
+            {slipwiseBrand.shellBadge}
           </span>
         </div>
 
