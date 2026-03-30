@@ -29,13 +29,11 @@ export async function exportSalarySlipDocument({
   const payload = serializeExportPayload(salarySlipDocument);
   const routeMode = format === "pdf" ? "pdf" : "png";
   const isServerless = isServerlessExportRuntime();
-  const shouldUseBrowserRenderer =
-    isServerless || process.env.NODE_ENV !== "production";
-  const renderUrl = shouldUseBrowserRenderer
+  const renderUrl = isServerless
     ? `${origin}/salary-slip/print?mode=${routeMode}`
     : `${origin}/salary-slip/print?payload=${encodeURIComponent(payload)}&mode=${routeMode}`;
 
-  if (shouldUseBrowserRenderer) {
+  if (isServerless) {
     const headers = {
       "x-slipwise-export-payload": payload,
     };
