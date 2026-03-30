@@ -3,12 +3,12 @@ import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { VoucherDocument, VoucherExportFormat } from "@/features/voucher/types";
-import { createVoucherExportSession } from "@/features/voucher/server/export-session-store";
 import {
   getLocalExportBrowserArgs,
   renderExportPngViaBrowser,
   resolveExportBrowserExecutablePath,
 } from "@/lib/export/browser";
+import { serializeExportPayload } from "@/lib/server/export-payload";
 
 type ExportVoucherOptions = {
   voucherDocument: VoucherDocument;
@@ -21,14 +21,14 @@ export async function exportVoucherDocument({
   format,
   origin,
 }: ExportVoucherOptions) {
-  const token = createVoucherExportSession(voucherDocument);
   const routeMode = format === "pdf" ? "pdf" : "png";
+  const payload = serializeExportPayload(voucherDocument);
 
   if (format === "pdf") {
     const executablePath = await resolveExportBrowserExecutablePath();
     const outputDirectory = await mkdtemp(join(tmpdir(), "voucher-pdf-"));
     const outputFile = join(outputDirectory, "voucher.pdf");
-    const pdfUrl = `${origin}/voucher/print?token=${encodeURIComponent(token)}&mode=${routeMode}`;
+    const pdfUrl = `${origin}/voucher/print?payload=${encodeURIComponent(payload)}&mode=${routeMode}`;
     const cliArgs = process.platform === "linux" && process.env.VERCEL
       ? [
           "--headless=new",
@@ -71,7 +71,7 @@ export async function exportVoucherDocument({
   const executablePath = await resolveExportBrowserExecutablePath();
   const outputDirectory = await mkdtemp(join(tmpdir(), "voucher-png-"));
   const outputFile = join(outputDirectory, "voucher.png");
-  const pngUrl = `${origin}/voucher/print?token=${encodeURIComponent(token)}&mode=${routeMode}`;
+  const pngUrl = `${origin}/voucher/print?payload=${encodeURIComponent(payload)}&mode=${routeMode}`;
   const cliArgs =
     process.platform === "linux" && process.env.VERCEL
       ? [

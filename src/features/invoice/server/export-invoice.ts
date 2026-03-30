@@ -6,13 +6,13 @@ import type {
   InvoiceDocument,
   InvoiceExportFormat,
 } from "@/features/invoice/types";
-import { createInvoiceExportSession } from "@/features/invoice/server/export-session-store";
 import {
   getLocalExportBrowserArgs,
   renderExportPdfViaBrowser,
   renderExportPngViaBrowser,
   resolveExportBrowserExecutablePath,
 } from "@/lib/export/browser";
+import { serializeExportPayload } from "@/lib/server/export-payload";
 
 type ExportInvoiceOptions = {
   invoiceDocument: InvoiceDocument;
@@ -25,14 +25,14 @@ export async function exportInvoiceDocument({
   format,
   origin,
 }: ExportInvoiceOptions) {
-  const token = createInvoiceExportSession(invoiceDocument);
   const routeMode = format === "pdf" ? "pdf" : "png";
   const executablePath = await resolveExportBrowserExecutablePath();
+  const payload = serializeExportPayload(invoiceDocument);
 
   if (format === "pdf") {
     const outputDirectory = await mkdtemp(join(tmpdir(), "invoice-pdf-"));
     const outputFile = join(outputDirectory, "invoice.pdf");
-    const pdfUrl = `${origin}/invoice/print?token=${encodeURIComponent(token)}&mode=${routeMode}`;
+    const pdfUrl = `${origin}/invoice/print?payload=${encodeURIComponent(payload)}&mode=${routeMode}`;
     const cliArgs =
       process.platform === "linux" && process.env.VERCEL
         ? [
@@ -82,7 +82,7 @@ export async function exportInvoiceDocument({
 
   const outputDirectory = await mkdtemp(join(tmpdir(), "invoice-png-"));
   const outputFile = join(outputDirectory, "invoice.png");
-  const pngUrl = `${origin}/invoice/print?token=${encodeURIComponent(token)}&mode=${routeMode}`;
+  const pngUrl = `${origin}/invoice/print?payload=${encodeURIComponent(payload)}&mode=${routeMode}`;
   const cliArgs =
     process.platform === "linux" && process.env.VERCEL
       ? [

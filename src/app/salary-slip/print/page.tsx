@@ -1,5 +1,7 @@
 import { SalarySlipPrintSurface } from "@/features/salary-slip/components/salary-slip-print-surface";
 import { getSalarySlipExportSession } from "@/features/salary-slip/server/export-session-store";
+import type { SalarySlipDocument } from "@/features/salary-slip/types";
+import { deserializeExportPayload } from "@/lib/server/export-payload";
 
 export const dynamic = "force-dynamic";
 
@@ -12,16 +14,21 @@ export default async function SalarySlipPrintPage({
 }: SalarySlipPrintPageProps) {
   const params = await searchParams;
   const token = typeof params.token === "string" ? params.token : "";
+  const payload = typeof params.payload === "string" ? params.payload : "";
   const rawMode = typeof params.mode === "string" ? params.mode : "print";
   const autoPrint = params.autoprint === "1";
   const mode =
     rawMode === "pdf" || rawMode === "png" || rawMode === "print"
       ? rawMode
       : "print";
+  const documentData =
+    (payload
+      ? deserializeExportPayload<SalarySlipDocument>(payload)
+      : null) ?? (token ? getSalarySlipExportSession(token) : null);
 
   return (
     <SalarySlipPrintSurface
-      documentData={token ? getSalarySlipExportSession(token) : null}
+      documentData={documentData}
       mode={mode}
       autoPrint={autoPrint}
     />

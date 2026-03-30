@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { voucherExportRequestSchema } from "@/features/voucher/schema";
 import { createVoucherExportSession } from "@/features/voucher/server/export-session-store";
+import { serializeExportPayload } from "@/lib/server/export-payload";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -21,12 +22,13 @@ export async function POST(request: Request) {
     }
 
     const token = createVoucherExportSession(parsed.data.document);
+    const payload = encodeURIComponent(serializeExportPayload(parsed.data.document));
 
     return NextResponse.json({
       token,
-      printUrl: `/voucher/print?token=${encodeURIComponent(token)}&mode=print&autoprint=1`,
-      pdfUrl: `/api/export/download?token=${encodeURIComponent(token)}&format=pdf`,
-      pngUrl: `/api/export/download?token=${encodeURIComponent(token)}&format=png`,
+      printUrl: `/voucher/print?payload=${payload}&mode=print&autoprint=1`,
+      pdfUrl: `/api/export/download?payload=${payload}&format=pdf`,
+      pngUrl: `/api/export/download?payload=${payload}&format=png`,
     });
   } catch (error) {
     console.error("Voucher export session creation failed", error);

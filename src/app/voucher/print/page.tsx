@@ -1,5 +1,7 @@
 import { VoucherPrintSurface } from "@/features/voucher/components/voucher-print-surface";
 import { getVoucherExportSession } from "@/features/voucher/server/export-session-store";
+import type { VoucherDocument } from "@/features/voucher/types";
+import { deserializeExportPayload } from "@/lib/server/export-payload";
 
 export const dynamic = "force-dynamic";
 
@@ -12,16 +14,21 @@ export default async function VoucherPrintPage({
 }: VoucherPrintPageProps) {
   const params = await searchParams;
   const token = typeof params.token === "string" ? params.token : "";
+  const payload = typeof params.payload === "string" ? params.payload : "";
   const rawMode = typeof params.mode === "string" ? params.mode : "print";
   const autoPrint = params.autoprint === "1";
   const mode =
     rawMode === "pdf" || rawMode === "png" || rawMode === "print"
       ? rawMode
       : "print";
+  const documentData =
+    (payload
+      ? deserializeExportPayload<VoucherDocument>(payload)
+      : null) ?? (token ? getVoucherExportSession(token) : null);
 
   return (
     <VoucherPrintSurface
-      documentData={token ? getVoucherExportSession(token) : null}
+      documentData={documentData}
       mode={mode}
       autoPrint={autoPrint}
     />

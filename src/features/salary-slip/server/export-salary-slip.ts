@@ -6,13 +6,13 @@ import type {
   SalarySlipDocument,
   SalarySlipExportFormat,
 } from "@/features/salary-slip/types";
-import { createSalarySlipExportSession } from "@/features/salary-slip/server/export-session-store";
 import {
   getLocalExportBrowserArgs,
   renderExportPdfViaBrowser,
   renderExportPngViaBrowser,
   resolveExportBrowserExecutablePath,
 } from "@/lib/export/browser";
+import { serializeExportPayload } from "@/lib/server/export-payload";
 
 type ExportSalarySlipOptions = {
   salarySlipDocument: SalarySlipDocument;
@@ -25,14 +25,14 @@ export async function exportSalarySlipDocument({
   format,
   origin,
 }: ExportSalarySlipOptions) {
-  const token = createSalarySlipExportSession(salarySlipDocument);
   const routeMode = format === "pdf" ? "pdf" : "png";
   const executablePath = await resolveExportBrowserExecutablePath();
+  const payload = serializeExportPayload(salarySlipDocument);
 
   if (format === "pdf") {
     const outputDirectory = await mkdtemp(join(tmpdir(), "salary-slip-pdf-"));
     const outputFile = join(outputDirectory, "salary-slip.pdf");
-    const pdfUrl = `${origin}/salary-slip/print?token=${encodeURIComponent(token)}&mode=${routeMode}`;
+    const pdfUrl = `${origin}/salary-slip/print?payload=${encodeURIComponent(payload)}&mode=${routeMode}`;
     const cliArgs =
       process.platform === "linux" && process.env.VERCEL
         ? [
@@ -82,7 +82,7 @@ export async function exportSalarySlipDocument({
 
   const outputDirectory = await mkdtemp(join(tmpdir(), "salary-slip-png-"));
   const outputFile = join(outputDirectory, "salary-slip.png");
-  const pngUrl = `${origin}/salary-slip/print?token=${encodeURIComponent(token)}&mode=${routeMode}`;
+  const pngUrl = `${origin}/salary-slip/print?payload=${encodeURIComponent(payload)}&mode=${routeMode}`;
   const cliArgs =
     process.platform === "linux" && process.env.VERCEL
       ? [

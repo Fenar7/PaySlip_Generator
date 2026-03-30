@@ -1,9 +1,12 @@
 import { InvoicePrintSurface } from "@/features/invoice/components/invoice-print-surface";
 import { getInvoiceExportSession } from "@/features/invoice/server/export-session-store";
+import type { InvoiceDocument } from "@/features/invoice/types";
+import { deserializeExportPayload } from "@/lib/server/export-payload";
 
 type InvoicePrintPageProps = {
   searchParams: Promise<{
     token?: string;
+    payload?: string;
     mode?: string;
     autoprint?: string;
   }>;
@@ -17,9 +20,10 @@ export default async function InvoicePrintPage({
     params.mode === "pdf" || params.mode === "png" || params.mode === "print"
       ? params.mode
       : "print";
-  const documentData = params.token
-    ? getInvoiceExportSession(params.token)
-    : null;
+  const documentData =
+    (params.payload
+      ? deserializeExportPayload<InvoiceDocument>(params.payload)
+      : null) ?? (params.token ? getInvoiceExportSession(params.token) : null);
 
   return (
     <InvoicePrintSurface

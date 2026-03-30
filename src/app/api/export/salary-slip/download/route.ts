@@ -1,7 +1,9 @@
 import { NextResponse } from "next/server";
 import { getSalarySlipExportSession } from "@/features/salary-slip/server/export-session-store";
+import type { SalarySlipDocument } from "@/features/salary-slip/types";
 import { exportSalarySlipDocument } from "@/features/salary-slip/server/export-salary-slip";
 import { buildSalarySlipFilename } from "@/features/salary-slip/utils/build-salary-slip-filename";
+import { deserializeExportPayload } from "@/lib/server/export-payload";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -10,13 +12,17 @@ export async function GET(request: Request) {
   try {
     const { searchParams, origin } = new URL(request.url);
     const token = searchParams.get("token") ?? "";
+    const payload = searchParams.get("payload") ?? "";
     const format = searchParams.get("format");
 
     if (format !== "pdf" && format !== "png") {
       return NextResponse.json({ error: "Invalid salary slip export format." }, { status: 400 });
     }
 
-    const document = getSalarySlipExportSession(token);
+    const document =
+      (payload
+        ? deserializeExportPayload<SalarySlipDocument>(payload)
+        : null) ?? getSalarySlipExportSession(token);
 
     if (!document) {
       return NextResponse.json({ error: "Salary slip export session expired." }, { status: 404 });

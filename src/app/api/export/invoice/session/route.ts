@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { invoiceExportRequestSchema } from "@/features/invoice/schema";
-import { createInvoiceExportSession } from "@/features/invoice/server/export-session-store";
+import { serializeExportPayload } from "@/lib/server/export-payload";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -20,12 +20,12 @@ export async function POST(request: Request) {
       );
     }
 
-    const token = createInvoiceExportSession(parsed.data.document);
+    const payload = encodeURIComponent(serializeExportPayload(parsed.data.document));
 
     return NextResponse.json({
-      printUrl: `/invoice/print?token=${encodeURIComponent(token)}&mode=print&autoprint=1`,
-      pdfUrl: `/api/export/invoice/download?token=${encodeURIComponent(token)}&format=pdf`,
-      pngUrl: `/api/export/invoice/download?token=${encodeURIComponent(token)}&format=png`,
+      printUrl: `/invoice/print?payload=${payload}&mode=print&autoprint=1`,
+      pdfUrl: `/api/export/invoice/download?payload=${payload}&format=pdf`,
+      pngUrl: `/api/export/invoice/download?payload=${payload}&format=png`,
     });
   } catch (error) {
     console.error("Invoice export session failed", error);
