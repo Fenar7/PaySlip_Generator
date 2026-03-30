@@ -8,10 +8,9 @@ describe("Invoice workspace", () => {
     expect(
       screen.getByRole("heading", { name: "Invoice Generator", level: 1 }),
     ).toBeInTheDocument();
-    expect(
-      screen.getByRole("button", { name: /bold brand/i }),
-    ).toBeInTheDocument();
-    expect(screen.getByText(/tax invoice · professional/i)).toBeInTheDocument();
+    expect(screen.getByText(/template and branding/i)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /professional/i })).toBeInTheDocument();
+    expect(screen.getByText(/live a4 document/i)).toBeInTheDocument();
   });
 
   it("updates the preview when line items change", () => {
