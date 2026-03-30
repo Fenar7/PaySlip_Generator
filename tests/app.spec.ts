@@ -231,12 +231,16 @@ test("home page exposes the module entry points", async ({ page }) => {
   ).toBeVisible();
 
   await expect(
-    page.getByRole("link", { name: /open the product/i }).first(),
+    page.getByRole("button", { name: /open a workspace/i }).first(),
   ).toBeVisible();
 
   await expect(
-    page.getByRole("link", { name: /view generators/i }).first(),
+    page.getByRole("button", { name: /view workspaces/i }).first(),
   ).toBeVisible();
+
+  await page.getByRole("button", { name: /start free/i }).first().click();
+  await expect(page.getByRole("dialog", { name: /choose a slipwise workspace/i })).toBeVisible();
+  await expect(page.getByRole("link", { name: /salary slip generator/i })).toBeVisible();
 });
 
 test("salary slip route renders the interactive workspace", async ({ page }) => {

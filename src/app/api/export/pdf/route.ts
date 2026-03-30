@@ -2,13 +2,14 @@ import { NextResponse } from "next/server";
 import { voucherExportRequestSchema } from "@/features/voucher/schema";
 import { exportVoucherDocument } from "@/features/voucher/server/export-voucher";
 import { buildVoucherFilename } from "@/features/voucher/utils/build-voucher-filename";
+import { parseExportRequestBody } from "@/lib/server/parse-export-request-body";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function POST(request: Request) {
   try {
-    const body = await request.json();
+    const body = await parseExportRequestBody(request);
     const parsed = voucherExportRequestSchema.safeParse(body);
 
     if (!parsed.success) {

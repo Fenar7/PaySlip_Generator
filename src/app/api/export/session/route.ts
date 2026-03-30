@@ -25,8 +25,8 @@ export async function POST(request: Request) {
     return NextResponse.json({
       token,
       printUrl: `/voucher/print?token=${encodeURIComponent(token)}&mode=print&autoprint=1`,
-      pdfUrl: `/voucher/print?token=${encodeURIComponent(token)}&mode=pdf`,
-      pngUrl: `/voucher/print?token=${encodeURIComponent(token)}&mode=png`,
+      pdfUrl: `/api/export/download?token=${encodeURIComponent(token)}&format=pdf`,
+      pngUrl: `/api/export/download?token=${encodeURIComponent(token)}&format=png`,
     });
   } catch (error) {
     console.error("Voucher export session creation failed", error);

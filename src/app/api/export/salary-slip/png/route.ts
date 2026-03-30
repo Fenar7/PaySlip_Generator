@@ -2,13 +2,14 @@ import { NextResponse } from "next/server";
 import { salarySlipExportRequestSchema } from "@/features/salary-slip/schema";
 import { exportSalarySlipDocument } from "@/features/salary-slip/server/export-salary-slip";
 import { buildSalarySlipFilename } from "@/features/salary-slip/utils/build-salary-slip-filename";
+import { parseExportRequestBody } from "@/lib/server/parse-export-request-body";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function POST(request: Request) {
   try {
-    const body = await request.json();
+    const body = await parseExportRequestBody(request);
     const parsed = salarySlipExportRequestSchema.safeParse(body);
 
     if (!parsed.success) {

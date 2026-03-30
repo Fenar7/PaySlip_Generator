@@ -20,6 +20,7 @@ import {
 } from "@/components/forms/input-primitives";
 import {
   DocumentWorkspaceLayout,
+  type WorkspaceExportDialog,
   type WorkspaceAction,
   type WorkspaceSectionMeta,
 } from "@/components/foundation/document-workspace-layout";
@@ -31,12 +32,13 @@ import { VoucherPreview } from "@/features/voucher/components/voucher-preview";
 import { voucherFormSchema } from "@/features/voucher/schema";
 import type { VoucherFormValues } from "@/features/voucher/types";
 import { normalizeVoucher } from "@/features/voucher/utils/normalize-voucher";
-import { buildVoucherFilename } from "@/features/voucher/utils/build-voucher-filename";
+import { submitBinaryExport } from "@/lib/browser/submit-binary-export";
 import { cn } from "@/lib/utils";
 
 type VoucherActionState =
   | { status: "idle" }
   | { status: "pending"; action: "print" | "pdf" | "png" }
+  | { status: "ready"; action: "pdf" | "png"; endpoint: string; payload: string; frameName: string }
   | { status: "error"; message: string };
 
 const voucherWorkspaceSections: WorkspaceSectionMeta[] = [
@@ -46,20 +48,6 @@ const voucherWorkspaceSections: WorkspaceSectionMeta[] = [
   { id: "voucher-approvals", label: "Approvals" },
   { id: "voucher-visibility", label: "Visibility" },
 ];
-
-async function parseExportError(response: Response, format: "pdf" | "png") {
-  try {
-    const payload = (await response.json()) as { error?: string };
-
-    if (payload.error) {
-      return payload.error;
-    }
-  } catch {
-    // Ignore JSON parsing problems and fall back to the generic message below.
-  }
-
-  return `Unable to export the voucher as ${format.toUpperCase()}.`;
-}
 
 function VoucherPanel() {
   const { control, getValues, setValue, trigger } = useFormContextSafe();
@@ -102,28 +90,12 @@ function VoucherPanel() {
     setActionState({ status: "pending", action: format });
 
     try {
-      const response = await fetch(`/api/export/${format}`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ document }),
-      });
+      const endpoint = format === "pdf" ? "/api/export/pdf" : "/api/export/png";
+      const payload = JSON.stringify({ document });
+      const frameName = "voucher-download-frame";
 
-      if (!response.ok) {
-        throw new Error(await parseExportError(response, format));
-      }
-
-      const blob = await response.blob();
-      const downloadUrl = URL.createObjectURL(blob);
-      const link = window.document.createElement("a");
-      link.href = downloadUrl;
-      link.download = buildVoucherFilename(document, format);
-      window.document.body.appendChild(link);
-      link.click();
-      link.remove();
-      window.setTimeout(() => URL.revokeObjectURL(downloadUrl), 1000);
-      setActionState({ status: "idle" });
+      submitBinaryExport({ action: endpoint, payload, frameName });
+      setActionState({ status: "ready", action: format, endpoint, payload, frameName });
     } catch (error) {
       setActionState({
         status: "error",
@@ -230,6 +202,28 @@ function VoucherPanel() {
         },
       ] satisfies WorkspaceAction[]}
       errorMessage={actionState.status === "error" ? actionState.message : undefined}
+      exportDialog={
+        actionState.status === "pending" && actionState.action !== "print"
+          ? ({
+              state: "pending",
+              format: actionState.action,
+              onClose: () => setActionState({ status: "idle" }),
+            } satisfies WorkspaceExportDialog)
+          : actionState.status === "ready"
+            ? ({
+                state: "ready",
+                format: actionState.action,
+                downloadUrl: actionState.endpoint,
+                onClose: () => setActionState({ status: "idle" }),
+                onRetry: () =>
+                  submitBinaryExport({
+                    action: actionState.endpoint,
+                    payload: actionState.payload,
+                    frameName: actionState.frameName,
+                  }),
+              } satisfies WorkspaceExportDialog)
+            : undefined
+      }
       builderEyebrow="Voucher controls"
       builderTitle="Build the document"
       builderDescription="Move from setup to core details, approvals, and visibility without losing the live preview on the right."

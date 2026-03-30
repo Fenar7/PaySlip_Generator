@@ -25,8 +25,8 @@ export async function POST(request: Request) {
     return NextResponse.json({
       token,
       printUrl: `/salary-slip/print?token=${encodeURIComponent(token)}&mode=print&autoprint=1`,
-      pdfUrl: `/salary-slip/print?token=${encodeURIComponent(token)}&mode=pdf`,
-      pngUrl: `/salary-slip/print?token=${encodeURIComponent(token)}&mode=png`,
+      pdfUrl: `/api/export/salary-slip/download?token=${encodeURIComponent(token)}&format=pdf`,
+      pngUrl: `/api/export/salary-slip/download?token=${encodeURIComponent(token)}&format=png`,
     });
   } catch (error) {
     console.error("Salary slip export session creation failed", error);

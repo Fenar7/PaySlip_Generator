@@ -40,7 +40,7 @@ export function SalarySlipPrintSurface({
   return (
     <main className={bodyClasses}>
       <SalarySlipPrintEffects
-        title={`${documentData.title} ${documentData.employeeName} ${documentData.payPeriodLabel}`}
+        title={documentData.title}
         autoPrint={mode === "print" && autoPrint}
       />
       <div

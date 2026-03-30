@@ -19,6 +19,11 @@ export const metadata: Metadata = {
     template: `%s | ${slipwiseBrand.name}`,
   },
   description: slipwiseBrand.metadataDescription,
+  icons: {
+    icon: "/icon.svg",
+    shortcut: "/icon.svg",
+    apple: "/icon.svg",
+  },
 };
 
 export default function RootLayout({

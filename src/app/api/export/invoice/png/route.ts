@@ -2,13 +2,14 @@ import { NextResponse } from "next/server";
 import { invoiceExportRequestSchema } from "@/features/invoice/schema";
 import { exportInvoiceDocument } from "@/features/invoice/server/export-invoice";
 import { buildInvoiceFilename } from "@/features/invoice/utils/build-invoice-filename";
+import { parseExportRequestBody } from "@/lib/server/parse-export-request-body";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function POST(request: Request) {
   try {
-    const body = await request.json();
+    const body = await parseExportRequestBody(request);
     const parsed = invoiceExportRequestSchema.safeParse(body);
 
     if (!parsed.success) {

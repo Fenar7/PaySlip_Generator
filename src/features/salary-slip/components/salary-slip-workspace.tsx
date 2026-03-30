@@ -5,6 +5,7 @@ import { FormProvider, useFieldArray, useForm, useFormContext, useWatch } from "
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
   DocumentWorkspaceLayout,
+  type WorkspaceExportDialog,
   type WorkspaceAction,
   type WorkspaceSectionMeta,
 } from "@/components/foundation/document-workspace-layout";
@@ -22,13 +23,14 @@ import { salarySlipDefaultValues, salarySlipTemplateOptions } from "@/features/s
 import { SalarySlipPreview } from "@/features/salary-slip/components/salary-slip-preview";
 import { salarySlipFormSchema } from "@/features/salary-slip/schema";
 import type { SalarySlipFormValues } from "@/features/salary-slip/types";
-import { buildSalarySlipFilename } from "@/features/salary-slip/utils/build-salary-slip-filename";
 import { normalizeSalarySlip } from "@/features/salary-slip/utils/normalize-salary-slip";
+import { submitBinaryExport } from "@/lib/browser/submit-binary-export";
 import { cn } from "@/lib/utils";
 
 type SalarySlipActionState =
   | { status: "idle" }
   | { status: "pending"; action: "print" | "pdf" | "png" }
+  | { status: "ready"; action: "pdf" | "png"; endpoint: string; payload: string; frameName: string }
   | { status: "error"; message: string };
 
 const salaryWorkspaceSections: WorkspaceSectionMeta[] = [
@@ -39,20 +41,6 @@ const salaryWorkspaceSections: WorkspaceSectionMeta[] = [
   { id: "salary-disbursement", label: "Disbursement" },
   { id: "salary-visibility", label: "Visibility" },
 ];
-
-async function parseExportError(response: Response, format: "pdf" | "png") {
-  try {
-    const payload = (await response.json()) as { error?: string };
-
-    if (payload.error) {
-      return payload.error;
-    }
-  } catch {
-    // Ignore JSON parsing problems and fall back to the generic message below.
-  }
-
-  return `Unable to export the salary slip as ${format.toUpperCase()}.`;
-}
 
 function rowInputClass() {
   return cn(
@@ -167,28 +155,15 @@ function SalarySlipPanel() {
     setActionState({ status: "pending", action: format });
 
     try {
-      const response = await fetch(`/api/export/salary-slip/${format}`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ document }),
-      });
+      const endpoint =
+        format === "pdf"
+          ? "/api/export/salary-slip/pdf"
+          : "/api/export/salary-slip/png";
+      const payload = JSON.stringify({ document });
+      const frameName = "salary-slip-download-frame";
 
-      if (!response.ok) {
-        throw new Error(await parseExportError(response, format));
-      }
-
-      const blob = await response.blob();
-      const downloadUrl = URL.createObjectURL(blob);
-      const link = window.document.createElement("a");
-      link.href = downloadUrl;
-      link.download = buildSalarySlipFilename(document, format);
-      window.document.body.appendChild(link);
-      link.click();
-      link.remove();
-      window.setTimeout(() => URL.revokeObjectURL(downloadUrl), 1000);
-      setActionState({ status: "idle" });
+      submitBinaryExport({ action: endpoint, payload, frameName });
+      setActionState({ status: "ready", action: format, endpoint, payload, frameName });
     } catch (error) {
       setActionState({
         status: "error",
@@ -295,6 +270,28 @@ function SalarySlipPanel() {
         },
       ] satisfies WorkspaceAction[]}
       errorMessage={actionState.status === "error" ? actionState.message : undefined}
+      exportDialog={
+        actionState.status === "pending" && actionState.action !== "print"
+          ? ({
+              state: "pending",
+              format: actionState.action,
+              onClose: () => setActionState({ status: "idle" }),
+            } satisfies WorkspaceExportDialog)
+          : actionState.status === "ready"
+            ? ({
+                state: "ready",
+                format: actionState.action,
+                downloadUrl: actionState.endpoint,
+                onClose: () => setActionState({ status: "idle" }),
+                onRetry: () =>
+                  submitBinaryExport({
+                    action: actionState.endpoint,
+                    payload: actionState.payload,
+                    frameName: actionState.frameName,
+                  }),
+              } satisfies WorkspaceExportDialog)
+            : undefined
+      }
       builderEyebrow="Salary controls"
       builderTitle="Build the payroll document"
       builderDescription="Move through setup, employee data, pay details, and visibility controls while the preview stays available on the right."

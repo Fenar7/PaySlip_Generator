@@ -21,55 +21,83 @@ export function DocumentPreviewSurface({
   children,
 }: DocumentPreviewSurfaceProps) {
   const viewportRef = useRef<HTMLDivElement | null>(null);
-  const documentFrameRef = useRef<HTMLDivElement | null>(null);
-  const [scale, setScale] = useState(1);
+  const contentMeasureRef = useRef<HTMLDivElement | null>(null);
+  const [viewportWidth, setViewportWidth] = useState(PREVIEW_DOCUMENT_FRAME_WIDTH);
   const [contentHeight, setContentHeight] = useState(PREVIEW_DOCUMENT_FRAME_HEIGHT);
+  const [isCompactPreview, setIsCompactPreview] = useState(false);
 
   useEffect(() => {
     const viewport = viewportRef.current;
-    const documentFrame = documentFrameRef.current;
 
-    if (!viewport || !documentFrame) {
+    if (!viewport) {
       return;
     }
 
-    const updateScale = () => {
-      const availableWidth = Math.max(
-        0,
-        viewport.clientWidth - PREVIEW_VIEWPORT_HORIZONTAL_GUTTER,
-      );
-      const nextScale = Math.min(1, availableWidth / PREVIEW_DOCUMENT_FRAME_WIDTH);
-      setScale(nextScale);
+    const updateViewportMetrics = () => {
+      const compact = viewport.clientWidth < 640;
+      setIsCompactPreview(compact);
+      setViewportWidth(viewport.clientWidth);
     };
 
-    const updateContentHeight = () => {
-      setContentHeight(
-        Math.max(PREVIEW_DOCUMENT_FRAME_HEIGHT, documentFrame.scrollHeight + 2),
-      );
-    };
-
-    updateScale();
-    updateContentHeight();
+    updateViewportMetrics();
 
     const viewportObserver = new ResizeObserver(() => {
-      updateScale();
-    });
-    const documentObserver = new ResizeObserver(() => {
-      updateContentHeight();
+      updateViewportMetrics();
     });
 
     viewportObserver.observe(viewport);
-    documentObserver.observe(documentFrame);
 
     return () => {
       viewportObserver.disconnect();
-      documentObserver.disconnect();
     };
   }, []);
 
+  useEffect(() => {
+    const contentMeasure = contentMeasureRef.current;
+
+    if (!contentMeasure) {
+      return;
+    }
+
+    let frameId = 0;
+
+    const updateContentHeight = () => {
+      window.cancelAnimationFrame(frameId);
+      frameId = window.requestAnimationFrame(() => {
+        const nextHeight = Math.max(
+          PREVIEW_DOCUMENT_FRAME_HEIGHT,
+          contentMeasure.scrollHeight + 2,
+        );
+
+        setContentHeight((currentHeight) =>
+          currentHeight === nextHeight ? currentHeight : nextHeight,
+        );
+      });
+    };
+
+    updateContentHeight();
+
+    const contentObserver = new ResizeObserver(() => {
+      updateContentHeight();
+    });
+
+    contentObserver.observe(contentMeasure);
+
+    return () => {
+      contentObserver.disconnect();
+      window.cancelAnimationFrame(frameId);
+    };
+  }, [children]);
+
+  const scale = useMemo(() => {
+    const gutter = isCompactPreview ? 4 : PREVIEW_VIEWPORT_HORIZONTAL_GUTTER;
+    const availableWidth = Math.max(0, viewportWidth - gutter);
+    return Math.min(1, availableWidth / PREVIEW_DOCUMENT_FRAME_WIDTH);
+  }, [isCompactPreview, viewportWidth]);
+
   const scaledHeight = useMemo(
-    () => Math.max(420, Math.ceil(contentHeight * scale)),
-    [contentHeight, scale],
+    () => Math.max(isCompactPreview ? 220 : 420, Math.ceil(contentHeight * scale)),
+    [contentHeight, isCompactPreview, scale],
   );
   const scaledWidth = useMemo(
     () => Math.ceil(PREVIEW_DOCUMENT_FRAME_WIDTH * scale),
@@ -77,60 +105,102 @@ export function DocumentPreviewSurface({
   );
 
   return (
-    <div className="relative overflow-hidden rounded-[1.9rem] border border-[rgba(15,23,42,0.08)] bg-[linear-gradient(180deg,rgba(244,248,255,0.82),rgba(255,255,255,0.98))] p-3 shadow-[var(--shadow-card)] sm:p-4">
-      <div className="relative space-y-4">
-        <div className="rounded-[1.25rem] border border-[rgba(15,23,42,0.08)] bg-white/92 px-4 py-4 shadow-[0_10px_24px_rgba(15,23,42,0.04)]">
-          <div className="flex items-center gap-2">
-            <span className="h-2.5 w-2.5 rounded-full bg-[rgba(248,113,113,0.85)]" />
-            <span className="h-2.5 w-2.5 rounded-full bg-[rgba(251,191,36,0.85)]" />
-            <span className="h-2.5 w-2.5 rounded-full bg-[rgba(74,222,128,0.85)]" />
-          </div>
-
-          <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <p className="text-[0.65rem] font-semibold uppercase tracking-[0.3em] text-[var(--muted-foreground)]">
-                Live preview
-              </p>
-              <p className="mt-1 text-sm text-[var(--foreground-soft)]">
-                {title} · {templateName}
-              </p>
-            </div>
-            <span className="rounded-full border border-[var(--border-soft)] px-3 py-1 text-xs text-[var(--muted-foreground)]">
-              A4 workspace
+    <div
+      className={
+        isCompactPreview
+          ? "relative overflow-hidden rounded-[0.95rem] border border-[rgba(15,23,42,0.08)] bg-[linear-gradient(180deg,#f7fbff,#eef4ff)] p-1 shadow-[0_14px_30px_rgba(15,23,42,0.08)]"
+          : "relative overflow-hidden rounded-[1.9rem] border border-[rgba(15,23,42,0.08)] bg-[linear-gradient(180deg,rgba(244,248,255,0.82),rgba(255,255,255,0.98))] p-3 shadow-[var(--shadow-card)] sm:p-4"
+      }
+    >
+      <div className={isCompactPreview ? "relative space-y-2" : "relative space-y-4"}>
+        {isCompactPreview ? (
+          <div className="flex items-center justify-between rounded-[0.8rem] border border-[rgba(15,23,42,0.08)] bg-white/94 px-2.5 py-2 text-[0.58rem] font-semibold uppercase tracking-[0.16em] text-[var(--muted-foreground)] shadow-[0_8px_18px_rgba(15,23,42,0.04)]">
+            <span className="truncate">Live preview</span>
+            <span className="rounded-full border border-[var(--border-soft)] px-2 py-0.5 text-[0.58rem]">
+              A4
             </span>
           </div>
-        </div>
+        ) : (
+          <div className="rounded-[1.25rem] border border-[rgba(15,23,42,0.08)] bg-white/92 px-4 py-4 shadow-[0_10px_24px_rgba(15,23,42,0.04)]">
+            <div className="flex items-center gap-2">
+              <span className="h-2.5 w-2.5 rounded-full bg-[rgba(248,113,113,0.85)]" />
+              <span className="h-2.5 w-2.5 rounded-full bg-[rgba(251,191,36,0.85)]" />
+              <span className="h-2.5 w-2.5 rounded-full bg-[rgba(74,222,128,0.85)]" />
+            </div>
+
+            <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <p className="text-[0.65rem] font-semibold uppercase tracking-[0.3em] text-[var(--muted-foreground)]">
+                  Live preview
+                </p>
+                <p className="mt-1 text-sm text-[var(--foreground-soft)]">
+                  {title} · {templateName}
+                </p>
+              </div>
+              <span className="rounded-full border border-[var(--border-soft)] px-3 py-1 text-xs text-[var(--muted-foreground)]">
+                A4 workspace
+              </span>
+            </div>
+          </div>
+        )}
 
         <div
           ref={viewportRef}
           data-testid="document-preview-viewport"
-          className="overflow-hidden rounded-[1.7rem] border border-[rgba(15,23,42,0.08)] bg-[linear-gradient(180deg,#f8fbff,#eef4ff)] p-2.5 sm:p-3.5"
+          className={
+            isCompactPreview
+              ? "overflow-hidden rounded-[0.85rem] border border-[rgba(15,23,42,0.08)] bg-white"
+              : "overflow-hidden rounded-[1.7rem] border border-[rgba(15,23,42,0.08)] bg-[linear-gradient(180deg,#f8fbff,#eef4ff)] p-2.5 sm:p-3.5"
+          }
         >
-          <div className="mb-3 flex items-center justify-between rounded-[1rem] border border-[rgba(15,23,42,0.08)] bg-white/88 px-3 py-2 text-[0.72rem] font-semibold uppercase tracking-[0.22em] text-[var(--muted-foreground)]">
-            <span>Document canvas</span>
-            <span>Synced</span>
-          </div>
+          {!isCompactPreview ? (
+            <div className="mb-3 flex items-center justify-between rounded-[1rem] border border-[rgba(15,23,42,0.08)] bg-white/88 px-3 py-2 text-[0.72rem] font-semibold uppercase tracking-[0.22em] text-[var(--muted-foreground)]">
+              <span>Document canvas</span>
+              <span>Synced</span>
+            </div>
+          ) : null}
 
-          <div
-            className="mx-auto flex max-w-full justify-center"
-            style={{
-              width: `${scaledWidth}px`,
-              minHeight: `${scaledHeight}px`,
-            }}
-          >
+          {isCompactPreview ? (
             <div
-              ref={documentFrameRef}
-              className="overflow-hidden rounded-[1.25rem] border border-[rgba(15,23,42,0.08)] bg-white shadow-[0_28px_52px_rgba(15,23,42,0.12)]"
+              className="relative mx-auto max-w-full overflow-hidden rounded-[0.7rem] border border-[rgba(15,23,42,0.08)] bg-white shadow-[0_14px_28px_rgba(15,23,42,0.1)]"
               style={{
-                width: `${PREVIEW_DOCUMENT_FRAME_WIDTH - 2}px`,
-                minHeight: `${A4_DOCUMENT_HEIGHT}px`,
-                transform: `scale(${scale})`,
-                transformOrigin: "top center",
+                width: `${scaledWidth}px`,
+                height: `${Math.ceil(scaledHeight)}px`,
               }}
             >
-              {children}
+              <div
+                className="absolute left-0 top-0"
+                style={{
+                  width: `${PREVIEW_DOCUMENT_FRAME_WIDTH - 2}px`,
+                  minHeight: `${A4_DOCUMENT_HEIGHT}px`,
+                  transform: `scale(${scale})`,
+                  transformOrigin: "top left",
+                }}
+              >
+                <div ref={contentMeasureRef}>{children}</div>
+              </div>
             </div>
-          </div>
+          ) : (
+            <div
+              className="mx-auto flex max-w-full justify-center"
+              style={{
+                width: `${scaledWidth}px`,
+                minHeight: `${Math.ceil(scaledHeight)}px`,
+              }}
+            >
+              <div
+                className="overflow-hidden rounded-[1.25rem] border border-[rgba(15,23,42,0.08)] bg-white shadow-[0_28px_52px_rgba(15,23,42,0.12)]"
+                style={{
+                  width: `${PREVIEW_DOCUMENT_FRAME_WIDTH - 2}px`,
+                  minHeight: `${A4_DOCUMENT_HEIGHT}px`,
+                  transform: `scale(${scale})`,
+                  transformOrigin: "top center",
+                }}
+              >
+                <div ref={contentMeasureRef}>{children}</div>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>

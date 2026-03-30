@@ -114,6 +114,7 @@ export async function renderExportPdfViaBrowser(
       format: "A4",
       printBackground: true,
       preferCSSPageSize: true,
+      displayHeaderFooter: false,
     });
   } finally {
     await browser.close();

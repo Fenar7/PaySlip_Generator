@@ -24,8 +24,8 @@ export async function POST(request: Request) {
 
     return NextResponse.json({
       printUrl: `/invoice/print?token=${encodeURIComponent(token)}&mode=print&autoprint=1`,
-      pdfUrl: `/invoice/print?token=${encodeURIComponent(token)}&mode=pdf`,
-      pngUrl: `/invoice/print?token=${encodeURIComponent(token)}&mode=png`,
+      pdfUrl: `/api/export/invoice/download?token=${encodeURIComponent(token)}&format=pdf`,
+      pngUrl: `/api/export/invoice/download?token=${encodeURIComponent(token)}&format=png`,
     });
   } catch (error) {
     console.error("Invoice export session failed", error);

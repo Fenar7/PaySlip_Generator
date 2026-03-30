@@ -230,9 +230,6 @@ function buildFinalCtaTimeline(section: HTMLElement) {
 
 function buildDesktopHero() {
   setWillChange([
-    "[data-animate='header']",
-    "[data-animate='nav-item']",
-    "[data-animate='header-cta']",
     "[data-animate='hero-eyebrow']",
     "[data-animate='hero-line']",
     "[data-animate='hero-copy']",
@@ -249,9 +246,6 @@ function buildDesktopHero() {
       defaults: { ease: "power3.out" },
       onComplete: () =>
         clearMotion([
-          "[data-animate='header']",
-          "[data-animate='nav-item']",
-          "[data-animate='header-cta']",
           "[data-animate='hero-eyebrow']",
           "[data-animate='hero-line']",
           "[data-animate='hero-copy']",
@@ -263,40 +257,12 @@ function buildDesktopHero() {
           "[data-animate='mockup-capability']",
         ]),
     })
-    .from("[data-animate='header']", {
-      opacity: 0,
-      y: -14,
-      duration: 0.48,
-    })
-    .from(
-      "[data-animate='nav-item']",
-      {
-        opacity: 0,
-        y: -6,
-        stagger: 0.04,
-        duration: 0.24,
-      },
-      "-=0.22",
-    )
-    .from(
-      "[data-animate='header-cta']",
-      {
-        opacity: 0,
-        y: -6,
-        stagger: 0.05,
-        duration: 0.28,
-      },
-      "-=0.18",
-    )
-    .from(
-      "[data-animate='hero-eyebrow']",
+    .from("[data-animate='hero-eyebrow']",
       {
         opacity: 0,
         x: -14,
         duration: 0.36,
-      },
-      "-=0.02",
-    )
+      })
     .from(
       "[data-animate='hero-line']",
       {
@@ -379,8 +345,6 @@ function buildDesktopHero() {
 
 function buildMobileHero() {
   setWillChange([
-    "[data-animate='header']",
-    "[data-animate='header-cta']",
     "[data-animate='hero-eyebrow']",
     "[data-animate='hero-line']",
     "[data-animate='hero-copy']",
@@ -394,8 +358,6 @@ function buildMobileHero() {
       defaults: { ease: "power2.out" },
       onComplete: () =>
         clearMotion([
-          "[data-animate='header']",
-          "[data-animate='header-cta']",
           "[data-animate='hero-eyebrow']",
           "[data-animate='hero-line']",
           "[data-animate='hero-copy']",
@@ -404,30 +366,12 @@ function buildMobileHero() {
           "[data-animate='mockup-shell']",
         ]),
     })
-    .from("[data-animate='header']", {
-      opacity: 0,
-      y: -10,
-      duration: 0.38,
-    })
-    .from(
-      "[data-animate='header-cta']",
-      {
-        opacity: 0,
-        y: -6,
-        stagger: 0.05,
-        duration: 0.24,
-      },
-      "-=0.16",
-    )
-    .from(
-      "[data-animate='hero-eyebrow']",
+    .from("[data-animate='hero-eyebrow']",
       {
         opacity: 0,
         y: 14,
         duration: 0.3,
-      },
-      "-=0.06",
-    )
+      })
     .from(
       "[data-animate='hero-line']",
       {

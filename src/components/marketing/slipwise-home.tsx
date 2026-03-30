@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useRef, type SVGProps } from "react";
+import { useEffect, useRef, useState, type SVGProps } from "react";
 import { ModuleCard } from "@/components/foundation/module-card";
 import { SlipwiseProductMockup } from "@/components/marketing/slipwise-product-mockup";
 import { useHomepageAnimations } from "@/components/marketing/use-homepage-animations";
@@ -138,7 +138,7 @@ const workflow = [
     step: "01",
     icon: TeamIcon,
     title: "Enter the details",
-    body: "Each generator is structured around the fields teams actually need, so data entry stays straightforward.",
+    body: "Each workspace is structured around the fields teams actually need, so data entry stays straightforward.",
   },
   {
     step: "02",
@@ -180,6 +180,19 @@ const heroLines = [
   "in spreadsheets.",
 ];
 
+function getWorkspaceIcon(slug: string) {
+  switch (slug) {
+    case "voucher":
+      return VoucherIcon;
+    case "salary-slip":
+      return SalaryIcon;
+    case "invoice":
+      return InvoiceIcon;
+    default:
+      return SparkIcon;
+  }
+}
+
 function SectionHeading({
   eyebrow,
   title,
@@ -208,8 +221,44 @@ function SectionHeading({
 
 export function SlipwiseHome({ className }: SlipwiseHomeProps) {
   const rootRef = useRef<HTMLElement | null>(null);
+  const workspacesRef = useRef<HTMLElement | null>(null);
+  const [isWorkspaceDialogOpen, setIsWorkspaceDialogOpen] = useState(false);
 
   useHomepageAnimations(rootRef);
+
+  useEffect(() => {
+    if (!isWorkspaceDialogOpen) {
+      return;
+    }
+
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setIsWorkspaceDialogOpen(false);
+      }
+    };
+
+    window.addEventListener("keydown", onKeyDown);
+
+    return () => {
+      window.removeEventListener("keydown", onKeyDown);
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [isWorkspaceDialogOpen]);
+
+  const openWorkspaceDialog = () => {
+    setIsWorkspaceDialogOpen(true);
+  };
+
+  const closeWorkspaceDialog = () => {
+    setIsWorkspaceDialogOpen(false);
+  };
+
+  const scrollToWorkspaces = () => {
+    workspacesRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
 
   return (
     <main ref={rootRef} className={cn("relative isolate overflow-hidden", className)}>
@@ -218,15 +267,15 @@ export function SlipwiseHome({ className }: SlipwiseHomeProps) {
       <div data-animate="hero-glow-right" className="pointer-events-none absolute right-[-5rem] top-28 -z-10 h-64 w-64 rounded-full bg-[rgba(45,107,255,0.12)] blur-[100px]" />
 
       <div className="mx-auto flex w-full max-w-[95rem] flex-col gap-8 px-4 py-5 sm:px-6 lg:px-8 lg:py-8">
-        <header data-animate="header" className="sticky top-4 z-30 rounded-full border border-[var(--border-soft)] bg-white/92 px-4 py-3 shadow-[var(--shadow-soft)]">
-          <div className="flex items-center justify-between gap-4 md:grid md:grid-cols-[auto_1fr_auto] md:gap-6">
+        <header className="sticky top-4 z-30 rounded-full border border-[var(--border-soft)] bg-white/92 px-4 py-3 shadow-[var(--shadow-soft)]">
+          <div className="flex items-center justify-between gap-4 md:grid md:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] md:items-center md:gap-6">
             <Link href="/" className="flex items-center md:justify-self-start">
               <p className="text-[1.45rem] font-semibold tracking-[-0.08em] text-[var(--foreground)] md:text-[1.6rem]">
                 Slipwise
               </p>
             </Link>
 
-            <nav className="hidden items-center justify-center gap-2 text-sm text-[var(--foreground-soft)] md:flex">
+            <nav className="hidden items-center justify-self-center gap-2 text-sm text-[var(--foreground-soft)] md:flex">
               {[
                 ["Features", "#features"],
                 ["Solutions", "#solutions"],
@@ -236,7 +285,6 @@ export function SlipwiseHome({ className }: SlipwiseHomeProps) {
                 <a
                   key={label}
                   href={href}
-                  data-animate="nav-item"
                   className="rounded-full px-4 py-2 hover:bg-[var(--surface-soft)] hover:text-[var(--foreground)]"
                 >
                   {label}
@@ -245,20 +293,20 @@ export function SlipwiseHome({ className }: SlipwiseHomeProps) {
             </nav>
 
             <div className="flex items-center gap-3 md:justify-self-end">
-              <Link
-                href="/voucher"
-                data-animate="header-cta"
+              <button
+                type="button"
+                onClick={scrollToWorkspaces}
                 className="rounded-full border border-[var(--border-strong)] bg-white px-4 py-2.5 text-sm font-medium text-[var(--foreground-soft)] hover:border-[var(--accent)] hover:text-[var(--foreground)]"
               >
-                View generators
-              </Link>
-              <Link
-                href="/voucher"
-                data-animate="header-cta"
-                className="rounded-full bg-[var(--foreground)] px-5 py-2.5 text-sm font-semibold text-white shadow-[var(--shadow-soft)] hover:-translate-y-0.5"
+                View workspaces
+              </button>
+              <button
+                type="button"
+                onClick={openWorkspaceDialog}
+                className="rounded-full bg-[var(--foreground)] px-5 py-2.5 text-sm font-semibold text-white shadow-[var(--shadow-soft)] transition-all duration-200 hover:bg-[#0f172a] hover:shadow-[var(--shadow-card)]"
               >
                 Start free
-              </Link>
+              </button>
             </div>
           </div>
         </header>
@@ -284,20 +332,22 @@ export function SlipwiseHome({ className }: SlipwiseHomeProps) {
             </p>
 
             <div className="mt-7 flex flex-wrap gap-4">
-              <Link
-                href="/voucher"
+              <button
+                type="button"
+                onClick={openWorkspaceDialog}
                 data-animate="hero-cta"
-                className="rounded-full bg-[var(--foreground)] px-6 py-3.5 text-sm font-semibold text-white shadow-[var(--shadow-lift)] hover:-translate-y-0.5"
+                className="rounded-full bg-[var(--foreground)] px-6 py-3.5 text-sm font-semibold text-white shadow-[var(--shadow-lift)] transition-all duration-200 hover:bg-[#0f172a] hover:shadow-[0_24px_44px_rgba(15,23,42,0.2)]"
               >
-                Open the product
-              </Link>
-              <a
-                href="#generators"
+                Open a workspace
+              </button>
+              <button
+                type="button"
+                onClick={scrollToWorkspaces}
                 data-animate="hero-cta"
                 className="rounded-full border border-[var(--border-strong)] bg-white/80 px-6 py-3.5 text-sm font-semibold text-[var(--foreground-soft)] shadow-[var(--shadow-soft)] backdrop-blur hover:border-[var(--accent)] hover:text-[var(--foreground)]"
               >
-                Explore generators
-              </a>
+                Explore workflows
+              </button>
             </div>
 
             <div className="mt-7 grid gap-3 sm:grid-cols-3">
@@ -465,11 +515,16 @@ export function SlipwiseHome({ className }: SlipwiseHomeProps) {
           </div>
         </section>
 
-        <section data-animate="generators-section" className="rounded-[2.7rem] border border-[var(--border-strong)] bg-white/88 p-6 shadow-[var(--shadow-card)] md:p-8">
+        <section
+          id="workspaces"
+          ref={workspacesRef}
+          data-animate="generators-section"
+          className="rounded-[2.7rem] border border-[var(--border-strong)] bg-white/88 p-6 shadow-[var(--shadow-card)] md:p-8"
+        >
           <div data-animate="section-heading">
             <SectionHeading
-              eyebrow="Generators"
-              title="Three focused generators, one consistent product."
+              eyebrow="Workspaces"
+              title="Three focused workspaces, one consistent product."
               description="Choose the workflow you need and get the same structured editing, live preview, and polished export experience every time."
             />
           </div>
@@ -530,20 +585,22 @@ export function SlipwiseHome({ className }: SlipwiseHomeProps) {
             </div>
 
             <div className="flex flex-wrap gap-4 lg:justify-end">
-              <Link
-                href="/voucher"
+              <button
+                type="button"
+                onClick={openWorkspaceDialog}
                 data-animate="final-cta-action"
-                className="rounded-full bg-[var(--foreground)] px-7 py-4 text-sm font-semibold text-white shadow-[var(--shadow-soft)] hover:-translate-y-0.5"
+                className="rounded-full bg-[var(--foreground)] px-7 py-4 text-sm font-semibold text-white shadow-[var(--shadow-soft)] transition-all duration-200 hover:bg-[#0f172a] hover:shadow-[var(--shadow-card)]"
               >
                 Start free
-              </Link>
-              <a
-                href="#features"
+              </button>
+              <button
+                type="button"
+                onClick={scrollToWorkspaces}
                 data-animate="final-cta-action"
                 className="rounded-full border border-[var(--border-strong)] px-7 py-4 text-sm font-semibold text-[var(--foreground)] hover:bg-[var(--surface-soft)]"
               >
-                Review the workflow
-              </a>
+                View workspaces
+              </button>
             </div>
           </div>
         </section>
@@ -573,6 +630,89 @@ export function SlipwiseHome({ className }: SlipwiseHomeProps) {
             ))}
           </div>
         </footer>
+      </div>
+
+      <div
+        className={cn(
+          "fixed inset-0 z-50 flex items-end justify-center bg-[rgba(15,23,42,0.28)] px-4 pb-4 pt-24 transition-opacity duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] md:items-center md:px-6",
+          isWorkspaceDialogOpen ? "pointer-events-auto opacity-100" : "pointer-events-none opacity-0",
+        )}
+        onClick={closeWorkspaceDialog}
+      >
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-hidden={!isWorkspaceDialogOpen}
+          aria-label="Choose a Slipwise workspace"
+          className={cn(
+            "w-full max-w-5xl transform-gpu rounded-[2rem] border border-[var(--border-strong)] bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(244,248,255,0.98))] p-5 shadow-[0_22px_52px_rgba(15,23,42,0.12)] transition-[opacity,transform] duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] will-change-transform md:p-8",
+            isWorkspaceDialogOpen ? "translate-y-0 scale-100 opacity-100" : "translate-y-3 scale-[0.992] opacity-0",
+          )}
+          onClick={(event) => event.stopPropagation()}
+        >
+          <div className="flex items-start justify-between gap-6">
+            <div className="max-w-2xl">
+              <p className="text-[0.72rem] font-semibold uppercase tracking-[0.34em] text-[var(--muted-foreground)]">
+                Choose a workspace
+              </p>
+              <h2 className="mt-3 text-3xl leading-[0.98] text-[var(--foreground)] md:text-[3.2rem]">
+                Start in the flow your team actually needs.
+              </h2>
+              <p className="mt-4 max-w-xl text-base leading-8 text-[var(--muted-foreground)] md:text-[1.02rem]">
+                Pick the document workspace that fits the task in front of you. Each one keeps the same Slipwise editing flow, live preview, and export-ready output.
+              </p>
+            </div>
+
+            <button
+              type="button"
+              onClick={closeWorkspaceDialog}
+              className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-[var(--border-strong)] bg-white text-[var(--foreground-soft)] transition hover:border-[var(--accent)] hover:text-[var(--foreground)]"
+              aria-label="Close workspace picker"
+            >
+              <span aria-hidden="true" className="text-xl leading-none">
+                ×
+              </span>
+            </button>
+          </div>
+
+          <div className="mt-8 grid gap-4 md:grid-cols-3">
+            {productModules.map((module) => {
+              const Icon = getWorkspaceIcon(module.slug);
+
+              return (
+                <Link
+                  key={module.slug}
+                  href={`/${module.slug}`}
+                  className="group rounded-[1.7rem] border border-[var(--border-strong)] bg-white/94 p-5 shadow-[var(--shadow-soft)] transition duration-200 hover:-translate-y-1 hover:border-[var(--accent)] hover:shadow-[var(--shadow-card)]"
+                >
+                  <div className="flex items-start justify-between gap-4">
+                    <p className="text-[0.72rem] font-semibold uppercase tracking-[0.32em] text-[var(--muted-foreground)]">
+                      {module.eyebrow}
+                    </p>
+                    <span className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-[1rem] border border-[var(--border-soft)] bg-[var(--surface-soft)] text-[var(--accent-strong)] transition-colors group-hover:border-[var(--accent-soft)] group-hover:bg-white">
+                      <Icon className="h-5 w-5" />
+                    </span>
+                  </div>
+                  <h3 className="mt-3 text-[1.45rem] leading-[1.08] tracking-[-0.04em] text-[var(--foreground)]">
+                    {module.name}
+                  </h3>
+                  <p className="mt-3 text-sm leading-7 text-[var(--muted-foreground)]">
+                    {module.description}
+                  </p>
+                  <div className="mt-5 inline-flex items-center gap-2 text-sm font-semibold text-[var(--accent-strong)]">
+                    Open workspace
+                    <span
+                      aria-hidden="true"
+                      className="transition-transform duration-200 group-hover:translate-x-1"
+                    >
+                      →
+                    </span>
+                  </div>
+                </Link>
+              );
+            })}
+          </div>
+        </div>
       </div>
     </main>
   );

@@ -5,6 +5,7 @@ import { FormProvider, useFieldArray, useForm, useFormContext, useWatch } from "
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
   DocumentWorkspaceLayout,
+  type WorkspaceExportDialog,
   type WorkspaceAction,
   type WorkspaceSectionMeta,
 } from "@/components/foundation/document-workspace-layout";
@@ -22,13 +23,14 @@ import { InvoicePreview } from "@/features/invoice/components/invoice-preview";
 import { invoiceDefaultValues, invoiceTemplateOptions } from "@/features/invoice/constants";
 import { invoiceFormSchema } from "@/features/invoice/schema";
 import type { InvoiceFormValues } from "@/features/invoice/types";
-import { buildInvoiceFilename } from "@/features/invoice/utils/build-invoice-filename";
 import { normalizeInvoice } from "@/features/invoice/utils/normalize-invoice";
+import { submitBinaryExport } from "@/lib/browser/submit-binary-export";
 import { cn } from "@/lib/utils";
 
 type InvoiceActionState =
   | { status: "idle" }
   | { status: "pending"; action: "print" | "pdf" | "png" }
+  | { status: "ready"; action: "pdf" | "png"; endpoint: string; payload: string; frameName: string }
   | { status: "error"; message: string };
 
 const invoiceWorkspaceSections: WorkspaceSectionMeta[] = [
@@ -39,20 +41,6 @@ const invoiceWorkspaceSections: WorkspaceSectionMeta[] = [
   { id: "invoice-footer", label: "Footer" },
   { id: "invoice-visibility", label: "Visibility" },
 ];
-
-async function parseExportError(response: Response, format: "pdf" | "png") {
-  try {
-    const payload = (await response.json()) as { error?: string };
-
-    if (payload.error) {
-      return payload.error;
-    }
-  } catch {
-    // Ignore JSON parsing problems and fall back to the generic message below.
-  }
-
-  return `Unable to export the invoice as ${format.toUpperCase()}.`;
-}
 
 function rowInputClass() {
   return cn(
@@ -188,28 +176,13 @@ function InvoicePanel() {
     setActionState({ status: "pending", action: format });
 
     try {
-      const response = await fetch(`/api/export/invoice/${format}`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ document }),
-      });
+      const endpoint =
+        format === "pdf" ? "/api/export/invoice/pdf" : "/api/export/invoice/png";
+      const payload = JSON.stringify({ document });
+      const frameName = "invoice-download-frame";
 
-      if (!response.ok) {
-        throw new Error(await parseExportError(response, format));
-      }
-
-      const blob = await response.blob();
-      const downloadUrl = URL.createObjectURL(blob);
-      const link = window.document.createElement("a");
-      link.href = downloadUrl;
-      link.download = buildInvoiceFilename(document, format);
-      window.document.body.appendChild(link);
-      link.click();
-      link.remove();
-      window.setTimeout(() => URL.revokeObjectURL(downloadUrl), 1000);
-      setActionState({ status: "idle" });
+      submitBinaryExport({ action: endpoint, payload, frameName });
+      setActionState({ status: "ready", action: format, endpoint, payload, frameName });
     } catch (error) {
       setActionState({
         status: "error",
@@ -316,6 +289,28 @@ function InvoicePanel() {
         },
       ] satisfies WorkspaceAction[]}
       errorMessage={actionState.status === "error" ? actionState.message : undefined}
+      exportDialog={
+        actionState.status === "pending" && actionState.action !== "print"
+          ? ({
+              state: "pending",
+              format: actionState.action,
+              onClose: () => setActionState({ status: "idle" }),
+            } satisfies WorkspaceExportDialog)
+          : actionState.status === "ready"
+            ? ({
+                state: "ready",
+                format: actionState.action,
+                downloadUrl: actionState.endpoint,
+                onClose: () => setActionState({ status: "idle" }),
+                onRetry: () =>
+                  submitBinaryExport({
+                    action: actionState.endpoint,
+                    payload: actionState.payload,
+                    frameName: actionState.frameName,
+                  }),
+              } satisfies WorkspaceExportDialog)
+            : undefined
+      }
       builderEyebrow="Invoice controls"
       builderTitle="Build the invoice"
       builderDescription="Move from setup through client details, billing rows, and footer controls while keeping the live document visible."

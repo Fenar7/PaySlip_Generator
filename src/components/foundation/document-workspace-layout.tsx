@@ -18,6 +18,20 @@ export type WorkspaceSectionMeta = {
   label: string;
 };
 
+export type WorkspaceExportDialog =
+  | {
+      state: "pending";
+      format: "pdf" | "png";
+      onClose: () => void;
+    }
+  | {
+      state: "ready";
+      format: "pdf" | "png";
+      downloadUrl: string;
+      onClose: () => void;
+      onRetry: () => void;
+    };
+
 type DocumentWorkspaceLayoutProps = {
   eyebrow: string;
   title: string;
@@ -33,6 +47,7 @@ type DocumentWorkspaceLayoutProps = {
   previewDescription: string;
   builderContent: ReactNode;
   previewContent: ReactNode;
+  exportDialog?: WorkspaceExportDialog;
 };
 
 type MobileTab = "build" | "preview" | "export";
@@ -42,6 +57,64 @@ const mobileTabs = [
   { id: "preview", label: "Preview" },
   { id: "export", label: "Export" },
 ] as const;
+
+function ExportInfoIcon({ kind }: { kind: "spark" | "download" | "shield" }) {
+  const commonProps = {
+    className: "h-4 w-4",
+    viewBox: "0 0 24 24",
+    fill: "none",
+    stroke: "currentColor",
+    strokeWidth: 1.8,
+    strokeLinecap: "round" as const,
+    strokeLinejoin: "round" as const,
+  };
+
+  if (kind === "spark") {
+    return (
+      <svg {...commonProps}>
+        <path d="M12 3l1.4 4.6L18 9l-4.6 1.4L12 15l-1.4-4.6L6 9l4.6-1.4L12 3Z" />
+      </svg>
+    );
+  }
+
+  if (kind === "download") {
+    return (
+      <svg {...commonProps}>
+        <path d="M12 4v10" />
+        <path d="m8.5 10.5 3.5 3.5 3.5-3.5" />
+        <path d="M5 18h14" />
+      </svg>
+    );
+  }
+
+  return (
+    <svg {...commonProps}>
+      <path d="M12 3 6 5.5v5.6c0 4 2.6 7.7 6 9.4 3.4-1.7 6-5.4 6-9.4V5.5L12 3Z" />
+      <path d="m9.5 12 1.7 1.7 3.3-3.4" />
+    </svg>
+  );
+}
+
+function ExportFormatIcon() {
+  return (
+    <svg
+      className="h-5 w-5"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M7 3h8l4 4v14H7z" />
+      <path d="M15 3v4h4" />
+      <path d="M12 10v6" />
+      <path d="m9.5 13.5 2.5 2.5 2.5-2.5" />
+      <path d="M9 20h6" />
+      <path d="M8 8h4" />
+    </svg>
+  );
+}
 
 function actionClassName(variant: WorkspaceAction["variant"]) {
   switch (variant) {
@@ -74,7 +147,14 @@ function renderAction(action: WorkspaceAction, compact = false) {
     <button
       key={action.id}
       type="button"
-      onClick={action.onClick}
+      onMouseDown={(event) => {
+        event.preventDefault();
+      }}
+      onClick={(event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        action.onClick?.();
+      }}
       disabled={action.disabled}
       className={className}
     >
@@ -98,6 +178,7 @@ export function DocumentWorkspaceLayout({
   previewDescription,
   builderContent,
   previewContent,
+  exportDialog,
 }: DocumentWorkspaceLayoutProps) {
   const [mobileTab, setMobileTab] = useState<MobileTab>("build");
   const [isDesktopWorkspace, setIsDesktopWorkspace] = useState(false);
@@ -279,11 +360,11 @@ export function DocumentWorkspaceLayout({
 
           <section
             className={cn(
-              "rounded-[2rem] border border-[rgba(15,23,42,0.08)] bg-[linear-gradient(180deg,rgba(18,24,38,0.03),rgba(255,255,255,0.98))] p-4 shadow-[var(--shadow-card)] md:p-5 xl:sticky xl:top-6",
+              "rounded-none border-0 bg-transparent p-0 shadow-none sm:rounded-[2rem] sm:border sm:border-[rgba(15,23,42,0.08)] sm:bg-[linear-gradient(180deg,rgba(18,24,38,0.03),rgba(255,255,255,0.98))] sm:p-4 sm:shadow-[var(--shadow-card)] md:p-5 xl:sticky xl:top-6",
               !isDesktopWorkspace && mobileTab !== "preview" && "hidden",
             )}
           >
-            <div className="mb-4 rounded-[1.5rem] border border-[rgba(15,23,42,0.08)] bg-[linear-gradient(180deg,rgba(255,255,255,0.94),rgba(244,248,255,0.96))] p-4 shadow-[0_18px_32px_rgba(15,23,42,0.05)]">
+            <div className="mb-3 hidden rounded-[1.1rem] border border-[rgba(15,23,42,0.08)] bg-[linear-gradient(180deg,rgba(255,255,255,0.94),rgba(244,248,255,0.96))] p-3 shadow-[0_12px_24px_rgba(15,23,42,0.05)] sm:block sm:mb-4 sm:rounded-[1.5rem] sm:p-4 sm:shadow-[0_18px_32px_rgba(15,23,42,0.05)]">
               <div className="flex items-center gap-2">
                 <span className="h-2.5 w-2.5 rounded-full bg-[rgba(248,113,113,0.85)]" />
                 <span className="h-2.5 w-2.5 rounded-full bg-[rgba(251,191,36,0.85)]" />
@@ -293,12 +374,12 @@ export function DocumentWorkspaceLayout({
                 </div>
               </div>
 
-              <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+              <div className="mt-3 flex flex-col gap-3 sm:mt-4 sm:flex-row sm:items-end sm:justify-between">
                 <div>
                   <p className="text-[0.66rem] font-semibold uppercase tracking-[0.32em] text-[var(--muted-foreground)]">
                     {previewEyebrow}
                   </p>
-                  <h2 className="mt-2 text-[1.4rem] leading-tight tracking-[-0.04em] text-[var(--foreground)]">
+                  <h2 className="mt-2 text-[1.15rem] leading-tight tracking-[-0.04em] text-[var(--foreground)] sm:text-[1.4rem]">
                     {previewTitle}
                   </h2>
                 </div>
@@ -313,7 +394,7 @@ export function DocumentWorkspaceLayout({
                 </div>
               </div>
 
-              <p className="mt-3 text-sm leading-7 text-[var(--muted-foreground)]">
+              <p className="mt-2 text-sm leading-7 text-[var(--muted-foreground)] sm:mt-3">
                 {previewDescription}
               </p>
             </div>
@@ -343,6 +424,152 @@ export function DocumentWorkspaceLayout({
               </div>
             </section>
           ) : null}
+        </div>
+      </div>
+
+      <div
+        className={cn(
+          "fixed inset-0 z-50 flex items-center justify-center px-4 transition-opacity duration-300 ease-[cubic-bezier(0.16,1,0.3,1)]",
+          exportDialog ? "pointer-events-auto opacity-100" : "pointer-events-none opacity-0",
+        )}
+        aria-hidden={exportDialog ? "false" : "true"}
+      >
+        <div
+          className={cn(
+            "absolute inset-0 bg-[rgba(15,23,42,0.28)] transition-opacity duration-300 ease-[cubic-bezier(0.16,1,0.3,1)]",
+            exportDialog ? "opacity-100" : "opacity-0",
+          )}
+          onClick={() => exportDialog?.onClose()}
+        />
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="workspace-export-dialog-title"
+          className={cn(
+            "relative w-full max-w-[34rem] transform-gpu overflow-hidden rounded-[2rem] border border-[rgba(255,255,255,0.65)] bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(247,250,255,0.98))] p-6 shadow-[0_32px_90px_rgba(15,23,42,0.18)] transition-[opacity,transform] duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] backdrop-blur-xl md:p-7",
+            exportDialog
+              ? "translate-y-0 scale-100 opacity-100"
+              : "translate-y-3 scale-[0.988] opacity-0",
+          )}
+        >
+          <div className="pointer-events-none absolute inset-x-0 top-0 h-40 bg-[radial-gradient(circle_at_top,rgba(45,107,255,0.16),transparent_62%)]" />
+          <button
+            type="button"
+            onClick={() => exportDialog?.onClose()}
+            className="absolute right-4 top-4 inline-flex h-10 w-10 items-center justify-center rounded-full border border-[var(--border-soft)] bg-white/92 text-[var(--foreground-soft)] shadow-[0_10px_24px_rgba(15,23,42,0.06)] transition-colors hover:bg-[var(--surface-soft)]"
+            aria-label="Close export dialog"
+          >
+            ×
+          </button>
+
+          <div className="relative">
+            <div className="inline-flex h-14 w-14 items-center justify-center rounded-[1.2rem] border border-[rgba(45,107,255,0.14)] bg-[linear-gradient(180deg,rgba(45,107,255,0.12),rgba(255,255,255,0.94))] text-[var(--accent-strong)] shadow-[0_16px_34px_rgba(45,107,255,0.12)]">
+              {exportDialog ? <ExportFormatIcon /> : null}
+            </div>
+
+            <div className="mt-5 inline-flex rounded-full border border-[var(--border-soft)] bg-white/88 px-3 py-1 text-[0.68rem] font-semibold uppercase tracking-[0.26em] text-[var(--muted-foreground)] shadow-[0_10px_24px_rgba(15,23,42,0.04)]">
+              Export {exportDialog?.format.toUpperCase()}
+            </div>
+          </div>
+
+          <h3
+            id="workspace-export-dialog-title"
+            className="mt-5 max-w-[24rem] text-[2.2rem] leading-[0.94] tracking-[-0.06em] text-[var(--foreground)]"
+          >
+            {exportDialog?.state === "pending"
+              ? "Preparing your download"
+              : "Your download should start shortly"}
+          </h3>
+
+          <p className="mt-4 max-w-[28rem] text-[1rem] leading-8 text-[var(--muted-foreground)]">
+            {exportDialog?.state === "pending"
+              ? "Thanks for using Slipwise. We are preparing your file and will start the download as soon as it is ready."
+              : "Thanks for using Slipwise. If your file does not begin downloading automatically, use the fallback action below."}
+          </p>
+
+          <div className="mt-6 rounded-[1.35rem] border border-[rgba(45,107,255,0.12)] bg-[linear-gradient(180deg,rgba(244,248,255,0.96),rgba(255,255,255,0.98))] p-4 shadow-[0_14px_30px_rgba(15,23,42,0.05)]">
+            <div className="flex items-center gap-3">
+              <span
+                className={cn(
+                  "inline-flex h-3 w-3 rounded-full shadow-[0_0_0_6px_rgba(45,107,255,0.08)]",
+                  exportDialog?.state === "pending"
+                    ? "animate-pulse bg-[var(--accent)]"
+                    : "bg-emerald-500",
+                )}
+              />
+              <p className="text-sm font-medium text-[var(--foreground)]">
+                {exportDialog?.state === "pending"
+                  ? "Building the export file..."
+                  : "Download handoff sent to your browser."}
+              </p>
+            </div>
+          </div>
+
+          <div className="mt-5 space-y-3">
+            <div className="flex items-start gap-4 rounded-[1.2rem] border border-[var(--border-soft)] bg-white/92 px-4 py-4 shadow-[0_10px_24px_rgba(15,23,42,0.04)]">
+              <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[var(--surface-soft)] text-[var(--accent)]">
+                <ExportInfoIcon kind="spark" />
+              </span>
+              <div>
+                <p className="text-sm font-semibold text-[var(--foreground)]">Quick handoff</p>
+                <p className="mt-1 text-sm leading-7 text-[var(--muted-foreground)]">
+                  Slipwise prepares the file and hands it off to your browser as soon as it is ready.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-start gap-4 rounded-[1.2rem] border border-[var(--border-soft)] bg-white/92 px-4 py-4 shadow-[0_10px_24px_rgba(15,23,42,0.04)]">
+              <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[var(--surface-soft)] text-[var(--accent)]">
+                <ExportInfoIcon kind="download" />
+              </span>
+              <div>
+                <p className="text-sm font-semibold text-[var(--foreground)]">Direct download</p>
+                <p className="mt-1 text-sm leading-7 text-[var(--muted-foreground)]">
+                  Your PDF or PNG is generated directly from the current workspace state.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-start gap-4 rounded-[1.2rem] border border-[var(--border-soft)] bg-white/92 px-4 py-4 shadow-[0_10px_24px_rgba(15,23,42,0.04)]">
+              <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[var(--surface-soft)] text-[var(--accent)]">
+                <ExportInfoIcon kind="shield" />
+              </span>
+              <div>
+                <p className="text-sm font-semibold text-[var(--foreground)]">Safe fallback</p>
+                <p className="mt-1 text-sm leading-7 text-[var(--muted-foreground)]">
+                  If the browser delays the file, you can restart the same download right here.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div className="mt-7 flex flex-wrap gap-3">
+            {exportDialog?.state === "ready" ? (
+              <button
+                type="button"
+                onClick={exportDialog.onRetry}
+                className="inline-flex items-center justify-center rounded-full border border-transparent bg-[linear-gradient(135deg,#111827,#020617)] px-5 py-3 text-sm font-medium text-white shadow-[0_18px_36px_rgba(15,23,42,0.18)] transition-all hover:brightness-105"
+              >
+                Try download again
+              </button>
+            ) : (
+              <button
+                type="button"
+                disabled
+                className="inline-flex items-center justify-center rounded-full border border-transparent bg-[linear-gradient(135deg,#111827,#020617)] px-5 py-3 text-sm font-medium text-white opacity-90"
+              >
+                Preparing download
+              </button>
+            )}
+
+            <button
+              type="button"
+              onClick={() => exportDialog?.onClose()}
+              className="inline-flex items-center justify-center rounded-full border border-[var(--border-strong)] bg-white px-5 py-3 text-sm font-medium text-[var(--foreground)] shadow-[0_10px_24px_rgba(15,23,42,0.04)] transition-colors hover:bg-[var(--surface-accent)]"
+            >
+              Close
+            </button>
+          </div>
         </div>
       </div>
     </main>

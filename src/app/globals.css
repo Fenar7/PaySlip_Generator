@@ -89,6 +89,11 @@ select {
     box-shadow 180ms ease;
 }
 
+button:not(:disabled),
+[role="button"]:not([aria-disabled="true"]) {
+  cursor: pointer;
+}
+
 ::selection {
   background: rgba(49, 93, 246, 0.18);
 }
@@ -130,7 +135,7 @@ select {
 
 @page {
   size: A4;
-  margin: 0;
+  margin: 12mm 0 0 0;
 }
 
 .document-break-inside-avoid {
