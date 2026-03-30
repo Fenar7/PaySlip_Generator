@@ -1,5 +1,6 @@
 import { existsSync } from "node:fs";
 import chromium from "@sparticuz/chromium";
+import { chromium as playwrightChromium } from "playwright-core";
 import puppeteer, { type Page } from "puppeteer";
 
 type ExportRequestHeaders = Record<string, string>;
@@ -60,6 +61,16 @@ export async function launchExportBrowser() {
   });
 }
 
+async function launchServerlessExportBrowser() {
+  chromium.setGraphicsMode = false;
+
+  return playwrightChromium.launch({
+    executablePath: await chromium.executablePath(),
+    headless: true,
+    args: chromium.args,
+  });
+}
+
 export async function waitForExportPageAssets(page: Page, readySelector: string) {
   await page.waitForSelector(readySelector);
   await page.evaluate(async () => {
@@ -102,6 +113,43 @@ export async function renderExportPdfViaBrowser(
   readySelector: string,
   headers?: ExportRequestHeaders,
 ) {
+  if (isServerlessExportRuntime()) {
+    const browser = await launchServerlessExportBrowser();
+
+    try {
+      const page = await browser.newPage({
+        viewport: {
+          width: 1120,
+          height: 1580,
+        },
+        extraHTTPHeaders: headers,
+      });
+      page.setDefaultNavigationTimeout(60_000);
+      page.setDefaultTimeout(60_000);
+      await page.emulateMedia({ media: "screen" });
+      await page.goto(url, {
+        waitUntil: "domcontentloaded",
+      });
+      await waitForExportPageAssets(page as unknown as Page, readySelector);
+      await page.evaluate(async () => {
+        await new Promise<void>((resolve) => {
+          requestAnimationFrame(() => resolve());
+        });
+      });
+
+      return Buffer.from(
+        await page.pdf({
+          format: "A4",
+          printBackground: true,
+          preferCSSPageSize: true,
+          displayHeaderFooter: false,
+        }),
+      );
+    } finally {
+      await browser.close();
+    }
+  }
+
   const browser = await launchExportBrowser();
 
   try {
@@ -143,6 +191,44 @@ export async function renderExportPngViaBrowser(
   readySelector: string,
   headers?: ExportRequestHeaders,
 ) {
+  if (isServerlessExportRuntime()) {
+    const browser = await launchServerlessExportBrowser();
+
+    try {
+      const page = await browser.newPage({
+        viewport: {
+          width: 1120,
+          height: 1580,
+        },
+        deviceScaleFactor: 2,
+        extraHTTPHeaders: headers,
+      });
+      page.setDefaultNavigationTimeout(60_000);
+      page.setDefaultTimeout(60_000);
+      await page.emulateMedia({ media: "screen" });
+      await page.goto(url, {
+        waitUntil: "domcontentloaded",
+      });
+      await waitForExportPageAssets(page as unknown as Page, readySelector);
+      await page.evaluate(async () => {
+        await new Promise<void>((resolve) => {
+          requestAnimationFrame(() => resolve());
+        });
+      });
+
+      const element = page.locator(readySelector).first();
+      await element.scrollIntoViewIfNeeded();
+
+      return Buffer.from(
+        await element.screenshot({
+          type: "png",
+        }),
+      );
+    } finally {
+      await browser.close();
+    }
+  }
+
   const browser = await launchExportBrowser();
 
   try {
