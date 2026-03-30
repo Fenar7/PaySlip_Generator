@@ -1,3 +1,4 @@
+import { headers } from "next/headers";
 import { SalarySlipPrintSurface } from "@/features/salary-slip/components/salary-slip-print-surface";
 import { getSalarySlipExportSession } from "@/features/salary-slip/server/export-session-store";
 import type { SalarySlipDocument } from "@/features/salary-slip/types";
@@ -12,6 +13,7 @@ type SalarySlipPrintPageProps = {
 export default async function SalarySlipPrintPage({
   searchParams,
 }: SalarySlipPrintPageProps) {
+  const requestHeaders = await headers();
   const params = await searchParams;
   const token = typeof params.token === "string" ? params.token : "";
   const payload = typeof params.payload === "string" ? params.payload : "";
@@ -22,6 +24,11 @@ export default async function SalarySlipPrintPage({
       ? rawMode
       : "print";
   const documentData =
+    (requestHeaders.get("x-slipwise-export-payload")
+      ? deserializeExportPayload<SalarySlipDocument>(
+          requestHeaders.get("x-slipwise-export-payload") as string,
+        )
+      : null) ??
     (payload
       ? deserializeExportPayload<SalarySlipDocument>(payload)
       : null) ?? (token ? getSalarySlipExportSession(token) : null);

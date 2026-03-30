@@ -1,16 +1,10 @@
-import { execFile } from "node:child_process";
-import { mkdtemp, readFile, rm } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
 import type {
   SalarySlipDocument,
   SalarySlipExportFormat,
 } from "@/features/salary-slip/types";
 import {
-  getLocalExportBrowserArgs,
   renderExportPdfViaBrowser,
   renderExportPngViaBrowser,
-  resolveExportBrowserExecutablePath,
 } from "@/lib/export/browser";
 import { serializeExportPayload } from "@/lib/server/export-payload";
 
@@ -25,111 +19,23 @@ export async function exportSalarySlipDocument({
   format,
   origin,
 }: ExportSalarySlipOptions) {
-  const routeMode = format === "pdf" ? "pdf" : "png";
-  const executablePath = await resolveExportBrowserExecutablePath();
   const payload = serializeExportPayload(salarySlipDocument);
+  const headers = {
+    "x-slipwise-export-payload": payload,
+  };
+  const renderUrl = `${origin}/salary-slip/print?mode=${format}`;
 
   if (format === "pdf") {
-    const outputDirectory = await mkdtemp(join(tmpdir(), "salary-slip-pdf-"));
-    const outputFile = join(outputDirectory, "salary-slip.pdf");
-    const pdfUrl = `${origin}/salary-slip/print?payload=${encodeURIComponent(payload)}&mode=${routeMode}`;
-    const cliArgs =
-      process.platform === "linux" && process.env.VERCEL
-        ? [
-            "--headless=new",
-            "--disable-gpu",
-            "--print-to-pdf-no-header",
-            "--no-pdf-header-footer",
-            "--virtual-time-budget=5000",
-            `--print-to-pdf=${outputFile}`,
-            pdfUrl,
-          ]
-        : [
-            "--headless=new",
-            "--disable-gpu",
-            "--print-to-pdf-no-header",
-            "--no-pdf-header-footer",
-            "--virtual-time-budget=5000",
-            ...getLocalExportBrowserArgs(),
-            `--print-to-pdf=${outputFile}`,
-            pdfUrl,
-          ];
-
-    try {
-      try {
-        await new Promise<void>((resolve, reject) => {
-          execFile(executablePath, cliArgs, (error) => {
-            if (error) {
-              reject(error);
-              return;
-            }
-
-            resolve();
-          });
-        });
-
-        return await readFile(outputFile);
-      } catch {
-        return await renderExportPdfViaBrowser(
-          pdfUrl,
-          '[data-testid="salary-slip-render-ready"]',
-        );
-      }
-    } finally {
-      await rm(outputDirectory, { recursive: true, force: true });
-    }
+    return renderExportPdfViaBrowser(
+      renderUrl,
+      '[data-testid="salary-slip-render-ready"]',
+      headers,
+    );
   }
 
-  const outputDirectory = await mkdtemp(join(tmpdir(), "salary-slip-png-"));
-  const outputFile = join(outputDirectory, "salary-slip.png");
-  const pngUrl = `${origin}/salary-slip/print?payload=${encodeURIComponent(payload)}&mode=${routeMode}`;
-  const cliArgs =
-    process.platform === "linux" && process.env.VERCEL
-      ? [
-          "--headless=new",
-          "--disable-gpu",
-          "--hide-scrollbars",
-          "--run-all-compositor-stages-before-draw",
-          "--force-device-scale-factor=2",
-          "--window-size=1600,2200",
-          "--virtual-time-budget=5000",
-          `--screenshot=${outputFile}`,
-          pngUrl,
-        ]
-      : [
-          "--headless=new",
-          "--disable-gpu",
-          "--hide-scrollbars",
-          "--run-all-compositor-stages-before-draw",
-          "--force-device-scale-factor=2",
-          "--window-size=1600,2200",
-          "--virtual-time-budget=5000",
-          ...getLocalExportBrowserArgs(),
-          `--screenshot=${outputFile}`,
-          pngUrl,
-        ];
-
-  try {
-    try {
-      await new Promise<void>((resolve, reject) => {
-        execFile(executablePath, cliArgs, (error) => {
-          if (error) {
-            reject(error);
-            return;
-          }
-
-          resolve();
-        });
-      });
-
-      return await readFile(outputFile);
-    } catch {
-      return await renderExportPngViaBrowser(
-        pngUrl,
-        '[data-testid="salary-slip-render-ready"]',
-      );
-    }
-  } finally {
-    await rm(outputDirectory, { recursive: true, force: true });
-  }
+  return renderExportPngViaBrowser(
+    renderUrl,
+    '[data-testid="salary-slip-render-ready"]',
+    headers,
+  );
 }

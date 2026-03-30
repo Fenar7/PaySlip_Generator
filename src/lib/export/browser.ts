@@ -2,6 +2,8 @@ import { existsSync } from "node:fs";
 import chromium from "@sparticuz/chromium";
 import puppeteer, { type Page } from "puppeteer";
 
+type ExportRequestHeaders = Record<string, string>;
+
 const LOCAL_EXECUTABLE_CANDIDATES = [
   process.env.CHROME_EXECUTABLE_PATH,
   process.env.PUPPETEER_EXECUTABLE_PATH,
@@ -94,11 +96,15 @@ export async function waitForExportPageAssets(page: Page, readySelector: string)
 export async function renderExportPdfViaBrowser(
   url: string,
   readySelector: string,
+  headers?: ExportRequestHeaders,
 ) {
   const browser = await launchExportBrowser();
 
   try {
     const page = await browser.newPage();
+    if (headers) {
+      await page.setExtraHTTPHeaders(headers);
+    }
     await page.setViewport({
       width: 1400,
       height: 1800,
@@ -124,11 +130,15 @@ export async function renderExportPdfViaBrowser(
 export async function renderExportPngViaBrowser(
   url: string,
   readySelector: string,
+  headers?: ExportRequestHeaders,
 ) {
   const browser = await launchExportBrowser();
 
   try {
     const page = await browser.newPage();
+    if (headers) {
+      await page.setExtraHTTPHeaders(headers);
+    }
     await page.setViewport({
       width: 1600,
       height: 2200,

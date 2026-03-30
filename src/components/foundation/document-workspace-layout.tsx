@@ -427,151 +427,141 @@ export function DocumentWorkspaceLayout({
         </div>
       </div>
 
-      <div
-        className={cn(
-          "fixed inset-0 z-50 flex items-center justify-center px-4 transition-opacity duration-300 ease-[cubic-bezier(0.16,1,0.3,1)]",
-          exportDialog ? "pointer-events-auto opacity-100" : "pointer-events-none opacity-0",
-        )}
-        aria-hidden={exportDialog ? "false" : "true"}
-      >
+      {exportDialog ? (
         <div
-          className={cn(
-            "absolute inset-0 bg-[rgba(15,23,42,0.28)] transition-opacity duration-300 ease-[cubic-bezier(0.16,1,0.3,1)]",
-            exportDialog ? "opacity-100" : "opacity-0",
-          )}
-          onClick={() => exportDialog?.onClose()}
-        />
-        <div
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="workspace-export-dialog-title"
-          className={cn(
-            "relative w-full max-w-[34rem] transform-gpu overflow-hidden rounded-[2rem] border border-[rgba(255,255,255,0.65)] bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(247,250,255,0.98))] p-6 shadow-[0_32px_90px_rgba(15,23,42,0.18)] transition-[opacity,transform] duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] backdrop-blur-xl md:p-7",
-            exportDialog
-              ? "translate-y-0 scale-100 opacity-100"
-              : "translate-y-3 scale-[0.988] opacity-0",
-          )}
+          className="fixed inset-0 z-50 flex items-center justify-center px-4"
         >
-          <div className="pointer-events-none absolute inset-x-0 top-0 h-40 bg-[radial-gradient(circle_at_top,rgba(45,107,255,0.16),transparent_62%)]" />
-          <button
-            type="button"
-            onClick={() => exportDialog?.onClose()}
-            className="absolute right-4 top-4 inline-flex h-10 w-10 items-center justify-center rounded-full border border-[var(--border-soft)] bg-white/92 text-[var(--foreground-soft)] shadow-[0_10px_24px_rgba(15,23,42,0.06)] transition-colors hover:bg-[var(--surface-soft)]"
-            aria-label="Close export dialog"
+          <div
+            className="absolute inset-0 bg-[rgba(15,23,42,0.28)]"
+            onClick={() => exportDialog.onClose()}
+          />
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="workspace-export-dialog-title"
+            className="relative w-full max-w-[34rem] transform-gpu overflow-hidden rounded-[2rem] border border-[rgba(255,255,255,0.65)] bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(247,250,255,0.98))] p-6 shadow-[0_32px_90px_rgba(15,23,42,0.18)] backdrop-blur-xl md:p-7"
           >
-            ×
-          </button>
-
-          <div className="relative">
-            <div className="inline-flex h-14 w-14 items-center justify-center rounded-[1.2rem] border border-[rgba(45,107,255,0.14)] bg-[linear-gradient(180deg,rgba(45,107,255,0.12),rgba(255,255,255,0.94))] text-[var(--accent-strong)] shadow-[0_16px_34px_rgba(45,107,255,0.12)]">
-              {exportDialog ? <ExportFormatIcon /> : null}
-            </div>
-
-            <div className="mt-5 inline-flex rounded-full border border-[var(--border-soft)] bg-white/88 px-3 py-1 text-[0.68rem] font-semibold uppercase tracking-[0.26em] text-[var(--muted-foreground)] shadow-[0_10px_24px_rgba(15,23,42,0.04)]">
-              Export {exportDialog?.format.toUpperCase()}
-            </div>
-          </div>
-
-          <h3
-            id="workspace-export-dialog-title"
-            className="mt-5 max-w-[24rem] text-[2.2rem] leading-[0.94] tracking-[-0.06em] text-[var(--foreground)]"
-          >
-            {exportDialog?.state === "pending"
-              ? "Preparing your download"
-              : "Your download should start shortly"}
-          </h3>
-
-          <p className="mt-4 max-w-[28rem] text-[1rem] leading-8 text-[var(--muted-foreground)]">
-            {exportDialog?.state === "pending"
-              ? "Thanks for using Slipwise. We are preparing your file and will start the download as soon as it is ready."
-              : "Thanks for using Slipwise. If your file does not begin downloading automatically, use the fallback action below."}
-          </p>
-
-          <div className="mt-6 rounded-[1.35rem] border border-[rgba(45,107,255,0.12)] bg-[linear-gradient(180deg,rgba(244,248,255,0.96),rgba(255,255,255,0.98))] p-4 shadow-[0_14px_30px_rgba(15,23,42,0.05)]">
-            <div className="flex items-center gap-3">
-              <span
-                className={cn(
-                  "inline-flex h-3 w-3 rounded-full shadow-[0_0_0_6px_rgba(45,107,255,0.08)]",
-                  exportDialog?.state === "pending"
-                    ? "animate-pulse bg-[var(--accent)]"
-                    : "bg-emerald-500",
-                )}
-              />
-              <p className="text-sm font-medium text-[var(--foreground)]">
-                {exportDialog?.state === "pending"
-                  ? "Building the export file..."
-                  : "Download handoff sent to your browser."}
-              </p>
-            </div>
-          </div>
-
-          <div className="mt-5 space-y-3">
-            <div className="flex items-start gap-4 rounded-[1.2rem] border border-[var(--border-soft)] bg-white/92 px-4 py-4 shadow-[0_10px_24px_rgba(15,23,42,0.04)]">
-              <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[var(--surface-soft)] text-[var(--accent)]">
-                <ExportInfoIcon kind="spark" />
-              </span>
-              <div>
-                <p className="text-sm font-semibold text-[var(--foreground)]">Quick handoff</p>
-                <p className="mt-1 text-sm leading-7 text-[var(--muted-foreground)]">
-                  Slipwise prepares the file and hands it off to your browser as soon as it is ready.
-                </p>
-              </div>
-            </div>
-
-            <div className="flex items-start gap-4 rounded-[1.2rem] border border-[var(--border-soft)] bg-white/92 px-4 py-4 shadow-[0_10px_24px_rgba(15,23,42,0.04)]">
-              <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[var(--surface-soft)] text-[var(--accent)]">
-                <ExportInfoIcon kind="download" />
-              </span>
-              <div>
-                <p className="text-sm font-semibold text-[var(--foreground)]">Direct download</p>
-                <p className="mt-1 text-sm leading-7 text-[var(--muted-foreground)]">
-                  Your PDF or PNG is generated directly from the current workspace state.
-                </p>
-              </div>
-            </div>
-
-            <div className="flex items-start gap-4 rounded-[1.2rem] border border-[var(--border-soft)] bg-white/92 px-4 py-4 shadow-[0_10px_24px_rgba(15,23,42,0.04)]">
-              <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[var(--surface-soft)] text-[var(--accent)]">
-                <ExportInfoIcon kind="shield" />
-              </span>
-              <div>
-                <p className="text-sm font-semibold text-[var(--foreground)]">Safe fallback</p>
-                <p className="mt-1 text-sm leading-7 text-[var(--muted-foreground)]">
-                  If the browser delays the file, you can restart the same download right here.
-                </p>
-              </div>
-            </div>
-          </div>
-
-          <div className="mt-7 flex flex-wrap gap-3">
-            {exportDialog?.state === "ready" ? (
-              <button
-                type="button"
-                onClick={exportDialog.onRetry}
-                className="inline-flex items-center justify-center rounded-full border border-transparent bg-[linear-gradient(135deg,#111827,#020617)] px-5 py-3 text-sm font-medium text-white shadow-[0_18px_36px_rgba(15,23,42,0.18)] transition-all hover:brightness-105"
-              >
-                Try download again
-              </button>
-            ) : (
-              <button
-                type="button"
-                disabled
-                className="inline-flex items-center justify-center rounded-full border border-transparent bg-[linear-gradient(135deg,#111827,#020617)] px-5 py-3 text-sm font-medium text-white opacity-90"
-              >
-                Preparing download
-              </button>
-            )}
-
+            <div className="pointer-events-none absolute inset-x-0 top-0 h-40 bg-[radial-gradient(circle_at_top,rgba(45,107,255,0.16),transparent_62%)]" />
             <button
               type="button"
-              onClick={() => exportDialog?.onClose()}
-              className="inline-flex items-center justify-center rounded-full border border-[var(--border-strong)] bg-white px-5 py-3 text-sm font-medium text-[var(--foreground)] shadow-[0_10px_24px_rgba(15,23,42,0.04)] transition-colors hover:bg-[var(--surface-accent)]"
+              onClick={() => exportDialog.onClose()}
+              className="absolute right-4 top-4 inline-flex h-10 w-10 items-center justify-center rounded-full border border-[var(--border-soft)] bg-white/92 text-[var(--foreground-soft)] shadow-[0_10px_24px_rgba(15,23,42,0.06)] transition-colors hover:bg-[var(--surface-soft)]"
+              aria-label="Close export dialog"
             >
-              Close
+              ×
             </button>
+
+            <div className="relative">
+              <div className="inline-flex h-14 w-14 items-center justify-center rounded-[1.2rem] border border-[rgba(45,107,255,0.14)] bg-[linear-gradient(180deg,rgba(45,107,255,0.12),rgba(255,255,255,0.94))] text-[var(--accent-strong)] shadow-[0_16px_34px_rgba(45,107,255,0.12)]">
+                <ExportFormatIcon />
+              </div>
+
+              <div className="mt-5 inline-flex rounded-full border border-[var(--border-soft)] bg-white/88 px-3 py-1 text-[0.68rem] font-semibold uppercase tracking-[0.26em] text-[var(--muted-foreground)] shadow-[0_10px_24px_rgba(15,23,42,0.04)]">
+                Export {exportDialog.format.toUpperCase()}
+              </div>
+            </div>
+
+            <h3
+              id="workspace-export-dialog-title"
+              className="mt-5 max-w-[24rem] text-[2.2rem] leading-[0.94] tracking-[-0.06em] text-[var(--foreground)]"
+            >
+              {exportDialog.state === "pending"
+                ? "Preparing your download"
+                : "Your download should start shortly"}
+            </h3>
+
+            <p className="mt-4 max-w-[28rem] text-[1rem] leading-8 text-[var(--muted-foreground)]">
+              {exportDialog.state === "pending"
+                ? "Thanks for using Slipwise. We are preparing your file and will start the download as soon as it is ready."
+                : "Thanks for using Slipwise. If your file does not begin downloading automatically, use the fallback action below."}
+            </p>
+
+            <div className="mt-6 rounded-[1.35rem] border border-[rgba(45,107,255,0.12)] bg-[linear-gradient(180deg,rgba(244,248,255,0.96),rgba(255,255,255,0.98))] p-4 shadow-[0_14px_30px_rgba(15,23,42,0.05)]">
+              <div className="flex items-center gap-3">
+                <span
+                  className={cn(
+                    "inline-flex h-3 w-3 rounded-full shadow-[0_0_0_6px_rgba(45,107,255,0.08)]",
+                    exportDialog.state === "pending"
+                      ? "animate-pulse bg-[var(--accent)]"
+                      : "bg-emerald-500",
+                  )}
+                />
+                <p className="text-sm font-medium text-[var(--foreground)]">
+                  {exportDialog.state === "pending"
+                    ? "Building the export file..."
+                    : "Download handoff sent to your browser."}
+                </p>
+              </div>
+            </div>
+
+            <div className="mt-5 space-y-3">
+              <div className="flex items-start gap-4 rounded-[1.2rem] border border-[var(--border-soft)] bg-white/92 px-4 py-4 shadow-[0_10px_24px_rgba(15,23,42,0.04)]">
+                <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[var(--surface-soft)] text-[var(--accent)]">
+                  <ExportInfoIcon kind="spark" />
+                </span>
+                <div>
+                  <p className="text-sm font-semibold text-[var(--foreground)]">Quick handoff</p>
+                  <p className="mt-1 text-sm leading-7 text-[var(--muted-foreground)]">
+                    Slipwise prepares the file and hands it off to your browser as soon as it is ready.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-start gap-4 rounded-[1.2rem] border border-[var(--border-soft)] bg-white/92 px-4 py-4 shadow-[0_10px_24px_rgba(15,23,42,0.04)]">
+                <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[var(--surface-soft)] text-[var(--accent)]">
+                  <ExportInfoIcon kind="download" />
+                </span>
+                <div>
+                  <p className="text-sm font-semibold text-[var(--foreground)]">Direct download</p>
+                  <p className="mt-1 text-sm leading-7 text-[var(--muted-foreground)]">
+                    Your PDF or PNG is generated directly from the current workspace state.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-start gap-4 rounded-[1.2rem] border border-[var(--border-soft)] bg-white/92 px-4 py-4 shadow-[0_10px_24px_rgba(15,23,42,0.04)]">
+                <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[var(--surface-soft)] text-[var(--accent)]">
+                  <ExportInfoIcon kind="shield" />
+                </span>
+                <div>
+                  <p className="text-sm font-semibold text-[var(--foreground)]">Safe fallback</p>
+                  <p className="mt-1 text-sm leading-7 text-[var(--muted-foreground)]">
+                    If the browser delays the file, you can restart the same download right here.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-7 flex flex-wrap gap-3">
+              {exportDialog.state === "ready" ? (
+                <button
+                  type="button"
+                  onClick={exportDialog.onRetry}
+                  className="inline-flex items-center justify-center rounded-full border border-transparent bg-[linear-gradient(135deg,#111827,#020617)] px-5 py-3 text-sm font-medium text-white shadow-[0_18px_36px_rgba(15,23,42,0.18)] transition-all hover:brightness-105"
+                >
+                  Try download again
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  disabled
+                  className="inline-flex items-center justify-center rounded-full border border-transparent bg-[linear-gradient(135deg,#111827,#020617)] px-5 py-3 text-sm font-medium text-white opacity-90"
+                >
+                  Preparing download
+                </button>
+              )}
+
+              <button
+                type="button"
+                onClick={() => exportDialog.onClose()}
+                className="inline-flex items-center justify-center rounded-full border border-[var(--border-strong)] bg-white px-5 py-3 text-sm font-medium text-[var(--foreground)] shadow-[0_10px_24px_rgba(15,23,42,0.04)] transition-colors hover:bg-[var(--surface-accent)]"
+              >
+                Close
+              </button>
+            </div>
           </div>
         </div>
-      </div>
+      ) : null}
     </main>
   );
 }

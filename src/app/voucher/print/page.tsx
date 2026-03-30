@@ -1,3 +1,4 @@
+import { headers } from "next/headers";
 import { VoucherPrintSurface } from "@/features/voucher/components/voucher-print-surface";
 import { getVoucherExportSession } from "@/features/voucher/server/export-session-store";
 import type { VoucherDocument } from "@/features/voucher/types";
@@ -12,6 +13,7 @@ type VoucherPrintPageProps = {
 export default async function VoucherPrintPage({
   searchParams,
 }: VoucherPrintPageProps) {
+  const requestHeaders = await headers();
   const params = await searchParams;
   const token = typeof params.token === "string" ? params.token : "";
   const payload = typeof params.payload === "string" ? params.payload : "";
@@ -22,6 +24,11 @@ export default async function VoucherPrintPage({
       ? rawMode
       : "print";
   const documentData =
+    (requestHeaders.get("x-slipwise-export-payload")
+      ? deserializeExportPayload<VoucherDocument>(
+          requestHeaders.get("x-slipwise-export-payload") as string,
+        )
+      : null) ??
     (payload
       ? deserializeExportPayload<VoucherDocument>(payload)
       : null) ?? (token ? getVoucherExportSession(token) : null);
