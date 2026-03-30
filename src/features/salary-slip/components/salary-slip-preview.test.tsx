@@ -10,9 +10,9 @@ describe("SalarySlipPreview", () => {
 
     render(<SalarySlipPreview document={document} />);
 
-    expect(screen.getAllByText(/salary slip/i).length).toBeGreaterThan(0);
     expect(screen.getByText("Arun Dev")).toBeInTheDocument();
-    expect(screen.getByText(/corporate clean/i)).toBeInTheDocument();
+    expect(screen.getByText(/monthly payroll summary/i)).toBeInTheDocument();
+    expect(screen.getByText(/live preview/i)).toBeInTheDocument();
   });
 
   it("marks print sections to avoid mid-page splits", () => {

@@ -31,15 +31,16 @@ import {
 import { VoucherPreview } from "@/features/voucher/components/voucher-preview";
 import { voucherFormSchema } from "@/features/voucher/schema";
 import type { VoucherFormValues } from "@/features/voucher/types";
+import { buildVoucherFilename } from "@/features/voucher/utils/build-voucher-filename";
 import { normalizeVoucher } from "@/features/voucher/utils/normalize-voucher";
-import { submitBinaryExport } from "@/lib/browser/submit-binary-export";
+import { downloadBinaryExport } from "@/lib/browser/download-binary-export";
 import { cn } from "@/lib/utils";
 
 type VoucherActionState =
   | { status: "idle" }
   | { status: "pending"; action: "print" | "pdf" | "png" }
-  | { status: "ready"; action: "pdf" | "png"; endpoint: string; payload: string; frameName: string }
-  | { status: "error"; message: string };
+  | { status: "success"; action: "pdf" | "png" }
+  | { status: "error"; action?: "pdf" | "png"; message: string };
 
 const voucherWorkspaceSections: WorkspaceSectionMeta[] = [
   { id: "voucher-setup", label: "Setup" },
@@ -92,13 +93,16 @@ function VoucherPanel() {
     try {
       const endpoint = format === "pdf" ? "/api/export/pdf" : "/api/export/png";
       const payload = JSON.stringify({ document });
-      const frameName = "voucher-download-frame";
-
-      submitBinaryExport({ action: endpoint, payload, frameName });
-      setActionState({ status: "ready", action: format, endpoint, payload, frameName });
+      await downloadBinaryExport({
+        endpoint,
+        payload,
+        fallbackFilename: buildVoucherFilename(document, format),
+      });
+      setActionState({ status: "success", action: format });
     } catch (error) {
       setActionState({
         status: "error",
+        action: format,
         message:
           error instanceof Error
             ? error.message
@@ -209,18 +213,28 @@ function VoucherPanel() {
               format: actionState.action,
               onClose: () => setActionState({ status: "idle" }),
             } satisfies WorkspaceExportDialog)
-          : actionState.status === "ready"
+          : actionState.status === "success"
             ? ({
-                state: "ready",
+                state: "success",
                 format: actionState.action,
-                downloadUrl: actionState.endpoint,
                 onClose: () => setActionState({ status: "idle" }),
-                onRetry: () =>
-                  submitBinaryExport({
-                    action: actionState.endpoint,
-                    payload: actionState.payload,
-                    frameName: actionState.frameName,
-                  }),
+                onRetry: () => {
+                  if (actionState.action) {
+                    void handleDownload(actionState.action);
+                  }
+                },
+              } satisfies WorkspaceExportDialog)
+            : actionState.status === "error" && actionState.action
+              ? ({
+                  state: "error",
+                  format: actionState.action,
+                  errorMessage: actionState.message,
+                  onClose: () => setActionState({ status: "idle" }),
+                  onRetry: () => {
+                    if (actionState.action) {
+                      void handleDownload(actionState.action);
+                    }
+                  },
               } satisfies WorkspaceExportDialog)
             : undefined
       }
