@@ -4,19 +4,23 @@ import puppeteer, { type Page } from "puppeteer";
 
 type ExportRequestHeaders = Record<string, string>;
 
+export function isServerlessExportRuntime() {
+  return process.platform === "linux" && Boolean(process.env.VERCEL);
+}
+
 const LOCAL_EXECUTABLE_CANDIDATES = [
   process.env.CHROME_EXECUTABLE_PATH,
   process.env.PUPPETEER_EXECUTABLE_PATH,
-  puppeteer.executablePath(),
   "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
   "/Applications/Chromium.app/Contents/MacOS/Chromium",
+  puppeteer.executablePath(),
   "/usr/bin/google-chrome",
   "/usr/bin/chromium-browser",
   "/usr/bin/chromium",
 ].filter(Boolean) as string[];
 
 export async function resolveExportBrowserExecutablePath() {
-  if (process.platform === "linux" && process.env.VERCEL) {
+  if (isServerlessExportRuntime()) {
     return chromium.executablePath();
   }
 
@@ -45,7 +49,7 @@ export function getLocalExportBrowserArgs() {
 
 export async function launchExportBrowser() {
   const executablePath = await resolveExportBrowserExecutablePath();
-  const isServerlessLinux = process.platform === "linux" && process.env.VERCEL;
+  const isServerlessLinux = isServerlessExportRuntime();
 
   return puppeteer.launch({
     executablePath,

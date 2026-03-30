@@ -25,6 +25,13 @@ async function extractPdfText(pdfSource: string | Uint8Array) {
   return combinedText;
 }
 
+function normalizePdfText(text: string) {
+  return text
+    .replace(/\s*@\s*/g, "@")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 function readPngDimensions(pngBytes: Uint8Array) {
   if (
     pngBytes.length < 24 ||
@@ -467,10 +474,11 @@ test("voucher PDF export keeps text selectable", async ({ request }) => {
   expect(response.headers()["content-type"]).toContain("application/pdf");
 
   const pdfText = await extractPdfText(new Uint8Array(await response.body()));
+  const normalizedPdfText = normalizePdfText(pdfText);
 
-  expect(pdfText).toContain("Northfield Trading Co.");
-  expect(pdfText).toContain("PV-2026-014");
-  expect(pdfText).toContain("Rahul Menon");
+  expect(normalizedPdfText).toContain("Northfield Trading Co.");
+  expect(normalizedPdfText).toContain("PV-2026-014");
+  expect(normalizedPdfText).toContain("Rahul Menon");
 });
 
 test("voucher PNG export returns an image response", async ({ request }) => {
@@ -535,11 +543,12 @@ test("salary slip PDF export keeps text selectable", async ({ request }) => {
   expect(response.headers()["content-type"]).toContain("application/pdf");
 
   const pdfText = await extractPdfText(new Uint8Array(await response.body()));
+  const normalizedPdfText = normalizePdfText(pdfText);
 
-  expect(pdfText).toContain("Arun Dev");
-  expect(pdfText).toContain("Northfield Trading Co.");
-  expect(pdfText).toContain("March 2026");
-  expect(pdfText).toContain("Federal Bank");
+  expect(normalizedPdfText).toContain("Arun Dev");
+  expect(normalizedPdfText).toContain("Northfield Trading Co.");
+  expect(normalizedPdfText).toContain("March 2026");
+  expect(normalizedPdfText).toContain("Federal Bank");
 });
 
 test("salary slip PNG export returns an image response", async ({ request }) => {
@@ -568,10 +577,11 @@ test("invoice PDF export keeps text selectable", async ({ request }) => {
   expect(response.headers()["content-type"]).toContain("application/pdf");
 
   const pdfText = await extractPdfText(new Uint8Array(await response.body()));
+  const normalizedPdfText = normalizePdfText(pdfText);
 
-  expect(pdfText).toContain("Northfield Trading Co.");
-  expect(pdfText).toContain("INV-2026-031");
-  expect(pdfText).toContain("Axis PeopleX Pvt. Ltd.");
+  expect(normalizedPdfText).toContain("Northfield Trading Co.");
+  expect(normalizedPdfText).toContain("INV-2026-031");
+  expect(normalizedPdfText).toContain("Axis PeopleX Pvt. Ltd.");
 });
 
 test("invoice PNG export returns an image response", async ({ request }) => {

@@ -25,11 +25,18 @@ export type WorkspaceExportDialog =
       onClose: () => void;
     }
   | {
-      state: "ready";
+      state: "success";
       format: "pdf" | "png";
-      downloadUrl: string;
       onClose: () => void;
       onRetry: () => void;
+      errorMessage?: never;
+    }
+  | {
+      state: "error";
+      format: "pdf" | "png";
+      onClose: () => void;
+      onRetry: () => void;
+      errorMessage: string;
     };
 
 type DocumentWorkspaceLayoutProps = {
@@ -467,13 +474,17 @@ export function DocumentWorkspaceLayout({
             >
               {exportDialog.state === "pending"
                 ? "Preparing your download"
-                : "Your download should start shortly"}
+                : exportDialog.state === "success"
+                  ? "Your download should start shortly"
+                  : "Export failed"}
             </h3>
 
             <p className="mt-4 max-w-[28rem] text-[1rem] leading-8 text-[var(--muted-foreground)]">
               {exportDialog.state === "pending"
                 ? "Thanks for using Slipwise. We are preparing your file and will start the download as soon as it is ready."
-                : "Thanks for using Slipwise. If your file does not begin downloading automatically, use the fallback action below."}
+                : exportDialog.state === "success"
+                  ? "Thanks for using Slipwise. If your file does not begin downloading automatically, use the fallback action below."
+                  : exportDialog.errorMessage}
             </p>
 
             <div className="mt-6 rounded-[1.35rem] border border-[rgba(45,107,255,0.12)] bg-[linear-gradient(180deg,rgba(244,248,255,0.96),rgba(255,255,255,0.98))] p-4 shadow-[0_14px_30px_rgba(15,23,42,0.05)]">
@@ -483,13 +494,17 @@ export function DocumentWorkspaceLayout({
                     "inline-flex h-3 w-3 rounded-full shadow-[0_0_0_6px_rgba(45,107,255,0.08)]",
                     exportDialog.state === "pending"
                       ? "animate-pulse bg-[var(--accent)]"
-                      : "bg-emerald-500",
+                      : exportDialog.state === "success"
+                        ? "bg-emerald-500"
+                        : "bg-[var(--danger)]",
                   )}
                 />
                 <p className="text-sm font-medium text-[var(--foreground)]">
                   {exportDialog.state === "pending"
                     ? "Building the export file..."
-                    : "Download handoff sent to your browser."}
+                    : exportDialog.state === "success"
+                      ? "Download handoff sent to your browser."
+                      : "Slipwise could not generate the file."}
                 </p>
               </div>
             </div>
@@ -533,13 +548,13 @@ export function DocumentWorkspaceLayout({
             </div>
 
             <div className="mt-7 flex flex-wrap gap-3">
-              {exportDialog.state === "ready" ? (
+              {exportDialog.state !== "pending" ? (
                 <button
                   type="button"
                   onClick={exportDialog.onRetry}
                   className="inline-flex items-center justify-center rounded-full border border-transparent bg-[linear-gradient(135deg,#111827,#020617)] px-5 py-3 text-sm font-medium text-white shadow-[0_18px_36px_rgba(15,23,42,0.18)] transition-all hover:brightness-105"
                 >
-                  Try download again
+                  {exportDialog.state === "success" ? "Try download again" : "Try export again"}
                 </button>
               ) : (
                 <button

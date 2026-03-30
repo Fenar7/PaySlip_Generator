@@ -23,15 +23,16 @@ import { salarySlipDefaultValues, salarySlipTemplateOptions } from "@/features/s
 import { SalarySlipPreview } from "@/features/salary-slip/components/salary-slip-preview";
 import { salarySlipFormSchema } from "@/features/salary-slip/schema";
 import type { SalarySlipFormValues } from "@/features/salary-slip/types";
+import { buildSalarySlipFilename } from "@/features/salary-slip/utils/build-salary-slip-filename";
 import { normalizeSalarySlip } from "@/features/salary-slip/utils/normalize-salary-slip";
-import { submitBinaryExport } from "@/lib/browser/submit-binary-export";
+import { downloadBinaryExport } from "@/lib/browser/download-binary-export";
 import { cn } from "@/lib/utils";
 
 type SalarySlipActionState =
   | { status: "idle" }
   | { status: "pending"; action: "print" | "pdf" | "png" }
-  | { status: "ready"; action: "pdf" | "png"; endpoint: string; payload: string; frameName: string }
-  | { status: "error"; message: string };
+  | { status: "success"; action: "pdf" | "png" }
+  | { status: "error"; action?: "pdf" | "png"; message: string };
 
 const salaryWorkspaceSections: WorkspaceSectionMeta[] = [
   { id: "salary-setup", label: "Setup" },
@@ -160,13 +161,16 @@ function SalarySlipPanel() {
           ? "/api/export/salary-slip/pdf"
           : "/api/export/salary-slip/png";
       const payload = JSON.stringify({ document });
-      const frameName = "salary-slip-download-frame";
-
-      submitBinaryExport({ action: endpoint, payload, frameName });
-      setActionState({ status: "ready", action: format, endpoint, payload, frameName });
+      await downloadBinaryExport({
+        endpoint,
+        payload,
+        fallbackFilename: buildSalarySlipFilename(document, format),
+      });
+      setActionState({ status: "success", action: format });
     } catch (error) {
       setActionState({
         status: "error",
+        action: format,
         message:
           error instanceof Error
             ? error.message
@@ -277,18 +281,28 @@ function SalarySlipPanel() {
               format: actionState.action,
               onClose: () => setActionState({ status: "idle" }),
             } satisfies WorkspaceExportDialog)
-          : actionState.status === "ready"
+          : actionState.status === "success"
             ? ({
-                state: "ready",
+                state: "success",
                 format: actionState.action,
-                downloadUrl: actionState.endpoint,
                 onClose: () => setActionState({ status: "idle" }),
-                onRetry: () =>
-                  submitBinaryExport({
-                    action: actionState.endpoint,
-                    payload: actionState.payload,
-                    frameName: actionState.frameName,
-                  }),
+                onRetry: () => {
+                  if (actionState.action) {
+                    void handleDownload(actionState.action);
+                  }
+                },
+              } satisfies WorkspaceExportDialog)
+            : actionState.status === "error" && actionState.action
+              ? ({
+                  state: "error",
+                  format: actionState.action,
+                  errorMessage: actionState.message,
+                  onClose: () => setActionState({ status: "idle" }),
+                  onRetry: () => {
+                    if (actionState.action) {
+                      void handleDownload(actionState.action);
+                    }
+                  },
               } satisfies WorkspaceExportDialog)
             : undefined
       }
