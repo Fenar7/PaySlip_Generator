@@ -436,7 +436,7 @@ export function DocumentWorkspaceLayout({
 
       {exportDialog ? (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center px-4"
+          className="fixed inset-0 z-50 flex items-center justify-center px-3 py-4 sm:px-4 sm:py-6"
         >
           <div
             className="absolute inset-0 bg-[rgba(15,23,42,0.28)]"
@@ -446,31 +446,31 @@ export function DocumentWorkspaceLayout({
             role="dialog"
             aria-modal="true"
             aria-labelledby="workspace-export-dialog-title"
-            className="relative w-full max-w-[34rem] transform-gpu overflow-hidden rounded-[2rem] border border-[rgba(255,255,255,0.65)] bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(247,250,255,0.98))] p-6 shadow-[0_32px_90px_rgba(15,23,42,0.18)] backdrop-blur-xl md:p-7"
+            className="relative max-h-[calc(100vh-1.5rem)] w-full max-w-[34rem] overflow-y-auto overflow-x-hidden rounded-[1.5rem] border border-[rgba(255,255,255,0.65)] bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(247,250,255,0.98))] p-4 shadow-[0_28px_72px_rgba(15,23,42,0.16)] backdrop-blur-xl sm:max-h-[calc(100vh-3rem)] sm:rounded-[2rem] sm:p-6 md:p-7"
           >
-            <div className="pointer-events-none absolute inset-x-0 top-0 h-40 bg-[radial-gradient(circle_at_top,rgba(45,107,255,0.16),transparent_62%)]" />
+            <div className="pointer-events-none absolute inset-x-0 top-0 h-32 bg-[radial-gradient(circle_at_top,rgba(45,107,255,0.16),transparent_62%)] sm:h-40" />
             <button
               type="button"
               onClick={() => exportDialog.onClose()}
-              className="absolute right-4 top-4 inline-flex h-10 w-10 items-center justify-center rounded-full border border-[var(--border-soft)] bg-white/92 text-[var(--foreground-soft)] shadow-[0_10px_24px_rgba(15,23,42,0.06)] transition-colors hover:bg-[var(--surface-soft)]"
+              className="absolute right-3 top-3 inline-flex h-9 w-9 items-center justify-center rounded-full border border-[var(--border-soft)] bg-white/92 text-[var(--foreground-soft)] shadow-[0_10px_24px_rgba(15,23,42,0.06)] transition-colors hover:bg-[var(--surface-soft)] sm:right-4 sm:top-4 sm:h-10 sm:w-10"
               aria-label="Close export dialog"
             >
               ×
             </button>
 
-            <div className="relative">
-              <div className="inline-flex h-14 w-14 items-center justify-center rounded-[1.2rem] border border-[rgba(45,107,255,0.14)] bg-[linear-gradient(180deg,rgba(45,107,255,0.12),rgba(255,255,255,0.94))] text-[var(--accent-strong)] shadow-[0_16px_34px_rgba(45,107,255,0.12)]">
+            <div className="relative flex items-center gap-3 sm:gap-4">
+              <div className="inline-flex h-12 w-12 items-center justify-center rounded-[1rem] border border-[rgba(45,107,255,0.14)] bg-[linear-gradient(180deg,rgba(45,107,255,0.12),rgba(255,255,255,0.94))] text-[var(--accent-strong)] shadow-[0_16px_34px_rgba(45,107,255,0.12)] sm:h-14 sm:w-14 sm:rounded-[1.2rem]">
                 <ExportFormatIcon />
               </div>
 
-              <div className="mt-5 inline-flex rounded-full border border-[var(--border-soft)] bg-white/88 px-3 py-1 text-[0.68rem] font-semibold uppercase tracking-[0.26em] text-[var(--muted-foreground)] shadow-[0_10px_24px_rgba(15,23,42,0.04)]">
+              <div className="inline-flex rounded-full border border-[var(--border-soft)] bg-white/88 px-3 py-1 text-[0.64rem] font-semibold uppercase tracking-[0.22em] text-[var(--muted-foreground)] shadow-[0_10px_24px_rgba(15,23,42,0.04)] sm:text-[0.68rem] sm:tracking-[0.26em]">
                 Export {exportDialog.format.toUpperCase()}
               </div>
             </div>
 
             <h3
               id="workspace-export-dialog-title"
-              className="mt-5 max-w-[24rem] text-[2.2rem] leading-[0.94] tracking-[-0.06em] text-[var(--foreground)]"
+              className="mt-4 max-w-[20rem] text-[1.9rem] leading-[0.96] tracking-[-0.055em] text-[var(--foreground)] sm:mt-5 sm:max-w-[24rem] sm:text-[2.2rem] sm:leading-[0.94] sm:tracking-[-0.06em]"
             >
               {exportDialog.state === "pending"
                 ? "Preparing your download"
@@ -479,7 +479,7 @@ export function DocumentWorkspaceLayout({
                   : "Export failed"}
             </h3>
 
-            <p className="mt-4 max-w-[28rem] text-[1rem] leading-8 text-[var(--muted-foreground)]">
+            <p className="mt-3 max-w-[28rem] text-[0.95rem] leading-7 text-[var(--muted-foreground)] sm:mt-4 sm:text-[1rem] sm:leading-8">
               {exportDialog.state === "pending"
                 ? "Thanks for using Slipwise. We are preparing your file and will start the download as soon as it is ready."
                 : exportDialog.state === "success"
@@ -487,7 +487,7 @@ export function DocumentWorkspaceLayout({
                   : exportDialog.errorMessage}
             </p>
 
-            <div className="mt-6 rounded-[1.35rem] border border-[rgba(45,107,255,0.12)] bg-[linear-gradient(180deg,rgba(244,248,255,0.96),rgba(255,255,255,0.98))] p-4 shadow-[0_14px_30px_rgba(15,23,42,0.05)]">
+            <div className="mt-5 rounded-[1.15rem] border border-[rgba(45,107,255,0.12)] bg-[linear-gradient(180deg,rgba(244,248,255,0.96),rgba(255,255,255,0.98))] p-3.5 shadow-[0_14px_30px_rgba(15,23,42,0.05)] sm:mt-6 sm:rounded-[1.35rem] sm:p-4">
               <div className="flex items-center gap-3">
                 <span
                   className={cn(
@@ -499,7 +499,7 @@ export function DocumentWorkspaceLayout({
                         : "bg-[var(--danger)]",
                   )}
                 />
-                <p className="text-sm font-medium text-[var(--foreground)]">
+                <p className="text-[0.92rem] font-medium leading-6 text-[var(--foreground)] sm:text-sm">
                   {exportDialog.state === "pending"
                     ? "Building the export file..."
                     : exportDialog.state === "success"
@@ -509,50 +509,50 @@ export function DocumentWorkspaceLayout({
               </div>
             </div>
 
-            <div className="mt-5 space-y-3">
-              <div className="flex items-start gap-4 rounded-[1.2rem] border border-[var(--border-soft)] bg-white/92 px-4 py-4 shadow-[0_10px_24px_rgba(15,23,42,0.04)]">
-                <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[var(--surface-soft)] text-[var(--accent)]">
+            <div className="mt-4 space-y-2.5 sm:mt-5 sm:space-y-3">
+              <div className="flex items-start gap-3 rounded-[1rem] border border-[var(--border-soft)] bg-white/92 px-3.5 py-3.5 shadow-[0_10px_24px_rgba(15,23,42,0.04)] sm:gap-4 sm:rounded-[1.2rem] sm:px-4 sm:py-4">
+                <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[var(--surface-soft)] text-[var(--accent)] sm:h-10 sm:w-10">
                   <ExportInfoIcon kind="spark" />
                 </span>
                 <div>
-                  <p className="text-sm font-semibold text-[var(--foreground)]">Quick handoff</p>
-                  <p className="mt-1 text-sm leading-7 text-[var(--muted-foreground)]">
+                  <p className="text-[0.92rem] font-semibold text-[var(--foreground)] sm:text-sm">Quick handoff</p>
+                  <p className="mt-1 text-[0.9rem] leading-6 text-[var(--muted-foreground)] sm:text-sm sm:leading-7">
                     Slipwise prepares the file and hands it off to your browser as soon as it is ready.
                   </p>
                 </div>
               </div>
 
-              <div className="flex items-start gap-4 rounded-[1.2rem] border border-[var(--border-soft)] bg-white/92 px-4 py-4 shadow-[0_10px_24px_rgba(15,23,42,0.04)]">
-                <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[var(--surface-soft)] text-[var(--accent)]">
+              <div className="flex items-start gap-3 rounded-[1rem] border border-[var(--border-soft)] bg-white/92 px-3.5 py-3.5 shadow-[0_10px_24px_rgba(15,23,42,0.04)] sm:gap-4 sm:rounded-[1.2rem] sm:px-4 sm:py-4">
+                <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[var(--surface-soft)] text-[var(--accent)] sm:h-10 sm:w-10">
                   <ExportInfoIcon kind="download" />
                 </span>
                 <div>
-                  <p className="text-sm font-semibold text-[var(--foreground)]">Direct download</p>
-                  <p className="mt-1 text-sm leading-7 text-[var(--muted-foreground)]">
+                  <p className="text-[0.92rem] font-semibold text-[var(--foreground)] sm:text-sm">Direct download</p>
+                  <p className="mt-1 text-[0.9rem] leading-6 text-[var(--muted-foreground)] sm:text-sm sm:leading-7">
                     Your PDF or PNG is generated directly from the current workspace state.
                   </p>
                 </div>
               </div>
 
-              <div className="flex items-start gap-4 rounded-[1.2rem] border border-[var(--border-soft)] bg-white/92 px-4 py-4 shadow-[0_10px_24px_rgba(15,23,42,0.04)]">
-                <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[var(--surface-soft)] text-[var(--accent)]">
+              <div className="flex items-start gap-3 rounded-[1rem] border border-[var(--border-soft)] bg-white/92 px-3.5 py-3.5 shadow-[0_10px_24px_rgba(15,23,42,0.04)] sm:gap-4 sm:rounded-[1.2rem] sm:px-4 sm:py-4">
+                <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[var(--surface-soft)] text-[var(--accent)] sm:h-10 sm:w-10">
                   <ExportInfoIcon kind="shield" />
                 </span>
                 <div>
-                  <p className="text-sm font-semibold text-[var(--foreground)]">Safe fallback</p>
-                  <p className="mt-1 text-sm leading-7 text-[var(--muted-foreground)]">
+                  <p className="text-[0.92rem] font-semibold text-[var(--foreground)] sm:text-sm">Safe fallback</p>
+                  <p className="mt-1 text-[0.9rem] leading-6 text-[var(--muted-foreground)] sm:text-sm sm:leading-7">
                     If the browser delays the file, you can restart the same download right here.
                   </p>
                 </div>
               </div>
             </div>
 
-            <div className="mt-7 flex flex-wrap gap-3">
+            <div className="mt-6 flex flex-col gap-2.5 sm:mt-7 sm:flex-row sm:flex-wrap sm:gap-3">
               {exportDialog.state !== "pending" ? (
                 <button
                   type="button"
                   onClick={exportDialog.onRetry}
-                  className="inline-flex items-center justify-center rounded-full border border-transparent bg-[linear-gradient(135deg,#111827,#020617)] px-5 py-3 text-sm font-medium text-white shadow-[0_18px_36px_rgba(15,23,42,0.18)] transition-all hover:brightness-105"
+                  className="inline-flex w-full items-center justify-center rounded-full border border-transparent bg-[linear-gradient(135deg,#111827,#020617)] px-5 py-3 text-sm font-medium text-white shadow-[0_18px_36px_rgba(15,23,42,0.18)] transition-all hover:brightness-105 sm:w-auto"
                 >
                   {exportDialog.state === "success" ? "Try download again" : "Try export again"}
                 </button>
@@ -560,7 +560,7 @@ export function DocumentWorkspaceLayout({
                 <button
                   type="button"
                   disabled
-                  className="inline-flex items-center justify-center rounded-full border border-transparent bg-[linear-gradient(135deg,#111827,#020617)] px-5 py-3 text-sm font-medium text-white opacity-90"
+                  className="inline-flex w-full items-center justify-center rounded-full border border-transparent bg-[linear-gradient(135deg,#111827,#020617)] px-5 py-3 text-sm font-medium text-white opacity-90 sm:w-auto"
                 >
                   Preparing download
                 </button>
@@ -569,7 +569,7 @@ export function DocumentWorkspaceLayout({
               <button
                 type="button"
                 onClick={() => exportDialog.onClose()}
-                className="inline-flex items-center justify-center rounded-full border border-[var(--border-strong)] bg-white px-5 py-3 text-sm font-medium text-[var(--foreground)] shadow-[0_10px_24px_rgba(15,23,42,0.04)] transition-colors hover:bg-[var(--surface-accent)]"
+                className="inline-flex w-full items-center justify-center rounded-full border border-[var(--border-strong)] bg-white px-5 py-3 text-sm font-medium text-[var(--foreground)] shadow-[0_10px_24px_rgba(15,23,42,0.04)] transition-colors hover:bg-[var(--surface-accent)] sm:w-auto"
               >
                 Close
               </button>
