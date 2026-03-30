@@ -26,11 +26,13 @@ export async function exportVoucherDocument({
   const payload = serializeExportPayload(voucherDocument);
   const routeMode = format === "pdf" ? "pdf" : "png";
   const isServerless = isServerlessExportRuntime();
-  const renderUrl = isServerless
+  const shouldUseBrowserRenderer =
+    isServerless || process.env.NODE_ENV !== "production";
+  const renderUrl = shouldUseBrowserRenderer
     ? `${origin}/voucher/print?mode=${routeMode}`
     : `${origin}/voucher/print?payload=${encodeURIComponent(payload)}&mode=${routeMode}`;
 
-  if (isServerless) {
+  if (shouldUseBrowserRenderer) {
     const headers = {
       "x-slipwise-export-payload": payload,
     };

@@ -29,11 +29,13 @@ export async function exportInvoiceDocument({
   const payload = serializeExportPayload(invoiceDocument);
   const routeMode = format === "pdf" ? "pdf" : "png";
   const isServerless = isServerlessExportRuntime();
-  const renderUrl = isServerless
+  const shouldUseBrowserRenderer =
+    isServerless || process.env.NODE_ENV !== "production";
+  const renderUrl = shouldUseBrowserRenderer
     ? `${origin}/invoice/print?mode=${routeMode}`
     : `${origin}/invoice/print?payload=${encodeURIComponent(payload)}&mode=${routeMode}`;
 
-  if (isServerless) {
+  if (shouldUseBrowserRenderer) {
     const headers = {
       "x-slipwise-export-payload": payload,
     };
