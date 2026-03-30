@@ -106,6 +106,8 @@ export async function renderExportPdfViaBrowser(
 
   try {
     const page = await browser.newPage();
+    page.setDefaultNavigationTimeout(60_000);
+    page.setDefaultTimeout(60_000);
     if (headers) {
       await page.setExtraHTTPHeaders(headers);
     }
@@ -116,9 +118,14 @@ export async function renderExportPdfViaBrowser(
     });
     await page.emulateMediaType("screen");
     await page.goto(url, {
-      waitUntil: "networkidle0",
+      waitUntil: "domcontentloaded",
     });
     await waitForExportPageAssets(page, readySelector);
+    await page.evaluate(async () => {
+      await new Promise<void>((resolve) => {
+        requestAnimationFrame(() => resolve());
+      });
+    });
 
     return page.pdf({
       format: "A4",
@@ -140,6 +147,8 @@ export async function renderExportPngViaBrowser(
 
   try {
     const page = await browser.newPage();
+    page.setDefaultNavigationTimeout(60_000);
+    page.setDefaultTimeout(60_000);
     if (headers) {
       await page.setExtraHTTPHeaders(headers);
     }
@@ -150,7 +159,7 @@ export async function renderExportPngViaBrowser(
     });
     await page.emulateMediaType("screen");
     await page.goto(url, {
-      waitUntil: "networkidle0",
+      waitUntil: "domcontentloaded",
     });
     await waitForExportPageAssets(page, readySelector);
     await page.evaluate(async () => {
