@@ -43,6 +43,15 @@ function ExportIcon(props: IconProps) {
   );
 }
 
+function ClockIcon(props: IconProps) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" {...props}>
+      <circle cx="12" cy="12" r="8" />
+      <path d="M12 7.5v5l3 1.8" />
+    </svg>
+  );
+}
+
 function TeamIcon(props: IconProps) {
   return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" {...props}>
@@ -429,7 +438,7 @@ export function SlipwiseHome({ className }: SlipwiseHomeProps) {
               className="rounded-[1.5rem] border border-[var(--border-soft)] bg-white p-6 shadow-[var(--shadow-soft)]"
             >
               <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[var(--surface-soft)] text-[var(--accent)] shadow-[var(--shadow-soft)]">
-                <SparkIcon className="h-5 w-5" />
+                <ClockIcon className="h-5 w-5" />
               </span>
               <p className="mt-4 text-xl font-medium text-[var(--foreground)]">
                 Faster preparation
