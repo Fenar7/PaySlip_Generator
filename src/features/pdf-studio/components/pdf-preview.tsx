@@ -3,8 +3,10 @@
 import { useEffect, useState } from "react";
 import type { ImageItem, PageSettings } from "@/features/pdf-studio/types";
 import {
+  generateThumbnailDataUrl,
   getEffectivePageDimensions,
   getImageNaturalDimensions,
+  getProcessedImageDimensions,
 } from "@/features/pdf-studio/utils/image-processor";
 import { cn } from "@/lib/utils";
 
@@ -15,10 +17,8 @@ type PdfPreviewProps = {
 
 type PagePreviewData = {
   imageUrl: string;
-  rotation: number;
   containerAspect: number;
   objectFit: "contain" | "cover" | "none";
-  backgroundSize?: string;
   marginRatio: number;
 };
 
@@ -49,8 +49,6 @@ function PreviewPage({
             className="h-full w-full"
             style={{
               objectFit: data.objectFit,
-              transform: data.rotation !== 0 ? `rotate(${data.rotation}deg)` : undefined,
-              transition: "transform 200ms ease",
             }}
             draggable={false}
           />
@@ -87,10 +85,8 @@ export function PdfPreview({ images, settings }: PdfPreviewProps) {
 
         try {
           const dims = await getImageNaturalDimensions(item.previewUrl);
-          const effectiveDims =
-            item.rotation === 90 || item.rotation === 270
-              ? { width: dims.height, height: dims.width }
-              : dims;
+          const previewUrl = await generateThumbnailDataUrl(item.previewUrl, item.rotation, item.crop, 1200);
+          const effectiveDims = getProcessedImageDimensions(dims, item.rotation, item.crop);
 
           const pageDims = getEffectivePageDimensions(
             settings,
@@ -109,8 +105,7 @@ export function PdfPreview({ images, settings }: PdfPreviewProps) {
                 : "none";
 
           results.push({
-            imageUrl: item.previewUrl,
-            rotation: item.rotation,
+            imageUrl: previewUrl,
             containerAspect,
             objectFit,
             marginRatio,
@@ -118,7 +113,6 @@ export function PdfPreview({ images, settings }: PdfPreviewProps) {
         } catch {
           results.push({
             imageUrl: item.previewUrl,
-            rotation: item.rotation,
             containerAspect: 297 / 210,
             objectFit: "contain",
             marginRatio: MARGIN_RATIOS[settings.margins],
