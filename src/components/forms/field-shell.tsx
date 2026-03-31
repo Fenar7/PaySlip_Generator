@@ -21,10 +21,10 @@ export function FieldShell({
   className,
 }: FieldShellProps) {
   return (
-    <div className={cn("space-y-2", className)}>
+    <div className={cn("space-y-2.5", className)}>
       <label
         htmlFor={htmlFor}
-        className="flex items-center gap-2 text-[0.8rem] font-semibold uppercase tracking-[0.06em] text-[var(--foreground-soft)]"
+        className="flex items-center gap-2 text-[0.76rem] font-semibold uppercase tracking-[0.08em] text-[var(--foreground-soft)]"
       >
         {label}
         {required ? (
@@ -35,9 +35,9 @@ export function FieldShell({
       </label>
       {children}
       {error ? (
-        <p className="text-xs leading-6 text-[var(--danger)]">{error}</p>
+        <p className="text-[0.75rem] leading-6 text-[var(--danger)]">{error}</p>
       ) : hint ? (
-        <p className="text-xs leading-6 text-[var(--muted-foreground)]">{hint}</p>
+        <p className="text-[0.75rem] leading-6 text-[var(--foreground-soft)]/80">{hint}</p>
       ) : null}
     </div>
   );

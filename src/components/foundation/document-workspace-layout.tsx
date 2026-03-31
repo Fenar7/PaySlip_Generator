@@ -126,12 +126,12 @@ function ExportFormatIcon() {
 function actionClassName(variant: WorkspaceAction["variant"]) {
   switch (variant) {
     case "primary":
-      return "border border-transparent bg-[linear-gradient(135deg,var(--accent),var(--accent-strong))] text-white shadow-[0_18px_36px_rgba(34,34,34,0.10)] hover:brightness-105";
+      return "border border-transparent bg-[linear-gradient(135deg,var(--accent),var(--accent-strong))] text-white shadow-[0_16px_30px_rgba(232,64,30,0.18)] hover:brightness-105";
     case "secondary":
-      return "border border-[var(--border-strong)] bg-white text-[var(--foreground)] shadow-[0_10px_24px_rgba(34,34,34,0.04)] hover:bg-[var(--surface-accent)]";
+      return "border border-[var(--border-strong)] bg-white text-[var(--foreground)] shadow-[0_10px_24px_rgba(34,34,34,0.04)] hover:bg-[rgba(248,241,235,0.72)]";
     case "subtle":
     default:
-      return "border border-[var(--border-soft)] bg-[var(--surface-soft)] text-[var(--foreground-soft)] shadow-[0_10px_24px_rgba(34,34,34,0.03)] hover:bg-[var(--surface-accent)]";
+      return "border border-[var(--border-soft)] bg-[rgba(248,241,235,0.88)] text-[var(--foreground-soft)] shadow-[0_10px_24px_rgba(34,34,34,0.03)] hover:bg-[rgba(246,238,231,0.98)]";
   }
 }
 
@@ -215,12 +215,12 @@ export function DocumentWorkspaceLayout({
 
   return (
     <main className="slipwise-shell-bg relative isolate overflow-hidden">
-      <div className="absolute inset-x-0 top-0 -z-10 h-[34rem] bg-[radial-gradient(circle_at_top,rgba(232,64,30,0.08),transparent_36%),radial-gradient(circle_at_84%_12%,rgba(87,87,96,0.05),transparent_28%)]" />
-      <div className="absolute inset-y-0 left-0 -z-10 hidden w-[26rem] bg-[linear-gradient(180deg,rgba(244,238,232,0.78),rgba(244,238,232,0))] xl:block" />
+      <div className="absolute inset-x-0 top-0 -z-10 h-[34rem] bg-[radial-gradient(circle_at_top,rgba(232,64,30,0.09),transparent_36%),radial-gradient(circle_at_82%_16%,rgba(87,87,96,0.05),transparent_28%)]" />
+      <div className="absolute inset-y-0 left-0 -z-10 hidden w-[24rem] bg-[linear-gradient(180deg,rgba(245,239,233,0.72),rgba(245,239,233,0))] xl:block" />
 
       <div className="mx-auto flex w-full max-w-[108rem] flex-col gap-5 px-3 py-5 sm:px-4 lg:px-5 lg:py-7">
-        <section className="rounded-[2rem] border border-[var(--border-strong)] bg-[rgba(255,255,255,0.94)] p-5 shadow-[var(--shadow-card)] backdrop-blur-sm md:p-6">
-          <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_23rem] xl:items-center">
+        <section className="rounded-[2.3rem] border border-[var(--border-strong)] bg-[linear-gradient(180deg,rgba(255,255,255,0.96),rgba(249,243,237,0.94))] p-5 shadow-[var(--shadow-card)] md:p-6">
+          <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_22rem] xl:items-start">
             <div className="max-w-4xl">
               <p className="text-[0.68rem] font-semibold uppercase tracking-[0.34em] text-[var(--muted-foreground)]">
                 {eyebrow}
@@ -228,22 +228,25 @@ export function DocumentWorkspaceLayout({
               <h1 className="mt-3 max-w-3xl text-[2.3rem] leading-[0.98] tracking-[-0.05em] text-[var(--foreground)] md:text-[3rem]">
                 {title}
               </h1>
-              <p className="mt-3 max-w-3xl text-[0.98rem] leading-7 text-[var(--muted-foreground)]">
+              <p className="mt-3 max-w-3xl text-[0.98rem] leading-7 text-[var(--foreground-soft)]">
                 {description}
               </p>
+              <div className="mt-5 hidden flex-wrap gap-2 xl:flex">
+                {actions.map((action) => renderAction(action, true))}
+              </div>
             </div>
 
-            <div className="rounded-[1.5rem] border border-[var(--border-soft)] bg-[linear-gradient(180deg,rgba(247,241,235,0.94),rgba(255,255,255,0.98))] p-4 shadow-[0_14px_30px_rgba(34,34,34,0.05)]">
-              <div className="grid grid-cols-3 gap-2">
+            <div className="rounded-[1.8rem] border border-[var(--border-soft)] bg-[rgba(255,255,255,0.86)] p-4 shadow-[0_14px_30px_rgba(34,34,34,0.05)]">
+              <div className="grid grid-cols-3 gap-2.5">
                 {quickStats.map((stat) => (
                   <div
                     key={stat.label}
-                    className="rounded-[1rem] border border-[var(--border-soft)] bg-white/88 px-3 py-3"
+                    className="rounded-[1.05rem] border border-[var(--border-soft)] bg-white/92 px-3 py-3"
                   >
                     <p className="text-[0.62rem] font-semibold uppercase tracking-[0.24em] text-[var(--muted-foreground)]">
                       {stat.label}
                     </p>
-                    <p className="mt-2 text-sm font-semibold text-[var(--foreground)]">
+                    <p className="mt-2 text-sm font-medium text-[var(--foreground)]">
                       {stat.value}
                     </p>
                   </div>
@@ -267,7 +270,7 @@ export function DocumentWorkspaceLayout({
 
         {!isDesktopWorkspace ? (
           <div className="xl:hidden">
-            <div className="sticky top-4 z-20 rounded-[1.35rem] border border-[var(--border-strong)] bg-white/92 p-2 shadow-[var(--shadow-soft)] backdrop-blur">
+            <div className="sticky top-4 z-20 rounded-[1.5rem] border border-[var(--border-strong)] bg-[rgba(255,255,255,0.94)] p-2 shadow-[var(--shadow-soft)] backdrop-blur">
               <div className="grid grid-cols-3 gap-2">
                 {mobileTabs.map((tab) => (
                   <button
@@ -275,10 +278,10 @@ export function DocumentWorkspaceLayout({
                     type="button"
                     onClick={() => setMobileTab(tab.id)}
                     className={cn(
-                      "rounded-[1rem] px-4 py-3 text-sm font-medium transition-colors",
+                      "rounded-[1.05rem] px-4 py-3 text-sm font-medium transition-colors",
                       mobileTab === tab.id
-                        ? "bg-[var(--accent)] text-white shadow-[0_14px_28px_rgba(34,34,34,0.10)]"
-                        : "bg-[var(--surface-soft)] text-[var(--foreground-soft)]",
+                        ? "bg-[var(--accent)] text-white shadow-[0_14px_28px_rgba(232,64,30,0.2)]"
+                        : "bg-[rgba(248,241,235,0.72)] text-[var(--foreground-soft)]",
                     )}
                   >
                     {tab.label}
@@ -292,27 +295,27 @@ export function DocumentWorkspaceLayout({
         <div className="grid gap-5 xl:grid-cols-[14rem_minmax(24rem,30rem)_minmax(0,1fr)] xl:items-start">
           <aside className="hidden xl:block">
             <div className="sticky top-6 space-y-4">
-              <div className="rounded-[1.75rem] border border-[var(--border-strong)] bg-[linear-gradient(180deg,rgba(34,34,34,0.98),rgba(54,54,54,0.94))] p-5 text-white shadow-[0_22px_40px_rgba(34,34,34,0.18)]">
-                <p className="text-[0.64rem] font-semibold uppercase tracking-[0.3em] text-white/55">
+              <div className="rounded-[1.85rem] border border-[var(--border-strong)] bg-[linear-gradient(180deg,rgba(255,255,255,0.96),rgba(247,241,235,0.94))] p-5 shadow-[0_18px_34px_rgba(34,34,34,0.06)]">
+                <p className="text-[0.64rem] font-semibold uppercase tracking-[0.3em] text-[var(--muted-foreground)]">
                   Workspace map
                 </p>
-                <p className="mt-3 text-lg font-semibold leading-tight">
+                <p className="mt-3 text-lg font-medium leading-tight text-[var(--foreground)]">
                   Build, review, and export from one focused canvas.
                 </p>
-                <p className="mt-3 text-sm leading-6 text-white/70">
+                <p className="mt-3 text-sm leading-6 text-[var(--foreground-soft)]">
                   Move through the form in order, then keep the preview beside you while refining the document.
                 </p>
               </div>
 
-              <nav className="rounded-[1.75rem] border border-[var(--border-strong)] bg-white/94 p-3 shadow-[var(--shadow-soft)]">
+              <nav className="rounded-[1.85rem] border border-[var(--border-strong)] bg-white/95 p-3 shadow-[var(--shadow-soft)]">
                 <div className="space-y-2">
                   {sections.map((section, index) => (
                     <a
                       key={section.id}
                       href={`#${section.id}`}
-                      className="flex items-center gap-3 rounded-[1rem] border border-transparent px-3 py-3 transition-colors hover:border-[var(--border-soft)] hover:bg-[var(--surface-soft)]"
+                      className="flex items-center gap-3 rounded-[1.1rem] border border-transparent px-3 py-3 transition-colors hover:border-[var(--border-soft)] hover:bg-[rgba(248,241,235,0.72)]"
                     >
-                      <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-[var(--surface-accent)] text-[0.72rem] font-semibold text-[var(--foreground)]">
+                      <span className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-[var(--border-soft)] bg-[rgba(248,241,235,0.82)] text-[0.72rem] font-semibold text-[var(--foreground)]">
                         {String(index + 1).padStart(2, "0")}
                       </span>
                       <span className="text-sm font-medium text-[var(--foreground-soft)]">
@@ -331,16 +334,16 @@ export function DocumentWorkspaceLayout({
               !isDesktopWorkspace && mobileTab !== "build" && "hidden",
             )}
           >
-            <div className="rounded-[1.5rem] border border-[var(--border-soft)] bg-white/92 p-4 shadow-[0_12px_28px_rgba(34,34,34,0.04)]">
+            <div className="rounded-[1.65rem] border border-[var(--border-soft)] bg-white/94 p-4 shadow-[0_12px_28px_rgba(34,34,34,0.04)]">
               <div className="flex flex-col gap-4 border-b border-[var(--border-soft)] pb-4">
                 <div>
                   <p className="text-[0.66rem] font-semibold uppercase tracking-[0.32em] text-[var(--muted-foreground)]">
                     {builderEyebrow}
                   </p>
-                  <h2 className="mt-2 text-[1.35rem] leading-tight tracking-[-0.04em] text-[var(--foreground)]">
+                  <h2 className="mt-2 text-[1.35rem] font-medium leading-tight tracking-[-0.04em] text-[var(--foreground)]">
                     {builderTitle}
                   </h2>
-                  <p className="mt-2 text-sm leading-7 text-[var(--muted-foreground)]">
+                  <p className="mt-2 text-sm leading-7 text-[var(--foreground-soft)]">
                     {builderDescription}
                   </p>
                 </div>
@@ -350,7 +353,7 @@ export function DocumentWorkspaceLayout({
                     <a
                       key={section.id}
                       href={`#${section.id}`}
-                      className="inline-flex items-center gap-2 rounded-full border border-[var(--border-soft)] bg-[var(--surface-soft)] px-3 py-2 text-xs font-semibold uppercase tracking-[0.14em] text-[var(--foreground-soft)] transition-colors hover:border-[var(--accent)] hover:bg-white"
+                      className="inline-flex items-center gap-2 rounded-full border border-[var(--border-soft)] bg-[rgba(248,241,235,0.72)] px-3 py-2 text-xs font-semibold uppercase tracking-[0.14em] text-[var(--foreground-soft)] transition-colors hover:border-[var(--accent)] hover:bg-white"
                     >
                       <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-white text-[0.62rem]">
                         {index + 1}
@@ -367,11 +370,11 @@ export function DocumentWorkspaceLayout({
 
           <section
             className={cn(
-              "rounded-none border-0 bg-transparent p-0 shadow-none sm:rounded-[2rem] sm:border sm:border-[rgba(34,34,34,0.08)] sm:bg-[linear-gradient(180deg,rgba(62,45,33,0.03),rgba(255,255,255,0.98))] sm:p-4 sm:shadow-[var(--shadow-card)] md:p-5 xl:sticky xl:top-6",
+              "rounded-none border-0 bg-transparent p-0 shadow-none sm:rounded-[2.1rem] sm:border sm:border-[rgba(34,34,34,0.08)] sm:bg-[linear-gradient(180deg,rgba(247,241,235,0.82),rgba(255,255,255,0.98))] sm:p-4 sm:shadow-[var(--shadow-card)] md:p-5 xl:sticky xl:top-6",
               !isDesktopWorkspace && mobileTab !== "preview" && "hidden",
             )}
           >
-            <div className="mb-3 hidden rounded-[1.1rem] border border-[rgba(34,34,34,0.08)] bg-[linear-gradient(180deg,rgba(255,255,255,0.94),rgba(247,241,235,0.96))] p-3 shadow-[0_12px_24px_rgba(34,34,34,0.05)] sm:block sm:mb-4 sm:rounded-[1.5rem] sm:p-4 sm:shadow-[0_18px_32px_rgba(34,34,34,0.05)]">
+            <div className="mb-3 hidden rounded-[1.3rem] border border-[rgba(34,34,34,0.08)] bg-[linear-gradient(180deg,rgba(255,255,255,0.95),rgba(248,241,235,0.96))] p-3 shadow-[0_12px_24px_rgba(34,34,34,0.05)] sm:block sm:mb-4 sm:rounded-[1.65rem] sm:p-4 sm:shadow-[0_18px_32px_rgba(34,34,34,0.05)]">
               <div className="flex items-center gap-2">
                 <span className="h-2.5 w-2.5 rounded-full bg-[rgba(248,113,113,0.85)]" />
                 <span className="h-2.5 w-2.5 rounded-full bg-[rgba(251,191,36,0.85)]" />
@@ -386,7 +389,7 @@ export function DocumentWorkspaceLayout({
                   <p className="text-[0.66rem] font-semibold uppercase tracking-[0.32em] text-[var(--muted-foreground)]">
                     {previewEyebrow}
                   </p>
-                  <h2 className="mt-2 text-[1.15rem] leading-tight tracking-[-0.04em] text-[var(--foreground)] sm:text-[1.4rem]">
+                  <h2 className="mt-2 text-[1.15rem] font-medium leading-tight tracking-[-0.04em] text-[var(--foreground)] sm:text-[1.4rem]">
                     {previewTitle}
                   </h2>
                 </div>
@@ -410,9 +413,9 @@ export function DocumentWorkspaceLayout({
           </section>
 
           {!isDesktopWorkspace ? (
-            <section
+              <section
               className={cn(
-                "rounded-[2rem] border border-[var(--border-strong)] bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(247,241,235,0.98))] p-5 shadow-[var(--shadow-soft)] xl:hidden",
+                "rounded-[2rem] border border-[var(--border-strong)] bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(248,241,235,0.98))] p-5 shadow-[var(--shadow-soft)] xl:hidden",
                 mobileTab === "export" ? "block" : "hidden",
               )}
             >
@@ -422,7 +425,7 @@ export function DocumentWorkspaceLayout({
               <h2 className="mt-3 text-[1.45rem] leading-tight tracking-[-0.04em] text-[var(--foreground)]">
                 Print or download the current document
               </h2>
-              <p className="mt-2 text-sm leading-7 text-[var(--muted-foreground)]">
+              <p className="mt-2 text-sm leading-7 text-[var(--foreground-soft)]">
                 Use the current form state to open the print surface or export PDF and PNG output.
               </p>
 
@@ -446,13 +449,13 @@ export function DocumentWorkspaceLayout({
             role="dialog"
             aria-modal="true"
             aria-labelledby="workspace-export-dialog-title"
-            className="relative max-h-[calc(100vh-1.5rem)] w-full max-w-[34rem] overflow-y-auto overflow-x-hidden rounded-[1.5rem] border border-[rgba(255,255,255,0.65)] bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(247,241,235,0.98))] p-4 shadow-[0_28px_72px_rgba(34,34,34,0.12)] backdrop-blur-xl sm:max-h-[calc(100vh-3rem)] sm:rounded-[2rem] sm:p-6 md:p-7"
+            className="relative max-h-[calc(100vh-1.5rem)] w-full max-w-[34rem] overflow-y-auto overflow-x-hidden rounded-[1.6rem] border border-[rgba(255,255,255,0.7)] bg-[linear-gradient(180deg,rgba(255,255,255,0.99),rgba(248,241,235,0.98))] p-4 shadow-[0_28px_72px_rgba(34,34,34,0.12)] backdrop-blur-xl sm:max-h-[calc(100vh-3rem)] sm:rounded-[2.15rem] sm:p-6 md:p-7"
           >
               <div className="pointer-events-none absolute inset-x-0 top-0 h-32 bg-[radial-gradient(circle_at_top,rgba(232,64,30,0.10),transparent_62%)] sm:h-40" />
             <button
               type="button"
               onClick={() => exportDialog.onClose()}
-            className="absolute right-3 top-3 inline-flex h-9 w-9 items-center justify-center rounded-full border border-[var(--border-soft)] bg-white/92 text-[var(--foreground-soft)] shadow-[0_10px_24px_rgba(34,34,34,0.05)] transition-colors hover:bg-[var(--surface-soft)] sm:right-4 sm:top-4 sm:h-10 sm:w-10"
+            className="absolute right-3 top-3 inline-flex h-9 w-9 items-center justify-center rounded-full border border-[var(--border-soft)] bg-white/92 text-[var(--foreground-soft)] shadow-[0_10px_24px_rgba(34,34,34,0.05)] transition-colors hover:bg-[rgba(248,241,235,0.82)] sm:right-4 sm:top-4 sm:h-10 sm:w-10"
               aria-label="Close export dialog"
             >
               ×
@@ -463,7 +466,7 @@ export function DocumentWorkspaceLayout({
                 <ExportFormatIcon />
               </div>
 
-              <div className="inline-flex rounded-full border border-[var(--border-soft)] bg-white/88 px-3 py-1 text-[0.64rem] font-semibold uppercase tracking-[0.22em] text-[var(--muted-foreground)] shadow-[0_10px_24px_rgba(34,34,34,0.04)] sm:text-[0.68rem] sm:tracking-[0.26em]">
+              <div className="inline-flex rounded-full border border-[var(--border-soft)] bg-white/90 px-3 py-1 text-[0.64rem] font-semibold uppercase tracking-[0.22em] text-[var(--muted-foreground)] shadow-[0_10px_24px_rgba(34,34,34,0.04)] sm:text-[0.68rem] sm:tracking-[0.26em]">
                 Export {exportDialog.format.toUpperCase()}
               </div>
             </div>
@@ -479,7 +482,7 @@ export function DocumentWorkspaceLayout({
                   : "Export failed"}
             </h3>
 
-            <p className="mt-3 max-w-[28rem] text-[0.95rem] leading-7 text-[var(--muted-foreground)] sm:mt-4 sm:text-[1rem] sm:leading-8">
+            <p className="mt-3 max-w-[28rem] text-[0.95rem] leading-7 text-[var(--foreground-soft)] sm:mt-4 sm:text-[1rem] sm:leading-8">
               {exportDialog.state === "pending"
                 ? "Thanks for using Slipwise. We are preparing your file and will start the download as soon as it is ready."
                 : exportDialog.state === "success"
@@ -487,7 +490,7 @@ export function DocumentWorkspaceLayout({
                   : exportDialog.errorMessage}
             </p>
 
-            <div className="mt-5 rounded-[1.15rem] border border-[rgba(232,64,30,0.10)] bg-[linear-gradient(180deg,rgba(247,241,235,0.96),rgba(255,255,255,0.98))] p-3.5 shadow-[0_14px_30px_rgba(34,34,34,0.05)] sm:mt-6 sm:rounded-[1.35rem] sm:p-4">
+            <div className="mt-5 rounded-[1.2rem] border border-[rgba(232,64,30,0.10)] bg-[linear-gradient(180deg,rgba(248,241,235,0.96),rgba(255,255,255,0.98))] p-3.5 shadow-[0_14px_30px_rgba(34,34,34,0.05)] sm:mt-6 sm:rounded-[1.4rem] sm:p-4">
               <div className="flex items-center gap-3">
                 <span
                   className={cn(
@@ -510,7 +513,7 @@ export function DocumentWorkspaceLayout({
             </div>
 
             <div className="mt-4 space-y-2.5 sm:mt-5 sm:space-y-3">
-              <div className="flex items-start gap-3 rounded-[1rem] border border-[var(--border-soft)] bg-white/92 px-3.5 py-3.5 shadow-[0_10px_24px_rgba(34,34,34,0.04)] sm:gap-4 sm:rounded-[1.2rem] sm:px-4 sm:py-4">
+              <div className="flex items-start gap-3 rounded-[1rem] border border-[var(--border-soft)] bg-white/94 px-3.5 py-3.5 shadow-[0_10px_24px_rgba(34,34,34,0.04)] sm:gap-4 sm:rounded-[1.2rem] sm:px-4 sm:py-4">
                 <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[var(--surface-soft)] text-[var(--accent)] sm:h-10 sm:w-10">
                   <ExportInfoIcon kind="spark" />
                 </span>
@@ -522,7 +525,7 @@ export function DocumentWorkspaceLayout({
                 </div>
               </div>
 
-              <div className="flex items-start gap-3 rounded-[1rem] border border-[var(--border-soft)] bg-white/92 px-3.5 py-3.5 shadow-[0_10px_24px_rgba(34,34,34,0.04)] sm:gap-4 sm:rounded-[1.2rem] sm:px-4 sm:py-4">
+              <div className="flex items-start gap-3 rounded-[1rem] border border-[var(--border-soft)] bg-white/94 px-3.5 py-3.5 shadow-[0_10px_24px_rgba(34,34,34,0.04)] sm:gap-4 sm:rounded-[1.2rem] sm:px-4 sm:py-4">
                 <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[var(--surface-soft)] text-[var(--accent)] sm:h-10 sm:w-10">
                   <ExportInfoIcon kind="download" />
                 </span>
@@ -534,7 +537,7 @@ export function DocumentWorkspaceLayout({
                 </div>
               </div>
 
-              <div className="flex items-start gap-3 rounded-[1rem] border border-[var(--border-soft)] bg-white/92 px-3.5 py-3.5 shadow-[0_10px_24px_rgba(34,34,34,0.04)] sm:gap-4 sm:rounded-[1.2rem] sm:px-4 sm:py-4">
+              <div className="flex items-start gap-3 rounded-[1rem] border border-[var(--border-soft)] bg-white/94 px-3.5 py-3.5 shadow-[0_10px_24px_rgba(34,34,34,0.04)] sm:gap-4 sm:rounded-[1.2rem] sm:px-4 sm:py-4">
                 <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[var(--surface-soft)] text-[var(--accent)] sm:h-10 sm:w-10">
                   <ExportInfoIcon kind="shield" />
                 </span>
