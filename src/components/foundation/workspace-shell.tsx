@@ -19,9 +19,9 @@ export function WorkspaceShell({
 }: WorkspaceShellProps) {
   return (
     <main className="relative isolate overflow-hidden">
-      <div className="absolute inset-x-0 top-0 -z-10 h-[34rem] bg-[radial-gradient(circle_at_top,rgba(49,93,246,0.18),transparent_36%),radial-gradient(circle_at_80%_10%,rgba(14,165,233,0.1),transparent_26%)]" />
+      <div className="absolute inset-x-0 top-0 -z-10 h-[34rem] bg-[radial-gradient(circle_at_top,rgba(232,64,30,0.10),transparent_36%),radial-gradient(circle_at_80%_10%,rgba(87,87,96,0.05),transparent_26%)]" />
       <div className="mx-auto flex w-full max-w-[var(--container-shell)] flex-col gap-8 px-4 py-8 sm:px-5 lg:px-6 lg:py-12">
-        <div className="flex flex-col gap-6 rounded-[2.5rem] border border-[var(--border-strong)] bg-[linear-gradient(180deg,rgba(255,255,255,0.92),rgba(245,248,253,0.96))] p-6 shadow-[var(--shadow-card)] backdrop-blur-sm lg:flex-row lg:items-end lg:justify-between">
+        <div className="flex flex-col gap-6 rounded-[2.5rem] border border-[var(--border-strong)] bg-[linear-gradient(180deg,rgba(255,255,255,0.92),rgba(246,240,234,0.96))] p-6 shadow-[var(--shadow-card)] backdrop-blur-sm lg:flex-row lg:items-end lg:justify-between">
           <div className="max-w-3xl">
             <p className="text-[0.68rem] font-semibold uppercase tracking-[0.34em] text-[var(--muted-foreground)]">
               {eyebrow}
@@ -40,14 +40,14 @@ export function WorkspaceShell({
             >
               Back to home
             </Link>
-            <span className="inline-flex items-center justify-center rounded-full bg-[linear-gradient(135deg,var(--foreground),#1f2937)] px-4 py-2 text-sm font-medium text-[var(--background)] shadow-[0_16px_32px_rgba(15,23,42,0.14)]">
+            <span className="inline-flex items-center justify-center rounded-full bg-[linear-gradient(135deg,var(--accent),var(--accent-strong))] px-4 py-2 text-sm font-medium text-white shadow-[0_16px_32px_rgba(34,34,34,0.10)]">
               {slipwiseBrand.shellStatus}
             </span>
           </div>
         </div>
 
         <div className="grid gap-6 xl:grid-cols-[minmax(22rem,29rem)_minmax(0,1fr)]">
-          <section className="rounded-[2.25rem] border border-[var(--border-strong)] bg-[linear-gradient(180deg,rgba(255,255,255,0.94),rgba(245,248,253,0.96))] p-5 shadow-[var(--shadow-soft)]">
+          <section className="rounded-[2.25rem] border border-[var(--border-strong)] bg-[linear-gradient(180deg,rgba(255,255,255,0.94),rgba(246,240,234,0.96))] p-5 shadow-[var(--shadow-soft)]">
             <div className="mb-6 flex items-center justify-between">
               <div>
                 <p className="text-[0.68rem] font-semibold uppercase tracking-[0.34em] text-[var(--muted-foreground)]">
@@ -77,7 +77,7 @@ export function WorkspaceShell({
                         This section belongs to the Slipwise product shell.
                       </p>
                     </div>
-                    <span className="h-10 w-10 rounded-2xl border border-[var(--border-soft)] bg-[linear-gradient(180deg,rgba(49,93,246,0.08),rgba(255,255,255,1))] shadow-[0_10px_24px_rgba(15,23,42,0.03)]" />
+                    <span className="h-10 w-10 rounded-2xl border border-[var(--border-soft)] bg-[linear-gradient(180deg,rgba(232,64,30,0.08),rgba(255,255,255,1))] shadow-[0_10px_24px_rgba(34,34,34,0.03)]" />
                   </div>
                 </article>
               ))}

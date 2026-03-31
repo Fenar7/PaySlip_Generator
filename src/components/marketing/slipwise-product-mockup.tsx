@@ -1,22 +1,22 @@
 "use client";
 
 const boardCards = [
-  { label: "Salary slip", value: "₹45,500", tone: "bg-[rgba(103,203,255,0.12)]" },
-  { label: "Invoice due", value: "₹39,100", tone: "bg-[rgba(45,107,255,0.12)]" },
-  { label: "Voucher ready", value: "₹1,850", tone: "bg-[rgba(145,237,207,0.16)]" },
+  { label: "Salary slip", value: "₹45,500", tone: "bg-[rgba(232,64,30,0.09)]" },
+  { label: "Invoice due", value: "₹39,100", tone: "bg-[rgba(34,34,34,0.06)]" },
+  { label: "Voucher ready", value: "₹1,850", tone: "bg-[rgba(173,173,173,0.14)]" },
 ];
 
 export function SlipwiseProductMockup() {
   return (
     <div className="relative mx-auto w-full max-w-[34rem]">
-      <div className="absolute -left-6 top-10 h-24 w-24 rounded-full bg-[rgba(103,203,255,0.08)] blur-[70px]" />
-      <div className="absolute -right-6 top-2 h-32 w-32 rounded-full bg-[rgba(45,107,255,0.08)] blur-[80px]" />
+      <div className="absolute -left-6 top-10 h-24 w-24 rounded-full bg-[rgba(232,64,30,0.06)] blur-[70px]" />
+      <div className="absolute -right-6 top-2 h-32 w-32 rounded-full bg-[rgba(34,34,34,0.05)] blur-[80px]" />
 
-      <div data-animate="mockup-shell" className="relative overflow-hidden rounded-[1.75rem] border border-[var(--border-soft)] bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(244,248,255,0.96))] p-3 shadow-[var(--shadow-card)]">
+      <div data-animate="mockup-shell" className="relative overflow-hidden rounded-[1.75rem] border border-[var(--border-soft)] bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(247,241,235,0.96))] p-3 shadow-[var(--shadow-card)]">
         <div className="overflow-hidden rounded-[1.45rem] border border-[var(--border-soft)] bg-white p-4 text-[var(--foreground)]">
           <div data-animate="mockup-pane" className="flex items-center justify-between rounded-[1rem] border border-[var(--border-soft)] bg-[var(--surface-soft)] px-3 py-3">
             <div className="flex items-center gap-3">
-              <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-[var(--foreground)] text-sm font-semibold text-white">
+              <span className="flex h-9 w-9 items-center justify-center rounded-xl border border-[var(--border-soft)] bg-white text-sm font-semibold text-[var(--accent)]">
                 S
               </span>
               <div>
@@ -34,7 +34,7 @@ export function SlipwiseProductMockup() {
                   key={item}
                   className={`rounded-full px-3 py-1.5 text-xs font-medium ${
                     index === 0
-                      ? "bg-[var(--foreground)] text-white"
+                      ? "bg-[var(--accent)] text-white"
                       : "border border-[var(--border-soft)] bg-white text-[var(--foreground-soft)]"
                   }`}
                 >
@@ -60,7 +60,7 @@ export function SlipwiseProductMockup() {
                 </span>
               </div>
 
-              <div className="mt-4 rounded-[1rem] bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(242,247,255,0.98))] p-4 text-slate-900">
+              <div className="mt-4 rounded-[1rem] bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(246,240,234,0.98))] p-4 text-slate-900">
                 <div className="flex items-start justify-between">
                   <div>
                     <div className="h-2.5 w-24 rounded-full bg-slate-200" />

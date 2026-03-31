@@ -262,12 +262,12 @@ export function SlipwiseHome({ className }: SlipwiseHomeProps) {
 
   return (
     <main ref={rootRef} className={cn("relative isolate overflow-hidden", className)}>
-      <div className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-[48rem] bg-[radial-gradient(circle_at_top,rgba(45,107,255,0.18),transparent_34%)]" />
-      <div data-animate="hero-glow-left" className="pointer-events-none absolute left-[-7rem] top-40 -z-10 h-56 w-56 rounded-full bg-[rgba(103,203,255,0.12)] blur-[90px]" />
-      <div data-animate="hero-glow-right" className="pointer-events-none absolute right-[-5rem] top-28 -z-10 h-64 w-64 rounded-full bg-[rgba(45,107,255,0.12)] blur-[100px]" />
+      <div className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-[48rem] bg-[radial-gradient(circle_at_top,rgba(232,64,30,0.10),transparent_34%)]" />
+      <div data-animate="hero-glow-left" className="pointer-events-none absolute left-[-7rem] top-40 -z-10 h-56 w-56 rounded-full bg-[rgba(232,64,30,0.08)] blur-[90px]" />
+      <div data-animate="hero-glow-right" className="pointer-events-none absolute right-[-5rem] top-28 -z-10 h-64 w-64 rounded-full bg-[rgba(34,34,34,0.05)] blur-[100px]" />
 
       <div className="mx-auto flex w-full max-w-[95rem] flex-col gap-8 px-4 py-5 sm:px-6 lg:px-8 lg:py-8">
-        <header className="sticky top-4 z-30 rounded-full border border-[var(--border-soft)] bg-white/92 px-4 py-3 shadow-[var(--shadow-soft)]">
+        <header className="sticky top-4 z-30 rounded-full border border-[var(--border-soft)] bg-[rgba(255,252,248,0.94)] px-4 py-3 shadow-[var(--shadow-soft)]">
           <div className="flex items-center justify-between gap-4 md:grid md:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] md:items-center md:gap-6">
             <Link href="/" className="flex items-center md:justify-self-start">
               <p className="text-[1.45rem] font-semibold tracking-[-0.08em] text-[var(--foreground)] md:text-[1.6rem]">
@@ -303,7 +303,7 @@ export function SlipwiseHome({ className }: SlipwiseHomeProps) {
               <button
                 type="button"
                 onClick={openWorkspaceDialog}
-                className="rounded-full bg-[var(--foreground)] px-5 py-2.5 text-sm font-semibold text-white shadow-[var(--shadow-soft)] transition-all duration-200 hover:bg-[#0f172a] hover:shadow-[var(--shadow-card)]"
+                className="rounded-full bg-[var(--accent)] px-5 py-2.5 text-sm font-semibold text-white shadow-[var(--shadow-soft)] transition-all duration-200 hover:bg-[var(--accent-strong)] hover:shadow-[var(--shadow-card)]"
               >
                 Start free
               </button>
@@ -313,11 +313,11 @@ export function SlipwiseHome({ className }: SlipwiseHomeProps) {
 
         <section data-animate="hero" className="grid gap-10 pt-8 lg:min-h-[calc(100vh-8rem)] lg:grid-cols-[minmax(0,0.96fr)_minmax(32rem,0.94fr)] lg:items-center lg:pt-10">
           <div className="max-w-3xl self-center">
-            <div data-animate="hero-eyebrow" className="inline-flex items-center gap-2 rounded-full border border-[var(--accent-soft)] bg-white/75 px-4 py-2 text-[0.72rem] font-semibold uppercase tracking-[0.28em] text-[var(--accent-strong)] shadow-[var(--shadow-soft)] backdrop-blur">
+            <div data-animate="hero-eyebrow" className="inline-flex items-center gap-2 rounded-full border border-[var(--accent-soft)] bg-[rgba(255,252,248,0.8)] px-4 py-2 text-[0.72rem] font-semibold uppercase tracking-[0.24em] text-[var(--accent)] shadow-[var(--shadow-soft)] backdrop-blur">
               For HR, ops, and finance teams
             </div>
 
-            <h1 className="mt-5 max-w-3xl text-[3rem] leading-[0.94] text-[var(--foreground)] md:text-[3.65rem] xl:text-[4.2rem]">
+            <h1 className="mt-5 max-w-3xl text-[3rem] leading-[0.97] text-[var(--foreground)] md:text-[3.55rem] xl:text-[4rem]">
               {heroLines.map((line) => (
                 <span key={line} className="block overflow-hidden pb-1">
                   <span data-animate="hero-line" className="block origin-left will-change-transform">
@@ -336,7 +336,7 @@ export function SlipwiseHome({ className }: SlipwiseHomeProps) {
                 type="button"
                 onClick={openWorkspaceDialog}
                 data-animate="hero-cta"
-                className="rounded-full bg-[var(--foreground)] px-6 py-3.5 text-sm font-semibold text-white shadow-[var(--shadow-lift)] transition-all duration-200 hover:bg-[#0f172a] hover:shadow-[0_24px_44px_rgba(15,23,42,0.2)]"
+                className="rounded-full bg-[var(--accent)] px-6 py-3.5 text-sm font-semibold text-white shadow-[var(--shadow-lift)] transition-all duration-200 hover:bg-[var(--accent-strong)] hover:shadow-[0_24px_44px_rgba(34,34,34,0.16)]"
               >
                 Open a workspace
               </button>
@@ -361,9 +361,9 @@ export function SlipwiseHome({ className }: SlipwiseHomeProps) {
                 <div
                   key={item.label}
                   data-animate="hero-chip"
-                  className="flex items-start gap-3 rounded-[1.15rem] border border-[var(--border-soft)] bg-white/88 px-4 py-3 text-sm leading-7 text-[var(--foreground-soft)] shadow-[var(--shadow-soft)]"
+                  className="flex items-start gap-3 rounded-[1.15rem] border border-[var(--border-soft)] bg-[rgba(255,252,248,0.92)] px-4 py-3 text-sm leading-7 text-[var(--foreground-soft)] shadow-[var(--shadow-soft)]"
                 >
-                  <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[var(--surface-soft)] text-[var(--accent-strong)]">
+                  <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[var(--surface-soft)] text-[var(--accent)]">
                     <Icon className="h-4.5 w-4.5" />
                   </span>
                   <span>{item.label}</span>
@@ -379,9 +379,9 @@ export function SlipwiseHome({ className }: SlipwiseHomeProps) {
         <section
           id="features"
           data-animate="features-section"
-          className="mt-6 grid gap-6 rounded-[2.7rem] border border-[var(--border-strong)] bg-white/88 p-6 shadow-[var(--shadow-card)] md:p-8 xl:grid-cols-[1.05fr_0.95fr]"
+          className="mt-6 grid gap-6 rounded-[2.7rem] border border-[var(--border-strong)] bg-[rgba(255,252,248,0.9)] p-6 shadow-[var(--shadow-card)] md:p-8 xl:grid-cols-[1.05fr_0.95fr]"
         >
-          <div data-animate="feature-story" className="rounded-[2.2rem] bg-[linear-gradient(180deg,rgba(255,255,255,0.96),rgba(236,244,255,0.84))] p-7 shadow-[var(--shadow-soft)]">
+          <div data-animate="feature-story" className="rounded-[2.2rem] bg-[linear-gradient(180deg,rgba(255,255,255,0.96),rgba(245,238,232,0.88))] p-7 shadow-[var(--shadow-soft)]">
             <SectionHeading
               eyebrow="Feature story"
               title="One product for the documents teams create every week."
@@ -408,11 +408,11 @@ export function SlipwiseHome({ className }: SlipwiseHomeProps) {
                 data-animate="feature-card"
                 className={`rounded-[1.8rem] border p-6 shadow-[var(--shadow-soft)] ${
                   index === 0
-                    ? "border-[rgba(45,107,255,0.18)] bg-[linear-gradient(180deg,rgba(45,107,255,0.10),rgba(255,255,255,0.96))]"
+                    ? "border-[rgba(232,64,30,0.16)] bg-[linear-gradient(180deg,rgba(232,64,30,0.08),rgba(255,255,255,0.96))]"
                     : "border-[var(--border-soft)] bg-white/90"
                 }`}
               >
-                <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[var(--surface-soft)] text-[var(--accent-strong)] shadow-[var(--shadow-soft)]">
+                <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[var(--surface-soft)] text-[var(--accent)] shadow-[var(--shadow-soft)]">
                   <item.icon className="h-5 w-5" />
                 </span>
                 <p className="text-xl font-semibold text-[var(--foreground)]">
@@ -444,7 +444,7 @@ export function SlipwiseHome({ className }: SlipwiseHomeProps) {
         <section
           id="solutions"
           data-animate="solutions-section"
-          className="rounded-[2.7rem] border border-[var(--border-strong)] bg-white/88 p-6 shadow-[var(--shadow-card)] md:p-8"
+          className="rounded-[2.7rem] border border-[var(--border-strong)] bg-[rgba(255,252,248,0.9)] p-6 shadow-[var(--shadow-card)] md:p-8"
         >
           <div data-animate="section-heading">
             <SectionHeading
@@ -459,13 +459,13 @@ export function SlipwiseHome({ className }: SlipwiseHomeProps) {
               <article
                 key={item.role}
                 data-animate="solution-card"
-                className="rounded-[1.8rem] border border-[var(--border-soft)] bg-[linear-gradient(180deg,rgba(255,255,255,0.96),rgba(240,246,255,0.9))] p-6 shadow-[var(--shadow-soft)]"
+                className="rounded-[1.8rem] border border-[var(--border-soft)] bg-[linear-gradient(180deg,rgba(255,255,255,0.96),rgba(247,240,233,0.92))] p-6 shadow-[var(--shadow-soft)]"
               >
                 <div className="flex items-center gap-3">
-                  <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-white text-[var(--accent-strong)] shadow-[var(--shadow-soft)]">
+                  <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-white text-[var(--accent)] shadow-[var(--shadow-soft)]">
                     <item.icon className="h-5 w-5" />
                   </span>
-                  <p className="text-[0.72rem] font-semibold uppercase tracking-[0.32em] text-[var(--accent-strong)]">
+                  <p className="text-[0.72rem] font-semibold uppercase tracking-[0.28em] text-[var(--accent)]">
                     {item.role}
                   </p>
                 </div>
@@ -481,9 +481,9 @@ export function SlipwiseHome({ className }: SlipwiseHomeProps) {
         <section
           id="workflow"
           data-animate="workflow-section"
-          className="rounded-[2.7rem] border border-[var(--border-strong)] bg-white/90 p-6 shadow-[var(--shadow-card)] md:p-8"
+          className="rounded-[2.7rem] border border-[var(--border-strong)] bg-[rgba(255,252,248,0.92)] p-6 shadow-[var(--shadow-card)] md:p-8"
         >
-          <div data-animate="section-heading" className="rounded-[2rem] bg-[linear-gradient(180deg,rgba(255,255,255,0.96),rgba(239,245,255,0.92))] p-6 shadow-[var(--shadow-soft)]">
+          <div data-animate="section-heading" className="rounded-[2rem] bg-[linear-gradient(180deg,rgba(255,255,255,0.96),rgba(247,240,233,0.94))] p-6 shadow-[var(--shadow-soft)]">
             <SectionHeading
               eyebrow="Workflow"
               title="Three steps from structured input to clean export."
@@ -499,10 +499,10 @@ export function SlipwiseHome({ className }: SlipwiseHomeProps) {
                 className="rounded-[1.8rem] border border-[var(--border-soft)] bg-white/92 p-6 shadow-[var(--shadow-soft)]"
               >
                 <div className="flex items-center justify-between gap-4">
-                  <span data-animate="workflow-step" className="text-[0.78rem] font-semibold uppercase tracking-[0.34em] text-[var(--accent-strong)]">
+                  <span data-animate="workflow-step" className="text-[0.78rem] font-semibold uppercase tracking-[0.28em] text-[var(--accent)]">
                     {item.step}
                   </span>
-                  <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-[var(--surface-soft)] text-[var(--accent-strong)]">
+                  <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-[var(--surface-soft)] text-[var(--accent)]">
                     <item.icon className="h-4.5 w-4.5" />
                   </span>
                 </div>
@@ -519,7 +519,7 @@ export function SlipwiseHome({ className }: SlipwiseHomeProps) {
           id="workspaces"
           ref={workspacesRef}
           data-animate="generators-section"
-          className="rounded-[2.7rem] border border-[var(--border-strong)] bg-white/88 p-6 shadow-[var(--shadow-card)] md:p-8"
+          className="rounded-[2.7rem] border border-[var(--border-strong)] bg-[rgba(255,252,248,0.9)] p-6 shadow-[var(--shadow-card)] md:p-8"
         >
           <div data-animate="section-heading">
             <SectionHeading
@@ -539,7 +539,7 @@ export function SlipwiseHome({ className }: SlipwiseHomeProps) {
         <section
           id="faq"
           data-animate="faq-section"
-          className="grid gap-6 rounded-[2.7rem] border border-[var(--border-strong)] bg-white/88 p-6 shadow-[var(--shadow-card)] md:p-8 lg:grid-cols-[0.8fr_1.2fr]"
+          className="grid gap-6 rounded-[2.7rem] border border-[var(--border-strong)] bg-[rgba(255,252,248,0.9)] p-6 shadow-[var(--shadow-card)] md:p-8 lg:grid-cols-[0.8fr_1.2fr]"
         >
           <div data-animate="section-heading">
             <SectionHeading
@@ -589,7 +589,7 @@ export function SlipwiseHome({ className }: SlipwiseHomeProps) {
                 type="button"
                 onClick={openWorkspaceDialog}
                 data-animate="final-cta-action"
-                className="rounded-full bg-[var(--foreground)] px-7 py-4 text-sm font-semibold text-white shadow-[var(--shadow-soft)] transition-all duration-200 hover:bg-[#0f172a] hover:shadow-[var(--shadow-card)]"
+                className="rounded-full bg-[var(--accent)] px-7 py-4 text-sm font-semibold text-white shadow-[var(--shadow-soft)] transition-all duration-200 hover:bg-[var(--accent-strong)] hover:shadow-[var(--shadow-card)]"
               >
                 Start free
               </button>
@@ -634,7 +634,7 @@ export function SlipwiseHome({ className }: SlipwiseHomeProps) {
 
       <div
         className={cn(
-          "fixed inset-0 z-50 flex items-end justify-center bg-[rgba(15,23,42,0.28)] px-4 pb-4 pt-24 transition-opacity duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] md:items-center md:px-6",
+          "fixed inset-0 z-50 flex items-end justify-center bg-[rgba(34,34,34,0.24)] px-4 pb-4 pt-24 transition-opacity duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] md:items-center md:px-6",
           isWorkspaceDialogOpen ? "pointer-events-auto opacity-100" : "pointer-events-none opacity-0",
         )}
         onClick={closeWorkspaceDialog}
@@ -645,7 +645,7 @@ export function SlipwiseHome({ className }: SlipwiseHomeProps) {
           aria-hidden={!isWorkspaceDialogOpen}
           aria-label="Choose a Slipwise workspace"
           className={cn(
-            "w-full max-w-5xl transform-gpu rounded-[2rem] border border-[var(--border-strong)] bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(244,248,255,0.98))] p-5 shadow-[0_22px_52px_rgba(15,23,42,0.12)] transition-[opacity,transform] duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] will-change-transform md:p-8",
+            "w-full max-w-5xl transform-gpu rounded-[2rem] border border-[var(--border-strong)] bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(247,241,235,0.98))] p-5 shadow-[0_22px_52px_rgba(34,34,34,0.10)] transition-[opacity,transform] duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] will-change-transform md:p-8",
             isWorkspaceDialogOpen ? "translate-y-0 scale-100 opacity-100" : "translate-y-3 scale-[0.992] opacity-0",
           )}
           onClick={(event) => event.stopPropagation()}
@@ -689,7 +689,7 @@ export function SlipwiseHome({ className }: SlipwiseHomeProps) {
                     <p className="text-[0.72rem] font-semibold uppercase tracking-[0.32em] text-[var(--muted-foreground)]">
                       {module.eyebrow}
                     </p>
-                    <span className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-[1rem] border border-[var(--border-soft)] bg-[var(--surface-soft)] text-[var(--accent-strong)] transition-colors group-hover:border-[var(--accent-soft)] group-hover:bg-white">
+                    <span className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-[1rem] border border-[var(--border-soft)] bg-[var(--surface-soft)] text-[var(--accent)] transition-colors group-hover:border-[var(--accent-soft)] group-hover:bg-white">
                       <Icon className="h-5 w-5" />
                     </span>
                   </div>
@@ -699,7 +699,7 @@ export function SlipwiseHome({ className }: SlipwiseHomeProps) {
                   <p className="mt-3 text-sm leading-7 text-[var(--muted-foreground)]">
                     {module.description}
                   </p>
-                  <div className="mt-5 inline-flex items-center gap-2 text-sm font-semibold text-[var(--accent-strong)]">
+                  <div className="mt-5 inline-flex items-center gap-2 text-sm font-semibold text-[var(--accent)]">
                     Open workspace
                     <span
                       aria-hidden="true"
