@@ -54,8 +54,8 @@ function buildFeatureTimeline(section: HTMLElement) {
       story,
       {
         opacity: 0,
-        x: -28,
-        duration: 0.58,
+        x: -20,
+        duration: 0.54,
       },
       "-=0.26",
     )
@@ -63,9 +63,9 @@ function buildFeatureTimeline(section: HTMLElement) {
       cards,
       {
         opacity: 0,
-        y: 22,
-        stagger: 0.08,
-        duration: 0.4,
+        y: 18,
+        stagger: 0.07,
+        duration: 0.34,
       },
       "-=0.36",
     )
@@ -73,8 +73,8 @@ function buildFeatureTimeline(section: HTMLElement) {
       extra,
       {
         opacity: 0,
-        y: 16,
-        duration: 0.36,
+        y: 12,
+        duration: 0.3,
       },
       "-=0.24",
     );
@@ -101,9 +101,9 @@ function buildSolutionTimeline(section: HTMLElement) {
       cards,
       {
         opacity: 0,
-        y: 26,
-        stagger: 0.1,
-        duration: 0.44,
+        y: 18,
+        stagger: 0.08,
+        duration: 0.34,
       },
       "-=0.22",
     );
@@ -129,9 +129,9 @@ function buildWorkflowTimeline(section: HTMLElement) {
       cards,
       {
         opacity: 0,
-        y: 22,
-        stagger: 0.11,
-        duration: 0.44,
+        y: 18,
+        stagger: 0.09,
+        duration: 0.34,
       },
       "-=0.2",
     )
@@ -139,9 +139,9 @@ function buildWorkflowTimeline(section: HTMLElement) {
       steps,
       {
         opacity: 0,
-        scale: 0.94,
-        stagger: 0.11,
-        duration: 0.24,
+        scale: 0.97,
+        stagger: 0.09,
+        duration: 0.2,
       },
       "-=0.38",
     );
@@ -166,9 +166,9 @@ function buildGeneratorTimeline(section: HTMLElement) {
       cards,
       {
         opacity: 0,
-        y: 24,
-        stagger: 0.1,
-        duration: 0.46,
+        y: 18,
+        stagger: 0.08,
+        duration: 0.34,
       },
       "-=0.24",
     );
@@ -193,9 +193,9 @@ function buildFaqTimeline(section: HTMLElement) {
       cards,
       {
         opacity: 0,
-        y: 18,
-        stagger: 0.07,
-        duration: 0.32,
+        y: 14,
+        stagger: 0.06,
+        duration: 0.28,
       },
       "-=0.16",
     );
@@ -220,9 +220,9 @@ function buildFinalCtaTimeline(section: HTMLElement) {
       actions,
       {
         opacity: 0,
-        y: 16,
-        stagger: 0.08,
-        duration: 0.34,
+        y: 12,
+        stagger: 0.06,
+        duration: 0.28,
       },
       "-=0.2",
     );
@@ -243,7 +243,7 @@ function buildDesktopHero() {
 
   return gsap
     .timeline({
-      defaults: { ease: "power3.out" },
+      defaults: { ease: "power2.out" },
       onComplete: () =>
         clearMotion([
           "[data-animate='hero-eyebrow']",
@@ -260,7 +260,7 @@ function buildDesktopHero() {
     .from("[data-animate='hero-eyebrow']",
       {
         opacity: 0,
-        x: -14,
+        x: -10,
         duration: 0.36,
       })
     .from(
@@ -268,8 +268,8 @@ function buildDesktopHero() {
       {
         yPercent: 108,
         opacity: 0,
-        stagger: 0.1,
-        duration: 0.7,
+        stagger: 0.08,
+        duration: 0.58,
       },
       "-=0.04",
     )
@@ -277,8 +277,8 @@ function buildDesktopHero() {
       "[data-animate='hero-copy']",
       {
         opacity: 0,
-        y: 18,
-        duration: 0.36,
+        y: 14,
+        duration: 0.32,
       },
       "-=0.38",
     )
@@ -286,9 +286,9 @@ function buildDesktopHero() {
       "[data-animate='hero-cta']",
       {
         opacity: 0,
-        y: 16,
-        stagger: 0.08,
-        duration: 0.28,
+        y: 12,
+        stagger: 0.06,
+        duration: 0.24,
       },
       "-=0.16",
     )
@@ -296,9 +296,9 @@ function buildDesktopHero() {
       "[data-animate='hero-chip']",
       {
         opacity: 0,
-        y: 14,
-        stagger: 0.05,
-        duration: 0.26,
+        y: 10,
+        stagger: 0.04,
+        duration: 0.22,
       },
       "-=0.08",
     )
@@ -306,8 +306,8 @@ function buildDesktopHero() {
       "[data-animate='mockup-shell']",
       {
         opacity: 0,
-        y: 20,
-        duration: 0.56,
+        y: 16,
+        duration: 0.46,
       },
       "-=0.38",
     )
@@ -315,9 +315,9 @@ function buildDesktopHero() {
       "[data-animate='mockup-pane']",
       {
         opacity: 0,
-        y: 14,
-        stagger: 0.06,
-        duration: 0.3,
+        y: 12,
+        stagger: 0.05,
+        duration: 0.24,
       },
       "-=0.28",
     )
@@ -325,9 +325,9 @@ function buildDesktopHero() {
       "[data-animate='mockup-stat']",
       {
         opacity: 0,
-        y: 12,
-        stagger: 0.05,
-        duration: 0.24,
+        y: 10,
+        stagger: 0.04,
+        duration: 0.2,
       },
       "-=0.12",
     )
@@ -335,9 +335,9 @@ function buildDesktopHero() {
       "[data-animate='mockup-capability']",
       {
         opacity: 0,
-        y: 12,
-        stagger: 0.05,
-        duration: 0.22,
+        y: 10,
+        stagger: 0.04,
+        duration: 0.2,
       },
       "-=0.14",
     );
@@ -369,16 +369,16 @@ function buildMobileHero() {
     .from("[data-animate='hero-eyebrow']",
       {
         opacity: 0,
-        y: 14,
-        duration: 0.3,
+        y: 10,
+        duration: 0.26,
       })
     .from(
       "[data-animate='hero-line']",
       {
         yPercent: 106,
         opacity: 0,
-        stagger: 0.08,
-        duration: 0.56,
+        stagger: 0.06,
+        duration: 0.48,
       },
       "-=0.02",
     )
@@ -386,8 +386,8 @@ function buildMobileHero() {
       "[data-animate='hero-copy']",
       {
         opacity: 0,
-        y: 14,
-        duration: 0.28,
+        y: 10,
+        duration: 0.24,
       },
       "-=0.28",
     )
@@ -395,9 +395,9 @@ function buildMobileHero() {
       "[data-animate='hero-cta']",
       {
         opacity: 0,
-        y: 12,
-        stagger: 0.06,
-        duration: 0.24,
+        y: 10,
+        stagger: 0.05,
+        duration: 0.2,
       },
       "-=0.12",
     )
@@ -405,9 +405,9 @@ function buildMobileHero() {
       "[data-animate='hero-chip']",
       {
         opacity: 0,
-        y: 10,
-        stagger: 0.05,
-        duration: 0.2,
+        y: 8,
+        stagger: 0.04,
+        duration: 0.18,
       },
       "-=0.08",
     )
@@ -415,8 +415,8 @@ function buildMobileHero() {
       "[data-animate='mockup-shell']",
       {
         opacity: 0,
-        y: 16,
-        duration: 0.36,
+        y: 12,
+        duration: 0.28,
       },
       "-=0.2",
     );
@@ -491,9 +491,9 @@ export function useHomepageAnimations(rootRef: RootRef) {
                   })
                   .from(items, {
                     opacity: 0,
-                    y: 14,
-                    stagger: 0.06,
-                    duration: 0.24,
+                    y: 12,
+                    stagger: 0.05,
+                    duration: 0.2,
                   });
               },
               "top 86%",

@@ -53,9 +53,9 @@ export function ModuleCard({ module }: ModuleCardProps) {
   return (
     <article
       data-animate="generator-card"
-      className="group relative overflow-hidden rounded-[2.25rem] border border-[var(--border-strong)] bg-[linear-gradient(180deg,rgba(255,255,255,0.96),rgba(246,240,234,0.98))] p-6 shadow-[var(--shadow-soft)]"
+      className="group relative overflow-hidden rounded-[2.35rem] border border-[var(--border-strong)] bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(248,241,235,0.98))] p-6 shadow-[var(--shadow-soft)]"
     >
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(232,64,30,0.12),transparent_42%),radial-gradient(circle_at_bottom_left,rgba(34,34,34,0.05),transparent_32%)] opacity-0 transition-opacity duration-200 group-hover:opacity-100" />
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(232,64,30,0.10),transparent_42%),radial-gradient(circle_at_bottom_left,rgba(34,34,34,0.04),transparent_32%)] opacity-0 transition-opacity duration-200 group-hover:opacity-100" />
       <div className="relative flex h-full flex-col gap-6">
         <div className="flex items-start justify-between gap-4">
           <div>
@@ -65,13 +65,13 @@ export function ModuleCard({ module }: ModuleCardProps) {
             <p className="mt-4 text-[0.68rem] font-semibold uppercase tracking-[0.32em] text-[var(--muted-foreground)]">
               {module.eyebrow}
             </p>
-            <h3 className="mt-3 text-[1.45rem] leading-[1.08] tracking-[-0.04em] text-[var(--foreground)] md:text-[1.6rem]">
+            <h3 className="mt-3 text-[1.38rem] leading-[1.08] tracking-[-0.04em] text-[var(--foreground)] md:text-[1.52rem]">
               {module.name}
             </h3>
           </div>
         </div>
 
-        <p className="max-w-sm text-[0.95rem] leading-7 text-[var(--muted-foreground)]">
+        <p className="max-w-sm text-[0.95rem] leading-7 text-[var(--foreground-soft)]">
           {module.description}
         </p>
 
@@ -86,7 +86,7 @@ export function ModuleCard({ module }: ModuleCardProps) {
 
         <Link
           href={`/${module.slug}`}
-          className="mt-auto inline-flex w-fit items-center gap-2 rounded-full bg-[linear-gradient(135deg,var(--accent),var(--accent-strong))] px-4 py-2 text-sm font-medium text-white shadow-[0_16px_30px_rgba(34,34,34,0.10)] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_22px_36px_rgba(34,34,34,0.14)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--background)]"
+          className="mt-auto inline-flex w-fit items-center gap-2 rounded-full bg-[linear-gradient(135deg,var(--accent),var(--accent-strong))] px-4 py-2 text-sm font-medium text-white shadow-[0_16px_30px_rgba(232,64,30,0.16)] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_22px_36px_rgba(232,64,30,0.2)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--background)]"
         >
           Open workspace
           <span aria-hidden="true">→</span>
