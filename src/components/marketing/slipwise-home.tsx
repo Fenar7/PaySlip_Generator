@@ -415,7 +415,7 @@ export function SlipwiseHome({ className }: SlipwiseHomeProps) {
                 <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[var(--surface-soft)] text-[var(--accent)] shadow-[var(--shadow-soft)]">
                   <item.icon className="h-5 w-5" />
                 </span>
-                <p className="text-xl font-semibold text-[var(--foreground)]">
+                <p className="text-xl font-medium text-[var(--foreground)]">
                   {item.title}
                 </p>
                 <p className="mt-4 text-base leading-8 text-[var(--muted-foreground)]">
@@ -428,14 +428,14 @@ export function SlipwiseHome({ className }: SlipwiseHomeProps) {
               data-animate="feature-card"
               className="rounded-[1.5rem] border border-[var(--border-soft)] bg-white p-6 shadow-[var(--shadow-soft)]"
             >
-              <p className="text-[0.72rem] font-semibold uppercase tracking-[0.32em] text-[var(--muted-foreground)]">
-                Core benefit
-              </p>
-              <p className="mt-4 text-2xl font-semibold text-[var(--foreground)]">
-                Faster to prepare. Easier to trust.
+              <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[var(--surface-soft)] text-[var(--accent)] shadow-[var(--shadow-soft)]">
+                <SparkIcon className="h-5 w-5" />
+              </span>
+              <p className="mt-4 text-xl font-medium text-[var(--foreground)]">
+                Faster preparation
               </p>
               <p className="mt-4 text-base leading-8 text-[var(--muted-foreground)]">
-                Slipwise gives teams a cleaner way to produce recurring business documents without adding another formatting tool to the process.
+                Prepare recurring documents with less formatting overhead and more confidence in the final output.
               </p>
             </article>
           </div>
