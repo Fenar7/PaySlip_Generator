@@ -76,7 +76,7 @@ function InvoiceLineItemsEditor() {
           key={field.id}
           className="rounded-[1.1rem] border border-[var(--border-soft)] bg-[var(--surface-soft)] p-4"
         >
-          <div className="grid gap-4 md:grid-cols-2">
+          <div className="grid gap-4 sm:grid-cols-2">
             <FieldShell label="Description" htmlFor={`lineItems-${index}-description`}>
               <input
                 id={`lineItems-${index}-description`}
@@ -126,7 +126,7 @@ function InvoiceLineItemsEditor() {
                 type="button"
                 onClick={() => remove(index)}
                 disabled={fields.length === 1}
-                className="slipwise-btn slipwise-btn-inline-muted inline-flex h-[3rem] items-center justify-center px-4 text-sm disabled:cursor-not-allowed disabled:opacity-50"
+                className="slipwise-btn slipwise-btn-inline-muted inline-flex h-[3rem] w-full items-center justify-center px-4 text-sm disabled:cursor-not-allowed disabled:opacity-50"
               >
                 Remove
               </button>
@@ -387,7 +387,7 @@ function InvoicePanel() {
                   rows={3}
                   placeholder="18 Market Road, Kozhikode"
                 />
-                <div className="grid gap-4 md:grid-cols-2">
+                <div className="grid gap-4 sm:grid-cols-2">
                   <TextField<InvoiceFormValues>
                     name="branding.email"
                     label="Business email"
@@ -399,7 +399,7 @@ function InvoicePanel() {
                     placeholder="+91 98765 43210"
                   />
                 </div>
-                <div className="grid gap-4 md:grid-cols-2">
+                <div className="grid gap-4 sm:grid-cols-2">
                   <TextField<InvoiceFormValues>
                     name="website"
                     label="Website"
@@ -411,7 +411,7 @@ function InvoicePanel() {
                     placeholder="GSTIN 32ABCDE1234F1Z6"
                   />
                 </div>
-                <div className="grid gap-4 md:grid-cols-2">
+                <div className="grid gap-4 sm:grid-cols-2">
                   <ColorField<InvoiceFormValues>
                     name="branding.accentColor"
                     label="Accent color"
@@ -449,7 +449,7 @@ function InvoicePanel() {
                   rows={3}
                   placeholder="Warehouse Bay 3, Marine Drive, Kochi"
                 />
-                <div className="grid gap-4 md:grid-cols-2">
+                <div className="grid gap-4 sm:grid-cols-2">
                   <TextField<InvoiceFormValues>
                     name="clientEmail"
                     label="Client email"
@@ -481,7 +481,7 @@ function InvoicePanel() {
                   required
                   placeholder="INV-2026-031"
                 />
-                <div className="grid gap-4 md:grid-cols-2">
+                <div className="grid gap-4 sm:grid-cols-2">
                   <TextField<InvoiceFormValues>
                     name="invoiceDate"
                     label="Invoice date"
@@ -494,7 +494,7 @@ function InvoicePanel() {
                     type="date"
                   />
                 </div>
-                <div className="grid gap-4 md:grid-cols-2">
+                <div className="grid gap-4 sm:grid-cols-2">
                   <TextField<InvoiceFormValues>
                     name="placeOfSupply"
                     label="Place of supply"
@@ -517,7 +517,7 @@ function InvoicePanel() {
                 description="Each line supports quantity, discount, and tax without leaving the form."
               >
                 <InvoiceLineItemsEditor />
-                <div className="grid gap-4 md:grid-cols-2">
+                <div className="grid gap-4 sm:grid-cols-2">
                   <TextField<InvoiceFormValues>
                     name="extraCharges"
                     label="Extra charges"
@@ -552,7 +552,7 @@ function InvoicePanel() {
                   rows={3}
                   placeholder="Payment due within 7 days."
                 />
-                <div className="grid gap-4 md:grid-cols-2">
+                <div className="grid gap-4 sm:grid-cols-2">
                   <TextField<InvoiceFormValues>
                     name="bankName"
                     label="Bank name"
@@ -564,7 +564,7 @@ function InvoicePanel() {
                     placeholder="122001004281"
                   />
                 </div>
-                <div className="grid gap-4 md:grid-cols-2">
+                <div className="grid gap-4 sm:grid-cols-2">
                   <TextField<InvoiceFormValues>
                     name="bankIfsc"
                     label="IFSC"
@@ -585,7 +585,7 @@ function InvoicePanel() {
                 title="Optional sections"
                 description="Hide optional business, client, and footer blocks without affecting totals."
               >
-                <div className="grid gap-4 md:grid-cols-2">
+                <div className="grid gap-4 sm:grid-cols-2">
                   <ToggleField<InvoiceFormValues>
                     name="visibility.showAddress"
                     label="Business address"

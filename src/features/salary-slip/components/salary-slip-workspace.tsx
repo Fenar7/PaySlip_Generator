@@ -78,10 +78,11 @@ function SalaryLineItemsEditor({
           key={field.id}
           className="rounded-[1.1rem] border border-[var(--border-soft)] bg-[var(--surface-soft)] p-4"
         >
-          <div className="grid gap-4 md:grid-cols-[1fr_10rem_auto] md:items-end">
+          <div className="flex flex-wrap items-end gap-4">
             <FieldShell
               label={`${emptyLabel} label`}
               htmlFor={`${name}-${index}-label`}
+              className="min-w-[8rem] flex-1"
             >
               <input
                 id={`${name}-${index}-label`}
@@ -93,6 +94,7 @@ function SalaryLineItemsEditor({
             <FieldShell
               label="Amount"
               htmlFor={`${name}-${index}-amount`}
+              className="w-[9rem] shrink-0"
             >
               <input
                 id={`${name}-${index}-amount`}
@@ -106,7 +108,7 @@ function SalaryLineItemsEditor({
               type="button"
               onClick={() => remove(index)}
               disabled={fields.length === 1 && name === "earnings"}
-              className="slipwise-btn slipwise-btn-inline-muted inline-flex h-[3rem] items-center justify-center px-4 text-sm disabled:cursor-not-allowed disabled:opacity-50"
+              className="slipwise-btn slipwise-btn-inline-muted inline-flex h-[3rem] shrink-0 items-center justify-center px-4 text-sm disabled:cursor-not-allowed disabled:opacity-50"
             >
               Remove
             </button>
@@ -375,7 +377,7 @@ function SalarySlipPanel() {
                   rows={3}
                   placeholder="18 Market Road, Kozhikode"
                 />
-                <div className="grid gap-4 md:grid-cols-2">
+                <div className="grid gap-4 sm:grid-cols-2">
                   <TextField<SalarySlipFormValues>
                     name="branding.email"
                     label="Email"
@@ -387,7 +389,7 @@ function SalarySlipPanel() {
                     placeholder="+91 98765 43210"
                   />
                 </div>
-                <div className="grid gap-4 md:grid-cols-2">
+                <div className="grid gap-4 sm:grid-cols-2">
                   <ColorField<SalarySlipFormValues>
                     name="branding.accentColor"
                     label="Accent color"
@@ -413,7 +415,7 @@ function SalarySlipPanel() {
                   required
                   placeholder="Arun Dev"
                 />
-                <div className="grid gap-4 md:grid-cols-2">
+                <div className="grid gap-4 sm:grid-cols-2">
                   <TextField<SalarySlipFormValues>
                     name="employeeId"
                     label="Employee ID"
@@ -425,7 +427,7 @@ function SalarySlipPanel() {
                     placeholder="Site Coordinator"
                   />
                 </div>
-                <div className="grid gap-4 md:grid-cols-2">
+                <div className="grid gap-4 sm:grid-cols-2">
                   <TextField<SalarySlipFormValues>
                     name="department"
                     label="Department"
@@ -437,7 +439,7 @@ function SalarySlipPanel() {
                     placeholder="Kozhikode HQ"
                   />
                 </div>
-                <div className="grid gap-4 md:grid-cols-2">
+                <div className="grid gap-4 sm:grid-cols-2">
                   <TextField<SalarySlipFormValues>
                     name="pan"
                     label="PAN"
@@ -463,7 +465,7 @@ function SalarySlipPanel() {
                 title="Pay period and attendance"
                 description="Attendance values are informational here and do not drive payroll proration."
               >
-                <div className="grid gap-4 md:grid-cols-2">
+                <div className="grid gap-4 sm:grid-cols-2">
                   <TextField<SalarySlipFormValues>
                     name="month"
                     label="Month"
@@ -478,14 +480,14 @@ function SalarySlipPanel() {
                     placeholder="2026"
                   />
                 </div>
-                <div className="grid gap-4 md:grid-cols-2">
+                <div className="grid gap-4 sm:grid-cols-2">
                   <TextField<SalarySlipFormValues>
                     name="payDate"
                     label="Pay date"
                     type="date"
                   />
                 </div>
-                <div className="grid gap-4 md:grid-cols-2">
+                <div className="grid gap-4 sm:grid-cols-2">
                   <TextField<SalarySlipFormValues>
                     name="workingDays"
                     label="Working days"
@@ -541,7 +543,7 @@ function SalarySlipPanel() {
                 title="Notes and signature"
                 description="This section controls how the pay note and acknowledgement appear in the preview."
               >
-                <div className="grid gap-4 md:grid-cols-2">
+                <div className="grid gap-4 sm:grid-cols-2">
                   <TextField<SalarySlipFormValues>
                     name="paymentMethod"
                     label="Payment method"
@@ -553,7 +555,7 @@ function SalarySlipPanel() {
                     placeholder="Federal Bank"
                   />
                 </div>
-                <div className="grid gap-4 md:grid-cols-2">
+                <div className="grid gap-4 sm:grid-cols-2">
                   <TextField<SalarySlipFormValues>
                     name="bankAccountNumber"
                     label="Account number"
@@ -585,7 +587,7 @@ function SalarySlipPanel() {
                 title="Show or hide optional blocks"
                 description="These controls let the preview collapse optional payroll details cleanly."
               >
-                <div className="grid gap-4 md:grid-cols-2">
+                <div className="grid gap-4 sm:grid-cols-2">
                   <ToggleField<SalarySlipFormValues>
                     name="visibility.showAddress"
                     label="Address"

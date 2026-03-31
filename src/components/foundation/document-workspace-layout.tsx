@@ -254,7 +254,7 @@ export function DocumentWorkspaceLayout({
               </div>
 
               {isDesktopWorkspace ? (
-                <div className="mt-4 flex flex-wrap gap-2">
+                <div className="mt-4 flex flex-wrap gap-2 xl:hidden">
                   {actions.map((action) => renderAction(action, true))}
                 </div>
               ) : null}
@@ -292,7 +292,7 @@ export function DocumentWorkspaceLayout({
           </div>
         ) : null}
 
-        <div className="grid gap-5 xl:grid-cols-[14rem_minmax(24rem,30rem)_minmax(0,1fr)] xl:items-start">
+        <div className="grid gap-5 xl:grid-cols-[14rem_1fr] xl:items-start">
           <aside className="hidden xl:block">
             <div className="sticky top-6 space-y-4">
               <div className="rounded-[1.85rem] border border-[var(--border-strong)] bg-[linear-gradient(180deg,rgba(255,255,255,0.96),rgba(247,241,235,0.94))] p-5 shadow-[0_18px_34px_rgba(34,34,34,0.06)]">
@@ -345,6 +345,7 @@ export function DocumentWorkspaceLayout({
             </div>
           </aside>
 
+          <div className="space-y-5">
           <section
             className={cn(
               "rounded-[2rem] border border-[var(--border-strong)] bg-[linear-gradient(180deg,rgba(250,247,242,0.96),rgba(255,255,255,0.98))] p-4 shadow-[var(--shadow-soft)] md:p-5",
@@ -387,7 +388,7 @@ export function DocumentWorkspaceLayout({
 
           <section
             className={cn(
-              "rounded-none border-0 bg-transparent p-0 shadow-none sm:rounded-[2.1rem] sm:border sm:border-[rgba(34,34,34,0.08)] sm:bg-[linear-gradient(180deg,rgba(247,241,235,0.82),rgba(255,255,255,0.98))] sm:p-4 sm:shadow-[var(--shadow-card)] md:p-5 xl:sticky xl:top-6",
+              "rounded-none border-0 bg-transparent p-0 shadow-none sm:rounded-[2.1rem] sm:border sm:border-[rgba(34,34,34,0.08)] sm:bg-[linear-gradient(180deg,rgba(247,241,235,0.82),rgba(255,255,255,0.98))] sm:p-4 sm:shadow-[var(--shadow-card)] md:p-5",
               !isDesktopWorkspace && mobileTab !== "preview" && "hidden",
             )}
           >
@@ -451,6 +452,7 @@ export function DocumentWorkspaceLayout({
               </div>
             </section>
           ) : null}
+          </div>
         </div>
       </div>
 

@@ -325,7 +325,7 @@ function VoucherPanel() {
                   rows={3}
                   placeholder="18 Market Road, Kozhikode"
                 />
-                <div className="grid gap-4 md:grid-cols-2">
+                <div className="grid gap-4 sm:grid-cols-2">
                   <TextField<VoucherFormValues>
                     name="branding.email"
                     label="Email"
@@ -337,7 +337,7 @@ function VoucherPanel() {
                     placeholder="+91 98765 43210"
                   />
                 </div>
-                <div className="grid gap-4 md:grid-cols-2">
+                <div className="grid gap-4 sm:grid-cols-2">
                   <ColorField<VoucherFormValues>
                     name="branding.accentColor"
                     label="Accent color"
@@ -357,7 +357,7 @@ function VoucherPanel() {
                 title="Core voucher information"
                 description="These fields drive the document content and validation."
               >
-                <div className="grid gap-4 md:grid-cols-2">
+                <div className="grid gap-4 sm:grid-cols-2">
                   <TextField<VoucherFormValues>
                     name="voucherNumber"
                     label="Voucher number"
@@ -376,7 +376,7 @@ function VoucherPanel() {
                   required
                   placeholder={isPayment ? "Rahul Menon" : "Priya Nair"}
                 />
-                <div className="grid gap-4 md:grid-cols-2">
+                <div className="grid gap-4 sm:grid-cols-2">
                   <TextField<VoucherFormValues>
                     name="amount"
                     label="Amount"
@@ -446,7 +446,7 @@ function VoucherPanel() {
                 title="Show or hide optional fields"
                 description="These toggles immediately rebalance the preview layout."
               >
-                <div className="grid gap-4 md:grid-cols-2">
+                <div className="grid gap-4 sm:grid-cols-2">
                   <ToggleField<VoucherFormValues>
                     name="visibility.showAddress"
                     label="Address"

@@ -182,30 +182,30 @@ export function ToggleField<TFormValues extends FieldValues>({
             aria-checked={Boolean(field.value)}
             onClick={() => field.onChange(!field.value)}
             className={cn(
-              "flex w-full items-center justify-between rounded-[1rem] border px-4 py-3.5 text-left shadow-[0_10px_24px_rgba(34,34,34,0.035)] transition-[border-color,background-color,box-shadow]",
+              "flex w-full items-center gap-3 rounded-[1rem] border px-4 py-3.5 text-left shadow-[0_10px_24px_rgba(34,34,34,0.035)] transition-[border-color,background-color,box-shadow]",
               field.value
                 ? "border-[var(--accent)] bg-white"
                 : "border-[var(--border-soft)] bg-[rgba(255,255,255,0.82)]",
             )}
           >
-            <span>
-              <span className="block text-sm font-medium text-[var(--foreground)]">
+            <span className="min-w-0 flex-1">
+              <span className="block text-sm font-medium leading-5 text-[var(--foreground)]">
                 {field.value ? "Visible in preview" : "Hidden from preview"}
               </span>
-              <span className="mt-1 block text-[0.75rem] leading-6 text-[var(--foreground-soft)]/80">
+              <span className="mt-1 block text-[0.75rem] leading-5 text-[var(--foreground-soft)]/80">
                 Toggle this block in the live document.
               </span>
             </span>
             <span
               className={cn(
-                "relative inline-flex h-7 w-12 rounded-full transition-colors",
-                field.value ? "bg-[var(--accent)]" : "bg-[rgba(87,87,96,0.2)]",
+                "relative inline-block h-6 w-11 shrink-0 overflow-hidden rounded-full transition-colors duration-200",
+                field.value ? "bg-[var(--accent)]" : "bg-[rgba(87,87,96,0.18)]",
               )}
             >
               <span
                 className={cn(
-                  "absolute top-1 h-5 w-5 rounded-full bg-white shadow-[0_4px_10px_rgba(34,34,34,0.12)] transition-transform",
-                  field.value ? "translate-x-6" : "translate-x-1",
+                  "absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-white shadow-[0_2px_6px_rgba(34,34,34,0.16)] transition-transform duration-200",
+                  field.value ? "translate-x-5" : "translate-x-0",
                 )}
               />
             </span>

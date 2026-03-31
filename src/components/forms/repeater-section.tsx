@@ -27,7 +27,7 @@ export function RepeaterSection({
         <button
           type="button"
           onClick={onAdd}
-          className="inline-flex items-center justify-center rounded-full border border-[var(--border-strong)] bg-white px-4 py-2.5 text-sm font-medium text-[var(--foreground)] shadow-[0_10px_22px_rgba(34,34,34,0.04)] transition-colors hover:bg-[rgba(255,255,255,0.88)]"
+          className="inline-flex shrink-0 items-center justify-center whitespace-nowrap rounded-full border border-[var(--border-strong)] bg-white px-4 py-2.5 text-sm font-medium text-[var(--foreground)] shadow-[0_10px_22px_rgba(34,34,34,0.04)] transition-colors hover:bg-[rgba(255,255,255,0.88)]"
         >
           {actionLabel}
         </button>
