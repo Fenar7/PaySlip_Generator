@@ -108,15 +108,15 @@ export function DocumentPreviewSurface({
     <div
       className={
         isCompactPreview
-          ? "relative overflow-hidden rounded-[0.95rem] border border-[rgba(34,34,34,0.08)] bg-[linear-gradient(180deg,rgba(255,251,246,0.98),rgba(248,242,236,0.95))] p-1.5 shadow-[0_10px_22px_rgba(34,34,34,0.05)]"
+          ? "relative overflow-hidden rounded-[0.8rem] border border-[rgba(34,34,34,0.07)] bg-[rgba(255,255,255,0.96)] p-0.5 shadow-[0_10px_22px_rgba(34,34,34,0.04)]"
           : "relative overflow-hidden rounded-[2rem] border border-[rgba(34,34,34,0.08)] bg-[linear-gradient(180deg,rgba(255,251,246,0.96),rgba(248,242,236,0.92))] p-3 shadow-[0_18px_36px_rgba(34,34,34,0.06)] sm:p-4"
       }
     >
       <div className={isCompactPreview ? "relative space-y-2" : "relative space-y-3.5"}>
         {isCompactPreview ? (
-          <div className="flex items-center justify-between rounded-[0.8rem] border border-[rgba(34,34,34,0.08)] bg-white/96 px-2.5 py-2 text-[0.58rem] font-semibold uppercase tracking-[0.14em] text-[var(--muted-foreground)] shadow-[0_8px_18px_rgba(34,34,34,0.03)]">
+          <div className="flex items-center justify-between px-2.5 py-1.5 text-[0.55rem] font-semibold uppercase tracking-[0.14em] text-[var(--muted-foreground)]">
             <span className="truncate">Live preview</span>
-            <span className="rounded-full border border-[var(--border-soft)] bg-[var(--surface-soft)] px-2 py-0.5 text-[0.58rem]">
+            <span className="rounded-full border border-[var(--border-soft)] bg-[var(--surface-soft)] px-2 py-0.5 text-[0.55rem]">
               A4
             </span>
           </div>
@@ -164,7 +164,7 @@ export function DocumentPreviewSurface({
 
           {isCompactPreview ? (
             <div
-              className="relative mx-auto max-w-full overflow-hidden rounded-[0.7rem] border border-[rgba(34,34,34,0.08)] bg-white shadow-[0_10px_22px_rgba(34,34,34,0.06)]"
+              className="relative mx-auto max-w-full overflow-hidden rounded-[0.65rem] border border-[rgba(34,34,34,0.07)] bg-white shadow-[0_8px_18px_rgba(34,34,34,0.05)]"
               style={{
                 width: `${scaledWidth}px`,
                 height: `${Math.ceil(scaledHeight)}px`,

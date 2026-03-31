@@ -270,15 +270,15 @@ export function DocumentWorkspaceLayout({
 
         {!isDesktopWorkspace ? (
           <div className="xl:hidden">
-            <div className="sticky top-4 z-20 rounded-[1.5rem] border border-[var(--border-strong)] bg-[rgba(255,255,255,0.94)] p-2 shadow-[var(--shadow-soft)] backdrop-blur">
-              <div className="grid grid-cols-3 gap-2">
+            <div className="sticky top-4 z-20 rounded-[1.4rem] border border-[var(--border-strong)] bg-[rgba(255,255,255,0.94)] p-1.5 shadow-[var(--shadow-soft)] backdrop-blur sm:rounded-[1.5rem] sm:p-2">
+              <div className="flex gap-1.5 sm:gap-2">
                 {mobileTabs.map((tab) => (
                   <button
                     key={tab.id}
                     type="button"
                     onClick={() => setMobileTab(tab.id)}
                     className={cn(
-                      "rounded-[1.05rem] px-4 py-3 text-sm font-medium transition-colors",
+                      "min-w-0 flex-1 rounded-[1rem] px-2.5 py-2.5 text-[0.82rem] font-medium transition-colors sm:rounded-[1.05rem] sm:px-4 sm:py-3 sm:text-sm",
                       mobileTab === tab.id
                         ? "bg-[var(--accent)] text-white shadow-[0_14px_28px_rgba(232,64,30,0.2)]"
                         : "bg-[rgba(248,241,235,0.72)] text-[var(--foreground-soft)]",
@@ -313,12 +313,29 @@ export function DocumentWorkspaceLayout({
                     <a
                       key={section.id}
                       href={`#${section.id}`}
-                      className="flex items-center gap-3 rounded-[1.1rem] border border-transparent px-3 py-3 transition-colors hover:border-[var(--border-soft)] hover:bg-[rgba(248,241,235,0.72)]"
+                      className={cn(
+                        "flex items-center gap-3 rounded-[1.1rem] border px-3 py-3 transition-colors",
+                        index === 0
+                          ? "border-[rgba(232,64,30,0.14)] bg-[rgba(248,241,235,0.82)]"
+                          : "border-transparent hover:border-[var(--border-soft)] hover:bg-[rgba(248,241,235,0.72)]",
+                      )}
                     >
-                      <span className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-[var(--border-soft)] bg-[rgba(248,241,235,0.82)] text-[0.72rem] font-semibold text-[var(--foreground)]">
+                      <span
+                        className={cn(
+                          "inline-flex h-8 w-8 items-center justify-center rounded-full border text-[0.72rem] font-semibold",
+                          index === 0
+                            ? "border-[rgba(232,64,30,0.16)] bg-white text-[var(--accent)]"
+                            : "border-[var(--border-soft)] bg-[rgba(248,241,235,0.82)] text-[var(--foreground)]",
+                        )}
+                      >
                         {String(index + 1).padStart(2, "0")}
                       </span>
-                      <span className="text-sm font-medium text-[var(--foreground-soft)]">
+                      <span
+                        className={cn(
+                          "text-sm font-medium",
+                          index === 0 ? "text-[var(--foreground)]" : "text-[var(--foreground-soft)]",
+                        )}
+                      >
                         {section.label}
                       </span>
                     </a>
@@ -413,12 +430,12 @@ export function DocumentWorkspaceLayout({
           </section>
 
           {!isDesktopWorkspace ? (
-              <section
-              className={cn(
-                "rounded-[2rem] border border-[var(--border-strong)] bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(248,241,235,0.98))] p-5 shadow-[var(--shadow-soft)] xl:hidden",
-                mobileTab === "export" ? "block" : "hidden",
-              )}
-            >
+          <section
+            className={cn(
+              "rounded-[1.8rem] border border-[var(--border-strong)] bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(248,241,235,0.98))] p-4 shadow-[var(--shadow-soft)] sm:rounded-[2rem] sm:p-5 xl:hidden",
+              mobileTab === "export" ? "block" : "hidden",
+            )}
+          >
               <p className="text-[0.68rem] font-semibold uppercase tracking-[0.34em] text-[var(--muted-foreground)]">
                 Export
               </p>
@@ -525,7 +542,7 @@ export function DocumentWorkspaceLayout({
                 </div>
               </div>
 
-              <div className="flex items-start gap-3 rounded-[1rem] border border-[var(--border-soft)] bg-white/94 px-3.5 py-3.5 shadow-[0_10px_24px_rgba(34,34,34,0.04)] sm:gap-4 sm:rounded-[1.2rem] sm:px-4 sm:py-4">
+              <div className="hidden items-start gap-3 rounded-[1rem] border border-[var(--border-soft)] bg-white/94 px-3.5 py-3.5 shadow-[0_10px_24px_rgba(34,34,34,0.04)] sm:flex sm:gap-4 sm:rounded-[1.2rem] sm:px-4 sm:py-4">
                 <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[var(--surface-soft)] text-[var(--accent)] sm:h-10 sm:w-10">
                   <ExportInfoIcon kind="download" />
                 </span>
@@ -537,7 +554,7 @@ export function DocumentWorkspaceLayout({
                 </div>
               </div>
 
-              <div className="flex items-start gap-3 rounded-[1rem] border border-[var(--border-soft)] bg-white/94 px-3.5 py-3.5 shadow-[0_10px_24px_rgba(34,34,34,0.04)] sm:gap-4 sm:rounded-[1.2rem] sm:px-4 sm:py-4">
+              <div className="hidden items-start gap-3 rounded-[1rem] border border-[var(--border-soft)] bg-white/94 px-3.5 py-3.5 shadow-[0_10px_24px_rgba(34,34,34,0.04)] sm:flex sm:gap-4 sm:rounded-[1.2rem] sm:px-4 sm:py-4">
                 <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[var(--surface-soft)] text-[var(--accent)] sm:h-10 sm:w-10">
                   <ExportInfoIcon kind="shield" />
                 </span>

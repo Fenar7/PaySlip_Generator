@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useRef, useState, type SVGProps } from "react";
+import { useEffect, useId, useRef, useState, type SVGProps } from "react";
 import { ModuleCard } from "@/components/foundation/module-card";
 import { SlipwiseProductMockup } from "@/components/marketing/slipwise-product-mockup";
 import { useHomepageAnimations } from "@/components/marketing/use-homepage-animations";
@@ -231,7 +231,9 @@ function SectionHeading({
 export function SlipwiseHome({ className }: SlipwiseHomeProps) {
   const rootRef = useRef<HTMLElement | null>(null);
   const workspacesRef = useRef<HTMLElement | null>(null);
+  const dialogTriggerRef = useRef<HTMLButtonElement | null>(null);
   const [isWorkspaceDialogOpen, setIsWorkspaceDialogOpen] = useState(false);
+  const workspaceDialogTitleId = useId();
 
   useHomepageAnimations(rootRef);
 
@@ -257,12 +259,18 @@ export function SlipwiseHome({ className }: SlipwiseHomeProps) {
     };
   }, [isWorkspaceDialogOpen]);
 
-  const openWorkspaceDialog = () => {
+  const openWorkspaceDialog = (trigger?: HTMLButtonElement | null) => {
+    if (trigger) {
+      dialogTriggerRef.current = trigger;
+    }
     setIsWorkspaceDialogOpen(true);
   };
 
   const closeWorkspaceDialog = () => {
     setIsWorkspaceDialogOpen(false);
+    window.requestAnimationFrame(() => {
+      dialogTriggerRef.current?.focus();
+    });
   };
 
   const scrollToWorkspaces = () => {
@@ -277,7 +285,7 @@ export function SlipwiseHome({ className }: SlipwiseHomeProps) {
 
       <div className="mx-auto flex w-full max-w-[98rem] flex-col gap-8 px-4 py-5 sm:px-6 lg:px-8 lg:py-8">
         <header className="sticky top-4 z-30 rounded-full border border-[var(--border-soft)] bg-[rgba(255,251,246,0.96)] px-4 py-3 shadow-[0_14px_36px_rgba(34,34,34,0.05)] backdrop-blur">
-          <div className="flex items-center justify-between gap-4 md:grid md:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] md:items-center md:gap-6">
+          <div className="flex flex-wrap items-center justify-between gap-3 md:grid md:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] md:items-center md:gap-6">
             <Link href="/" className="flex items-center md:justify-self-start">
               <p className="text-[1.45rem] font-medium tracking-[-0.08em] text-[var(--foreground)] md:text-[1.6rem]">
                 Slipwise
@@ -301,18 +309,18 @@ export function SlipwiseHome({ className }: SlipwiseHomeProps) {
               ))}
             </nav>
 
-            <div className="flex items-center gap-3 md:justify-self-end">
+            <div className="ml-auto flex flex-wrap items-center justify-end gap-2 sm:gap-3 md:justify-self-end">
               <button
                 type="button"
                 onClick={scrollToWorkspaces}
-                className="rounded-full border border-[var(--border-strong)] bg-white px-4 py-2.5 text-sm font-medium text-[var(--foreground-soft)] transition-colors hover:border-[var(--accent)] hover:text-[var(--foreground)]"
+                className="rounded-full border border-[var(--border-strong)] bg-white px-3.5 py-2 text-[0.82rem] font-medium text-[var(--foreground-soft)] transition-colors hover:border-[var(--accent)] hover:text-[var(--foreground)] sm:px-4 sm:py-2.5 sm:text-sm"
               >
                 View workspaces
               </button>
               <button
                 type="button"
-                onClick={openWorkspaceDialog}
-                className="rounded-full bg-[var(--accent)] px-5 py-2.5 text-sm font-semibold text-white shadow-[0_14px_28px_rgba(232,64,30,0.22)] transition-all duration-200 hover:bg-[var(--accent-strong)] hover:shadow-[0_18px_34px_rgba(232,64,30,0.26)]"
+                onClick={(event) => openWorkspaceDialog(event.currentTarget)}
+                className="rounded-full bg-[var(--accent)] px-4 py-2 text-[0.82rem] font-semibold text-white shadow-[0_14px_28px_rgba(232,64,30,0.22)] transition-all duration-200 hover:bg-[var(--accent-strong)] hover:shadow-[0_18px_34px_rgba(232,64,30,0.26)] sm:px-5 sm:py-2.5 sm:text-sm"
               >
                 Start free
               </button>
@@ -343,7 +351,7 @@ export function SlipwiseHome({ className }: SlipwiseHomeProps) {
             <div className="mt-7 flex flex-wrap gap-4">
               <button
                 type="button"
-                onClick={openWorkspaceDialog}
+                onClick={(event) => openWorkspaceDialog(event.currentTarget)}
                 data-animate="hero-cta"
                 className="rounded-full bg-[var(--accent)] px-6 py-3.5 text-sm font-semibold text-white shadow-[0_18px_34px_rgba(232,64,30,0.22)] transition-all duration-200 hover:bg-[var(--accent-strong)] hover:shadow-[0_22px_40px_rgba(232,64,30,0.26)]"
               >
@@ -611,7 +619,7 @@ export function SlipwiseHome({ className }: SlipwiseHomeProps) {
             <div className="flex flex-wrap gap-4 lg:justify-end">
               <button
                 type="button"
-                onClick={openWorkspaceDialog}
+                onClick={(event) => openWorkspaceDialog(event.currentTarget)}
                 data-animate="final-cta-action"
                 className="rounded-full bg-[var(--accent)] px-7 py-4 text-sm font-semibold text-white shadow-[var(--shadow-soft)] transition-all duration-200 hover:bg-[var(--accent-strong)] hover:shadow-[var(--shadow-card)]"
               >
@@ -656,30 +664,27 @@ export function SlipwiseHome({ className }: SlipwiseHomeProps) {
         </footer>
       </div>
 
-      <div
-        className={cn(
-          "fixed inset-0 z-50 flex items-end justify-center bg-[rgba(34,34,34,0.22)] px-4 pb-4 pt-24 transition-opacity duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] md:items-center md:px-6",
-          isWorkspaceDialogOpen ? "pointer-events-auto opacity-100" : "pointer-events-none opacity-0",
-        )}
-        onClick={closeWorkspaceDialog}
-      >
+      {isWorkspaceDialogOpen ? (
         <div
-          role="dialog"
-          aria-modal="true"
-          aria-hidden={!isWorkspaceDialogOpen}
-          aria-label="Choose a Slipwise workspace"
-          className={cn(
-            "w-full max-w-5xl transform-gpu rounded-[2.3rem] border border-[var(--border-strong)] bg-[linear-gradient(180deg,rgba(255,255,255,0.99),rgba(248,241,235,0.98))] p-5 shadow-[0_24px_60px_rgba(34,34,34,0.10)] transition-[opacity,transform] duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] will-change-transform md:p-8",
-            isWorkspaceDialogOpen ? "translate-y-0 scale-100 opacity-100" : "translate-y-3 scale-[0.992] opacity-0",
-          )}
-          onClick={(event) => event.stopPropagation()}
+          className="fixed inset-0 z-50 flex items-end justify-center bg-[rgba(34,34,34,0.22)] px-4 pb-4 pt-24 transition-opacity duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] md:items-center md:px-6"
+          onClick={closeWorkspaceDialog}
         >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby={workspaceDialogTitleId}
+            className="w-full max-w-5xl transform-gpu rounded-[2.3rem] border border-[var(--border-strong)] bg-[linear-gradient(180deg,rgba(255,255,255,0.99),rgba(248,241,235,0.98))] p-5 shadow-[0_24px_60px_rgba(34,34,34,0.10)] transition-[opacity,transform] duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] will-change-transform md:p-8"
+            onClick={(event) => event.stopPropagation()}
+          >
           <div className="flex items-start justify-between gap-6">
             <div className="max-w-2xl">
               <p className="text-[0.72rem] font-semibold uppercase tracking-[0.34em] text-[var(--muted-foreground)]">
                 Choose a workspace
               </p>
-              <h2 className="mt-3 text-3xl leading-[0.96] text-[var(--foreground)] md:text-[3.35rem]">
+              <h2
+                id={workspaceDialogTitleId}
+                className="mt-3 text-3xl leading-[0.96] text-[var(--foreground)] md:text-[3.35rem]"
+              >
                 Start in the flow your team actually needs.
               </h2>
               <p className="mt-4 max-w-xl text-base leading-8 text-[var(--foreground-soft)] md:text-[1.02rem]">
@@ -707,6 +712,7 @@ export function SlipwiseHome({ className }: SlipwiseHomeProps) {
                 <Link
                   key={module.slug}
                   href={`/${module.slug}`}
+                  onClick={closeWorkspaceDialog}
                   className="group slipwise-surface-card rounded-[1.85rem] p-5 transition duration-200 hover:-translate-y-1 hover:border-[var(--accent)] hover:shadow-[var(--shadow-card)]"
                 >
                   <div className="flex items-start justify-between gap-4">
@@ -736,8 +742,9 @@ export function SlipwiseHome({ className }: SlipwiseHomeProps) {
               );
             })}
           </div>
+          </div>
         </div>
-      </div>
+      ) : null}
     </main>
   );
 }
