@@ -126,7 +126,7 @@ function InvoiceLineItemsEditor() {
                 type="button"
                 onClick={() => remove(index)}
                 disabled={fields.length === 1}
-                className="inline-flex h-[3rem] items-center justify-center rounded-full border border-[var(--border-strong)] px-4 text-sm font-medium text-[var(--foreground)] transition-colors hover:bg-white disabled:cursor-not-allowed disabled:opacity-50"
+                className="slipwise-btn slipwise-btn-inline-muted inline-flex h-[3rem] items-center justify-center px-4 text-sm disabled:cursor-not-allowed disabled:opacity-50"
               >
                 Remove
               </button>

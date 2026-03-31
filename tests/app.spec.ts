@@ -1,5 +1,6 @@
 import { readFile } from "node:fs/promises";
 import { expect, test } from "@playwright/test";
+import type { Page } from "@playwright/test";
 
 async function extractPdfText(pdfSource: string | Uint8Array) {
   const pdfjs = await import("pdfjs-dist/legacy/build/pdf.mjs");
@@ -55,6 +56,46 @@ function readPngDimensions(pngBytes: Uint8Array) {
     pngBytes[23];
 
   return { width, height };
+}
+
+const mockPdfBytes = `%PDF-1.4
+1 0 obj
+<< /Type /Catalog >>
+endobj
+trailer
+<< /Root 1 0 R >>
+%%EOF`;
+
+async function mockWorkspaceExport(
+  page: Page,
+  endpoint: string,
+  options?: { failFirst?: boolean; filename?: string },
+) {
+  let attempt = 0;
+
+  await page.route(endpoint, async (route) => {
+    attempt += 1;
+
+    await new Promise((resolve) => setTimeout(resolve, 150));
+
+    if (options?.failFirst && attempt === 1) {
+      await route.fulfill({
+        status: 500,
+        contentType: "application/json",
+        body: JSON.stringify({ error: "Slipwise could not generate the file." }),
+      });
+      return;
+    }
+
+    await route.fulfill({
+      status: 200,
+      headers: {
+        "content-type": "application/pdf",
+        "content-disposition": `attachment; filename="${options?.filename ?? "export.pdf"}"`,
+      },
+      body: mockPdfBytes,
+    });
+  });
 }
 
 const salarySlipDocumentPayload = {
@@ -233,7 +274,7 @@ test("home page exposes the module entry points", async ({ page }) => {
 
   await expect(
     page.getByRole("heading", {
-      name: /create salary slips, invoices, and vouchers without rebuilding them in spreadsheets/i,
+      name: /prepare salary slips, invoices, and vouchers in one calmer document workflow/i,
     }),
   ).toBeVisible();
 
@@ -246,8 +287,21 @@ test("home page exposes the module entry points", async ({ page }) => {
   ).toBeVisible();
 
   await page.getByRole("button", { name: /start free/i }).first().click();
-  await expect(page.getByRole("dialog", { name: /choose a slipwise workspace/i })).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: /start in the flow your team actually needs/i }),
+  ).toBeVisible();
   await expect(page.getByRole("link", { name: /salary slip generator/i })).toBeVisible();
+  await page.getByRole("button", { name: /close workspace picker/i }).click();
+  await expect(
+    page.getByRole("heading", { name: /start in the flow your team actually needs/i }),
+  ).toHaveCount(0);
+});
+
+test("not-found route keeps the branded recovery state", async ({ page }) => {
+  await page.goto("/does-not-exist");
+
+  await expect(page.getByRole("heading", { name: /this workspace does not exist yet/i })).toBeVisible();
+  await expect(page.getByRole("link", { name: /return home/i })).toBeVisible();
 });
 
 test("salary slip route renders the interactive workspace", async ({ page }) => {
@@ -257,16 +311,16 @@ test("salary slip route renders the interactive workspace", async ({ page }) => 
     page.getByRole("heading", { name: "Salary Slip Generator", level: 1 }),
   ).toBeVisible();
   await expect(
-    page.getByRole("button", { name: /print salary slip/i }),
+    page.getByRole("button", { name: /print salary slip/i }).first(),
   ).toBeVisible();
   await expect(
-    page.getByRole("button", { name: /export pdf/i }),
+    page.getByRole("button", { name: /export pdf/i }).first(),
   ).toBeVisible();
   await expect(page.getByRole("heading", { name: /template and branding/i })).toBeVisible();
   await expect(page.getByRole("heading", { name: /employee details/i })).toBeVisible();
   await expect(page.getByRole("heading", { name: /pay period and attendance/i })).toBeVisible();
   await expect(page.getByRole("heading", { name: /earnings and deductions/i })).toBeVisible();
-  await expect(page.getByText(/salary slip · corporate clean/i)).toBeVisible();
+  await expect(page.getByRole("heading", { name: /live a4 document/i })).toBeVisible();
 });
 
 test("invoice route renders the interactive workspace", async ({ page }) => {
@@ -276,16 +330,15 @@ test("invoice route renders the interactive workspace", async ({ page }) => {
     page.getByRole("heading", { name: "Invoice Generator", level: 1 }),
   ).toBeVisible();
   await expect(
-    page.getByRole("button", { name: /print invoice/i }),
+    page.getByRole("button", { name: /print invoice/i }).first(),
   ).toBeVisible();
   await expect(
-    page.getByRole("button", { name: /export pdf/i }),
+    page.getByRole("button", { name: /export pdf/i }).first(),
   ).toBeVisible();
   await expect(page.getByRole("heading", { name: /template and branding/i })).toBeVisible();
   await expect(page.getByRole("heading", { name: /client details/i })).toBeVisible();
   await expect(page.getByRole("heading", { name: /invoice metadata/i })).toBeVisible();
   await expect(page.getByRole("heading", { name: /line items and totals/i })).toBeVisible();
-  await expect(page.getByText(/tax invoice · professional/i)).toBeVisible();
   await expect(
     page.getByTestId("document-preview-viewport").evaluate((element) => {
       return element.scrollHeight <= element.clientHeight + 1;
@@ -300,9 +353,6 @@ test("voucher route supports template changes and live visibility updates", asyn
 
   await expect(
     page.getByRole("heading", { name: "Voucher Generator", level: 1 }),
-  ).toBeVisible();
-  await expect(
-    page.getByText(/payment voucher · minimal office/i),
   ).toBeVisible();
   await expect(
     page.getByTestId("document-preview-viewport").evaluate((element) => {
@@ -322,6 +372,53 @@ test("voucher route supports template changes and live visibility updates", asyn
   await expect(
     page.getByText("Settled after manager approval."),
   ).toHaveCount(0);
+});
+
+test("voucher export dialog reaches success and closes cleanly", async ({ page }) => {
+  await mockWorkspaceExport(page, "**/api/export/pdf", {
+    filename: "voucher-export.pdf",
+  });
+
+  await page.goto("/voucher");
+  await page.getByRole("button", { name: /^export pdf$/i }).click();
+
+  await expect(page.getByRole("dialog")).toBeVisible();
+  await expect(page.getByRole("heading", { name: /your download should start shortly/i })).toBeVisible();
+
+  await page.getByRole("button", { name: /^close$/i }).click();
+  await expect(page.getByRole("dialog", { name: /your download should start shortly/i })).toHaveCount(0);
+});
+
+test("salary slip export dialog supports retry after an export failure", async ({ page }) => {
+  await mockWorkspaceExport(page, "**/api/export/salary-slip/pdf", {
+    failFirst: true,
+    filename: "salary-slip.pdf",
+  });
+
+  await page.goto("/salary-slip");
+  await page.getByRole("button", { name: /^export pdf$/i }).click();
+
+  await expect(page.getByRole("heading", { name: /export failed/i })).toBeVisible();
+  await expect(page.getByText(/slipwise could not generate the file/i).first()).toBeVisible();
+
+  await page.getByRole("button", { name: /try export again/i }).click();
+  await expect(page.getByRole("heading", { name: /your download should start shortly/i })).toBeVisible();
+
+  await page.getByRole("button", { name: /^close$/i }).click();
+  await expect(page.getByRole("heading", { name: /your download should start shortly/i })).toHaveCount(0);
+});
+
+test("invoice export dialog reaches success and closes cleanly", async ({ page }) => {
+  await mockWorkspaceExport(page, "**/api/export/invoice/pdf", {
+    filename: "invoice-export.pdf",
+  });
+
+  await page.goto("/invoice");
+  await page.getByRole("button", { name: /^export pdf$/i }).click();
+
+  await expect(page.getByRole("heading", { name: /your download should start shortly/i })).toBeVisible();
+  await page.getByRole("button", { name: /^close$/i }).click();
+  await expect(page.getByRole("heading", { name: /your download should start shortly/i })).toHaveCount(0);
 });
 
 test("salary slip route updates the preview as payroll rows change", async ({ page }) => {
