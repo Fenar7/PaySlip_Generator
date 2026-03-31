@@ -254,7 +254,7 @@ export function DocumentWorkspaceLayout({
               </div>
 
               {isDesktopWorkspace ? (
-                <div className="mt-4 flex flex-wrap gap-2">
+                <div className="mt-4 flex flex-wrap gap-2 xl:hidden">
                   {actions.map((action) => renderAction(action, true))}
                 </div>
               ) : null}
