@@ -68,7 +68,7 @@ function FilenameInput({
   return (
     <div className="space-y-2">
       <p className="text-[0.82rem] font-medium text-[var(--foreground)]">Output filename</p>
-      <div className="flex items-center gap-2 rounded-[0.9rem] border border-[var(--border-soft)] bg-white px-4 shadow-[0_6px_16px_rgba(34,34,34,0.04)]">
+      <div className="flex items-center gap-2 rounded-[1rem] border border-[var(--border-soft)] bg-white px-4 shadow-[0_10px_24px_rgba(34,34,34,0.035)] transition-colors focus-within:border-[var(--accent)] focus-within:shadow-[0_0_0_4px_var(--accent-soft)]">
         <input
           type="text"
           value={value}

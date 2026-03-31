@@ -48,28 +48,26 @@ function GenerationDialog({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center px-3 py-4 sm:px-4 sm:py-6">
-      <div className="absolute inset-0 bg-[rgba(34,34,34,0.24)]" onClick={isPending ? undefined : onClose} />
+      <div className="absolute inset-0 bg-[rgba(34,34,34,0.24)]" onClick={onClose} />
       <div
         role="dialog"
         aria-modal="true"
         aria-labelledby="pdf-studio-dialog-title"
-        className="relative max-h-[calc(100vh-1.5rem)] w-full max-w-[34rem] overflow-y-auto overflow-x-hidden rounded-[1.6rem] border border-[rgba(255,255,255,0.7)] bg-[linear-gradient(180deg,rgba(255,255,255,0.99),rgba(248,241,235,0.98))] p-5 shadow-[0_28px_72px_rgba(34,34,34,0.12)] backdrop-blur-xl sm:rounded-[2.1rem] sm:p-7"
+        className="relative max-h-[calc(100vh-1.5rem)] w-full max-w-[34rem] overflow-y-auto overflow-x-hidden rounded-[1.6rem] border border-[rgba(255,255,255,0.7)] bg-[linear-gradient(180deg,rgba(255,255,255,0.99),rgba(248,241,235,0.98))] p-4 shadow-[0_28px_72px_rgba(34,34,34,0.12)] backdrop-blur-xl sm:max-h-[calc(100vh-3rem)] sm:rounded-[2.15rem] sm:p-6 md:p-7"
       >
-        <div className="pointer-events-none absolute inset-x-0 top-0 h-32 bg-[radial-gradient(circle_at_top,rgba(232,64,30,0.10),transparent_62%)]" />
+        <div className="pointer-events-none absolute inset-x-0 top-0 h-32 bg-[radial-gradient(circle_at_top,rgba(232,64,30,0.10),transparent_62%)] sm:h-40" />
 
-        {!isPending ? (
-          <button
-            type="button"
-            onClick={onClose}
-            className="absolute right-4 top-4 inline-flex h-9 w-9 items-center justify-center rounded-full border border-[var(--border-soft)] bg-white/92 text-[var(--foreground-soft)] shadow-[0_10px_24px_rgba(34,34,34,0.05)] transition-colors hover:bg-[rgba(248,241,235,0.82)]"
-            aria-label="Close"
-          >
-            ×
-          </button>
-        ) : null}
+        <button
+          type="button"
+          onClick={onClose}
+          className="absolute right-3 top-3 inline-flex h-9 w-9 items-center justify-center rounded-full border border-[var(--border-soft)] bg-white/92 text-[var(--foreground-soft)] shadow-[0_10px_24px_rgba(34,34,34,0.05)] transition-colors hover:bg-[rgba(248,241,235,0.82)] sm:right-4 sm:top-4 sm:h-10 sm:w-10"
+          aria-label="Close export dialog"
+        >
+          ×
+        </button>
 
-        <div className="relative flex items-center gap-3">
-          <div className="inline-flex h-12 w-12 items-center justify-center rounded-[1rem] border border-[rgba(232,64,30,0.14)] bg-[linear-gradient(180deg,rgba(232,64,30,0.10),rgba(255,255,255,0.94))] text-[var(--accent)] shadow-[0_16px_34px_rgba(232,64,30,0.10)]">
+        <div className="relative flex items-center gap-3 sm:gap-4">
+          <div className="inline-flex h-12 w-12 items-center justify-center rounded-[1rem] border border-[rgba(232,64,30,0.14)] bg-[linear-gradient(180deg,rgba(232,64,30,0.10),rgba(255,255,255,0.94))] text-[var(--accent)] shadow-[0_16px_34px_rgba(232,64,30,0.10)] sm:h-14 sm:w-14 sm:rounded-[1.2rem]">
             <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
               <path d="M7 3h8l4 4v14H7z" />
               <path d="M15 3v4h4" />
@@ -77,14 +75,14 @@ function GenerationDialog({
               <path d="m9.5 13.5 2.5 2.5 2.5-2.5" />
             </svg>
           </div>
-          <div className="inline-flex rounded-full border border-[var(--border-soft)] bg-white/90 px-3 py-1 text-[0.64rem] font-semibold uppercase tracking-[0.22em] text-[var(--muted-foreground)] shadow-[0_10px_24px_rgba(34,34,34,0.04)]">
+          <div className="inline-flex rounded-full border border-[var(--border-soft)] bg-white/90 px-3 py-1 text-[0.64rem] font-semibold uppercase tracking-[0.22em] text-[var(--muted-foreground)] shadow-[0_10px_24px_rgba(34,34,34,0.04)] sm:text-[0.68rem] sm:tracking-[0.26em]">
             PDF Studio
           </div>
         </div>
 
         <h3
           id="pdf-studio-dialog-title"
-          className="mt-4 text-[1.9rem] leading-[0.96] tracking-[-0.055em] text-[var(--foreground)] sm:text-[2.2rem]"
+          className="mt-4 max-w-[20rem] text-[1.9rem] leading-[0.96] tracking-[-0.055em] text-[var(--foreground)] sm:mt-5 sm:max-w-[24rem] sm:text-[2.2rem] sm:leading-[0.94] sm:tracking-[-0.06em]"
         >
           {isPending
             ? "Generating your PDF"
@@ -93,18 +91,18 @@ function GenerationDialog({
               : "Generation failed"}
         </h3>
 
-        <p className="mt-3 text-[0.95rem] leading-7 text-[var(--foreground-soft)]">
+        <p className="mt-3 max-w-[28rem] text-[0.95rem] leading-7 text-[var(--foreground-soft)] sm:mt-4 sm:text-[1rem] sm:leading-8">
           {isPending
             ? "Converting your images into a single PDF document. This may take a moment for larger batches."
             : isSuccess
-              ? "Your PDF has been downloaded. Start over to create a new document."
+              ? "Your PDF has been downloaded. You can close this dialog or start over with new images."
               : isError
                 ? state.message
                 : ""}
         </p>
 
         {isPending && progress ? (
-          <div className="mt-5 space-y-2">
+          <div className="mt-4 space-y-2 sm:mt-5">
             <div className="flex items-center justify-between text-[0.8rem] text-[var(--foreground-soft)]">
               <span className="capitalize">{progress.stage}</span>
               <span>{progress.current} of {progress.total}</span>
@@ -118,11 +116,11 @@ function GenerationDialog({
           </div>
         ) : null}
 
-        <div className="mt-5 rounded-[1.2rem] border border-[rgba(232,64,30,0.10)] bg-[linear-gradient(180deg,rgba(248,241,235,0.96),rgba(255,255,255,0.98))] p-3.5 shadow-[0_14px_30px_rgba(34,34,34,0.05)]">
+        <div className="mt-5 rounded-[1.2rem] border border-[rgba(232,64,30,0.10)] bg-[linear-gradient(180deg,rgba(248,241,235,0.96),rgba(255,255,255,0.98))] p-3.5 shadow-[0_14px_30px_rgba(34,34,34,0.05)] sm:mt-6 sm:rounded-[1.4rem] sm:p-4">
           <div className="flex items-center gap-3">
             <span
               className={cn(
-                "inline-block h-3 w-3 rounded-full shadow-[0_0_0_6px_rgba(232,64,30,0.08)]",
+                "inline-flex h-3 w-3 shrink-0 rounded-full shadow-[0_0_0_6px_rgba(232,64,30,0.08)]",
                 isPending
                   ? "animate-pulse bg-[var(--accent)]"
                   : isSuccess
@@ -130,18 +128,40 @@ function GenerationDialog({
                     : "bg-[var(--danger)]",
               )}
             />
-            <p className="text-[0.92rem] font-medium leading-6 text-[var(--foreground)]">
+            <p className="text-[0.92rem] font-medium leading-6 text-[var(--foreground)] sm:text-sm">
               {isPending
-                ? "Client-side conversion in progress..."
+                ? "Building your PDF in the browser..."
                 : isSuccess
-                  ? "PDF generated and downloaded successfully."
-                  : "Slipwise could not generate the PDF."}
+                  ? "PDF generated and handed off to your browser."
+                  : "Slipwise could not generate the file."}
             </p>
           </div>
         </div>
 
-        {!isPending ? (
-          <div className="mt-6 flex flex-col gap-2.5 sm:flex-row">
+        <div className="mt-4 space-y-2.5 sm:mt-5 sm:space-y-3">
+          <div className="flex items-start gap-3 rounded-[1rem] border border-[var(--border-soft)] bg-white/94 px-3.5 py-3.5 shadow-[0_10px_24px_rgba(34,34,34,0.04)] sm:gap-4 sm:rounded-[1.2rem] sm:px-4 sm:py-4">
+            <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[var(--surface-soft)] text-[var(--accent)] sm:h-10 sm:w-10">
+              <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20z" /><path d="m9 12 2 2 4-4" /></svg>
+            </span>
+            <div>
+              <p className="text-[0.92rem] font-semibold text-[var(--foreground)] sm:text-sm">Browser-only</p>
+              <p className="mt-1 text-[0.9rem] leading-6 text-[var(--muted-foreground)] sm:text-sm sm:leading-7">Your images never leave your device. All PDF conversion runs entirely in your browser.</p>
+            </div>
+          </div>
+
+          <div className="hidden items-start gap-3 rounded-[1rem] border border-[var(--border-soft)] bg-white/94 px-3.5 py-3.5 shadow-[0_10px_24px_rgba(34,34,34,0.04)] sm:flex sm:gap-4 sm:rounded-[1.2rem] sm:px-4 sm:py-4">
+            <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[var(--surface-soft)] text-[var(--accent)] sm:h-10 sm:w-10">
+              <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" /></svg>
+            </span>
+            <div>
+              <p className="text-[0.92rem] font-semibold text-[var(--foreground)] sm:text-sm">Direct download</p>
+              <p className="mt-1 text-[0.9rem] leading-6 text-[var(--muted-foreground)] sm:text-sm sm:leading-7">The PDF is assembled from your images and handed directly to your browser as a download.</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="mt-6 flex flex-col gap-2.5 sm:mt-7 sm:flex-row sm:flex-wrap sm:gap-3">
+          {!isPending ? (
             <button
               type="button"
               onClick={isSuccess ? onClose : onRetry}
@@ -149,15 +169,23 @@ function GenerationDialog({
             >
               {isSuccess ? "Start over" : "Try again"}
             </button>
+          ) : (
             <button
               type="button"
-              onClick={onClose}
-              className="inline-flex w-full items-center justify-center rounded-full border border-[var(--border-strong)] bg-white px-5 py-3 text-sm font-medium text-[var(--foreground)] shadow-[0_10px_24px_rgba(34,34,34,0.04)] transition-colors hover:bg-[var(--surface-accent)] sm:w-auto"
+              disabled
+              className="inline-flex w-full items-center justify-center rounded-full border border-transparent bg-[linear-gradient(135deg,var(--accent),var(--accent-strong))] px-5 py-3 text-sm font-medium text-white opacity-90 sm:w-auto"
             >
-              Close
+              Generating PDF
             </button>
-          </div>
-        ) : null}
+          )}
+          <button
+            type="button"
+            onClick={onClose}
+            className="inline-flex w-full items-center justify-center rounded-full border border-[var(--border-strong)] bg-white px-5 py-3 text-sm font-medium text-[var(--foreground)] shadow-[0_10px_24px_rgba(34,34,34,0.04)] transition-colors hover:bg-[var(--surface-accent)] sm:w-auto"
+          >
+            Close
+          </button>
+        </div>
       </div>
     </div>
   );
@@ -280,7 +308,7 @@ export function PdfStudioWorkspace() {
                 ))}
               </div>
 
-              <div className="mt-4 flex flex-wrap gap-2 xl:flex">
+              <div className="mt-4 flex flex-wrap gap-2 xl:hidden">
                 <Link href="/" className="inline-flex items-center justify-center rounded-full border border-[var(--border-strong)] bg-white px-4 py-2.5 text-sm font-medium text-[var(--foreground)] shadow-[0_10px_24px_rgba(34,34,34,0.04)] transition-colors hover:bg-[rgba(248,241,235,0.72)]">
                   Back to home
                 </Link>
@@ -383,7 +411,7 @@ export function PdfStudioWorkspace() {
               id="pdf-studio-upload"
               className={cn(
                 "scroll-mt-28 rounded-[2rem] border border-[var(--border-strong)] bg-[linear-gradient(180deg,rgba(250,247,242,0.96),rgba(255,255,255,0.98))] p-4 shadow-[var(--shadow-soft)] md:p-5",
-                mobileTab !== "upload" && "xl:block hidden xl:block",
+                mobileTab !== "upload" && "hidden xl:block",
               )}
             >
               <FormSection
@@ -403,7 +431,7 @@ export function PdfStudioWorkspace() {
               id="pdf-studio-settings"
               className={cn(
                 "scroll-mt-28 rounded-[2rem] border border-[var(--border-strong)] bg-[linear-gradient(180deg,rgba(250,247,242,0.96),rgba(255,255,255,0.98))] p-4 shadow-[var(--shadow-soft)] md:p-5",
-                mobileTab !== "settings" && "xl:block hidden xl:block",
+                mobileTab !== "settings" && "hidden xl:block",
               )}
             >
               <FormSection
@@ -419,7 +447,7 @@ export function PdfStudioWorkspace() {
               id="pdf-studio-preview"
               className={cn(
                 "scroll-mt-28 rounded-none border-0 bg-transparent p-0 shadow-none sm:rounded-[2.1rem] sm:border sm:border-[rgba(34,34,34,0.08)] sm:bg-[linear-gradient(180deg,rgba(247,241,235,0.82),rgba(255,255,255,0.98))] sm:p-4 sm:shadow-[var(--shadow-card)] md:p-5",
-                mobileTab !== "preview" && "xl:block hidden xl:block",
+                mobileTab !== "preview" && "hidden xl:block",
               )}
             >
               <div className="mb-4 hidden rounded-[1.65rem] border border-[rgba(34,34,34,0.08)] bg-[linear-gradient(180deg,rgba(255,255,255,0.95),rgba(248,241,235,0.96))] p-4 shadow-[0_18px_32px_rgba(34,34,34,0.05)] sm:block">
