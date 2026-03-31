@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useId, useRef, useState, type SVGProps } from "react";
+import { memo, useCallback, useEffect, useId, useRef, useState, type SVGProps } from "react";
 import { ModuleCard } from "@/components/foundation/module-card";
 import { SlipwiseProductMockup } from "@/components/marketing/slipwise-product-mockup";
 import { useHomepageAnimations } from "@/components/marketing/use-homepage-animations";
@@ -228,12 +228,80 @@ function SectionHeading({
   );
 }
 
+const FaqAccordionItem = memo(function FaqAccordionItem({
+  answer,
+  index,
+  isOpen,
+  question,
+  onToggle,
+}: {
+  answer: string;
+  index: number;
+  isOpen: boolean;
+  question: string;
+  onToggle: (index: number) => void;
+}) {
+  const answerId = `faq-answer-${index}`;
+  const buttonId = `faq-trigger-${index}`;
+
+  return (
+    <article
+      data-animate="faq-card"
+      className={cn(
+        "rounded-[1.6rem] border border-[var(--border-soft)] bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(248,241,235,0.92))] p-5 shadow-[var(--shadow-soft)] transition-colors",
+        isOpen && "bg-[rgba(248,241,235,0.82)]",
+      )}
+    >
+      <button
+        id={buttonId}
+        type="button"
+        onClick={() => onToggle(index)}
+        aria-expanded={isOpen}
+        aria-controls={answerId}
+        className="flex w-full items-center justify-between gap-4 text-left text-[1.05rem] font-medium leading-7 text-[var(--foreground)]"
+      >
+        <span>{question}</span>
+        <span
+          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-[var(--border-soft)] bg-white text-[var(--muted-foreground)] will-change-transform"
+          style={{
+            transform: isOpen ? "rotate(180deg)" : "rotate(0deg)",
+            transition: "transform 220ms cubic-bezier(0.16,1,0.3,1)",
+          }}
+        >
+          <ChevronIcon className="h-4.5 w-4.5" />
+        </span>
+      </button>
+
+      <div
+        id={answerId}
+        aria-labelledby={buttonId}
+        className="grid"
+        style={{
+          gridTemplateRows: isOpen ? "1fr" : "0fr",
+          transition: "grid-template-rows 220ms cubic-bezier(0.16,1,0.3,1)",
+        }}
+      >
+        <div className="min-h-0 overflow-hidden">
+          <p className="mt-4 max-w-2xl text-[0.98rem] leading-8 text-[var(--foreground-soft)]">
+            {answer}
+          </p>
+        </div>
+      </div>
+    </article>
+  );
+});
+
 export function SlipwiseHome({ className }: SlipwiseHomeProps) {
   const rootRef = useRef<HTMLElement | null>(null);
   const workspacesRef = useRef<HTMLElement | null>(null);
   const dialogTriggerRef = useRef<HTMLButtonElement | null>(null);
   const [isWorkspaceDialogOpen, setIsWorkspaceDialogOpen] = useState(false);
+  const [openFaqIndex, setOpenFaqIndex] = useState<number | null>(2);
   const workspaceDialogTitleId = useId();
+
+  const handleFaqToggle = useCallback((index: number) => {
+    setOpenFaqIndex((c) => (c === index ? null : index));
+  }, []);
 
   useHomepageAnimations(rootRef);
 
@@ -582,22 +650,15 @@ export function SlipwiseHome({ className }: SlipwiseHomeProps) {
           </div>
 
           <div className="grid gap-4">
-            {faqs.map((item) => (
-              <details
+            {faqs.map((item, index) => (
+              <FaqAccordionItem
                 key={item.q}
-                data-animate="faq-card"
-                className="group rounded-[1.6rem] border border-[var(--border-soft)] bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(248,241,235,0.92))] p-5 shadow-[var(--shadow-soft)] open:bg-[rgba(248,241,235,0.82)]"
-              >
-                <summary className="flex cursor-pointer list-none items-center justify-between gap-4 text-[1.05rem] font-medium leading-7 text-[var(--foreground)]">
-                  <span>{item.q}</span>
-                  <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-[var(--border-soft)] bg-white text-[var(--muted-foreground)] transition-transform duration-200 group-open:rotate-180">
-                    <ChevronIcon className="h-4.5 w-4.5" />
-                  </span>
-                </summary>
-                <p className="mt-4 max-w-2xl text-[0.98rem] leading-8 text-[var(--foreground-soft)]">
-                  {item.a}
-                </p>
-              </details>
+                index={index}
+                question={item.q}
+                answer={item.a}
+                isOpen={openFaqIndex === index}
+                onToggle={handleFaqToggle}
+              />
             ))}
           </div>
         </section>

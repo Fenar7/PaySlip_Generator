@@ -106,7 +106,7 @@ function SalaryLineItemsEditor({
               type="button"
               onClick={() => remove(index)}
               disabled={fields.length === 1 && name === "earnings"}
-              className="slipwise-btn slipwise-btn-inline-muted inline-flex h-[3rem] items-center justify-center px-4 text-sm disabled:cursor-not-allowed disabled:opacity-50"
+              className="slipwise-btn slipwise-btn-inline-muted inline-flex h-[3rem] w-full items-center justify-center px-4 text-sm disabled:cursor-not-allowed disabled:opacity-50 md:w-auto"
             >
               Remove
             </button>
