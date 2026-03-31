@@ -272,10 +272,10 @@ function VoucherPanel() {
                             });
                           }}
                           className={cn(
-                            "rounded-[1rem] border px-4 py-3 text-left shadow-[0_12px_30px_rgba(38,30,20,0.04)] transition-colors",
+                            "rounded-[1.05rem] border px-4 py-3 text-left shadow-[0_12px_28px_rgba(34,34,34,0.04)] transition-colors",
                             active
                               ? "border-[var(--accent)] bg-white"
-                              : "border-[var(--border-soft)] bg-white/80 hover:bg-white",
+                              : "border-[var(--border-soft)] bg-white/88 hover:bg-white",
                           )}
                         >
                           <span className="block text-sm font-medium text-[var(--foreground)]">

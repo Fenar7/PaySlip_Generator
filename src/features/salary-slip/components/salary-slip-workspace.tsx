@@ -45,7 +45,7 @@ const salaryWorkspaceSections: WorkspaceSectionMeta[] = [
 
 function rowInputClass() {
   return cn(
-    "w-full rounded-[1rem] border border-[var(--border-soft)] bg-white px-4 py-3 text-sm text-[var(--foreground)] shadow-[0_10px_24px_rgba(15,23,42,0.04)] outline-none transition-colors focus:border-[var(--accent)]",
+    "w-full rounded-[1rem] border border-[var(--border-soft)] bg-white px-4 py-3 text-sm text-[var(--foreground)] shadow-[0_10px_24px_rgba(34,34,34,0.035)] outline-none transition-colors focus:border-[var(--accent)] focus:shadow-[0_0_0_4px_var(--accent-soft)]",
   );
 }
 
@@ -340,10 +340,10 @@ function SalarySlipPanel() {
                             });
                           }}
                           className={cn(
-                            "rounded-[1rem] border px-4 py-3 text-left shadow-[0_12px_30px_rgba(38,30,20,0.04)] transition-colors",
+                            "rounded-[1.05rem] border px-4 py-3 text-left shadow-[0_12px_28px_rgba(34,34,34,0.04)] transition-colors",
                             active
                               ? "border-[var(--accent)] bg-white"
-                              : "border-[var(--border-soft)] bg-white/80 hover:bg-white",
+                              : "border-[var(--border-soft)] bg-white/88 hover:bg-white",
                           )}
                         >
                           <span className="block text-sm font-medium text-[var(--foreground)]">

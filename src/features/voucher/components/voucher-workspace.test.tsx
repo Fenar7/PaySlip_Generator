@@ -54,7 +54,7 @@ describe("Voucher workspace", () => {
       target: { value: "" },
     });
 
-    fireEvent.click(screen.getByRole("button", { name: /export pdf/i }));
+    fireEvent.click(screen.getAllByRole("button", { name: /export pdf/i })[0]);
 
     expect(
       await screen.findByText(/complete the required voucher fields before exporting/i),

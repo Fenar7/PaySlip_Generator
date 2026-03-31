@@ -108,36 +108,36 @@ export function DocumentPreviewSurface({
     <div
       className={
         isCompactPreview
-          ? "relative overflow-hidden rounded-[0.95rem] border border-[rgba(34,34,34,0.08)] bg-[linear-gradient(180deg,#fbf7f2,#f2ece6)] p-1 shadow-[0_14px_30px_rgba(34,34,34,0.06)]"
-          : "relative overflow-hidden rounded-[1.9rem] border border-[rgba(34,34,34,0.08)] bg-[linear-gradient(180deg,rgba(247,241,235,0.82),rgba(255,255,255,0.98))] p-3 shadow-[var(--shadow-card)] sm:p-4"
+          ? "relative overflow-hidden rounded-[0.95rem] border border-[rgba(34,34,34,0.08)] bg-[linear-gradient(180deg,rgba(255,251,246,0.98),rgba(248,242,236,0.95))] p-1.5 shadow-[0_10px_22px_rgba(34,34,34,0.05)]"
+          : "relative overflow-hidden rounded-[2rem] border border-[rgba(34,34,34,0.08)] bg-[linear-gradient(180deg,rgba(255,251,246,0.96),rgba(248,242,236,0.92))] p-3 shadow-[0_18px_36px_rgba(34,34,34,0.06)] sm:p-4"
       }
     >
-      <div className={isCompactPreview ? "relative space-y-2" : "relative space-y-4"}>
+      <div className={isCompactPreview ? "relative space-y-2" : "relative space-y-3.5"}>
         {isCompactPreview ? (
-          <div className="flex items-center justify-between rounded-[0.8rem] border border-[rgba(34,34,34,0.08)] bg-white/94 px-2.5 py-2 text-[0.58rem] font-semibold uppercase tracking-[0.14em] text-[var(--muted-foreground)] shadow-[0_8px_18px_rgba(34,34,34,0.04)]">
+          <div className="flex items-center justify-between rounded-[0.8rem] border border-[rgba(34,34,34,0.08)] bg-white/96 px-2.5 py-2 text-[0.58rem] font-semibold uppercase tracking-[0.14em] text-[var(--muted-foreground)] shadow-[0_8px_18px_rgba(34,34,34,0.03)]">
             <span className="truncate">Live preview</span>
-            <span className="rounded-full border border-[var(--border-soft)] px-2 py-0.5 text-[0.58rem]">
+            <span className="rounded-full border border-[var(--border-soft)] bg-[var(--surface-soft)] px-2 py-0.5 text-[0.58rem]">
               A4
             </span>
           </div>
         ) : (
-          <div className="rounded-[1.25rem] border border-[rgba(34,34,34,0.08)] bg-white/92 px-4 py-4 shadow-[0_10px_24px_rgba(34,34,34,0.04)]">
-            <div className="flex items-center gap-2">
-              <span className="h-2.5 w-2.5 rounded-full bg-[rgba(248,113,113,0.85)]" />
-              <span className="h-2.5 w-2.5 rounded-full bg-[rgba(251,191,36,0.85)]" />
-              <span className="h-2.5 w-2.5 rounded-full bg-[rgba(74,222,128,0.85)]" />
+          <div className="rounded-[1.25rem] border border-[rgba(34,34,34,0.08)] bg-white/94 px-4 py-3.5 shadow-[0_10px_22px_rgba(34,34,34,0.035)]">
+            <div className="flex items-center gap-2.5">
+              <span className="h-2.5 w-2.5 rounded-full bg-[rgba(232,64,30,0.76)]" />
+              <span className="h-2.5 w-2.5 rounded-full bg-[rgba(87,87,96,0.38)]" />
+              <span className="h-2.5 w-2.5 rounded-full bg-[rgba(173,173,173,0.72)]" />
             </div>
 
-            <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+            <div className="mt-3.5 flex flex-wrap items-center justify-between gap-3">
               <div>
-                <p className="text-[0.65rem] font-semibold uppercase tracking-[0.3em] text-[var(--muted-foreground)]">
+                <p className="text-[0.62rem] font-semibold uppercase tracking-[0.3em] text-[var(--muted-foreground)]">
                   Live preview
                 </p>
-                <p className="mt-1 text-sm text-[var(--foreground-soft)]">
+                <p className="mt-1 text-[0.92rem] text-[var(--foreground-soft)]">
                   {title} · {templateName}
                 </p>
               </div>
-              <span className="rounded-full border border-[var(--border-soft)] px-3 py-1 text-xs text-[var(--muted-foreground)]">
+              <span className="rounded-full border border-[var(--border-soft)] bg-[var(--surface-soft)] px-3 py-1 text-[0.68rem] text-[var(--muted-foreground)]">
                 A4 workspace
               </span>
             </div>
@@ -150,19 +150,21 @@ export function DocumentPreviewSurface({
           className={
             isCompactPreview
               ? "overflow-hidden rounded-[0.85rem] border border-[rgba(34,34,34,0.08)] bg-white"
-              : "overflow-hidden rounded-[1.7rem] border border-[rgba(34,34,34,0.08)] bg-[linear-gradient(180deg,#fbf7f2,#f1ebe4)] p-2.5 sm:p-3.5"
+              : "overflow-hidden rounded-[1.65rem] border border-[rgba(34,34,34,0.08)] bg-[linear-gradient(180deg,rgba(248,242,236,0.95),rgba(255,255,255,0.98))] p-2.5 sm:p-3"
           }
         >
           {!isCompactPreview ? (
-            <div className="mb-3 flex items-center justify-between rounded-[1rem] border border-[rgba(34,34,34,0.08)] bg-white/88 px-3 py-2 text-[0.72rem] font-semibold uppercase tracking-[0.2em] text-[var(--muted-foreground)]">
+            <div className="mb-3 flex items-center justify-between rounded-[0.95rem] border border-[rgba(34,34,34,0.08)] bg-white/94 px-3 py-2 text-[0.64rem] font-semibold uppercase tracking-[0.18em] text-[var(--muted-foreground)]">
               <span>Document canvas</span>
-              <span>Synced</span>
+              <span className="rounded-full border border-[var(--border-soft)] bg-[var(--surface-soft)] px-2.5 py-1 text-[0.62rem] tracking-[0.16em]">
+                Synced
+              </span>
             </div>
           ) : null}
 
           {isCompactPreview ? (
             <div
-              className="relative mx-auto max-w-full overflow-hidden rounded-[0.7rem] border border-[rgba(34,34,34,0.08)] bg-white shadow-[0_14px_28px_rgba(34,34,34,0.08)]"
+              className="relative mx-auto max-w-full overflow-hidden rounded-[0.7rem] border border-[rgba(34,34,34,0.08)] bg-white shadow-[0_10px_22px_rgba(34,34,34,0.06)]"
               style={{
                 width: `${scaledWidth}px`,
                 height: `${Math.ceil(scaledHeight)}px`,
@@ -189,7 +191,7 @@ export function DocumentPreviewSurface({
               }}
             >
               <div
-                className="overflow-hidden rounded-[1.25rem] border border-[rgba(34,34,34,0.08)] bg-white shadow-[0_28px_52px_rgba(34,34,34,0.1)]"
+                className="overflow-hidden rounded-[1.18rem] border border-[rgba(34,34,34,0.08)] bg-white shadow-[0_20px_36px_rgba(34,34,34,0.08)]"
                 style={{
                   width: `${PREVIEW_DOCUMENT_FRAME_WIDTH - 2}px`,
                   minHeight: `${A4_DOCUMENT_HEIGHT}px`,
