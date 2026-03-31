@@ -42,13 +42,27 @@ function InvoiceIcon(props: IconProps) {
   );
 }
 
+function PdfStudioIcon(props: IconProps) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" {...props}>
+      <rect x="3" y="3" width="8" height="8" rx="1.5" />
+      <rect x="13" y="3" width="8" height="8" rx="1.5" />
+      <rect x="3" y="13" width="8" height="8" rx="1.5" />
+      <path d="M13 17h8" />
+      <path d="M17 13v8" />
+    </svg>
+  );
+}
+
 export function ModuleCard({ module }: ModuleCardProps) {
   const Icon =
     module.slug === "voucher"
       ? VoucherIcon
       : module.slug === "salary-slip"
         ? SalaryIcon
-        : InvoiceIcon;
+        : module.slug === "pdf-studio"
+          ? PdfStudioIcon
+          : InvoiceIcon;
 
   return (
     <article

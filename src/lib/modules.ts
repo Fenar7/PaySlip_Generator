@@ -1,5 +1,5 @@
 export type ProductModule = {
-  slug: "voucher" | "salary-slip" | "invoice";
+  slug: "voucher" | "salary-slip" | "invoice" | "pdf-studio";
   name: string;
   eyebrow: string;
   description: string;
@@ -41,6 +41,18 @@ export const productModules: ProductModule[] = [
       "Line-item and tax structure",
       "Client and business identity blocks",
       "Export-focused document canvas",
+    ],
+  },
+  {
+    slug: "pdf-studio",
+    name: "PDF Studio",
+    eyebrow: "Utilities",
+    description:
+      "Convert images to a single PDF in your browser. Upload up to 30 images, arrange them, set page options, and download the result instantly.",
+    highlights: [
+      "Drag-and-drop image organizer",
+      "Page size, orientation, and fit controls",
+      "Client-side PDF generation",
     ],
   },
 ];

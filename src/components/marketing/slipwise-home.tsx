@@ -103,6 +103,18 @@ function SalaryIcon(props: IconProps) {
   );
 }
 
+function PdfStudioIcon(props: IconProps) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" {...props}>
+      <rect x="3" y="3" width="8" height="8" rx="1.5" />
+      <rect x="13" y="3" width="8" height="8" rx="1.5" />
+      <rect x="3" y="13" width="8" height="8" rx="1.5" />
+      <path d="M13 17h8" />
+      <path d="M17 13v8" />
+    </svg>
+  );
+}
+
 const featurePillars = [
   {
     icon: EyeIcon,
@@ -197,6 +209,8 @@ function getWorkspaceIcon(slug: string) {
       return SalaryIcon;
     case "invoice":
       return InvoiceIcon;
+    case "pdf-studio":
+      return PdfStudioIcon;
     default:
       return SparkIcon;
   }
@@ -624,12 +638,12 @@ export function SlipwiseHome({ className }: SlipwiseHomeProps) {
           <div data-animate="section-heading" className="rounded-[2.1rem] border border-[var(--border-soft)] bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(248,241,235,0.94))] p-6 shadow-[var(--shadow-soft)] md:p-7">
             <SectionHeading
               eyebrow="Workspaces"
-              title="Three focused workspaces, one consistent product."
-              description="Choose the workflow you need and get the same structured editing, live preview, and polished export experience every time."
+              title="Four focused workspaces, one consistent product."
+              description="Choose the workflow you need and get the same structured editing, live preview, and polished output experience every time."
             />
           </div>
 
-          <div className="mt-8 grid gap-6 xl:grid-cols-3">
+          <div className="mt-8 grid gap-6 md:grid-cols-2 xl:grid-cols-4">
             {productModules.map((module) => (
               <ModuleCard key={module.slug} module={module} />
             ))}
@@ -765,7 +779,7 @@ export function SlipwiseHome({ className }: SlipwiseHomeProps) {
             </button>
           </div>
 
-          <div className="mt-8 grid gap-4 md:grid-cols-3">
+          <div className="mt-8 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
             {productModules.map((module) => {
               const Icon = getWorkspaceIcon(module.slug);
 
