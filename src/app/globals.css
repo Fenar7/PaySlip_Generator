@@ -132,6 +132,133 @@ button:not(:disabled),
   box-shadow: var(--shadow-lift);
 }
 
+.slipwise-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9999px;
+  font-size: 0.95rem;
+  font-weight: 500;
+  transition:
+    background-color 180ms ease,
+    color 180ms ease,
+    border-color 180ms ease,
+    box-shadow 180ms ease,
+    transform 180ms ease;
+}
+
+.slipwise-btn-primary {
+  background: linear-gradient(135deg, var(--accent), var(--accent-strong));
+  color: white;
+  box-shadow: 0 16px 30px rgba(232, 64, 30, 0.18);
+}
+
+.slipwise-btn-primary:hover {
+  box-shadow: 0 20px 36px rgba(232, 64, 30, 0.22);
+  filter: brightness(1.03);
+}
+
+.slipwise-btn-secondary {
+  border: 1px solid var(--border-strong);
+  background: rgba(255, 255, 255, 0.94);
+  color: var(--foreground);
+  box-shadow: 0 10px 24px rgba(34, 34, 34, 0.04);
+}
+
+.slipwise-btn-secondary:hover {
+  background: rgba(248, 241, 235, 0.84);
+}
+
+.slipwise-state-shell {
+  position: relative;
+  overflow: hidden;
+  border-radius: 2rem;
+  border: 1px solid var(--border-strong);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(247, 241, 235, 0.95));
+  box-shadow: var(--shadow-card);
+}
+
+.slipwise-state-shell::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto;
+  height: 10rem;
+  background: radial-gradient(circle at top, rgba(232, 64, 30, 0.12), transparent 68%);
+  pointer-events: none;
+}
+
+.slipwise-state-panel {
+  border-radius: 1.4rem;
+  border: 1px solid var(--border-soft);
+  background: rgba(255, 255, 255, 0.88);
+  box-shadow: var(--shadow-soft);
+}
+
+.slipwise-btn-subtle {
+  border: 1px solid var(--border-soft);
+  background: rgba(248, 241, 235, 0.78);
+  color: var(--foreground-soft);
+  box-shadow: 0 10px 24px rgba(34, 34, 34, 0.03);
+}
+
+.slipwise-btn-subtle:hover {
+  background: rgba(246, 238, 231, 0.98);
+}
+
+.slipwise-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9999px;
+  border: 1px solid var(--border-soft);
+  background: rgba(248, 241, 235, 0.74);
+  color: var(--foreground-soft);
+}
+
+.slipwise-surface-card {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(248, 241, 235, 0.94));
+  border: 1px solid var(--border-soft);
+  box-shadow: var(--shadow-soft);
+}
+
+.slipwise-state-shell {
+  position: relative;
+  overflow: hidden;
+  border-radius: 2rem;
+  border: 1px solid var(--border-strong);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(247, 241, 235, 0.95));
+  box-shadow: var(--shadow-card);
+}
+
+.slipwise-state-shell::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto;
+  height: 10rem;
+  background: radial-gradient(circle at top, rgba(232, 64, 30, 0.12), transparent 68%);
+  pointer-events: none;
+}
+
+.slipwise-state-panel {
+  border-radius: 1.4rem;
+  border: 1px solid var(--border-soft);
+  background: rgba(255, 255, 255, 0.88);
+  box-shadow: var(--shadow-soft);
+}
+
+.slipwise-empty-state {
+  border: 1px solid var(--border-strong);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(248, 241, 235, 0.96));
+  box-shadow: var(--shadow-card);
+}
+
+.slipwise-link-inline {
+  color: var(--accent);
+  text-decoration: underline;
+  text-decoration-color: rgba(232, 64, 30, 0.3);
+  text-underline-offset: 0.22em;
+}
+
 @page {
   size: A4;
   margin: 12mm 0 0 0;

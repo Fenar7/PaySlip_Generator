@@ -690,7 +690,7 @@ export function SlipwiseHome({ className }: SlipwiseHomeProps) {
             <button
               type="button"
               onClick={closeWorkspaceDialog}
-              className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-[var(--border-strong)] bg-white text-[var(--foreground-soft)] transition hover:border-[var(--accent)] hover:text-[var(--foreground)]"
+              className="slipwise-btn slipwise-btn-secondary h-11 w-11 shrink-0 p-0 text-[var(--foreground-soft)] hover:text-[var(--foreground)]"
               aria-label="Close workspace picker"
             >
               <span aria-hidden="true" className="text-xl leading-none">
@@ -707,7 +707,7 @@ export function SlipwiseHome({ className }: SlipwiseHomeProps) {
                 <Link
                   key={module.slug}
                   href={`/${module.slug}`}
-                  className="group rounded-[1.85rem] border border-[var(--border-strong)] bg-white/96 p-5 shadow-[var(--shadow-soft)] transition duration-200 hover:-translate-y-1 hover:border-[var(--accent)] hover:shadow-[var(--shadow-card)]"
+                  className="group slipwise-surface-card rounded-[1.85rem] p-5 transition duration-200 hover:-translate-y-1 hover:border-[var(--accent)] hover:shadow-[var(--shadow-card)]"
                 >
                   <div className="flex items-start justify-between gap-4">
                     <p className="text-[0.72rem] font-semibold uppercase tracking-[0.32em] text-[var(--muted-foreground)]">
@@ -723,7 +723,7 @@ export function SlipwiseHome({ className }: SlipwiseHomeProps) {
                   <p className="mt-3 text-sm leading-7 text-[var(--foreground-soft)]">
                     {module.description}
                   </p>
-                  <div className="mt-5 inline-flex items-center gap-2 text-sm font-semibold text-[var(--accent)]">
+                  <div className="slipwise-link-inline mt-5 inline-flex items-center gap-2 text-sm font-semibold">
                     Open workspace
                     <span
                       aria-hidden="true"
