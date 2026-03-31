@@ -53,13 +53,13 @@ export function ModuleCard({ module }: ModuleCardProps) {
   return (
     <article
       data-animate="generator-card"
-      className="group relative overflow-hidden rounded-[2.25rem] border border-[var(--border-strong)] bg-[linear-gradient(180deg,rgba(255,255,255,0.96),rgba(243,247,253,0.98))] p-6 shadow-[var(--shadow-soft)]"
+      className="group relative overflow-hidden rounded-[2.25rem] border border-[var(--border-strong)] bg-[linear-gradient(180deg,rgba(255,255,255,0.96),rgba(246,240,234,0.98))] p-6 shadow-[var(--shadow-soft)]"
     >
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(49,93,246,0.18),transparent_42%),radial-gradient(circle_at_bottom_left,rgba(14,165,233,0.08),transparent_32%)] opacity-0 transition-opacity duration-200 group-hover:opacity-100" />
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(232,64,30,0.12),transparent_42%),radial-gradient(circle_at_bottom_left,rgba(34,34,34,0.05),transparent_32%)] opacity-0 transition-opacity duration-200 group-hover:opacity-100" />
       <div className="relative flex h-full flex-col gap-6">
         <div className="flex items-start justify-between gap-4">
           <div>
-            <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white text-[var(--accent-strong)] shadow-[0_12px_26px_rgba(15,23,42,0.08)]">
+            <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white text-[var(--accent)] shadow-[0_12px_26px_rgba(34,34,34,0.06)]">
               <Icon className="h-5 w-5" />
             </span>
             <p className="mt-4 text-[0.68rem] font-semibold uppercase tracking-[0.32em] text-[var(--muted-foreground)]">
@@ -78,7 +78,7 @@ export function ModuleCard({ module }: ModuleCardProps) {
         <ul className="space-y-2 text-[0.95rem] text-[var(--foreground-soft)]">
           {module.highlights.map((highlight) => (
             <li key={highlight} className="flex items-center gap-3">
-              <span className="h-2 w-2 rounded-full bg-[linear-gradient(135deg,var(--accent),var(--accent-strong))] shadow-[0_0_0_6px_rgba(49,93,246,0.08)]" />
+              <span className="h-2 w-2 rounded-full bg-[linear-gradient(135deg,var(--accent),var(--accent-strong))] shadow-[0_0_0_6px_rgba(232,64,30,0.08)]" />
               {highlight}
             </li>
           ))}
@@ -86,7 +86,7 @@ export function ModuleCard({ module }: ModuleCardProps) {
 
         <Link
           href={`/${module.slug}`}
-          className="mt-auto inline-flex w-fit items-center gap-2 rounded-full bg-[linear-gradient(135deg,var(--foreground),#1f2937)] px-4 py-2 text-sm font-medium text-[var(--background)] shadow-[0_16px_30px_rgba(15,23,42,0.12)] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_22px_36px_rgba(15,23,42,0.18)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--background)]"
+          className="mt-auto inline-flex w-fit items-center gap-2 rounded-full bg-[linear-gradient(135deg,var(--accent),var(--accent-strong))] px-4 py-2 text-sm font-medium text-white shadow-[0_16px_30px_rgba(34,34,34,0.10)] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_22px_36px_rgba(34,34,34,0.14)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--background)]"
         >
           Open workspace
           <span aria-hidden="true">→</span>

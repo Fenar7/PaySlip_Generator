@@ -15,7 +15,7 @@ function baseInputClass(hasError?: boolean) {
     "w-full rounded-[1rem] border bg-white px-4 py-3.5 text-sm text-[var(--foreground)] shadow-[0_8px_20px_rgba(15,23,42,0.03)] outline-none transition-[border-color,box-shadow]",
     hasError
       ? "border-[var(--danger)] focus:border-[var(--danger)] focus:shadow-[0_0_0_4px_rgba(220,38,38,0.08)]"
-      : "border-[var(--border-soft)] focus:border-[var(--accent)] focus:shadow-[0_0_0_4px_rgba(45,107,255,0.09)]",
+      : "border-[var(--border-soft)] focus:border-[var(--accent)] focus:shadow-[0_0_0_4px_var(--accent-soft)]",
   );
 }
 

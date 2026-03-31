@@ -5,8 +5,8 @@ type PreviewFrameProps = {
 
 export function PreviewFrame({ title, summary }: PreviewFrameProps) {
   return (
-    <div className="relative overflow-hidden rounded-[2.5rem] border border-[var(--border-strong)] bg-[linear-gradient(180deg,rgba(255,255,255,0.9),rgba(235,242,252,0.94))] p-5 shadow-[var(--shadow-card)]">
-      <div className="absolute inset-x-10 top-0 h-28 rounded-full bg-[radial-gradient(circle,rgba(49,93,246,0.22),transparent_68%)] blur-3xl" />
+    <div className="relative overflow-hidden rounded-[2.5rem] border border-[var(--border-strong)] bg-[linear-gradient(180deg,rgba(255,255,255,0.92),rgba(245,239,233,0.94))] p-5 shadow-[var(--shadow-card)]">
+      <div className="absolute inset-x-10 top-0 h-28 rounded-full bg-[radial-gradient(circle,rgba(232,64,30,0.14),transparent_68%)] blur-3xl" />
       <div className="relative rounded-[1.75rem] border border-[var(--border-soft)] bg-white p-6 shadow-[0_12px_30px_rgba(15,23,42,0.04)]">
         <div className="flex items-center justify-between border-b border-[var(--border-soft)] pb-4">
           <div>
@@ -24,7 +24,7 @@ export function PreviewFrame({ title, summary }: PreviewFrameProps) {
 
         <div className="grid gap-6 py-6 lg:grid-cols-[1.4fr_0.6fr]">
           <div className="space-y-4">
-            <div className="rounded-[1.5rem] border border-[var(--border-soft)] bg-[linear-gradient(180deg,rgba(245,249,255,0.85),rgba(255,255,255,1))] px-5 py-5">
+            <div className="rounded-[1.5rem] border border-[var(--border-soft)] bg-[linear-gradient(180deg,rgba(247,241,235,0.85),rgba(255,255,255,1))] px-5 py-5">
               <div className="mb-4 flex items-start justify-between gap-4">
                 <div>
                   <div className="h-3 w-20 rounded-full bg-[var(--ink-soft)]/18" />
@@ -64,7 +64,7 @@ export function PreviewFrame({ title, summary }: PreviewFrameProps) {
             </div>
           </div>
 
-          <aside className="rounded-[1.75rem] border border-[var(--border-soft)] bg-[linear-gradient(180deg,rgba(235,242,252,1),rgba(246,249,255,0.94))] p-4 shadow-[0_10px_28px_rgba(15,23,42,0.03)]">
+          <aside className="rounded-[1.75rem] border border-[var(--border-soft)] bg-[linear-gradient(180deg,rgba(245,239,233,1),rgba(250,247,243,0.94))] p-4 shadow-[0_10px_28px_rgba(34,34,34,0.03)]">
             <div className="h-3 w-20 rounded-full bg-[var(--ink-soft)]/18" />
             <p className="mt-4 text-sm leading-7 text-[var(--muted-foreground)]">
               {summary}
