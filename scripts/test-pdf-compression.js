@@ -12,7 +12,6 @@
  * Run with: node scripts/test-pdf-compression.js
  */
 
-// Mock canvas module for node environment
 import Canvas from "canvas";
 
 console.log("🧪 PDF Compression Functionality Test\n");

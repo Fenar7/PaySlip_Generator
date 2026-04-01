@@ -102,7 +102,8 @@ describe("Password Utility Functions", () => {
     });
 
     it("should handle invalid strength levels", () => {
-      expect(getPasswordStrengthColor("invalid" as PasswordValidation['strength'])).toBe("gray");
+      const invalidStrength = "invalid" as PasswordValidation['strength'];
+      expect(getPasswordStrengthColor(invalidStrength)).toBe("gray");
     });
   });
 
@@ -178,11 +179,12 @@ describe("Password Utility Functions", () => {
     });
 
     it("should handle invalid types gracefully", () => {
-      const result = sanitizePasswordSettings({
+      const invalidSettings = {
         enabled: "invalid",
         userPassword: 123,
         permissions: "invalid",
-      } as Partial<PasswordSettings>);
+      } as Partial<PasswordSettings>;
+      const result = sanitizePasswordSettings(invalidSettings);
       expect(result.enabled).toBe(false);
       expect(result.userPassword).toBe("");
       expect(result.permissions.printing).toBe(true); // default
@@ -198,7 +200,8 @@ describe("Password Utility Functions", () => {
     });
 
     it("should handle invalid strength levels", () => {
-      expect(getPasswordStrengthDescription("invalid" as PasswordValidation['strength'])).toBe("Unknown strength level");
+      const invalidStrength = "invalid" as PasswordValidation['strength'];
+      expect(getPasswordStrengthDescription(invalidStrength)).toBe("Unknown strength level");
     });
   });
 });
