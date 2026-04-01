@@ -7,15 +7,47 @@ export type PdfMetadata = {
   keywords: string;
 };
 
-export type PdfPageNumberSettings = {
+export type PageNumberFormat = 'number' | 'page-number' | 'number-of-total' | 'page-number-of-total';
+export type PageNumberPosition = 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right' | 'bottom-center';
+
+export type PageNumberSettings = {
   enabled: boolean;
+  position: PageNumberPosition;
+  format: PageNumberFormat;
+  startFrom: number;
+  skipFirstPage: boolean;
 };
 
-export type PdfWatermarkSettings = {
+// Alias for backward compatibility
+export type PdfPageNumberSettings = PageNumberSettings;
+
+export type WatermarkPosition = 
+  | 'top-left' | 'top-center' | 'top-right'
+  | 'center-left' | 'center' | 'center-right'
+  | 'bottom-left' | 'bottom-center' | 'bottom-right';
+
+export type WatermarkSettings = {
   enabled: boolean;
-  text: string;
-  opacity: number;
+  type: 'none' | 'text' | 'image';
+  text?: {
+    content: string;
+    fontSize: number;
+    color: string;
+    opacity: number;
+  };
+  image?: {
+    file?: File;
+    previewUrl?: string;
+    scale: number;
+    opacity: number;
+  };
+  position: WatermarkPosition;
+  rotation: number;
+  scope: 'all' | 'first';
 };
+
+// Legacy type alias for backward compatibility
+export type PdfWatermarkSettings = WatermarkSettings;
 
 export type ImageCrop = {
   x: number;
@@ -50,8 +82,8 @@ export type PageSettings = {
   filename: string;
   compressionQuality: number;
   metadata: PdfMetadata;
-  pageNumbers: PdfPageNumberSettings;
-  watermark: PdfWatermarkSettings;
+  pageNumbers: PageNumberSettings;
+  watermark: WatermarkSettings;
   enableOcr: boolean;
 };
 
