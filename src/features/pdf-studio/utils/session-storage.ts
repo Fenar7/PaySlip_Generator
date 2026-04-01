@@ -4,11 +4,16 @@ import { PDF_STUDIO_DEFAULT_SETTINGS, PDF_STUDIO_SESSION_STORAGE_KEY } from "@/f
 import type { ImageItem, PageSettings, PdfStudioSession } from "@/features/pdf-studio/types";
 
 function cloneDefaultSettings(): PageSettings {
+  const defaults = PDF_STUDIO_DEFAULT_SETTINGS;
   return {
-    ...PDF_STUDIO_DEFAULT_SETTINGS,
-    metadata: { ...PDF_STUDIO_DEFAULT_SETTINGS.metadata },
-    pageNumbers: { ...PDF_STUDIO_DEFAULT_SETTINGS.pageNumbers },
-    watermark: { ...PDF_STUDIO_DEFAULT_SETTINGS.watermark },
+    ...defaults,
+    metadata: { ...defaults.metadata },
+    pageNumbers: { ...defaults.pageNumbers },
+    watermark: {
+      ...defaults.watermark,
+      text: { ...defaults.watermark.text },
+      image: { ...defaults.watermark.image },
+    },
   };
 }
 
@@ -113,17 +118,89 @@ function sanitizeSettings(settings: unknown): PageSettings {
         typeof candidate.pageNumbers?.enabled === "boolean"
           ? candidate.pageNumbers.enabled
           : defaults.pageNumbers.enabled,
+      position:
+        candidate.pageNumbers?.position === "top-left" ||
+        candidate.pageNumbers?.position === "top-right" ||
+        candidate.pageNumbers?.position === "bottom-left" ||
+        candidate.pageNumbers?.position === "bottom-right" ||
+        candidate.pageNumbers?.position === "bottom-center"
+          ? candidate.pageNumbers.position
+          : defaults.pageNumbers.position,
+      format:
+        candidate.pageNumbers?.format === "number" ||
+        candidate.pageNumbers?.format === "page-number" ||
+        candidate.pageNumbers?.format === "number-of-total" ||
+        candidate.pageNumbers?.format === "page-number-of-total"
+          ? candidate.pageNumbers.format
+          : defaults.pageNumbers.format,
+      startFrom:
+        typeof candidate.pageNumbers?.startFrom === "number" && candidate.pageNumbers.startFrom >= 1
+          ? Math.round(candidate.pageNumbers.startFrom)
+          : defaults.pageNumbers.startFrom,
+      skipFirstPage:
+        typeof candidate.pageNumbers?.skipFirstPage === "boolean"
+          ? candidate.pageNumbers.skipFirstPage
+          : defaults.pageNumbers.skipFirstPage,
     },
     watermark: {
       enabled:
         typeof candidate.watermark?.enabled === "boolean"
           ? candidate.watermark.enabled
           : defaults.watermark.enabled,
-      text: typeof candidate.watermark?.text === "string" ? candidate.watermark.text : defaults.watermark.text,
-      opacity:
-        typeof candidate.watermark?.opacity === "number"
-          ? Math.min(0.6, Math.max(0.05, candidate.watermark.opacity))
-          : defaults.watermark.opacity,
+      type:
+        candidate.watermark?.type === "none" ||
+        candidate.watermark?.type === "text" ||
+        candidate.watermark?.type === "image"
+          ? candidate.watermark.type
+          : defaults.watermark.type,
+      text: {
+        content:
+          typeof candidate.watermark?.text?.content === "string"
+            ? candidate.watermark.text.content
+            : defaults.watermark.text?.content || "",
+        fontSize:
+          typeof candidate.watermark?.text?.fontSize === "number"
+            ? Math.min(48, Math.max(8, candidate.watermark.text.fontSize))
+            : defaults.watermark.text?.fontSize || 14,
+        color:
+          typeof candidate.watermark?.text?.color === "string"
+            ? candidate.watermark.text.color
+            : defaults.watermark.text?.color || "#999999",
+        opacity:
+          typeof candidate.watermark?.text?.opacity === "number"
+            ? Math.min(100, Math.max(1, candidate.watermark.text.opacity))
+            : defaults.watermark.text?.opacity || 50,
+      },
+      image: {
+        scale:
+          typeof candidate.watermark?.image?.scale === "number"
+            ? Math.min(100, Math.max(10, candidate.watermark.image.scale))
+            : defaults.watermark.image?.scale || 30,
+        opacity:
+          typeof candidate.watermark?.image?.opacity === "number"
+            ? Math.min(100, Math.max(1, candidate.watermark.image.opacity))
+            : defaults.watermark.image?.opacity || 50,
+      },
+      position:
+        candidate.watermark?.position === "top-left" ||
+        candidate.watermark?.position === "top-center" ||
+        candidate.watermark?.position === "top-right" ||
+        candidate.watermark?.position === "center-left" ||
+        candidate.watermark?.position === "center" ||
+        candidate.watermark?.position === "center-right" ||
+        candidate.watermark?.position === "bottom-left" ||
+        candidate.watermark?.position === "bottom-center" ||
+        candidate.watermark?.position === "bottom-right"
+          ? candidate.watermark.position
+          : defaults.watermark.position,
+      rotation:
+        typeof candidate.watermark?.rotation === "number"
+          ? Math.min(360, Math.max(-360, candidate.watermark.rotation))
+          : defaults.watermark.rotation,
+      scope:
+        candidate.watermark?.scope === "all" || candidate.watermark?.scope === "first"
+          ? candidate.watermark.scope
+          : defaults.watermark.scope,
     },
     enableOcr: typeof candidate.enableOcr === "boolean" ? candidate.enableOcr : defaults.enableOcr,
   };

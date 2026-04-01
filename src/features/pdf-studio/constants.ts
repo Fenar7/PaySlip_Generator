@@ -37,11 +37,27 @@ export const PDF_STUDIO_DEFAULT_SETTINGS: PageSettings = {
   },
   pageNumbers: {
     enabled: false,
+    position: 'bottom-center',
+    format: 'number-of-total',
+    startFrom: 1,
+    skipFirstPage: false,
   },
   watermark: {
     enabled: false,
-    text: "",
-    opacity: 0.18,
+    type: 'none',
+    text: {
+      content: 'Confidential',
+      fontSize: 24,
+      color: '#999999',
+      opacity: 50,
+    },
+    image: {
+      scale: 30,
+      opacity: 50,
+    },
+    position: 'center',
+    rotation: 0,
+    scope: 'all',
   },
   enableOcr: false,
 };
@@ -81,3 +97,41 @@ export const MARGIN_PT = {
   medium: 28.35,
   large: 56.69,
 } as const;
+
+export const WATERMARK_TYPE_OPTIONS = [
+  { value: "none", label: "None" },
+  { value: "text", label: "Text" },
+  { value: "image", label: "Image" },
+] as const;
+
+export const WATERMARK_POSITION_OPTIONS = [
+  { value: "top-left", label: "Top Left" },
+  { value: "top-center", label: "Top Center" },
+  { value: "top-right", label: "Top Right" },
+  { value: "center-left", label: "Center Left" },
+  { value: "center", label: "Center" },
+  { value: "center-right", label: "Center Right" },
+  { value: "bottom-left", label: "Bottom Left" },
+  { value: "bottom-center", label: "Bottom Center" },
+  { value: "bottom-right", label: "Bottom Right" },
+] as const;
+
+export const WATERMARK_SCOPE_OPTIONS = [
+  { value: "all", label: "All pages" },
+  { value: "first", label: "First page only" },
+] as const;
+
+export const PAGE_NUMBER_POSITION_OPTIONS = [
+  { value: "top-left", label: "Top Left" },
+  { value: "top-right", label: "Top Right" },
+  { value: "bottom-left", label: "Bottom Left" },
+  { value: "bottom-right", label: "Bottom Right" },
+  { value: "bottom-center", label: "Bottom Center" },
+] as const;
+
+export const PAGE_NUMBER_FORMAT_OPTIONS = [
+  { value: "number", label: "1, 2, 3..." },
+  { value: "page-number", label: "Page 1, Page 2..." },
+  { value: "number-of-total", label: "1 of 5, 2 of 5..." },
+  { value: "page-number-of-total", label: "Page 1 of 5, Page 2 of 5..." },
+] as const;
