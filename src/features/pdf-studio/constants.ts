@@ -2,14 +2,25 @@ import type { PageSettings } from "@/features/pdf-studio/types";
 
 export const PDF_STUDIO_MAX_IMAGES = 30;
 
+export const PDF_STUDIO_SESSION_STORAGE_KEY = "pdf-studio-session-v1";
+
 export const PDF_STUDIO_SUPPORTED_FORMATS = [
   "image/jpeg",
   "image/jpg",
   "image/png",
   "image/webp",
+  "image/heic",
+  "image/heif",
 ];
 
-export const PDF_STUDIO_SUPPORTED_EXTENSIONS = [".jpg", ".jpeg", ".png", ".webp"];
+export const PDF_STUDIO_SUPPORTED_EXTENSIONS = [
+  ".jpg",
+  ".jpeg",
+  ".png",
+  ".webp",
+  ".heic",
+  ".heif",
+];
 
 export const PDF_STUDIO_DEFAULT_SETTINGS: PageSettings = {
   size: "a4",
@@ -17,6 +28,22 @@ export const PDF_STUDIO_DEFAULT_SETTINGS: PageSettings = {
   fitMode: "contain",
   margins: "small",
   filename: "pdf-studio-document",
+  compressionQuality: 92,
+  metadata: {
+    title: "",
+    author: "",
+    subject: "",
+    keywords: "",
+  },
+  pageNumbers: {
+    enabled: false,
+  },
+  watermark: {
+    enabled: false,
+    text: "",
+    opacity: 0.18,
+  },
+  enableOcr: false,
 };
 
 export const PAGE_SIZE_OPTIONS = [

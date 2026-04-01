@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useRef } from "react";
+import { useCallback, useRef, useState } from "react";
 import {
   DndContext,
   closestCenter,
@@ -17,19 +17,31 @@ import {
   rectSortingStrategy,
   arrayMove,
 } from "@dnd-kit/sortable";
+import { CropEditorDialog } from "@/features/pdf-studio/components/crop-editor-dialog";
 import { ImageThumbnail } from "@/features/pdf-studio/components/image-thumbnail";
 import type { ImageItem, ImageRotation } from "@/features/pdf-studio/types";
 import {
   PDF_STUDIO_MAX_IMAGES,
   PDF_STUDIO_SUPPORTED_FORMATS,
+  PDF_STUDIO_SUPPORTED_EXTENSIONS,
 } from "@/features/pdf-studio/constants";
 import { loadImageFromFile } from "@/features/pdf-studio/utils/image-processor";
+import { convertHeicToJpeg } from "@/features/pdf-studio/utils/heic-converter";
+import { processImageForOcr } from "@/features/pdf-studio/utils/ocr-processor"; // Re-adding this import
 import { cn } from "@/lib/utils";
+import type { MouseEvent } from "react";
 
 type ImageOrganizerProps = {
   images: ImageItem[];
-  onChange: (images: ImageItem[]) => void;
+  onChange: (images: ImageItem[] | ((prevImages: ImageItem[]) => ImageItem[])) => void;
   error?: string;
+  selectedIds: string[];
+  onSelectionChange: (ids: string[]) => void;
+  onBatchDelete: () => void;
+  onBatchRotateLeft: () => void;
+  onBatchRotateRight: () => void;
+  onSelectAll: () => void;
+  onClearSelection: () => void;
 };
 
 function UploadIcon() {
@@ -46,8 +58,20 @@ function generateId() {
   return `img-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
 }
 
-export function ImageOrganizer({ images, onChange, error }: ImageOrganizerProps) {
+export function ImageOrganizer({
+  images,
+  onChange,
+  error,
+  selectedIds,
+  onSelectionChange,
+  onBatchDelete,
+  onBatchRotateLeft,
+  onBatchRotateRight,
+  onSelectAll,
+  onClearSelection,
+}: ImageOrganizerProps) {
   const inputRef = useRef<HTMLInputElement>(null);
+  const [cropTargetId, setCropTargetId] = useState<string | null>(null);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
@@ -75,25 +99,86 @@ export function ImageOrganizer({ images, onChange, error }: ImageOrganizerProps)
         return;
       }
 
-      const valid = fileArray
-        .filter((f) => PDF_STUDIO_SUPPORTED_FORMATS.includes(f.type))
+      const validFiles = fileArray
+        .filter((f) => PDF_STUDIO_SUPPORTED_FORMATS.includes(f.type) || (f.type === "" && (f.name.endsWith(".heic") || f.name.endsWith(".heif"))))
         .slice(0, remaining);
 
-      const newItems: ImageItem[] = await Promise.all(
-        valid.map(async (file) => {
-          const previewUrl = await loadImageFromFile(file);
-          return {
-            id: generateId(),
-            file,
-            previewUrl,
+      validFiles.forEach(async (file) => {
+        const isHeic = file.type === "image/heic" || file.type === "image/heif" || file.name.endsWith(".heic") || file.name.endsWith(".heif");
+        const id = generateId();
+
+        let finalImageFile = file;
+        let finalPreviewUrl = "";
+        let finalName = file.name;
+        let finalSizeBytes = file.size;
+        let initialIsConverting = false;
+
+        if (isHeic) {
+          initialIsConverting = true;
+          const placeholder: ImageItem = {
+            id,
+            previewUrl: "",
             rotation: 0 as ImageRotation,
             name: file.name,
             sizeBytes: file.size,
+            isConverting: true,
           };
-        }),
-      );
 
-      onChange([...images, ...newItems]);
+          onChange((currentImages: ImageItem[]) => [...currentImages, placeholder]);
+
+          try {
+            const convertedFile = await convertHeicToJpeg(file);
+            finalImageFile = convertedFile;
+            finalPreviewUrl = await loadImageFromFile(convertedFile);
+            finalName = convertedFile.name;
+            finalSizeBytes = convertedFile.size;
+            initialIsConverting = false;
+          } catch (error) {
+            console.error("HEIC conversion failed:", error);
+            onChange((currentImages: ImageItem[]) => currentImages.filter((img) => img.id !== id));
+            return;
+          }
+        } else {
+          finalPreviewUrl = await loadImageFromFile(file);
+        }
+
+        const newItem: ImageItem = {
+          id,
+          file: finalImageFile,
+          previewUrl: finalPreviewUrl,
+          rotation: 0 as ImageRotation,
+          name: finalName,
+          sizeBytes: finalSizeBytes,
+          isConverting: initialIsConverting,
+        };
+
+        // Add the image to the list
+        onChange((currentImages: ImageItem[]) => [...currentImages, newItem]);
+
+        // Start OCR in background
+        if (newItem.file) {
+          onChange((currentImages: ImageItem[]) =>
+            currentImages.map((img) =>
+              img.id === newItem.id ? { ...img, ocrStatus: "processing" } : img,
+            ),
+          );
+          try {
+            const ocrText = await processImageForOcr(newItem.file);
+            onChange((currentImages: ImageItem[]) =>
+              currentImages.map((img) =>
+                img.id === newItem.id ? { ...img, ocrText, ocrStatus: "complete" } : img,
+              ),
+            );
+          } catch (error) {
+            console.error("OCR processing failed:", error);
+            onChange((currentImages: ImageItem[]) =>
+              currentImages.map((img) =>
+                img.id === newItem.id ? { ...img, ocrStatus: "error" } : img,
+              ),
+            );
+          }
+        }
+      });
     },
     [images, onChange],
   );
@@ -150,9 +235,32 @@ export function ImageOrganizer({ images, onChange, error }: ImageOrganizerProps)
       if (item?.previewUrl.startsWith("blob:")) {
         URL.revokeObjectURL(item.previewUrl);
       }
+      onSelectionChange(selectedIds.filter((selectedId) => selectedId !== id));
       onChange(images.filter((img) => img.id !== id));
     },
-    [images, onChange],
+    [images, onChange, onSelectionChange, selectedIds],
+  );
+
+  const handleCropOpen = useCallback((id: string) => {
+    setCropTargetId(id);
+  }, []);
+
+  const handleCropClose = useCallback(() => {
+    setCropTargetId(null);
+  }, []);
+
+  const handleCropApply = useCallback(
+    (crop: ImageItem["crop"]) => {
+      if (!cropTargetId) {
+        return;
+      }
+
+      onChange(
+        images.map((img) => (img.id === cropTargetId ? { ...img, crop } : img)),
+      );
+      setCropTargetId(null);
+    },
+    [cropTargetId, images, onChange],
   );
 
   const handleClearAll = useCallback(() => {
@@ -161,117 +269,204 @@ export function ImageOrganizer({ images, onChange, error }: ImageOrganizerProps)
         URL.revokeObjectURL(img.previewUrl);
       }
     });
+    onClearSelection();
     onChange([]);
-  }, [images, onChange]);
+  }, [images, onChange, onClearSelection]);
+
+  const handleSelect = useCallback(
+    (id: string, event: MouseEvent<HTMLButtonElement>) => {
+      const index = images.findIndex((img) => img.id === id);
+      if (index === -1) {
+        return;
+      }
+
+      if (event.shiftKey && selectedIds.length > 0) {
+        const selectedIndexes = selectedIds
+          .map((selectedId) => images.findIndex((img) => img.id === selectedId))
+          .filter((selectedIndex) => selectedIndex >= 0);
+        const anchor = selectedIndexes.length > 0 ? selectedIndexes[selectedIndexes.length - 1] : index;
+        const start = Math.min(anchor, index);
+        const end = Math.max(anchor, index);
+        const rangeIds = images.slice(start, end + 1).map((img) => img.id);
+        onSelectionChange(Array.from(new Set([...selectedIds, ...rangeIds])));
+        return;
+      }
+
+      if (event.metaKey || event.ctrlKey) {
+        onSelectionChange(
+          selectedIds.includes(id)
+            ? selectedIds.filter((selectedId) => selectedId !== id)
+            : [...selectedIds, id],
+        );
+        return;
+      }
+
+      onSelectionChange(selectedIds.includes(id) && selectedIds.length === 1 ? [] : [id]);
+    },
+    [images, onSelectionChange, selectedIds],
+  );
 
   const isFull = images.length >= PDF_STUDIO_MAX_IMAGES;
+  const hasSelection = selectedIds.length > 0;
+  const cropTarget = cropTargetId ? images.find((img) => img.id === cropTargetId) : undefined;
 
   return (
-    <div className="space-y-4">
-      {!isFull ? (
-        <div
-          onDrop={handleDrop}
-          onDragOver={(e) => e.preventDefault()}
-          onClick={() => inputRef.current?.click()}
-          className={cn(
-            "flex cursor-pointer flex-col items-center justify-center gap-3 rounded-[1.6rem] border-2 border-dashed px-6 py-10 text-center transition-colors",
-            error
-              ? "border-[var(--danger)] bg-[rgba(220,38,38,0.04)]"
-              : "border-[var(--border-strong)] bg-[rgba(248,241,235,0.6)] hover:border-[var(--accent)] hover:bg-[rgba(232,64,30,0.04)]",
-          )}
-        >
-          <span className="inline-flex h-14 w-14 items-center justify-center rounded-[1.2rem] border border-[var(--border-soft)] bg-white text-[var(--accent)] shadow-[0_12px_28px_rgba(34,34,34,0.06)]">
-            <UploadIcon />
-          </span>
-          <div>
-            <p className="text-[0.95rem] font-medium text-[var(--foreground)]">
-              Drop images here or click to browse
-            </p>
-            <p className="mt-1 text-[0.82rem] text-[var(--muted-foreground)]">
-              JPG, PNG, WEBP · up to {PDF_STUDIO_MAX_IMAGES} images
-            </p>
-          </div>
-          {images.length > 0 ? (
-            <p className="text-[0.78rem] text-[var(--foreground-soft)]">
-              {images.length} of {PDF_STUDIO_MAX_IMAGES} added · {PDF_STUDIO_MAX_IMAGES - images.length} remaining
-            </p>
-          ) : null}
-          <input
-            ref={inputRef}
-            type="file"
-            accept="image/jpeg,image/jpg,image/png,image/webp"
-            multiple
-            className="hidden"
-            onChange={handleFileInput}
-          />
-        </div>
-      ) : (
-        <div className="flex items-center justify-between rounded-[1.4rem] border border-[var(--border-soft)] bg-white px-4 py-3.5">
-          <p className="text-[0.88rem] text-[var(--foreground-soft)]">
-            Maximum of {PDF_STUDIO_MAX_IMAGES} images reached.
-          </p>
-          <button
-            type="button"
+    <>
+      <div className="space-y-4">
+        {!isFull ? (
+          <div
+            onDrop={handleDrop}
+            onDragOver={(e) => e.preventDefault()}
             onClick={() => inputRef.current?.click()}
-            className="text-[0.82rem] font-medium text-[var(--accent)] underline decoration-[var(--accent-soft)] underline-offset-4"
+            className={cn(
+              "flex cursor-pointer flex-col items-center justify-center gap-3 rounded-[1.6rem] border-2 border-dashed px-6 py-10 text-center transition-colors",
+              error
+                ? "border-[var(--danger)] bg-[rgba(220,38,38,0.04)]"
+                : "border-[var(--border-strong)] bg-[rgba(248,241,235,0.6)] hover:border-[var(--accent)] hover:bg-[rgba(232,64,30,0.04)]",
+            )}
           >
-            Replace
-          </button>
-          <input
-            ref={inputRef}
-            type="file"
-            accept="image/jpeg,image/jpg,image/png,image/webp"
-            multiple
-            className="hidden"
-            onChange={handleFileInput}
-          />
-        </div>
-      )}
-
-      {error ? (
-        <p className="px-1 text-[0.82rem] text-[var(--danger)]">{error}</p>
-      ) : null}
-
-      {images.length > 0 ? (
-        <div className="space-y-3">
-          <div className="flex items-center justify-between px-1">
-            <p className="text-[0.8rem] font-semibold uppercase tracking-[0.22em] text-[var(--muted-foreground)]">
-              {images.length} {images.length === 1 ? "image" : "images"}
+            <span className="inline-flex h-14 w-14 items-center justify-center rounded-[1.2rem] border border-[var(--border-soft)] bg-white text-[var(--accent)] shadow-[0_12px_28px_rgba(34,34,34,0.06)]">
+              <UploadIcon />
+            </span>
+            <div>
+              <p className="text-[0.95rem] font-medium text-[var(--foreground)]">
+                Drop images here or click to browse
+              </p>
+              <p className="mt-1 text-[0.82rem] text-[var(--muted-foreground)]">
+                JPG, PNG, WEBP, HEIC · up to {PDF_STUDIO_MAX_IMAGES} images
+              </p>
+            </div>
+            {images.length > 0 ? (
+              <p className="text-[0.78rem] text-[var(--foreground-soft)]">
+                {images.length} of {PDF_STUDIO_MAX_IMAGES} added · {PDF_STUDIO_MAX_IMAGES - images.length} remaining
+              </p>
+            ) : null}
+            <input
+              ref={inputRef}
+              type="file"
+              accept={PDF_STUDIO_SUPPORTED_EXTENSIONS.join(",")}
+              multiple
+              className="hidden"
+              onChange={handleFileInput}
+            />
+          </div>
+        ) : (
+          <div className="flex items-center justify-between rounded-[1.4rem] border border-[var(--border-soft)] bg-white px-4 py-3.5">
+            <p className="text-[0.88rem] text-[var(--foreground-soft)]">
+              Maximum of {PDF_STUDIO_MAX_IMAGES} images reached.
             </p>
             <button
               type="button"
-              onClick={handleClearAll}
-              className="text-[0.78rem] font-medium text-[var(--foreground-soft)] underline decoration-[var(--border-strong)] underline-offset-4 transition-colors hover:text-[var(--danger)]"
+              onClick={() => inputRef.current?.click()}
+              className="text-[0.82rem] font-medium text-[var(--accent)] underline decoration-[var(--accent-soft)] underline-offset-4"
             >
-              Clear all
+              Replace
             </button>
+            <input
+              ref={inputRef}
+              type="file"
+              accept={PDF_STUDIO_SUPPORTED_EXTENSIONS.join(",")}
+              multiple
+              className="hidden"
+              onChange={handleFileInput}
+            />
           </div>
+        )}
 
-          <DndContext
-            sensors={sensors}
-            collisionDetection={closestCenter}
-            onDragEnd={handleDragEnd}
-          >
-            <SortableContext
-              items={images.map((img) => img.id)}
-              strategy={rectSortingStrategy}
-            >
-              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
-                {images.map((item, index) => (
-                  <ImageThumbnail
-                    key={item.id}
-                    item={item}
-                    index={index}
-                    onRotateLeft={handleRotateLeft}
-                    onRotateRight={handleRotateRight}
-                    onDelete={handleDelete}
-                  />
-                ))}
+        {error ? (
+          <p className="px-1 text-[0.82rem] text-[var(--danger)]">{error}</p>
+        ) : null}
+
+        {images.length > 0 ? (
+          <div className="space-y-3">
+            <div className="flex items-center justify-between px-1">
+              <p className="text-[0.8rem] font-semibold uppercase tracking-[0.22em] text-[var(--muted-foreground)]">
+                {images.length} {images.length === 1 ? "image" : "images"}
+              </p>
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={selectedIds.length === images.length ? onClearSelection : onSelectAll}
+                  className="text-[0.78rem] font-medium text-[var(--foreground-soft)] underline decoration-[var(--border-strong)] underline-offset-4 transition-colors hover:text-[var(--foreground)]"
+                >
+                  {selectedIds.length === images.length ? "Clear selection" : "Select all"}
+                </button>
+                <button
+                  type="button"
+                  onClick={handleClearAll}
+                  className="text-[0.78rem] font-medium text-[var(--foreground-soft)] underline decoration-[var(--border-strong)] underline-offset-4 transition-colors hover:text-[var(--danger)]"
+                >
+                  Clear all
+                </button>
               </div>
-            </SortableContext>
-          </DndContext>
-        </div>
+            </div>
+
+            {hasSelection ? (
+              <div className="flex flex-wrap items-center gap-2 rounded-[1.2rem] border border-[rgba(232,64,30,0.14)] bg-[rgba(248,241,235,0.82)] px-3 py-3 shadow-[0_10px_24px_rgba(34,34,34,0.03)]">
+                <p className="mr-2 text-[0.78rem] font-medium text-[var(--foreground)]">
+                  {selectedIds.length} selected
+                </p>
+                <button
+                  type="button"
+                  onClick={onBatchRotateLeft}
+                  className="inline-flex items-center justify-center rounded-full border border-[var(--border-soft)] bg-white px-3 py-2 text-[0.75rem] font-medium text-[var(--foreground-soft)] transition-colors hover:border-[var(--border-strong)] hover:text-[var(--foreground)]"
+                >
+                  Rotate left
+                </button>
+                <button
+                  type="button"
+                  onClick={onBatchRotateRight}
+                  className="inline-flex items-center justify-center rounded-full border border-[var(--border-soft)] bg-white px-3 py-2 text-[0.75rem] font-medium text-[var(--foreground-soft)] transition-colors hover:border-[var(--border-strong)] hover:text-[var(--foreground)]"
+                >
+                  Rotate right
+                </button>
+                <button
+                  type="button"
+                  onClick={onBatchDelete}
+                  className="inline-flex items-center justify-center rounded-full border border-[rgba(220,38,38,0.18)] bg-white px-3 py-2 text-[0.75rem] font-medium text-[var(--danger)] transition-colors hover:bg-[rgba(220,38,38,0.05)]"
+                >
+                  Delete selected
+                </button>
+              </div>
+            ) : null}
+
+            <DndContext
+              sensors={sensors}
+              collisionDetection={closestCenter}
+              onDragEnd={handleDragEnd}
+            >
+              <SortableContext
+                items={images.map((img) => img.id)}
+                strategy={rectSortingStrategy}
+              >
+                <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+                  {images.map((item, index) => (
+                    <ImageThumbnail
+                      key={item.id}
+                      item={item}
+                      index={index}
+                      isSelected={selectedIds.includes(item.id)}
+                      onRotateLeft={handleRotateLeft}
+                      onRotateRight={handleRotateRight}
+                      onCrop={handleCropOpen}
+                      onDelete={handleDelete}
+                      onSelect={handleSelect}
+                    />
+                  ))}
+                </div>
+              </SortableContext>
+            </DndContext>
+          </div>
+        ) : null}
+      </div>
+
+      {cropTarget ? (
+        <CropEditorDialog
+          item={cropTarget}
+          onApply={handleCropApply}
+          onClose={handleCropClose}
+        />
       ) : null}
-    </div>
+    </>
   );
 }
