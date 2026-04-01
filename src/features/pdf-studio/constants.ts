@@ -59,6 +59,17 @@ export const PDF_STUDIO_DEFAULT_SETTINGS: PageSettings = {
     rotation: 0,
     scope: 'all',
   },
+  password: {
+    enabled: false,
+    userPassword: '',
+    confirmPassword: '',
+    ownerPassword: '',
+    permissions: {
+      printing: true,
+      copying: true,
+      modifying: true,
+    },
+  },
   enableOcr: false,
 };
 
@@ -134,4 +145,36 @@ export const PAGE_NUMBER_FORMAT_OPTIONS = [
   { value: "page-number", label: "Page 1, Page 2..." },
   { value: "number-of-total", label: "1 of 5, 2 of 5..." },
   { value: "page-number-of-total", label: "Page 1 of 5, Page 2 of 5..." },
+] as const;
+
+export const PASSWORD_STRENGTH_COLORS = {
+  weak: 'text-red-600',
+  fair: 'text-yellow-600', 
+  good: 'text-green-400',
+  strong: 'text-green-600'
+} as const;
+
+export const PASSWORD_STRENGTH_DESCRIPTIONS = {
+  weak: 'Weak',
+  fair: 'Fair', 
+  good: 'Good',
+  strong: 'Strong'
+} as const;
+
+export const PASSWORD_PERMISSIONS_OPTIONS = [
+  { 
+    key: 'printing' as const,
+    label: 'Allow printing',
+    description: 'Users can print the PDF document'
+  },
+  { 
+    key: 'copying' as const,
+    label: 'Allow copying text and images',
+    description: 'Users can select and copy content from the PDF'
+  },
+  { 
+    key: 'modifying' as const,
+    label: 'Allow document modification',
+    description: 'Users can modify the PDF document (add annotations, fill forms, etc.)'
+  },
 ] as const;

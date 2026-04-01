@@ -22,6 +22,10 @@ function cloneDefaultSettings(): PageSettings {
         opacity: defaults.watermark.image!.opacity,
       },
     },
+    password: {
+      ...defaults.password,
+      permissions: { ...defaults.password.permissions },
+    },
   };
 }
 
@@ -88,6 +92,7 @@ function sanitizeSettings(settings: unknown): PageSettings {
     metadata?: Partial<PageSettings["metadata"]>;
     pageNumbers?: Partial<PageSettings["pageNumbers"]>;
     watermark?: Partial<PageSettings["watermark"]>;
+    password?: Partial<PageSettings["password"]>;
   };
 
   return {
@@ -209,6 +214,31 @@ function sanitizeSettings(settings: unknown): PageSettings {
         candidate.watermark?.scope === "all" || candidate.watermark?.scope === "first"
           ? candidate.watermark.scope
           : defaults.watermark.scope,
+    },
+    password: {
+      enabled: typeof candidate.password?.enabled === "boolean" ? candidate.password.enabled : defaults.password.enabled,
+      userPassword:
+        typeof candidate.password?.userPassword === "string" ? candidate.password.userPassword : defaults.password.userPassword,
+      confirmPassword:
+        typeof candidate.password?.confirmPassword === "string"
+          ? candidate.password.confirmPassword
+          : defaults.password.confirmPassword,
+      ownerPassword:
+        typeof candidate.password?.ownerPassword === "string" ? candidate.password.ownerPassword : defaults.password.ownerPassword,
+      permissions: {
+        printing:
+          typeof candidate.password?.permissions?.printing === "boolean"
+            ? candidate.password.permissions.printing
+            : defaults.password.permissions.printing,
+        copying:
+          typeof candidate.password?.permissions?.copying === "boolean"
+            ? candidate.password.permissions.copying
+            : defaults.password.permissions.copying,
+        modifying:
+          typeof candidate.password?.permissions?.modifying === "boolean"
+            ? candidate.password.permissions.modifying
+            : defaults.password.permissions.modifying,
+      },
     },
     enableOcr: typeof candidate.enableOcr === "boolean" ? candidate.enableOcr : defaults.enableOcr,
   };

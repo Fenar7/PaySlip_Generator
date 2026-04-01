@@ -21,6 +21,31 @@ export type PageNumberSettings = {
 // Alias for backward compatibility
 export type PdfPageNumberSettings = PageNumberSettings;
 
+/**
+ * Password protection settings for PDF documents
+ */
+export type PasswordSettings = {
+  enabled: boolean;
+  userPassword: string;
+  confirmPassword: string;
+  ownerPassword?: string;
+  permissions: {
+    printing: boolean;
+    copying: boolean;
+    modifying: boolean;
+  };
+};
+
+/**
+ * Password validation result with strength assessment
+ */
+export type PasswordValidation = {
+  isValid: boolean;
+  errors: string[];
+  strength: 'weak' | 'fair' | 'good' | 'strong';
+  score: number;
+};
+
 export type WatermarkPosition = 
   | 'top-left' | 'top-center' | 'top-right'
   | 'center-left' | 'center' | 'center-right'
@@ -84,6 +109,7 @@ export type PageSettings = {
   metadata: PdfMetadata;
   pageNumbers: PageNumberSettings;
   watermark: WatermarkSettings;
+  password: PasswordSettings;
   enableOcr: boolean;
 };
 

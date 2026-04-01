@@ -8,7 +8,8 @@ import {
   MARGIN_OPTIONS,
 } from "@/features/pdf-studio/constants";
 import { cn } from "@/lib/utils";
-import { ChangeEvent, useRef } from "react";
+import { ChangeEvent, useRef, useState } from "react";
+import { PasswordSettingsPanel } from "./password-settings-panel";
 
 type PageSettingsPanelProps = {
   settings: PageSettings;
@@ -202,146 +203,62 @@ function RangeInput({
   );
 }
 
-/**
- * Position grid selector for watermarks
- */
-function PositionGrid({
-  value,
-  onChange,
-}: {
-  value: WatermarkPosition;
-  onChange: (position: WatermarkPosition) => void;
-}) {
-  const positions: { id: WatermarkPosition; label: string; gridArea: string }[] = [
-    { id: 'top-left', label: 'Top Left', gridArea: '1/1' },
-    { id: 'top-center', label: 'Top Center', gridArea: '1/2' },
-    { id: 'top-right', label: 'Top Right', gridArea: '1/3' },
-    { id: 'center-left', label: 'Center Left', gridArea: '2/1' },
-    { id: 'center', label: 'Center', gridArea: '2/2' },
-    { id: 'center-right', label: 'Center Right', gridArea: '2/3' },
-    { id: 'bottom-left', label: 'Bottom Left', gridArea: '3/1' },
-    { id: 'bottom-center', label: 'Bottom Center', gridArea: '3/2' },
-    { id: 'bottom-right', label: 'Bottom Right', gridArea: '3/3' },
+export function PageSettingsPanel({ settings, onChange }: PageSettingsPanelProps) {
+  const [activeTab, setActiveTab] = useState<'general' | 'advanced' | 'password'>('general');
+
+  const tabs = [
+    { id: 'general' as const, label: 'General', icon: '⚙️' },
+    { id: 'advanced' as const, label: 'Advanced', icon: '🔧' },
+    { id: 'password' as const, label: 'Password', icon: '🔒' },
   ];
 
   return (
-    <div className="space-y-2">
-      <p className="text-[0.82rem] font-medium text-[var(--foreground)]">Position</p>
-      <div className="grid grid-cols-3 gap-1 p-2 bg-gray-50 rounded-lg">
-        {positions.map((pos) => (
-          <button
-            key={pos.id}
-            type="button"
-            onClick={() => onChange(pos.id)}
-            className={cn(
-              "aspect-square rounded-md border-2 transition-colors",
-              value === pos.id
-                ? "border-[var(--accent)] bg-[var(--accent)] text-white"
-                : "border-gray-300 bg-white hover:border-gray-400"
-            )}
-            title={pos.label}
-          >
-            <span className="text-xs font-medium">
-              {pos.id === 'center' ? '●' : '○'}
-            </span>
-          </button>
-        ))}
+    <div className="space-y-6">
+      {/* Tab Navigation */}
+      <div className="border-b border-[var(--border-soft)]">
+        <nav className="flex space-x-8" aria-label="Settings tabs">
+          {tabs.map((tab) => (
+            <button
+              key={tab.id}
+              type="button"
+              onClick={() => setActiveTab(tab.id)}
+              className={cn(
+                "flex items-center gap-2 whitespace-nowrap border-b-2 py-4 px-1 text-[0.85rem] font-medium transition-colors",
+                activeTab === tab.id
+                  ? "border-[var(--accent)] text-[var(--accent)]"
+                  : "border-transparent text-[var(--muted-foreground)] hover:border-[var(--border-strong)] hover:text-[var(--foreground)]"
+              )}
+            >
+              <span className="text-base">{tab.icon}</span>
+              {tab.label}
+            </button>
+          ))}
+        </nav>
       </div>
-    </div>
-  );
-}
 
-/**
- * Color picker input
- */
-function ColorInput({
-  label,
-  value,
-  onChange,
-}: {
-  label: string;
-  value: string;
-  onChange: (color: string) => void;
-}) {
-  return (
-    <div className="space-y-2">
-      <p className="text-[0.82rem] font-medium text-[var(--foreground)]">{label}</p>
-      <div className="flex items-center gap-2">
-        <input
-          type="color"
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          className="w-10 h-8 rounded border border-[var(--border-soft)] cursor-pointer"
+      {/* Tab Content */}
+      {activeTab === 'general' && (
+        <GeneralSettingsTab settings={settings} onChange={onChange} />
+      )}
+      
+      {activeTab === 'advanced' && (
+        <AdvancedSettingsTab settings={settings} onChange={onChange} />
+      )}
+      
+      {activeTab === 'password' && (
+        <PasswordSettingsPanel 
+          settings={settings.password} 
+          onSettingsChange={(passwordSettings) => 
+            onChange({ ...settings, password: passwordSettings })
+          } 
         />
-        <div className="flex-1 rounded-[1rem] border border-[var(--border-soft)] bg-white px-3 shadow-[0_10px_24px_rgba(34,34,34,0.035)]">
-          <input
-            type="text"
-            value={value}
-            onChange={(e) => onChange(e.target.value)}
-            placeholder="#999999"
-            className="w-full py-2 text-[0.88rem] text-[var(--foreground)] outline-none"
-          />
-        </div>
-      </div>
+      )}
     </div>
   );
 }
 
-/**
- * File input for image watermarks
- */
-function ImageUpload({
-  label,
-  imageUrl,
-  onImageSelect,
-}: {
-  label: string;
-  imageUrl?: string;
-  onImageSelect: (file: File, url: string) => void;
-}) {
-  const fileInputRef = useRef<HTMLInputElement>(null);
-
-  const handleFileSelect = (e: ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      const url = URL.createObjectURL(file);
-      onImageSelect(file, url);
-    }
-  };
-
-  return (
-    <div className="space-y-2">
-      <p className="text-[0.82rem] font-medium text-[var(--foreground)]">{label}</p>
-      <div className="space-y-2">
-        <button
-          type="button"
-          onClick={() => fileInputRef.current?.click()}
-          className="w-full rounded-[1rem] border border-dashed border-[var(--border-soft)] bg-white/60 px-4 py-6 text-center text-[0.82rem] text-[var(--muted-foreground)] hover:border-[var(--accent)] hover:text-[var(--accent)] transition-colors"
-        >
-          {imageUrl ? 'Change image...' : 'Select image...'}
-        </button>
-        {imageUrl && (
-          <div className="relative">
-            <img
-              src={imageUrl}
-              alt="Watermark preview"
-              className="w-full max-h-20 object-contain rounded border"
-            />
-          </div>
-        )}
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept="image/*"
-          onChange={handleFileSelect}
-          className="hidden"
-        />
-      </div>
-    </div>
-  );
-}
-
-export function PageSettingsPanel({ settings, onChange }: PageSettingsPanelProps) {
+// Tab Components
+function GeneralSettingsTab({ settings, onChange }: PageSettingsPanelProps) {
   return (
     <div className="space-y-6">
       <OptionGroup
@@ -378,14 +295,20 @@ export function PageSettingsPanel({ settings, onChange }: PageSettingsPanelProps
         value={settings.filename}
         onChange={(filename) => onChange({ ...settings, filename })}
       />
+    </div>
+  );
+}
 
+function AdvancedSettingsTab({ settings, onChange }: PageSettingsPanelProps) {
+  return (
+    <div className="space-y-6">
       <div className="space-y-4 rounded-[1.3rem] border border-[var(--border-soft)] bg-[rgba(255,255,255,0.7)] p-4 shadow-[0_10px_24px_rgba(34,34,34,0.03)]">
         <div>
           <p className="text-[0.72rem] font-semibold uppercase tracking-[0.24em] text-[var(--muted-foreground)]">
-            Advanced output
+            Document quality
           </p>
           <p className="mt-2 text-sm leading-6 text-[var(--foreground-soft)]">
-            Fine-tune document quality and add professional metadata to the exported PDF.
+            Control output quality and compression settings.
           </p>
         </div>
 
@@ -397,6 +320,24 @@ export function PageSettingsPanel({ settings, onChange }: PageSettingsPanelProps
           max={100}
           onChange={(compressionQuality) => onChange({ ...settings, compressionQuality })}
         />
+
+        <ToggleRow
+          label="Enable searchable PDF (OCR)"
+          hint="Extract text from images to make the PDF content searchable."
+          checked={settings.enableOcr}
+          onChange={(enableOcr) => onChange({ ...settings, enableOcr })}
+        />
+      </div>
+
+      <div className="space-y-4 rounded-[1.3rem] border border-[var(--border-soft)] bg-[rgba(255,255,255,0.7)] p-4 shadow-[0_10px_24px_rgba(34,34,34,0.03)]">
+        <div>
+          <p className="text-[0.72rem] font-semibold uppercase tracking-[0.24em] text-[var(--muted-foreground)]">
+            Metadata
+          </p>
+          <p className="mt-2 text-sm leading-6 text-[var(--foreground-soft)]">
+            Add professional metadata to your PDF document.
+          </p>
+        </div>
 
         <div className="grid gap-4 md:grid-cols-2">
           <TextInput
@@ -426,174 +367,200 @@ export function PageSettingsPanel({ settings, onChange }: PageSettingsPanelProps
             onChange={(keywords) => onChange({ ...settings, metadata: { ...settings.metadata, keywords } })}
           />
         </div>
+      </div>
 
-        {/* Page Numbers Section */}
-        <div className="space-y-3 rounded-[1rem] border border-[var(--border-soft)] bg-white/80 p-3.5">
-          <ToggleRow
-            label="Page numbers"
-            hint="Add page numbers to every exported page."
-            checked={settings.pageNumbers.enabled}
-            onChange={(enabled) => onChange({ ...settings, pageNumbers: { ...settings.pageNumbers, enabled } })}
-          />
-
-          {settings.pageNumbers.enabled && (
-            <>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-sm font-medium text-[var(--foreground)] mb-1">Position</label>
-                  <select
-                    value={settings.pageNumbers.position}
-                    onChange={(e) => onChange({
-                      ...settings,
-                      pageNumbers: { ...settings.pageNumbers, position: e.target.value as PageNumberPosition }
-                    })}
-                    className="w-full px-3 py-2 border border-[var(--border-soft)] rounded-lg text-sm"
-                  >
-                    <option value="top-left">Top Left</option>
-                    <option value="top-right">Top Right</option>
-                    <option value="bottom-left">Bottom Left</option>
-                    <option value="bottom-right">Bottom Right</option>
-                    <option value="bottom-center">Bottom Center</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-[var(--foreground)] mb-1">Format</label>
-                  <select
-                    value={settings.pageNumbers.format}
-                    onChange={(e) => onChange({
-                      ...settings,
-                      pageNumbers: { ...settings.pageNumbers, format: e.target.value as PageNumberFormat }
-                    })}
-                    className="w-full px-3 py-2 border border-[var(--border-soft)] rounded-lg text-sm"
-                  >
-                    <option value="number">1</option>
-                    <option value="page-number">Page 1</option>
-                    <option value="number-of-total">1 of 5</option>
-                    <option value="page-number-of-total">Page 1 of 5</option>
-                  </select>
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <TextInput
-                  label="Start from"
-                  value={settings.pageNumbers.startFrom.toString()}
-                  placeholder="1"
-                  onChange={(value) => onChange({
-                    ...settings,
-                    pageNumbers: { ...settings.pageNumbers, startFrom: parseInt(value) || 1 }
-                  })}
-                />
-                <div className="flex items-center gap-2 pt-6">
-                  <input
-                    type="checkbox"
-                    id="skip-first-page"
-                    checked={settings.pageNumbers.skipFirstPage}
-                    onChange={(e) => onChange({
-                      ...settings,
-                      pageNumbers: { ...settings.pageNumbers, skipFirstPage: e.target.checked }
-                    })}
-                    className="w-4 h-4"
-                  />
-                  <label htmlFor="skip-first-page" className="text-sm text-[var(--foreground)]">
-                    Skip first page
-                  </label>
-                </div>
-              </div>
-            </>
-          )}
+      {/* Page Numbers Section */}
+      <div className="space-y-4 rounded-[1.3rem] border border-[var(--border-soft)] bg-[rgba(255,255,255,0.7)] p-4 shadow-[0_10px_24px_rgba(34,34,34,0.03)]">
+        <div>
+          <p className="text-[0.72rem] font-semibold uppercase tracking-[0.24em] text-[var(--muted-foreground)]">
+            Page numbers
+          </p>
+          <p className="mt-2 text-sm leading-6 text-[var(--foreground-soft)]">
+            Add page numbers to your PDF pages.
+          </p>
         </div>
 
         <ToggleRow
-          label="Enable searchable PDF (OCR)"
-          hint="Extract text from images to make the PDF content searchable."
-          checked={settings.enableOcr}
-          onChange={(enableOcr) => onChange({ ...settings, enableOcr })}
+          label="Enable page numbers"
+          hint="Add page numbers to every exported page."
+          checked={settings.pageNumbers.enabled}
+          onChange={(enabled) => onChange({ ...settings, pageNumbers: { ...settings.pageNumbers, enabled } })}
         />
 
-        <div className="space-y-3 rounded-[1rem] border border-[var(--border-soft)] bg-white/80 p-3.5">
-          <ToggleRow
-            label="Watermark"
-            hint="Overlay a subtle text watermark across each page."
-            checked={settings.watermark.enabled}
-            onChange={(enabled) => onChange({ ...settings, watermark: { ...settings.watermark, enabled } })}
-          />
-
-          {settings.watermark.enabled ? (
-            <>
-              {/* Watermark Type Selection */}
+        {settings.pageNumbers.enabled && (
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="block text-sm font-medium text-[var(--foreground)] mb-2">Type</label>
-                <div className="flex gap-4">
-                  <label className="flex items-center gap-2">
-                    <input
-                      type="radio"
-                      name="watermark-type"
-                      value="text"
-                      checked={settings.watermark.type === 'text'}
-                      onChange={() => onChange({ ...settings, watermark: { ...settings.watermark, type: 'text' } })}
-                    />
-                    <span className="text-sm">Text</span>
-                  </label>
-                  <label className="flex items-center gap-2">
-                    <input
-                      type="radio"
-                      name="watermark-type"
-                      value="image"
-                      checked={settings.watermark.type === 'image'}
-                      onChange={() => onChange({ ...settings, watermark: { ...settings.watermark, type: 'image' } })}
-                    />
-                    <span className="text-sm">Image</span>
-                  </label>
-                </div>
+                <label className="block text-sm font-medium text-[var(--foreground)] mb-1">Position</label>
+                <select
+                  value={settings.pageNumbers.position}
+                  onChange={(e) => onChange({
+                    ...settings,
+                    pageNumbers: { ...settings.pageNumbers, position: e.target.value as PageNumberPosition }
+                  })}
+                  className="w-full px-3 py-2 border border-[var(--border-soft)] rounded-lg text-sm"
+                >
+                  <option value="top-left">Top Left</option>
+                  <option value="top-right">Top Right</option>
+                  <option value="bottom-left">Bottom Left</option>
+                  <option value="bottom-right">Bottom Right</option>
+                  <option value="bottom-center">Bottom Center</option>
+                </select>
               </div>
+              <div>
+                <label className="block text-sm font-medium text-[var(--foreground)] mb-1">Format</label>
+                <select
+                  value={settings.pageNumbers.format}
+                  onChange={(e) => onChange({
+                    ...settings,
+                    pageNumbers: { ...settings.pageNumbers, format: e.target.value as PageNumberFormat }
+                  })}
+                  className="w-full px-3 py-2 border border-[var(--border-soft)] rounded-lg text-sm"
+                >
+                  <option value="number">1</option>
+                  <option value="page-number">Page 1</option>
+                  <option value="number-of-total">1 of 5</option>
+                  <option value="page-number-of-total">Page 1 of 5</option>
+                </select>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <TextInput
+                label="Start from"
+                value={settings.pageNumbers.startFrom.toString()}
+                placeholder="1"
+                onChange={(value) => onChange({
+                  ...settings,
+                  pageNumbers: { ...settings.pageNumbers, startFrom: parseInt(value) || 1 }
+                })}
+              />
+              <div className="flex items-center gap-2 pt-6">
+                <input
+                  type="checkbox"
+                  id="skip-first-page"
+                  checked={settings.pageNumbers.skipFirstPage}
+                  onChange={(e) => onChange({
+                    ...settings,
+                    pageNumbers: { ...settings.pageNumbers, skipFirstPage: e.target.checked }
+                  })}
+                  className="w-4 h-4"
+                />
+                <label htmlFor="skip-first-page" className="text-sm text-[var(--foreground)]">
+                  Skip first page
+                </label>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
 
-              {settings.watermark.type === 'text' && (
-                <>
-                  <TextInput
-                    label="Watermark text"
-                    value={settings.watermark.text?.content || ''}
-                    placeholder="CONFIDENTIAL"
-                    onChange={(content) => onChange({
+      {/* Watermark Section */}
+      <div className="space-y-4 rounded-[1.3rem] border border-[var(--border-soft)] bg-[rgba(255,255,255,0.7)] p-4 shadow-[0_10px_24px_rgba(34,34,34,0.03)]">
+        <div>
+          <p className="text-[0.72rem] font-semibold uppercase tracking-[0.24em] text-[var(--muted-foreground)]">
+            Watermark
+          </p>
+          <p className="mt-2 text-sm leading-6 text-[var(--foreground-soft)]">
+            Add a text or image watermark to your PDF pages.
+          </p>
+        </div>
+
+        <ToggleRow
+          label="Enable watermark"
+          hint="Overlay a subtle text watermark across each page."
+          checked={settings.watermark.enabled}
+          onChange={(enabled) => onChange({ ...settings, watermark: { ...settings.watermark, enabled } })}
+        />
+
+        {settings.watermark.enabled && (
+          <div className="space-y-4">
+            {/* Watermark Type Selection */}
+            <div>
+              <label className="block text-sm font-medium text-[var(--foreground)] mb-2">Type</label>
+              <div className="flex gap-4">
+                <label className="flex items-center gap-2">
+                  <input
+                    type="radio"
+                    name="watermark-type"
+                    value="text"
+                    checked={settings.watermark.type === 'text'}
+                    onChange={() => onChange({ ...settings, watermark: { ...settings.watermark, type: 'text' } })}
+                  />
+                  <span className="text-sm">Text</span>
+                </label>
+                <label className="flex items-center gap-2">
+                  <input
+                    type="radio"
+                    name="watermark-type"
+                    value="image"
+                    checked={settings.watermark.type === 'image'}
+                    onChange={() => onChange({ ...settings, watermark: { ...settings.watermark, type: 'image' } })}
+                  />
+                  <span className="text-sm">Image</span>
+                </label>
+              </div>
+            </div>
+
+            {settings.watermark.type === 'text' && (
+              <>
+                <TextInput
+                  label="Watermark text"
+                  value={settings.watermark.text?.content || ''}
+                  placeholder="CONFIDENTIAL"
+                  onChange={(content) => onChange({
+                    ...settings,
+                    watermark: {
+                      ...settings.watermark,
+                      text: { ...settings.watermark.text!, content }
+                    }
+                  })}
+                />
+                <div className="grid grid-cols-2 gap-3">
+                  <RangeInput
+                    label="Font size"
+                    value={settings.watermark.text?.fontSize || 24}
+                    min={12}
+                    max={72}
+                    onChange={(fontSize) => onChange({
                       ...settings,
                       watermark: {
                         ...settings.watermark,
-                        text: { ...settings.watermark.text!, content }
+                        text: { ...settings.watermark.text!, fontSize }
                       }
                     })}
                   />
-                  <div className="grid grid-cols-2 gap-3">
-                    <RangeInput
-                      label="Font size"
-                      value={settings.watermark.text?.fontSize || 24}
-                      min={12}
-                      max={72}
-                      onChange={(fontSize) => onChange({
+                  <RangeInput
+                    label="Opacity"
+                    value={settings.watermark.text?.opacity || 50}
+                    min={5}
+                    max={100}
+                    onChange={(opacity) => onChange({
+                      ...settings,
+                      watermark: {
+                        ...settings.watermark,
+                        text: { ...settings.watermark.text!, opacity }
+                      }
+                    })}
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-[var(--foreground)] mb-2">Text Color</label>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="color"
+                      value={settings.watermark.text?.color || '#999999'}
+                      onChange={(e) => onChange({
                         ...settings,
                         watermark: {
                           ...settings.watermark,
-                          text: { ...settings.watermark.text!, fontSize }
+                          text: { ...settings.watermark.text!, color: e.target.value }
                         }
                       })}
+                      className="w-10 h-8 rounded border border-[var(--border-soft)] cursor-pointer"
                     />
-                    <RangeInput
-                      label="Opacity"
-                      value={settings.watermark.text?.opacity || 50}
-                      min={5}
-                      max={100}
-                      onChange={(opacity) => onChange({
-                        ...settings,
-                        watermark: {
-                          ...settings.watermark,
-                          text: { ...settings.watermark.text!, opacity }
-                        }
-                      })}
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-[var(--foreground)] mb-2">Text Color</label>
-                    <div className="flex items-center gap-2">
+                    <div className="flex-1 rounded-[1rem] border border-[var(--border-soft)] bg-white px-3 shadow-[0_10px_24px_rgba(34,34,34,0.035)]">
                       <input
-                        type="color"
+                        type="text"
                         value={settings.watermark.text?.color || '#999999'}
                         onChange={(e) => onChange({
                           ...settings,
@@ -602,151 +569,137 @@ export function PageSettingsPanel({ settings, onChange }: PageSettingsPanelProps
                             text: { ...settings.watermark.text!, color: e.target.value }
                           }
                         })}
-                        className="w-10 h-8 rounded border border-[var(--border-soft)] cursor-pointer"
+                        placeholder="#999999"
+                        className="w-full py-2 text-[0.88rem] text-[var(--foreground)] outline-none"
                       />
-                      <div className="flex-1 rounded-[1rem] border border-[var(--border-soft)] bg-white px-3 shadow-[0_10px_24px_rgba(34,34,34,0.035)]">
-                        <input
-                          type="text"
-                          value={settings.watermark.text?.color || '#999999'}
-                          onChange={(e) => onChange({
-                            ...settings,
-                            watermark: {
-                              ...settings.watermark,
-                              text: { ...settings.watermark.text!, color: e.target.value }
-                            }
-                          })}
-                          placeholder="#999999"
-                          className="w-full py-2 text-[0.88rem] text-[var(--foreground)] outline-none"
-                        />
-                      </div>
                     </div>
                   </div>
-                </>
-              )}
-
-              {settings.watermark.type === 'image' && (
-                <>
-                  <div>
-                    <label className="block text-sm font-medium text-[var(--foreground)] mb-1">Image</label>
-                    <input
-                      type="file"
-                      accept="image/*"
-                      onChange={(e) => {
-                        const file = e.target.files?.[0];
-                        if (file) {
-                          const previewUrl = URL.createObjectURL(file);
-                          onChange({
-                            ...settings,
-                            watermark: {
-                              ...settings.watermark,
-                              image: { ...settings.watermark.image!, file, previewUrl }
-                            }
-                          });
-                        }
-                      }}
-                      className="w-full px-3 py-2 border border-[var(--border-soft)] rounded-lg text-sm"
-                    />
-                  </div>
-                  <div className="grid grid-cols-2 gap-3">
-                    <RangeInput
-                      label="Scale"
-                      value={settings.watermark.image?.scale || 30}
-                      min={10}
-                      max={100}
-                      onChange={(scale) => onChange({
-                        ...settings,
-                        watermark: {
-                          ...settings.watermark,
-                          image: { ...settings.watermark.image!, scale }
-                        }
-                      })}
-                    />
-                    <RangeInput
-                      label="Opacity"
-                      value={settings.watermark.image?.opacity || 50}
-                      min={5}
-                      max={100}
-                      onChange={(opacity) => onChange({
-                        ...settings,
-                        watermark: {
-                          ...settings.watermark,
-                          image: { ...settings.watermark.image!, opacity }
-                        }
-                      })}
-                    />
-                  </div>
-                </>
-              )}
-
-              {/* Position Grid */}
-              <div>
-                <label className="block text-sm font-medium text-[var(--foreground)] mb-2">Position</label>
-                <div className="grid grid-cols-3 gap-2 max-w-[200px]">
-                  {[
-                    ['top-left', 'TL'], ['top-center', 'TC'], ['top-right', 'TR'],
-                    ['center-left', 'CL'], ['center', 'CC'], ['center-right', 'CR'],
-                    ['bottom-left', 'BL'], ['bottom-center', 'BC'], ['bottom-right', 'BR']
-                  ].map(([position, label]) => (
-                    <button
-                      key={position}
-                      type="button"
-                      onClick={() => onChange({
-                        ...settings,
-                        watermark: { ...settings.watermark, position: position as WatermarkPosition }
-                      })}
-                      className={`px-2 py-1 text-xs border rounded ${
-                        settings.watermark.position === position
-                          ? 'border-[var(--accent)] bg-[var(--accent)] text-white'
-                          : 'border-[var(--border-soft)] bg-white'
-                      }`}
-                    >
-                      {label}
-                    </button>
-                  ))}
                 </div>
-              </div>
+              </>
+            )}
 
-              <div className="grid grid-cols-2 gap-3">
-                <RangeInput
-                  label="Rotation"
-                  value={settings.watermark.rotation}
-                  min={-180}
-                  max={180}
-                  unit="°"
-                  onChange={(rotation) => onChange({
-                    ...settings,
-                    watermark: { ...settings.watermark, rotation }
-                  })}
-                />
+            {settings.watermark.type === 'image' && (
+              <>
                 <div>
-                  <label className="block text-sm font-medium text-[var(--foreground)] mb-2">Apply to</label>
-                  <div className="flex gap-4">
-                    <label className="flex items-center gap-2">
-                      <input
-                        type="radio"
-                        name="watermark-scope"
-                        value="all"
-                        checked={settings.watermark.scope === 'all'}
-                        onChange={() => onChange({ ...settings, watermark: { ...settings.watermark, scope: 'all' } })}
-                      />
-                      <span className="text-sm">All Pages</span>
-                    </label>
-                    <label className="flex items-center gap-2">
-                      <input
-                        type="radio"
-                        name="watermark-scope"
-                        value="first"
-                        checked={settings.watermark.scope === 'first'}
-                        onChange={() => onChange({ ...settings, watermark: { ...settings.watermark, scope: 'first' } })}
-                      />
-                      <span className="text-sm">First Only</span>
-                    </label>
-                  </div>
+                  <label className="block text-sm font-medium text-[var(--foreground)] mb-1">Image</label>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) {
+                        const previewUrl = URL.createObjectURL(file);
+                        onChange({
+                          ...settings,
+                          watermark: {
+                            ...settings.watermark,
+                            image: { ...settings.watermark.image!, file, previewUrl }
+                          }
+                        });
+                      }
+                    }}
+                    className="w-full px-3 py-2 border border-[var(--border-soft)] rounded-lg text-sm"
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <RangeInput
+                    label="Scale"
+                    value={settings.watermark.image?.scale || 30}
+                    min={10}
+                    max={100}
+                    onChange={(scale) => onChange({
+                      ...settings,
+                      watermark: {
+                        ...settings.watermark,
+                        image: { ...settings.watermark.image!, scale }
+                      }
+                    })}
+                  />
+                  <RangeInput
+                    label="Opacity"
+                    value={settings.watermark.image?.opacity || 50}
+                    min={5}
+                    max={100}
+                    onChange={(opacity) => onChange({
+                      ...settings,
+                      watermark: {
+                        ...settings.watermark,
+                        image: { ...settings.watermark.image!, opacity }
+                      }
+                    })}
+                  />
+                </div>
+              </>
+            )}
+
+            {/* Position Grid */}
+            <div>
+              <label className="block text-sm font-medium text-[var(--foreground)] mb-2">Position</label>
+              <div className="grid grid-cols-3 gap-2 max-w-[200px]">
+                {[
+                  ['top-left', 'TL'], ['top-center', 'TC'], ['top-right', 'TR'],
+                  ['center-left', 'CL'], ['center', 'CC'], ['center-right', 'CR'],
+                  ['bottom-left', 'BL'], ['bottom-center', 'BC'], ['bottom-right', 'BR']
+                ].map(([position, label]) => (
+                  <button
+                    key={position}
+                    type="button"
+                    onClick={() => onChange({
+                      ...settings,
+                      watermark: { ...settings.watermark, position: position as WatermarkPosition }
+                    })}
+                    className={`px-2 py-1 text-xs border rounded ${
+                      settings.watermark.position === position
+                        ? 'border-[var(--accent)] bg-[var(--accent)] text-white'
+                        : 'border-[var(--border-soft)] bg-white'
+                    }`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <RangeInput
+                label="Rotation"
+                value={settings.watermark.rotation}
+                min={-180}
+                max={180}
+                unit="°"
+                onChange={(rotation) => onChange({
+                  ...settings,
+                  watermark: { ...settings.watermark, rotation }
+                })}
+              />
+              <div>
+                <label className="block text-sm font-medium text-[var(--foreground)] mb-2">Apply to</label>
+                <div className="flex gap-4">
+                  <label className="flex items-center gap-2">
+                    <input
+                      type="radio"
+                      name="watermark-scope"
+                      value="all"
+                      checked={settings.watermark.scope === 'all'}
+                      onChange={() => onChange({ ...settings, watermark: { ...settings.watermark, scope: 'all' } })}
+                    />
+                    <span className="text-sm">All Pages</span>
+                  </label>
+                  <label className="flex items-center gap-2">
+                    <input
+                      type="radio"
+                      name="watermark-scope"
+                      value="first"
+                      checked={settings.watermark.scope === 'first'}
+                      onChange={() => onChange({ ...settings, watermark: { ...settings.watermark, scope: 'first' } })}
+                    />
+                    <span className="text-sm">First Only</span>
+                  </label>
                 </div>
               </div>
-            </>
-          ) : null}
-        </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
