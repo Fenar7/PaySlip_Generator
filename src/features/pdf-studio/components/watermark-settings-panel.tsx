@@ -3,12 +3,10 @@
 import type { PageSettings, WatermarkSettings, WatermarkPosition } from "@/features/pdf-studio/types";
 import {
   WATERMARK_TYPE_OPTIONS,
-  WATERMARK_POSITION_OPTIONS,
   WATERMARK_SCOPE_OPTIONS,
   PDF_STUDIO_SUPPORTED_FORMATS,
 } from "@/features/pdf-studio/constants";
 import {
-  updateWatermarkSettings,
   updateWatermarkText,
   updateWatermarkImage,
   updateWatermarkPosition,

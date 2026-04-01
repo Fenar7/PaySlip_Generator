@@ -12,11 +12,8 @@
  * Run with: node scripts/test-pdf-compression.js
  */
 
-const fs = require("fs");
-const path = require("path");
-
 // Mock canvas module for node environment
-const Canvas = require("canvas");
+import Canvas from "canvas";
 
 console.log("🧪 PDF Compression Functionality Test\n");
 console.log("=".repeat(60));
@@ -60,11 +57,6 @@ function createTestImage(width = 800, height = 600) {
   }
 
   return canvas;
-}
-
-// Simulate the compression quality conversion from settings to export quality
-function convertCompressionQualityToExportQuality(compressionQuality) {
-  return compressionQuality / 100;
 }
 
 // Simulate image compression through canvas toBlob with different quality levels
@@ -150,7 +142,6 @@ async function runCompressionTests() {
 
     // Verify each step reduces or maintains size
     console.log("\n✓ File Size Progression Check:");
-    let isProgressive = true;
     for (let i = 0; i < results.length - 1; i++) {
       const currentSize = results[i].size;
       const nextSize = results[i + 1].size;
@@ -159,9 +150,7 @@ async function runCompressionTests() {
       console.log(`  ${check} Quality ${results[i].quality}% → ${results[i + 1].quality}%: ${currentSize} → ${nextSize} bytes ${arrow}`);
       
       // Lower quality should produce smaller or equal files
-      if (results[i].quality < results[i + 1].quality && currentSize > nextSize) {
-        isProgressive = false;
-      }
+      // (Note: this check is informational only)
     }
 
     // Quality degradation verification

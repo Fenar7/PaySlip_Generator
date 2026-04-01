@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll, vi } from "vitest";
+import { describe, it, expect } from "vitest";
 import { PDF_STUDIO_DEFAULT_SETTINGS } from "../constants";
 import type { PageSettings } from "../types";
 

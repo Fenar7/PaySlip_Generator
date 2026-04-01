@@ -102,13 +102,11 @@ function WatermarkOverlay({
   containerWidth,
   containerHeight,
   pageIndex,
-  totalPages,
 }: {
   watermark: WatermarkSettings;
   containerWidth: number;
   containerHeight: number;
   pageIndex: number;
-  totalPages: number;
 }) {
   if (!watermark.enabled || watermark.type === 'none') return null;
   
@@ -188,12 +186,10 @@ function PreviewPage({
   data,
   index,
   watermark,
-  totalPages,
 }: {
   data: PagePreviewData;
   index: number;
   watermark: WatermarkSettings;
-  totalPages: number;
 }) {
   const [containerRef, setContainerRef] = useState<HTMLDivElement | null>(null);
   const [containerSize, setContainerSize] = useState({ width: 0, height: 0 });
@@ -246,7 +242,6 @@ function PreviewPage({
               containerWidth={containerSize.width}
               containerHeight={containerSize.height}
               pageIndex={index}
-              totalPages={totalPages}
             />
           )}
         </div>
@@ -383,7 +378,6 @@ export function PdfPreview({ images, settings }: PdfPreviewProps) {
             data={page} 
             index={index}
             watermark={settings.watermark}
-            totalPages={pages.length}
           />
         ))}
       </div>

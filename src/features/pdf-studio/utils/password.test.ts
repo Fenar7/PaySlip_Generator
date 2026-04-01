@@ -9,7 +9,7 @@ import {
   sanitizePasswordSettings,
   getPasswordStrengthDescription,
 } from "./password";
-import type { PasswordSettings } from "../types";
+import type { PasswordSettings, PasswordValidation } from "../types";
 
 describe("Password Utility Functions", () => {
   describe("calculatePasswordStrength", () => {
@@ -102,7 +102,7 @@ describe("Password Utility Functions", () => {
     });
 
     it("should handle invalid strength levels", () => {
-      expect(getPasswordStrengthColor("invalid" as any)).toBe("gray");
+      expect(getPasswordStrengthColor("invalid" as PasswordValidation['strength'])).toBe("gray");
     });
   });
 
@@ -182,7 +182,7 @@ describe("Password Utility Functions", () => {
         enabled: "invalid",
         userPassword: 123,
         permissions: "invalid",
-      } as any);
+      } as Partial<PasswordSettings>);
       expect(result.enabled).toBe(false);
       expect(result.userPassword).toBe("");
       expect(result.permissions.printing).toBe(true); // default
@@ -198,7 +198,7 @@ describe("Password Utility Functions", () => {
     });
 
     it("should handle invalid strength levels", () => {
-      expect(getPasswordStrengthDescription("invalid" as any)).toBe("Unknown strength level");
+      expect(getPasswordStrengthDescription("invalid" as PasswordValidation['strength'])).toBe("Unknown strength level");
     });
   });
 });

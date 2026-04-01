@@ -8,7 +8,7 @@ import {
   MARGIN_OPTIONS,
 } from "@/features/pdf-studio/constants";
 import { cn } from "@/lib/utils";
-import { ChangeEvent, useRef, useState } from "react";
+import { ChangeEvent, useState } from "react";
 import { PasswordSettingsPanel } from "./password-settings-panel";
 
 type PageSettingsPanelProps = {

@@ -7,7 +7,7 @@ import {
   prepareImageDataUrl,
   getImageNaturalDimensions,
 } from "@/features/pdf-studio/utils/image-processor";
-import { PDFDocument, PDFFont, PDFPage, PageSizes, rgb, grayscale, degrees } from "pdf-lib";
+import { PDFPage, PDFFont } from "pdf-lib";
 
 const PAGE_NUMBER_FONT_SIZE = 10;
 const WATERMARK_FONT_SIZE = 34;
@@ -249,30 +249,6 @@ async function applyWatermark(
         });
       }
     }
-  }
-}
-
-/**
- * Legacy watermark support for backward compatibility
- */
-async function applyLegacyWatermark(
-  page: PDFPage,
-  watermark: { enabled: boolean; text: string; opacity: number },
-  pageDimensions: { widthPt: number; heightPt: number },
-  watermarkFont: PDFFont
-): Promise<void> {
-  if (watermark.enabled && watermark.text.trim()) {
-    const { grayscale, degrees } = await import("pdf-lib");
-    
-    page.drawText(watermark.text.trim(), {
-      x: pageDimensions.widthPt * 0.18,
-      y: pageDimensions.heightPt * 0.48,
-      size: WATERMARK_FONT_SIZE,
-      font: watermarkFont,
-      rotate: degrees(35),
-      color: grayscale(0.45),
-      opacity: watermark.opacity,
-    });
   }
 }
 

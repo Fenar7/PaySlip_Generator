@@ -1,9 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
-import path from 'path';
-
-// Test configuration
-const TEST_IMAGES_PATH = path.join(__dirname, 'fixtures');
-const TEST_IMAGE_FILE = 'test-image.jpg'; // We'll need to create this
+import fs from 'fs';
 
 // Helper functions
 async function navigateToPdfStudio(page: Page) {
@@ -60,9 +56,6 @@ async function configureAdvancedSettings(page: Page) {
   if (await qualitySlider.isVisible()) {
     await qualitySlider.fill('85');
   }
-  
-  // Configure metadata - find inputs by label text context
-  const metadataInputs = page.locator('input[type="text"]');
   
   // Title (look for input near "PDF title" text)
   const titleInput = page.locator('input[type="text"]').filter({ hasText: '' }).nth(0);
@@ -434,7 +427,6 @@ test.describe('PDF Studio - Comprehensive Integration Testing', () => {
         // Verify file size is reasonable (not empty, not too large)
         const path = await download.path();
         if (path) {
-          const fs = require('fs');
           const stats = fs.statSync(path);
           expect(stats.size).toBeGreaterThan(1000); // At least 1KB
           expect(stats.size).toBeLessThan(10 * 1024 * 1024); // Less than 10MB

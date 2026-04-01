@@ -16,12 +16,6 @@ test.describe("PDF Studio - Metadata Embedding", () => {
   });
 
   test("should render metadata input fields", async ({ page }) => {
-    // Look for metadata input fields
-    const titleInput = page.locator('input[placeholder*="Quarterly"]').first();
-    const authorInput = page.locator('input[placeholder*="Slipwise"]').first();
-    const subjectInput = page.locator('input[placeholder*="Client"]').first();
-    const keywordsInput = page.locator('input[placeholder*="invoice"]').first();
-
     // Check that inputs are visible (they might exist but be hidden)
     // Just verify the page loads without errors
     const pageContent = await page.textContent('body');
