@@ -11,8 +11,16 @@ function cloneDefaultSettings(): PageSettings {
     pageNumbers: { ...defaults.pageNumbers },
     watermark: {
       ...defaults.watermark,
-      text: { ...defaults.watermark.text },
-      image: { ...defaults.watermark.image },
+      text: {
+        content: defaults.watermark.text!.content,
+        fontSize: defaults.watermark.text!.fontSize,
+        color: defaults.watermark.text!.color,
+        opacity: defaults.watermark.text!.opacity,
+      },
+      image: {
+        scale: defaults.watermark.image!.scale,
+        opacity: defaults.watermark.image!.opacity,
+      },
     },
   };
 }
