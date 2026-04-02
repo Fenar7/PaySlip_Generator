@@ -1,10 +1,12 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import type { ImageItem, PageSettings } from "@/features/pdf-studio/types";
+import type { ImageItem, PageSettings, WatermarkSettings } from "@/features/pdf-studio/types";
 import {
+  generateThumbnailDataUrl,
   getEffectivePageDimensions,
   getImageNaturalDimensions,
+  getProcessedImageDimensions,
 } from "@/features/pdf-studio/utils/image-processor";
 import { cn } from "@/lib/utils";
 
@@ -15,28 +17,228 @@ type PdfPreviewProps = {
 
 type PagePreviewData = {
   imageUrl: string;
-  rotation: number;
   containerAspect: number;
   objectFit: "contain" | "cover" | "none";
-  backgroundSize?: string;
   marginRatio: number;
+  pageWidth: number;
+  pageHeight: number;
 };
 
 const MARGIN_RATIOS = { none: 0, small: 0.024, medium: 0.048, large: 0.095 };
 
+/**
+ * Calculate watermark position for preview (CSS positioning)
+ */
+function calculatePreviewPosition(
+  position: string,
+  containerWidth: number,
+  containerHeight: number,
+  contentWidth: number,
+  contentHeight: number,
+  margin: number = 20
+): { left: string; top: string; transformOrigin: string; translateX: string; translateY: string } {
+  let left: string, top: string, transformOrigin: string, translateX: string, translateY: string;
+  
+  switch (position) {
+    case 'top-left':
+      left = `${margin}px`;
+      top = `${margin}px`;
+      transformOrigin = 'top left';
+      translateX = '0';
+      translateY = '0';
+      break;
+    case 'top-center':
+      left = '50%';
+      top = `${margin}px`;
+      transformOrigin = 'top center';
+      translateX = '-50%';
+      translateY = '0';
+      break;
+    case 'top-right':
+      left = `${containerWidth - margin}px`;
+      top = `${margin}px`;
+      transformOrigin = 'top right';
+      translateX = '-100%';
+      translateY = '0';
+      break;
+    case 'center-left':
+      left = `${margin}px`;
+      top = '50%';
+      transformOrigin = 'center left';
+      translateX = '0';
+      translateY = '-50%';
+      break;
+    case 'center':
+      left = '50%';
+      top = '50%';
+      transformOrigin = 'center';
+      translateX = '-50%';
+      translateY = '-50%';
+      break;
+    case 'center-right':
+      left = `${containerWidth - margin}px`;
+      top = '50%';
+      transformOrigin = 'center right';
+      translateX = '-100%';
+      translateY = '-50%';
+      break;
+    case 'bottom-left':
+      left = `${margin}px`;
+      top = `${containerHeight - margin}px`;
+      transformOrigin = 'bottom left';
+      translateX = '0';
+      translateY = '-100%';
+      break;
+    case 'bottom-center':
+      left = '50%';
+      top = `${containerHeight - margin}px`;
+      transformOrigin = 'bottom center';
+      translateX = '-50%';
+      translateY = '-100%';
+      break;
+    case 'bottom-right':
+      left = `${containerWidth - margin}px`;
+      top = `${containerHeight - margin}px`;
+      transformOrigin = 'bottom right';
+      translateX = '-100%';
+      translateY = '-100%';
+      break;
+    default:
+      left = '50%';
+      top = '50%';
+      transformOrigin = 'center';
+      translateX = '-50%';
+      translateY = '-50%';
+  }
+  
+  return { left, top, transformOrigin, translateX, translateY };
+}
+
+/**
+ * Watermark overlay component for preview
+ */
+function WatermarkOverlay({
+  watermark,
+  containerWidth,
+  containerHeight,
+  pageIndex,
+}: {
+  watermark: WatermarkSettings;
+  containerWidth: number;
+  containerHeight: number;
+  pageIndex: number;
+}) {
+  if (!watermark.enabled || watermark.type === 'none') return null;
+  
+  // Check scope - only show on first page if scope is 'first'
+  if (watermark.scope === 'first' && pageIndex !== 0) return null;
+  
+  const position = calculatePreviewPosition(
+    watermark.position,
+    containerWidth,
+    containerHeight,
+    0, // Will be calculated dynamically by CSS
+    0,
+    Math.max(containerWidth * 0.03, 12) // Responsive margin
+  );
+  
+  if (watermark.type === 'text' && watermark.text) {
+    const scaleFactor = Math.min(containerWidth / 400, containerHeight / 566); // Based on A4 aspect ratio
+    const fontSize = Math.max((watermark.text.fontSize || 24) * scaleFactor, 8);
+    
+    return (
+      <div
+        className="absolute pointer-events-none select-none"
+        style={{
+          left: position.left,
+          top: position.top,
+          transform: `translate(${position.translateX}, ${position.translateY}) rotate(${watermark.rotation || 0}deg)`,
+          transformOrigin: position.transformOrigin,
+          fontSize: `${fontSize}px`,
+          color: watermark.text.color || '#999999',
+          opacity: (watermark.text.opacity || 50) / 100,
+          fontWeight: 600,
+          whiteSpace: 'nowrap',
+          zIndex: 10,
+        }}
+      >
+        {watermark.text.content}
+      </div>
+    );
+  }
+  
+  if (watermark.type === 'image' && watermark.image && watermark.image.previewUrl) {
+    const scaleFactor = Math.min(containerWidth / 400, containerHeight / 566);
+    const scale = (watermark.image.scale || 30) / 100;
+    const maxSize = Math.min(containerWidth, containerHeight) * 0.3 * scale * scaleFactor;
+    
+    return (
+      <div
+        className="absolute pointer-events-none select-none"
+        style={{
+          left: position.left,
+          top: position.top,
+          transform: `translate(${position.translateX}, ${position.translateY}) rotate(${watermark.rotation || 0}deg)`,
+          transformOrigin: position.transformOrigin,
+          opacity: (watermark.image.opacity || 50) / 100,
+          zIndex: 10,
+        }}
+      >
+        <img
+          src={watermark.image.previewUrl}
+          alt="Watermark"
+          className="max-w-none"
+          style={{
+            maxWidth: `${maxSize}px`,
+            maxHeight: `${maxSize}px`,
+            width: 'auto',
+            height: 'auto',
+          }}
+        />
+      </div>
+    );
+  }
+  
+  return null;
+}
+
 function PreviewPage({
   data,
   index,
+  watermark,
 }: {
   data: PagePreviewData;
   index: number;
+  watermark: WatermarkSettings;
 }) {
+  const [containerRef, setContainerRef] = useState<HTMLDivElement | null>(null);
+  const [containerSize, setContainerSize] = useState({ width: 0, height: 0 });
+  
   const paddingPercent = `${(data.marginRatio * 100).toFixed(2)}%`;
+
+  // Measure container size for watermark positioning
+  useEffect(() => {
+    if (!containerRef) return;
+    
+    const updateSize = () => {
+      const rect = containerRef.getBoundingClientRect();
+      setContainerSize({ width: rect.width, height: rect.height });
+    };
+    
+    updateSize();
+    const resizeObserver = new ResizeObserver(updateSize);
+    resizeObserver.observe(containerRef);
+    
+    return () => {
+      resizeObserver.disconnect();
+    };
+  }, [containerRef]);
 
   return (
     <div className="flex flex-col items-center gap-2">
       <div
-        className="w-full overflow-hidden rounded-[0.8rem] border border-[var(--border-soft)] bg-white shadow-[0_8px_24px_rgba(34,34,34,0.09)]"
+        ref={setContainerRef}
+        className="relative w-full overflow-hidden rounded-[0.8rem] border border-[var(--border-soft)] bg-white shadow-[0_8px_24px_rgba(34,34,34,0.09)]"
         style={{ aspectRatio: String(1 / data.containerAspect) }}
       >
         <div
@@ -49,11 +251,19 @@ function PreviewPage({
             className="h-full w-full"
             style={{
               objectFit: data.objectFit,
-              transform: data.rotation !== 0 ? `rotate(${data.rotation}deg)` : undefined,
-              transition: "transform 200ms ease",
             }}
             draggable={false}
           />
+          
+          {/* Watermark overlay */}
+          {containerSize.width > 0 && (
+            <WatermarkOverlay
+              watermark={watermark}
+              containerWidth={containerSize.width}
+              containerHeight={containerSize.height}
+              pageIndex={index}
+            />
+          )}
         </div>
       </div>
       <p className="text-[0.68rem] font-medium text-[var(--muted-foreground)]">
@@ -87,10 +297,8 @@ export function PdfPreview({ images, settings }: PdfPreviewProps) {
 
         try {
           const dims = await getImageNaturalDimensions(item.previewUrl);
-          const effectiveDims =
-            item.rotation === 90 || item.rotation === 270
-              ? { width: dims.height, height: dims.width }
-              : dims;
+          const previewUrl = await generateThumbnailDataUrl(item.previewUrl, item.rotation, item.crop, 1200);
+          const effectiveDims = getProcessedImageDimensions(dims, item.rotation, item.crop);
 
           const pageDims = getEffectivePageDimensions(
             settings,
@@ -109,19 +317,21 @@ export function PdfPreview({ images, settings }: PdfPreviewProps) {
                 : "none";
 
           results.push({
-            imageUrl: item.previewUrl,
-            rotation: item.rotation,
+            imageUrl: previewUrl,
             containerAspect,
             objectFit,
             marginRatio,
+            pageWidth: pageDims.widthPt,
+            pageHeight: pageDims.heightPt,
           });
         } catch {
           results.push({
             imageUrl: item.previewUrl,
-            rotation: item.rotation,
             containerAspect: 297 / 210,
             objectFit: "contain",
             marginRatio: MARGIN_RATIOS[settings.margins],
+            pageWidth: 595.28,
+            pageHeight: 841.89,
           });
         }
       }
@@ -183,7 +393,12 @@ export function PdfPreview({ images, settings }: PdfPreviewProps) {
         )}
       >
         {pages.map((page, index) => (
-          <PreviewPage key={index} data={page} index={index} />
+          <PreviewPage 
+            key={index} 
+            data={page} 
+            index={index}
+            watermark={settings.watermark}
+          />
         ))}
       </div>
     </div>

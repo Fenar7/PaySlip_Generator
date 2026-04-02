@@ -1,8 +1,8 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { FormSection } from "@/components/forms/form-section";
-import { ImageOrganizer } from "@/features/pdf-studio/components/image-organizer";
+import { ImageOrganizer, runOcrForImage } from "@/features/pdf-studio/components/image-organizer";
 import { PageSettingsPanel } from "@/features/pdf-studio/components/page-settings-panel";
 import { PdfPreview } from "@/features/pdf-studio/components/pdf-preview";
 import {
@@ -20,6 +20,18 @@ import {
   downloadPdfBlob,
   type GenerationProgress,
 } from "@/features/pdf-studio/utils/pdf-generator";
+import { estimatePdfSize } from "@/features/pdf-studio/utils/pdf-size-estimator";
+import {
+  encryptPdfViaApi,
+  PdfEncryptionError,
+} from "@/features/pdf-studio/utils/pdf-encryptor";
+import { validatePasswords } from "@/features/pdf-studio/utils/password";
+import {
+  clearPdfStudioSession,
+  loadPdfStudioSession,
+  savePdfStudioSession,
+} from "@/features/pdf-studio/utils/session-storage";
+import { OcrProgressPanel } from "@/features/pdf-studio/components/ocr-progress-panel";
 import { cn } from "@/lib/utils";
 import Link from "next/link";
 
@@ -28,6 +40,14 @@ const workspaceSections = [
   { id: "pdf-studio-settings", label: "Settings" },
   { id: "pdf-studio-preview", label: "Preview" },
 ];
+
+function rotateLeft(rotation: ImageItem["rotation"]): ImageItem["rotation"] {
+  return (((rotation - 90) % 360 + 360) % 360) as ImageItem["rotation"];
+}
+
+function rotateRight(rotation: ImageItem["rotation"]): ImageItem["rotation"] {
+  return ((rotation + 90) % 360) as ImageItem["rotation"];
+}
 
 function GenerationDialog({
   state,
@@ -60,7 +80,7 @@ function GenerationDialog({
         <button
           type="button"
           onClick={onClose}
-          className="absolute right-3 top-3 inline-flex h-9 w-9 items-center justify-center rounded-full border border-[var(--border-soft)] bg-white/92 text-[var(--foreground-soft)] shadow-[0_10px_24px_rgba(34,34,34,0.05)] transition-colors hover:bg-[rgba(248,241,235,0.82)] sm:right-4 sm:top-4 sm:h-10 sm:w-10"
+          className="absolute right-3 top-3 z-20 inline-flex h-9 w-9 items-center justify-center rounded-full border border-[var(--border-soft)] bg-white/92 text-[var(--foreground-soft)] shadow-[0_10px_24px_rgba(34,34,34,0.05)] transition-colors hover:bg-[rgba(248,241,235,0.82)] sm:right-4 sm:top-4 sm:h-10 sm:w-10"
           aria-label="Close export dialog"
         >
           ×
@@ -194,17 +214,150 @@ function GenerationDialog({
 export function PdfStudioWorkspace() {
   const [images, setImages] = useState<ImageItem[]>([]);
   const [settings, setSettings] = useState<PageSettings>(PDF_STUDIO_DEFAULT_SETTINGS);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [history, setHistory] = useState<ImageItem[][]>([[]]);
+  const [historyIndex, setHistoryIndex] = useState(0);
   const [actionState, setActionState] = useState<PdfStudioActionState>({ status: "idle" });
   const [progress, setProgress] = useState<GenerationProgress | null>(null);
   const [uploadError, setUploadError] = useState<string | undefined>(undefined);
   const [mobileTab, setMobileTab] = useState<"upload" | "settings" | "preview">("upload");
+  const [sessionStatus, setSessionStatus] = useState<string | undefined>(undefined);
+  const [hasHydratedSession, setHasHydratedSession] = useState(false);
+  const [estimatedPdfSizeBytes, setEstimatedPdfSizeBytes] = useState<number | null>(null);
+  const [estimateStatus, setEstimateStatus] = useState<"idle" | "estimating" | "ready" | "error">("idle");
+  const [isOcrUnavailable, setIsOcrUnavailable] = useState(false);
 
-  const handleImagesChange = useCallback((newImages: ImageItem[]) => {
-    setImages(newImages);
-    if (uploadError && newImages.length > 0) {
-      setUploadError(undefined);
+  const selectedIdSet = useMemo(() => new Set(selectedIds), [selectedIds]);
+  const estimateCacheRef = useRef(new Map<string, number>());
+  const estimateRunIdRef = useRef(0);
+
+  const commitImages = useCallback((updater: (prevImages: ImageItem[]) => ImageItem[]) => {
+    setImages(prevImages => {
+      const nextImages = updater(prevImages);
+      setHistory((currentHistory) => {
+        const truncated = currentHistory.slice(0, historyIndex + 1);
+        return [...truncated, nextImages];
+      });
+      setHistoryIndex((currentIndex) => currentIndex + 1);
+      setSelectedIds((currentSelectedIds) =>
+        currentSelectedIds.filter((id) => nextImages.some((image) => image.id === id)),
+      );
+      if (uploadError && nextImages.length > 0) {
+        setUploadError(undefined);
+      }
+      return nextImages;
+    });
+  }, [historyIndex, uploadError]);
+
+  const handleImagesChange = useCallback((newImages: ImageItem[] | ((prevImages: ImageItem[]) => ImageItem[])) => {
+    if (typeof newImages === 'function') {
+      commitImages(newImages);
+    } else {
+      commitImages(() => newImages);
     }
-  }, [uploadError]);
+  }, [commitImages]);
+
+  const handleOcrRetry = useCallback(
+    (imageId: string) => {
+      let targetFile: File | Blob | undefined;
+      setImages((current) => {
+        targetFile = current.find((img) => img.id === imageId)?.file;
+        return current;
+      });
+      if (!targetFile) return;
+      // Reset to pending then re-run OCR
+      commitImages((current) =>
+        current.map((img) =>
+          img.id === imageId
+            ? { ...img, ocrStatus: "pending" as const, ocrErrorMessage: undefined, ocrText: undefined }
+            : img,
+        ),
+      );
+      void runOcrForImage(imageId, targetFile, commitImages, () => setIsOcrUnavailable(true));
+    },
+    [commitImages],
+  );
+
+  const handleSelectionChange = useCallback((ids: string[]) => {
+    setImages((prevImages) => {
+      setSelectedIds(ids.filter((id) => prevImages.some((image) => image.id === id)));
+      return prevImages;
+    });
+  }, []);
+
+  const handleSelectAll = useCallback(() => {
+    setImages((prevImages) => {
+      setSelectedIds(prevImages.map((image) => image.id));
+      return prevImages;
+    });
+  }, []);
+
+  const handleClearSelection = useCallback(() => {
+    setSelectedIds([]);
+  }, []);
+
+  const handleBatchRotateLeft = useCallback(() => {
+    if (selectedIds.length === 0) {
+      return;
+    }
+
+    commitImages((prevImages) =>
+      prevImages.map((image) =>
+        selectedIdSet.has(image.id)
+          ? { ...image, rotation: rotateLeft(image.rotation) }
+          : image,
+      ),
+    );
+  }, [commitImages, selectedIdSet, selectedIds.length]);
+
+  const handleBatchRotateRight = useCallback(() => {
+    if (selectedIds.length === 0) {
+      return;
+    }
+
+    commitImages((prevImages) =>
+      prevImages.map((image) =>
+        selectedIdSet.has(image.id)
+          ? { ...image, rotation: rotateRight(image.rotation) }
+          : image,
+      ),
+    );
+  }, [commitImages, selectedIdSet, selectedIds.length]);
+
+  const handleBatchDelete = useCallback(() => {
+    if (selectedIds.length === 0) {
+      return;
+    }
+
+    commitImages((prevImages) => prevImages.filter((image) => !selectedIdSet.has(image.id)));
+    setSelectedIds([]);
+  }, [commitImages, selectedIdSet, selectedIds.length]);
+
+  const handleUndo = useCallback(() => {
+    if (historyIndex === 0) {
+      return;
+    }
+
+    const nextIndex = historyIndex - 1;
+    const snapshot = history[nextIndex] ?? [];
+    setHistoryIndex(nextIndex);
+    setImages(snapshot);
+    setSelectedIds((currentSelectedIds) => currentSelectedIds.filter((id) => snapshot.some((image) => image.id === id)));
+    setSessionStatus("Undid the last image edit.");
+  }, [history, historyIndex]);
+
+  const handleRedo = useCallback(() => {
+    if (historyIndex >= history.length - 1) {
+      return;
+    }
+
+    const nextIndex = historyIndex + 1;
+    const snapshot = history[nextIndex] ?? [];
+    setHistoryIndex(nextIndex);
+    setImages(snapshot);
+    setSelectedIds((currentSelectedIds) => currentSelectedIds.filter((id) => snapshot.some((image) => image.id === id)));
+    setSessionStatus("Restored the next image edit.");
+  }, [history, historyIndex]);
 
   const handleGenerate = useCallback(async () => {
     if (images.length === 0) {
@@ -212,31 +365,220 @@ export function PdfStudioWorkspace() {
       return;
     }
 
+    // Validate passwords up-front if protection is enabled (Case C)
+    if (settings.password.enabled) {
+      const validation = validatePasswords(
+        settings.password.userPassword,
+        settings.password.confirmPassword,
+      );
+      if (!validation.isValid) {
+        setActionState({
+          status: "error",
+          message: validation.errors[0] ?? "Password is invalid. Please check the Password Protection settings.",
+        });
+        return;
+      }
+    }
+
     setActionState({ status: "generating" });
     setProgress({ current: 0, total: images.length, stage: "loading" });
 
     try {
+      // Generate base PDF (always client-side, never encrypted here)
       const pdfBytes = await generatePdfFromImages(images, settings, (p) => {
         setProgress(p);
       });
 
-      downloadPdfBlob(pdfBytes, settings.filename);
+      if (settings.password.enabled) {
+        // Case B: encrypt via server API
+        setProgress({ current: images.length, total: images.length, stage: "finalizing" });
+
+        const encryptedBytes = await encryptPdfViaApi(pdfBytes, settings.password);
+
+        // Clear passwords from state after successful encrypted export (security)
+        setSettings((prev) => ({
+          ...prev,
+          password: {
+            ...prev.password,
+            userPassword: "",
+            confirmPassword: "",
+            ownerPassword: undefined,
+          },
+        }));
+
+        downloadPdfBlob(encryptedBytes, settings.filename);
+      } else {
+        // Case A: no password — download directly
+        downloadPdfBlob(pdfBytes, settings.filename);
+      }
+
       setActionState({ status: "success" });
     } catch (error) {
+      // Case D: fail-closed — never silently fallback to unprotected download
       setActionState({
         status: "error",
         message:
-          error instanceof Error
+          error instanceof PdfEncryptionError
             ? error.message
-            : "Unable to generate the PDF. Check the images and try again.",
+            : error instanceof Error
+              ? error.message
+              : "Unable to generate the PDF. Check the images and try again.",
       });
     }
   }, [images, settings]);
 
+  useEffect(() => {
+    const timeout = window.setTimeout(() => {
+      const session = loadPdfStudioSession();
+
+      if (session) {
+        setImages(session.images);
+        setSettings(session.settings);
+        setHistory([session.images]);
+        setHistoryIndex(0);
+        setSelectedIds([]);
+        setSessionStatus(
+          session.images.length > 0
+            ? "Previous session restored."
+            : "Settings restored from your previous session.",
+        );
+      }
+
+      setHasHydratedSession(true);
+    }, 0);
+
+    return () => {
+      window.clearTimeout(timeout);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!hasHydratedSession) {
+      return;
+    }
+
+    const timeout = window.setTimeout(() => {
+      const didSave = savePdfStudioSession(images, settings);
+      setSessionStatus(didSave ? "Session saved automatically." : "Could not save this session locally.");
+    }, 600);
+
+    return () => {
+      window.clearTimeout(timeout);
+    };
+  }, [hasHydratedSession, images, settings]);
+
+  useEffect(() => {
+    if (!hasHydratedSession) {
+      return;
+    }
+
+    if (images.length === 0) {
+      const resetTimeout = window.setTimeout(() => {
+        setEstimatedPdfSizeBytes(null);
+        setEstimateStatus("idle");
+      }, 0);
+
+      return () => {
+        window.clearTimeout(resetTimeout);
+      };
+    }
+
+    const timeout = window.setTimeout(() => {
+      const runId = estimateRunIdRef.current + 1;
+      estimateRunIdRef.current = runId;
+      setEstimateStatus("estimating");
+
+      void estimatePdfSize(images, settings, estimateCacheRef.current)
+        .then((estimatedBytes) => {
+          if (estimateRunIdRef.current !== runId) {
+            return;
+          }
+
+          setEstimatedPdfSizeBytes(estimatedBytes);
+          setEstimateStatus("ready");
+        })
+        .catch(() => {
+          if (estimateRunIdRef.current !== runId) {
+            return;
+          }
+
+          setEstimatedPdfSizeBytes(null);
+          setEstimateStatus("error");
+        });
+    }, 250);
+
+    return () => {
+      window.clearTimeout(timeout);
+    };
+  }, [
+    hasHydratedSession,
+    images,
+    settings,
+  ]);
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      const activeElement = event.target as HTMLElement | null;
+      const isTypingTarget = activeElement
+        ? ["INPUT", "TEXTAREA", "SELECT"].includes(activeElement.tagName) || activeElement.isContentEditable
+        : false;
+
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "a" && !isTypingTarget && images.length > 0) {
+        event.preventDefault();
+        handleSelectAll();
+        return;
+      }
+
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "z" && !event.shiftKey && !isTypingTarget) {
+        event.preventDefault();
+        handleUndo();
+        return;
+      }
+
+      if (((event.metaKey || event.ctrlKey) && event.shiftKey && event.key.toLowerCase() === "z") && !isTypingTarget) {
+        event.preventDefault();
+        handleRedo();
+        return;
+      }
+
+      if (selectedIds.length === 0 || isTypingTarget) {
+        return;
+      }
+
+      if (event.key === "Delete" || event.key === "Backspace") {
+        event.preventDefault();
+        handleBatchDelete();
+        return;
+      }
+
+      if (event.key === "ArrowLeft") {
+        event.preventDefault();
+        handleBatchRotateLeft();
+        return;
+      }
+
+      if (event.key === "ArrowRight") {
+        event.preventDefault();
+        handleBatchRotateRight();
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [handleBatchDelete, handleBatchRotateLeft, handleBatchRotateRight, handleRedo, handleSelectAll, handleUndo, images.length, selectedIds.length]);
+
   const handleDialogClose = useCallback(() => {
     if (actionState.status === "success") {
       setImages([]);
+      setHistory([[]]);
+      setHistoryIndex(0);
+      setSelectedIds([]);
       setSettings(PDF_STUDIO_DEFAULT_SETTINGS);
+      clearPdfStudioSession();
+      setSessionStatus("Session cleared. Ready for a new document.");
     }
     setActionState({ status: "idle" });
     setProgress(null);
@@ -247,6 +589,8 @@ export function PdfStudioWorkspace() {
   }, [handleGenerate]);
 
   const isPending = actionState.status === "generating";
+  const canUndo = historyIndex > 0;
+  const canRedo = historyIndex < history.length - 1;
 
   const mobileTabs = [
     { id: "upload" as const, label: "Upload" },
@@ -276,6 +620,22 @@ export function PdfStudioWorkspace() {
                 <Link href="/" className="inline-flex items-center justify-center rounded-full border border-[var(--border-strong)] bg-white px-4 py-2.5 text-sm font-medium text-[var(--foreground)] shadow-[0_10px_24px_rgba(34,34,34,0.04)] transition-colors hover:bg-[rgba(248,241,235,0.72)]">
                   Back to home
                 </Link>
+                <button
+                  type="button"
+                  onClick={handleUndo}
+                  disabled={!canUndo}
+                  className="inline-flex items-center justify-center rounded-full border border-[var(--border-strong)] bg-white px-4 py-2.5 text-sm font-medium text-[var(--foreground)] shadow-[0_10px_24px_rgba(34,34,34,0.04)] transition-colors hover:bg-[rgba(248,241,235,0.72)] disabled:opacity-50"
+                >
+                  Undo
+                </button>
+                <button
+                  type="button"
+                  onClick={handleRedo}
+                  disabled={!canRedo}
+                  className="inline-flex items-center justify-center rounded-full border border-[var(--border-strong)] bg-white px-4 py-2.5 text-sm font-medium text-[var(--foreground)] shadow-[0_10px_24px_rgba(34,34,34,0.04)] transition-colors hover:bg-[rgba(248,241,235,0.72)] disabled:opacity-50"
+                >
+                  Redo
+                </button>
                 <button
                   type="button"
                   onClick={() => void handleGenerate()}
@@ -314,6 +674,22 @@ export function PdfStudioWorkspace() {
                 </Link>
                 <button
                   type="button"
+                  onClick={handleUndo}
+                  disabled={!canUndo}
+                  className="inline-flex items-center justify-center rounded-full border border-[var(--border-strong)] bg-white px-4 py-2.5 text-sm font-medium text-[var(--foreground)] shadow-[0_10px_24px_rgba(34,34,34,0.04)] transition-colors hover:bg-[rgba(248,241,235,0.72)] disabled:opacity-50"
+                >
+                  Undo
+                </button>
+                <button
+                  type="button"
+                  onClick={handleRedo}
+                  disabled={!canRedo}
+                  className="inline-flex items-center justify-center rounded-full border border-[var(--border-strong)] bg-white px-4 py-2.5 text-sm font-medium text-[var(--foreground)] shadow-[0_10px_24px_rgba(34,34,34,0.04)] transition-colors hover:bg-[rgba(248,241,235,0.72)] disabled:opacity-50"
+                >
+                  Redo
+                </button>
+                <button
+                  type="button"
                   onClick={() => void handleGenerate()}
                   disabled={isPending || images.length === 0}
                   className="inline-flex items-center justify-center rounded-full border border-transparent bg-[linear-gradient(135deg,var(--accent),var(--accent-strong))] px-4 py-2.5 text-sm font-medium text-white shadow-[0_16px_30px_rgba(232,64,30,0.18)] transition-all hover:brightness-105 disabled:cursor-wait disabled:opacity-65"
@@ -328,6 +704,17 @@ export function PdfStudioWorkspace() {
         {uploadError ? (
           <div className="rounded-[1.4rem] border border-[rgba(220,38,38,0.16)] bg-[rgba(220,38,38,0.06)] px-5 py-4 text-sm text-[var(--danger)] shadow-[var(--shadow-soft)]">
             {uploadError}
+          </div>
+        ) : null}
+
+        {sessionStatus || images.some(img => img.ocrStatus && img.ocrStatus !== 'complete') ? (
+          <div className="space-y-3">
+            {sessionStatus ? (
+              <div className="rounded-[1.4rem] border border-[rgba(87,87,96,0.12)] bg-white/75 px-5 py-4 text-sm text-[var(--foreground-soft)] shadow-[var(--shadow-soft)]">
+                {sessionStatus}
+              </div>
+            ) : null}
+            <OcrProgressPanel images={images} isOcrUnavailable={isOcrUnavailable} onRetry={handleOcrRetry} />
           </div>
         ) : null}
 
@@ -423,6 +810,14 @@ export function PdfStudioWorkspace() {
                   images={images}
                   onChange={handleImagesChange}
                   error={uploadError}
+                  selectedIds={selectedIds}
+                  onSelectionChange={handleSelectionChange}
+                  onBatchDelete={handleBatchDelete}
+                  onBatchRotateLeft={handleBatchRotateLeft}
+                  onBatchRotateRight={handleBatchRotateRight}
+                  onSelectAll={handleSelectAll}
+                  onClearSelection={handleClearSelection}
+                  onOcrUnavailable={() => setIsOcrUnavailable(true)}
                 />
               </FormSection>
             </section>
@@ -439,7 +834,12 @@ export function PdfStudioWorkspace() {
                 title="Page configuration"
                 description="Choose page size, orientation, how images fill the page, and margin spacing."
               >
-                <PageSettingsPanel settings={settings} onChange={setSettings} />
+                <PageSettingsPanel
+                  settings={settings}
+                  onChange={setSettings}
+                  estimatedPdfSizeBytes={estimatedPdfSizeBytes}
+                  estimateStatus={estimateStatus}
+                />
               </FormSection>
             </section>
 
