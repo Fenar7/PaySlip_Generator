@@ -32,6 +32,7 @@ import {
   savePdfStudioSession,
 } from "@/features/pdf-studio/utils/session-storage";
 import { OcrProgressPanel } from "@/features/pdf-studio/components/ocr-progress-panel";
+import { cancelAllOcr } from "@/features/pdf-studio/utils/ocr-processor";
 import { cn } from "@/lib/utils";
 import Link from "next/link";
 
@@ -230,6 +231,7 @@ export function PdfStudioWorkspace() {
   const selectedIdSet = useMemo(() => new Set(selectedIds), [selectedIds]);
   const estimateCacheRef = useRef(new Map<string, number>());
   const estimateRunIdRef = useRef(0);
+  const generateCancelRef = useRef<AbortController | null>(null);
 
   const commitImages = useCallback((updater: (prevImages: ImageItem[]) => ImageItem[]) => {
     setImages(prevImages => {
@@ -277,6 +279,47 @@ export function PdfStudioWorkspace() {
     },
     [commitImages],
   );
+
+  const handleCancelGenerate = useCallback(() => {
+    generateCancelRef.current?.abort();
+  }, []);
+
+  const handleCancelAllOcr = useCallback(() => {
+    void cancelAllOcr();
+    // Mark all pending/processing images as cancelled
+    setImages((current) =>
+      current.map((img) =>
+        img.ocrStatus === "pending" || img.ocrStatus === "processing"
+          ? { ...img, ocrStatus: "cancelled" as const, ocrErrorMessage: undefined }
+          : img,
+      ),
+    );
+  }, []);
+
+  const handleRetryAllOcr = useCallback(() => {
+    // Collect all images that failed or were cancelled and still have a file
+    setImages((current) => {
+      const retryable = current.filter(
+        (img) => (img.ocrStatus === "error" || img.ocrStatus === "cancelled") && img.file,
+      );
+
+      if (retryable.length === 0) return current;
+
+      // Reset them to pending
+      const updated = current.map((img) =>
+        retryable.some((r) => r.id === img.id)
+          ? { ...img, ocrStatus: "pending" as const, ocrErrorMessage: undefined, ocrText: undefined }
+          : img,
+      );
+
+      // Fire off OCR for each one
+      retryable.forEach((img) => {
+        void runOcrForImage(img.id, img.file!, (fn) => setImages(fn), () => setIsOcrUnavailable(true));
+      });
+
+      return updated;
+    });
+  }, []);
 
   const handleSelectionChange = useCallback((ids: string[]) => {
     setImages((prevImages) => {
@@ -383,11 +426,14 @@ export function PdfStudioWorkspace() {
     setActionState({ status: "generating" });
     setProgress({ current: 0, total: images.length, stage: "loading" });
 
+    const controller = new AbortController();
+    generateCancelRef.current = controller;
+
     try {
       // Generate base PDF (always client-side, never encrypted here)
       const pdfBytes = await generatePdfFromImages(images, settings, (p) => {
         setProgress(p);
-      });
+      }, controller.signal);
 
       if (settings.password.enabled) {
         // Case B: encrypt via server API
@@ -414,6 +460,12 @@ export function PdfStudioWorkspace() {
 
       setActionState({ status: "success" });
     } catch (error) {
+      // Cancelled by user — return to idle silently
+      if (error instanceof DOMException && error.name === "AbortError") {
+        setActionState({ status: "idle" });
+        setProgress(null);
+        return;
+      }
       // Case D: fail-closed — never silently fallback to unprotected download
       setActionState({
         status: "error",
@@ -424,6 +476,8 @@ export function PdfStudioWorkspace() {
               ? error.message
               : "Unable to generate the PDF. Check the images and try again.",
       });
+    } finally {
+      generateCancelRef.current = null;
     }
   }, [images, settings]);
 
@@ -437,11 +491,17 @@ export function PdfStudioWorkspace() {
         setHistory([session.images]);
         setHistoryIndex(0);
         setSelectedIds([]);
-        setSessionStatus(
-          session.images.length > 0
-            ? "Previous session restored."
-            : "Settings restored from your previous session.",
-        );
+        if (session.watermarkImageCleared) {
+          setSessionStatus(
+            "Watermark image was cleared on refresh. Please re-upload your watermark image in Settings.",
+          );
+        } else {
+          setSessionStatus(
+            session.images.length > 0
+              ? "Previous session restored."
+              : "Settings restored from your previous session.",
+          );
+        }
       }
 
       setHasHydratedSession(true);
@@ -638,11 +698,16 @@ export function PdfStudioWorkspace() {
                 </button>
                 <button
                   type="button"
-                  onClick={() => void handleGenerate()}
-                  disabled={isPending || images.length === 0}
-                  className="inline-flex items-center justify-center rounded-full border border-transparent bg-[linear-gradient(135deg,var(--accent),var(--accent-strong))] px-4 py-2.5 text-sm font-medium text-white shadow-[0_16px_30px_rgba(232,64,30,0.18)] transition-all hover:brightness-105 disabled:cursor-wait disabled:opacity-65"
+                  onClick={isPending ? handleCancelGenerate : () => void handleGenerate()}
+                  disabled={!isPending && images.length === 0}
+                  className={cn(
+                    "inline-flex items-center justify-center rounded-full border px-4 py-2.5 text-sm font-medium transition-all",
+                    isPending
+                      ? "border-[var(--border-strong)] bg-white text-[var(--foreground)] shadow-[0_10px_24px_rgba(34,34,34,0.04)] hover:bg-[rgba(248,241,235,0.72)]"
+                      : "border-transparent bg-[linear-gradient(135deg,var(--accent),var(--accent-strong))] text-white shadow-[0_16px_30px_rgba(232,64,30,0.18)] hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-65",
+                  )}
                 >
-                  {isPending ? "Generating PDF…" : "Generate PDF"}
+                  {isPending ? "Cancel" : "Generate PDF"}
                 </button>
               </div>
             </div>
@@ -690,11 +755,16 @@ export function PdfStudioWorkspace() {
                 </button>
                 <button
                   type="button"
-                  onClick={() => void handleGenerate()}
-                  disabled={isPending || images.length === 0}
-                  className="inline-flex items-center justify-center rounded-full border border-transparent bg-[linear-gradient(135deg,var(--accent),var(--accent-strong))] px-4 py-2.5 text-sm font-medium text-white shadow-[0_16px_30px_rgba(232,64,30,0.18)] transition-all hover:brightness-105 disabled:cursor-wait disabled:opacity-65"
+                  onClick={isPending ? handleCancelGenerate : () => void handleGenerate()}
+                  disabled={!isPending && images.length === 0}
+                  className={cn(
+                    "inline-flex items-center justify-center rounded-full border px-4 py-2.5 text-sm font-medium transition-all",
+                    isPending
+                      ? "border-[var(--border-strong)] bg-white text-[var(--foreground)] shadow-[0_10px_24px_rgba(34,34,34,0.04)] hover:bg-[rgba(248,241,235,0.72)]"
+                      : "border-transparent bg-[linear-gradient(135deg,var(--accent),var(--accent-strong))] text-white shadow-[0_16px_30px_rgba(232,64,30,0.18)] hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-65",
+                  )}
                 >
-                  {isPending ? "Generating…" : "Generate PDF"}
+                  {isPending ? "Cancel" : "Generate PDF"}
                 </button>
               </div>
             </div>
@@ -714,7 +784,13 @@ export function PdfStudioWorkspace() {
                 {sessionStatus}
               </div>
             ) : null}
-            <OcrProgressPanel images={images} isOcrUnavailable={isOcrUnavailable} onRetry={handleOcrRetry} />
+            <OcrProgressPanel
+              images={images}
+              isOcrUnavailable={isOcrUnavailable}
+              onRetry={handleOcrRetry}
+              onRetryAll={handleRetryAllOcr}
+              onCancelOcr={handleCancelAllOcr}
+            />
           </div>
         ) : null}
 
@@ -898,11 +974,16 @@ export function PdfStudioWorkspace() {
               <div className="mt-5 grid gap-3">
                 <button
                   type="button"
-                  onClick={() => void handleGenerate()}
-                  disabled={isPending || images.length === 0}
-                  className="inline-flex w-full items-center justify-center rounded-full border border-transparent bg-[linear-gradient(135deg,var(--accent),var(--accent-strong))] px-5 py-3 text-sm font-medium text-white shadow-[0_16px_30px_rgba(232,64,30,0.18)] transition-all hover:brightness-105 disabled:cursor-wait disabled:opacity-65"
+                  onClick={isPending ? handleCancelGenerate : () => void handleGenerate()}
+                  disabled={!isPending && images.length === 0}
+                  className={cn(
+                    "inline-flex w-full items-center justify-center rounded-full border px-5 py-3 text-sm font-medium transition-all",
+                    isPending
+                      ? "border-[var(--border-strong)] bg-white text-[var(--foreground)] shadow-[0_10px_24px_rgba(34,34,34,0.04)] hover:bg-[rgba(248,241,235,0.72)]"
+                      : "border-transparent bg-[linear-gradient(135deg,var(--accent),var(--accent-strong))] text-white shadow-[0_16px_30px_rgba(232,64,30,0.18)] hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-65",
+                  )}
                 >
-                  {isPending ? "Generating PDF…" : "Generate PDF"}
+                  {isPending ? "Cancel generation" : "Generate PDF"}
                 </button>
                 <Link
                   href="/"

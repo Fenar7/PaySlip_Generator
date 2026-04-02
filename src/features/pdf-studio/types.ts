@@ -91,7 +91,7 @@ export type ImageItem = {
   sizeBytes: number;
   isConverting?: boolean;
   ocrText?: string;
-  ocrStatus?: 'pending' | 'processing' | 'complete' | 'error';
+  ocrStatus?: 'pending' | 'processing' | 'complete' | 'error' | 'cancelled';
   ocrErrorMessage?: string;
 };
 
@@ -118,6 +118,7 @@ export type PdfStudioActionState =
   | { status: "idle" }
   | { status: "generating" }
   | { status: "success" }
+  | { status: "cancelled" }
   | { status: "error"; message: string };
 
 export type ImageDimensions = {
@@ -143,4 +144,5 @@ export type PdfStudioSession = {
   images: PersistedImageItem[];
   settings: PageSettings;
   savedAt: string;
+  watermarkImageCleared?: boolean; // Set when image watermark was cleared on restore
 };
