@@ -1,6 +1,6 @@
 "use client";
 
-import type { ImageItem, PageSettings, WatermarkSettings, PageNumberFormat, WatermarkPosition, PasswordSettings } from "@/features/pdf-studio/types";
+import type { ImageItem, PageSettings, WatermarkSettings, PageNumberFormat, WatermarkPosition } from "@/features/pdf-studio/types";
 import {
   getEffectivePageDimensions,
   calculateImagePlacement,
@@ -12,6 +12,22 @@ import { PDFPage, PDFFont } from "pdf-lib";
 const PAGE_NUMBER_FONT_SIZE = 10;
 const WATERMARK_FONT_SIZE = 34;
 const DEFAULT_MARGINS = 20; // 20px margins for position calculations
+
+export function normalizePercentageToUnitInterval(value: number | undefined, fallback = 0.5): number {
+  if (typeof value !== "number" || Number.isNaN(value)) {
+    return fallback;
+  }
+
+  return Math.min(1, Math.max(0, value / 100));
+}
+
+export function normalizePercentageToScale(value: number | undefined, fallback = 0.3): number {
+  if (typeof value !== "number" || Number.isNaN(value)) {
+    return fallback;
+  }
+
+  return Math.min(1, Math.max(0.1, value / 100));
+}
 
 export type GenerationProgress = {
   current: number;
@@ -111,37 +127,7 @@ export async function generatePdfFromImages(
 
   onProgress?.({ current: total, total, stage: "finalizing" });
 
-  // Apply password protection if enabled
-  if (settings.password.enabled && settings.password.userPassword) {
-    await encryptPdf(pdfDoc, settings.password);
-  }
-
   return pdfDoc.save();
-}
-
-/**
- * Apply PDF encryption (placeholder for future implementation)
- * TODO: Implement proper PDF encryption once compatible library version is available
- */
-async function encryptPdf(
-  pdfDoc: import("pdf-lib").PDFDocument,
-  passwordSettings: PasswordSettings
-): Promise<void> {
-  if (!passwordSettings.userPassword) {
-    console.warn('PDF encryption enabled but no user password provided');
-    return;
-  }
-  
-  // TODO: Implement encryption when pdf-lib supports it or find alternative
-  // For now, we'll log the intention and continue without encryption
-  console.log('PDF encryption requested but not yet implemented:', {
-    hasUserPassword: Boolean(passwordSettings.userPassword),
-    hasOwnerPassword: Boolean(passwordSettings.ownerPassword),
-    permissions: passwordSettings.permissions
-  });
-  
-  // Placeholder - actual encryption to be implemented later
-  console.warn('PDF generated without encryption - feature pending library support');
 }
 
 /**
@@ -181,6 +167,7 @@ async function applyWatermark(
     
     // Parse color (assuming hex format like "#000000")
     const color = await hexToRgb(textWatermark.color || "#999999");
+    const opacity = normalizePercentageToUnitInterval(textWatermark.opacity, 0.5);
     
     page.drawText(textWatermark.content, {
       x: position.x,
@@ -189,7 +176,7 @@ async function applyWatermark(
       font: watermarkFont,
       rotate: degrees(watermark.rotation || 0),
       color: color,
-      opacity: textWatermark.opacity,
+      opacity,
     });
     
   } else if (watermark.type === 'image' && watermark.image?.previewUrl) {
@@ -209,7 +196,9 @@ async function applyWatermark(
         embeddedImage = await pdfDoc.embedJpg(imageBytes);
       }
       
-      const imageDims = embeddedImage.scale(imageWatermark.scale || 0.3);
+      const imageScale = normalizePercentageToScale(imageWatermark.scale, 0.3);
+      const imageOpacity = normalizePercentageToUnitInterval(imageWatermark.opacity, 0.5);
+      const imageDims = embeddedImage.scale(imageScale);
       
       const position = calculatePosition(
         pageSize,
@@ -223,7 +212,7 @@ async function applyWatermark(
         width: imageDims.width,
         height: imageDims.height,
         rotate: degrees(watermark.rotation || 0),
-        opacity: imageWatermark.opacity,
+        opacity: imageOpacity,
       });
       
     } catch (error) {

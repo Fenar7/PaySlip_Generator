@@ -217,14 +217,10 @@ function sanitizeSettings(settings: unknown): PageSettings {
     },
     password: {
       enabled: typeof candidate.password?.enabled === "boolean" ? candidate.password.enabled : defaults.password.enabled,
-      userPassword:
-        typeof candidate.password?.userPassword === "string" ? candidate.password.userPassword : defaults.password.userPassword,
-      confirmPassword:
-        typeof candidate.password?.confirmPassword === "string"
-          ? candidate.password.confirmPassword
-          : defaults.password.confirmPassword,
-      ownerPassword:
-        typeof candidate.password?.ownerPassword === "string" ? candidate.password.ownerPassword : defaults.password.ownerPassword,
+      // Security: never restore raw passwords from storage — always start empty
+      userPassword: defaults.password.userPassword,
+      confirmPassword: defaults.password.confirmPassword,
+      ownerPassword: defaults.password.ownerPassword,
       permissions: {
         printing:
           typeof candidate.password?.permissions?.printing === "boolean"
@@ -281,7 +277,16 @@ export function savePdfStudioSession(images: ImageItem[], settings: PageSettings
       name,
       sizeBytes,
     })),
-    settings,
+    settings: {
+      ...settings,
+      password: {
+        ...settings.password,
+        // Security: strip raw passwords before persisting to storage
+        userPassword: "",
+        confirmPassword: "",
+        ownerPassword: undefined,
+      },
+    },
     savedAt: new Date().toISOString(),
   };
 

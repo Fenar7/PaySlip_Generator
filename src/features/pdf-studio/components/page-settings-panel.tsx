@@ -7,6 +7,7 @@ import {
   FIT_MODE_OPTIONS,
   MARGIN_OPTIONS,
 } from "@/features/pdf-studio/constants";
+import { formatBytes } from "@/features/pdf-studio/utils/pdf-size-estimator";
 import { cn } from "@/lib/utils";
 import { ChangeEvent, useState } from "react";
 import { PasswordSettingsPanel } from "./password-settings-panel";
@@ -14,6 +15,8 @@ import { PasswordSettingsPanel } from "./password-settings-panel";
 type PageSettingsPanelProps = {
   settings: PageSettings;
   onChange: (settings: PageSettings) => void;
+  estimatedPdfSizeBytes?: number | null;
+  estimateStatus?: "idle" | "estimating" | "ready" | "error";
 };
 
 type OptionGroupProps<T extends string> = {
@@ -203,7 +206,12 @@ function RangeInput({
   );
 }
 
-export function PageSettingsPanel({ settings, onChange }: PageSettingsPanelProps) {
+export function PageSettingsPanel({
+  settings,
+  onChange,
+  estimatedPdfSizeBytes,
+  estimateStatus = "idle",
+}: PageSettingsPanelProps) {
   const [activeTab, setActiveTab] = useState<'general' | 'advanced' | 'password'>('general');
 
   const tabs = [
@@ -242,7 +250,12 @@ export function PageSettingsPanel({ settings, onChange }: PageSettingsPanelProps
       )}
       
       {activeTab === 'advanced' && (
-        <AdvancedSettingsTab settings={settings} onChange={onChange} />
+        <AdvancedSettingsTab
+          settings={settings}
+          onChange={onChange}
+          estimatedPdfSizeBytes={estimatedPdfSizeBytes}
+          estimateStatus={estimateStatus}
+        />
       )}
       
       {activeTab === 'password' && (
@@ -299,7 +312,21 @@ function GeneralSettingsTab({ settings, onChange }: PageSettingsPanelProps) {
   );
 }
 
-function AdvancedSettingsTab({ settings, onChange }: PageSettingsPanelProps) {
+function AdvancedSettingsTab({
+  settings,
+  onChange,
+  estimatedPdfSizeBytes,
+  estimateStatus = "idle",
+}: PageSettingsPanelProps) {
+  const estimateMessage =
+    estimateStatus === "estimating"
+      ? "Estimating size..."
+      : estimateStatus === "error"
+        ? "Could not estimate size"
+        : estimateStatus === "ready" && typeof estimatedPdfSizeBytes === "number"
+          ? `Estimated file size: ${formatBytes(estimatedPdfSizeBytes)}`
+          : "Estimated file size will appear after images are added";
+
   return (
     <div className="space-y-6">
       <div className="space-y-4 rounded-[1.3rem] border border-[var(--border-soft)] bg-[rgba(255,255,255,0.7)] p-4 shadow-[0_10px_24px_rgba(34,34,34,0.03)]">
@@ -320,6 +347,13 @@ function AdvancedSettingsTab({ settings, onChange }: PageSettingsPanelProps) {
           max={100}
           onChange={(compressionQuality) => onChange({ ...settings, compressionQuality })}
         />
+
+        <div className="rounded-[1rem] border border-[var(--border-soft)] bg-white/80 px-4 py-3 shadow-[0_10px_24px_rgba(34,34,34,0.025)]">
+          <p className="text-[0.82rem] font-medium text-[var(--foreground)]">{estimateMessage}</p>
+          <p className="mt-1 text-[0.75rem] leading-5 text-[var(--muted-foreground)]">
+            Estimate is based on current quality and image settings. Final size may vary slightly.
+          </p>
+        </div>
 
         <ToggleRow
           label="Enable searchable PDF (OCR)"

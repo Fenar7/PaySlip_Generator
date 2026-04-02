@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { PDF_STUDIO_DEFAULT_SETTINGS } from "../constants";
 import type { PageSettings } from "../types";
+import { normalizePercentageToScale, normalizePercentageToUnitInterval } from "./pdf-generator";
 
 /**
  * Test suite for PDF compression pipeline
@@ -177,5 +178,32 @@ describe("PDF Compression Pipeline", () => {
       expect(originalSettings.compressionQuality).toBe(originalQuality);
       expect(modifiedSettings.compressionQuality).toBe(50);
     });
+  });
+});
+
+describe("PDF Watermark Normalization", () => {
+  it("should convert watermark opacity percentages to pdf-lib opacity values", () => {
+    expect(normalizePercentageToUnitInterval(0)).toBe(0);
+    expect(normalizePercentageToUnitInterval(50)).toBe(0.5);
+    expect(normalizePercentageToUnitInterval(58)).toBe(0.58);
+    expect(normalizePercentageToUnitInterval(100)).toBe(1);
+  });
+
+  it("should clamp watermark opacity to the valid pdf-lib range", () => {
+    expect(normalizePercentageToUnitInterval(-10)).toBe(0);
+    expect(normalizePercentageToUnitInterval(120)).toBe(1);
+    expect(normalizePercentageToUnitInterval(undefined)).toBe(0.5);
+  });
+
+  it("should convert watermark scale percentages to embedded image scale multipliers", () => {
+    expect(normalizePercentageToScale(10)).toBe(0.1);
+    expect(normalizePercentageToScale(30)).toBe(0.3);
+    expect(normalizePercentageToScale(100)).toBe(1);
+  });
+
+  it("should clamp watermark scale to the supported export range", () => {
+    expect(normalizePercentageToScale(0)).toBe(0.1);
+    expect(normalizePercentageToScale(150)).toBe(1);
+    expect(normalizePercentageToScale(undefined)).toBe(0.3);
   });
 });

@@ -20,6 +20,7 @@
     "@fontsource/sora": "^5.2.8",
     "@fontsource/source-serif-4": "^5.2.9",
     "@hookform/resolvers": "^5.2.2",
+    "@pdfsmaller/pdf-encrypt": "^1.0.2",
     "@sparticuz/chromium": "^143.0.4",
     "gsap": "^3.14.2",
     "libheif-js": "^1.19.8",
