@@ -27,9 +27,52 @@ import {
 } from "@/features/pdf-studio/constants";
 import { loadImageFromFile } from "@/features/pdf-studio/utils/image-processor";
 import { convertHeicToJpeg } from "@/features/pdf-studio/utils/heic-converter";
-import { processImageForOcr } from "@/features/pdf-studio/utils/ocr-processor"; // Re-adding this import
+import { processImageForOcr, getOcrServiceStatus } from "@/features/pdf-studio/utils/ocr-processor";
 import { cn } from "@/lib/utils";
 import type { MouseEvent } from "react";
+
+/**
+ * Run OCR for a single image and update state accordingly.
+ * Extracted as a module-level helper so it can be shared between
+ * initial upload flow, the per-image retry handler, and the workspace.
+ */
+export async function runOcrForImage(
+  imageId: string,
+  file: File | Blob,
+  onChange: (fn: (imgs: ImageItem[]) => ImageItem[]) => void,
+  onOcrUnavailable?: () => void,
+): Promise<void> {
+  // Mark as processing
+  onChange((currentImages) =>
+    currentImages.map((img) =>
+      img.id === imageId ? { ...img, ocrStatus: "processing" as const } : img,
+    ),
+  );
+
+  try {
+    const ocrText = await processImageForOcr(file, imageId);
+    onChange((currentImages) =>
+      currentImages.map((img) =>
+        img.id === imageId
+          ? { ...img, ocrText, ocrStatus: "complete" as const, ocrErrorMessage: undefined }
+          : img,
+      ),
+    );
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "OCR failed";
+    onChange((currentImages) =>
+      currentImages.map((img) =>
+        img.id === imageId
+          ? { ...img, ocrStatus: "error" as const, ocrErrorMessage: message, ocrText: undefined }
+          : img,
+      ),
+    );
+    // Notify caller if OCR service itself is unavailable
+    if (getOcrServiceStatus() === "unavailable") {
+      onOcrUnavailable?.();
+    }
+  }
+}
 
 type ImageOrganizerProps = {
   images: ImageItem[];
@@ -42,6 +85,7 @@ type ImageOrganizerProps = {
   onBatchRotateRight: () => void;
   onSelectAll: () => void;
   onClearSelection: () => void;
+  onOcrUnavailable?: () => void;
 };
 
 function UploadIcon() {
@@ -69,6 +113,7 @@ export function ImageOrganizer({
   onBatchRotateRight,
   onSelectAll,
   onClearSelection,
+  onOcrUnavailable,
 }: ImageOrganizerProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [cropTargetId, setCropTargetId] = useState<string | null>(null);
@@ -152,35 +197,19 @@ export function ImageOrganizer({
           isConverting: initialIsConverting,
         };
 
-        // Add the image to the list
-        onChange((currentImages: ImageItem[]) => [...currentImages, newItem]);
+        // Add the image to the list with pending OCR status
+        onChange((currentImages: ImageItem[]) => [
+          ...currentImages,
+          { ...newItem, ocrStatus: "pending" as const },
+        ]);
 
-        // Start OCR in background
+        // Start OCR in background — only if file is available
         if (newItem.file) {
-          onChange((currentImages: ImageItem[]) =>
-            currentImages.map((img) =>
-              img.id === newItem.id ? { ...img, ocrStatus: "processing" } : img,
-            ),
-          );
-          try {
-            const ocrText = await processImageForOcr(newItem.file);
-            onChange((currentImages: ImageItem[]) =>
-              currentImages.map((img) =>
-                img.id === newItem.id ? { ...img, ocrText, ocrStatus: "complete" } : img,
-              ),
-            );
-          } catch (error) {
-            console.error("OCR processing failed:", error);
-            onChange((currentImages: ImageItem[]) =>
-              currentImages.map((img) =>
-                img.id === newItem.id ? { ...img, ocrStatus: "error" } : img,
-              ),
-            );
-          }
+          runOcrForImage(id, newItem.file, onChange, onOcrUnavailable);
         }
       });
     },
-    [images, onChange],
+    [images, onChange, onOcrUnavailable],
   );
 
   const handleFileInput = useCallback(

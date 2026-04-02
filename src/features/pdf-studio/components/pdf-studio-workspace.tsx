@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { FormSection } from "@/components/forms/form-section";
-import { ImageOrganizer } from "@/features/pdf-studio/components/image-organizer";
+import { ImageOrganizer, runOcrForImage } from "@/features/pdf-studio/components/image-organizer";
 import { PageSettingsPanel } from "@/features/pdf-studio/components/page-settings-panel";
 import { PdfPreview } from "@/features/pdf-studio/components/pdf-preview";
 import {
@@ -225,6 +225,7 @@ export function PdfStudioWorkspace() {
   const [hasHydratedSession, setHasHydratedSession] = useState(false);
   const [estimatedPdfSizeBytes, setEstimatedPdfSizeBytes] = useState<number | null>(null);
   const [estimateStatus, setEstimateStatus] = useState<"idle" | "estimating" | "ready" | "error">("idle");
+  const [isOcrUnavailable, setIsOcrUnavailable] = useState(false);
 
   const selectedIdSet = useMemo(() => new Set(selectedIds), [selectedIds]);
   const estimateCacheRef = useRef(new Map<string, number>());
@@ -255,6 +256,27 @@ export function PdfStudioWorkspace() {
       commitImages(() => newImages);
     }
   }, [commitImages]);
+
+  const handleOcrRetry = useCallback(
+    (imageId: string) => {
+      let targetFile: File | Blob | undefined;
+      setImages((current) => {
+        targetFile = current.find((img) => img.id === imageId)?.file;
+        return current;
+      });
+      if (!targetFile) return;
+      // Reset to pending then re-run OCR
+      commitImages((current) =>
+        current.map((img) =>
+          img.id === imageId
+            ? { ...img, ocrStatus: "pending" as const, ocrErrorMessage: undefined, ocrText: undefined }
+            : img,
+        ),
+      );
+      void runOcrForImage(imageId, targetFile, commitImages, () => setIsOcrUnavailable(true));
+    },
+    [commitImages],
+  );
 
   const handleSelectionChange = useCallback((ids: string[]) => {
     setImages((prevImages) => {
@@ -692,7 +714,7 @@ export function PdfStudioWorkspace() {
                 {sessionStatus}
               </div>
             ) : null}
-            <OcrProgressPanel images={images} />
+            <OcrProgressPanel images={images} isOcrUnavailable={isOcrUnavailable} onRetry={handleOcrRetry} />
           </div>
         ) : null}
 
@@ -795,6 +817,7 @@ export function PdfStudioWorkspace() {
                   onBatchRotateRight={handleBatchRotateRight}
                   onSelectAll={handleSelectAll}
                   onClearSelection={handleClearSelection}
+                  onOcrUnavailable={() => setIsOcrUnavailable(true)}
                 />
               </FormSection>
             </section>
