@@ -39,6 +39,7 @@ export async function generatePdfFromImages(
   images: ImageItem[],
   settings: PageSettings,
   onProgress?: (progress: GenerationProgress) => void,
+  signal?: AbortSignal,
 ): Promise<Uint8Array> {
   const { PDFDocument, StandardFonts, rgb } = await import("pdf-lib");
 
@@ -51,6 +52,11 @@ export async function generatePdfFromImages(
   applyDocumentMetadata(pdfDoc, settings);
 
   for (let i = 0; i < images.length; i++) {
+    // Check for cancellation before each page
+    if (signal?.aborted) {
+      throw new DOMException("PDF generation was cancelled.", "AbortError");
+    }
+
     const item = images[i];
 
     onProgress?.({ current: i, total, stage: "loading" });

@@ -6,8 +6,7 @@ export const runtime = "nodejs";
 // 50MB — large PDFs with many high-res images
 export const maxDuration = 60;
 
-interface EncryptRequestBody {
-  pdfBytes: number[];
+interface EncryptOptions {
   userPassword: string;
   ownerPassword?: string;
   permissions?: {
@@ -45,47 +44,64 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Too many requests" }, { status: 429 });
   }
 
-  let body: EncryptRequestBody;
+  const formData = await request.formData();
+  const pdfBlob = formData.get("pdf");
+  const optionsStr = formData.get("options");
+
+  if (!(pdfBlob instanceof Blob) || pdfBlob.size === 0) {
+    return NextResponse.json({ error: "pdf is required" }, { status: 400 });
+  }
+
+  if (typeof optionsStr !== "string") {
+    return NextResponse.json({ error: "options is required" }, { status: 400 });
+  }
+
+  let options: EncryptOptions;
   try {
-    body = (await request.json()) as EncryptRequestBody;
+    options = JSON.parse(optionsStr) as EncryptOptions;
   } catch {
-    return NextResponse.json({ error: "Invalid request body" }, { status: 400 });
+    return NextResponse.json({ error: "Invalid options" }, { status: 400 });
   }
 
-  // Validate inputs
-  if (!Array.isArray(body.pdfBytes) || body.pdfBytes.length === 0) {
-    return NextResponse.json({ error: "pdfBytes is required" }, { status: 400 });
-  }
-
-  if (typeof body.userPassword !== "string" || body.userPassword.length === 0) {
+  if (typeof options.userPassword !== "string" || options.userPassword.length === 0) {
     return NextResponse.json({ error: "userPassword is required" }, { status: 400 });
   }
 
-  if (body.userPassword.length > 32) {
+  if (options.userPassword.length > 32) {
     return NextResponse.json({ error: "Password too long" }, { status: 400 });
   }
 
-  // Validate body size limit (~50MB of JSON)
-  const rawBytes = body.pdfBytes;
-  if (rawBytes.length > 50 * 1024 * 1024) {
+  // Size check (50MB limit)
+  if (pdfBlob.size > 50 * 1024 * 1024) {
     return NextResponse.json({ error: "PDF too large" }, { status: 413 });
   }
 
   try {
-    const pdfBytes = new Uint8Array(rawBytes);
+    const pdfBytes = new Uint8Array(await pdfBlob.arrayBuffer());
 
-    const encryptedBytes = await encryptPDF(pdfBytes, body.userPassword, {
-      ownerPassword: body.ownerPassword,
+    const encryptedBytes = await encryptPDF(pdfBytes, options.userPassword, {
+      ownerPassword: options.ownerPassword,
       algorithm: "AES-256",
-      allowPrinting: body.permissions?.printing ?? true,
-      allowHighQualityPrint: body.permissions?.printing ?? true,
-      allowCopying: body.permissions?.copying ?? true,
-      allowModifying: body.permissions?.modifying ?? true,
+      allowPrinting: options.permissions?.printing ?? true,
+      allowHighQualityPrint: options.permissions?.printing ?? true,
+      allowCopying: options.permissions?.copying ?? true,
+      allowModifying: options.permissions?.modifying ?? true,
       allowAnnotating: true,
       allowFillingForms: true,
-      allowExtraction: body.permissions?.copying ?? true,
-      allowAssembly: body.permissions?.modifying ?? true,
+      allowExtraction: options.permissions?.copying ?? true,
+      allowAssembly: options.permissions?.modifying ?? true,
     });
+
+    // Verify encrypted output is a valid PDF (sanity check: %PDF header)
+    if (
+      encryptedBytes.length < 5 ||
+      encryptedBytes[0] !== 0x25 ||
+      encryptedBytes[1] !== 0x50 ||
+      encryptedBytes[2] !== 0x44 ||
+      encryptedBytes[3] !== 0x46
+    ) {
+      return NextResponse.json({ error: "Encryption produced invalid output" }, { status: 500 });
+    }
 
     return new NextResponse(Buffer.from(encryptedBytes), {
       status: 200,
