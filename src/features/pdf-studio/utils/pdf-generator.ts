@@ -13,6 +13,22 @@ const PAGE_NUMBER_FONT_SIZE = 10;
 const WATERMARK_FONT_SIZE = 34;
 const DEFAULT_MARGINS = 20; // 20px margins for position calculations
 
+export function normalizePercentageToUnitInterval(value: number | undefined, fallback = 0.5): number {
+  if (typeof value !== "number" || Number.isNaN(value)) {
+    return fallback;
+  }
+
+  return Math.min(1, Math.max(0, value / 100));
+}
+
+export function normalizePercentageToScale(value: number | undefined, fallback = 0.3): number {
+  if (typeof value !== "number" || Number.isNaN(value)) {
+    return fallback;
+  }
+
+  return Math.min(1, Math.max(0.1, value / 100));
+}
+
 export type GenerationProgress = {
   current: number;
   total: number;
@@ -151,6 +167,7 @@ async function applyWatermark(
     
     // Parse color (assuming hex format like "#000000")
     const color = await hexToRgb(textWatermark.color || "#999999");
+    const opacity = normalizePercentageToUnitInterval(textWatermark.opacity, 0.5);
     
     page.drawText(textWatermark.content, {
       x: position.x,
@@ -159,7 +176,7 @@ async function applyWatermark(
       font: watermarkFont,
       rotate: degrees(watermark.rotation || 0),
       color: color,
-      opacity: textWatermark.opacity,
+      opacity,
     });
     
   } else if (watermark.type === 'image' && watermark.image?.previewUrl) {
@@ -179,7 +196,9 @@ async function applyWatermark(
         embeddedImage = await pdfDoc.embedJpg(imageBytes);
       }
       
-      const imageDims = embeddedImage.scale(imageWatermark.scale || 0.3);
+      const imageScale = normalizePercentageToScale(imageWatermark.scale, 0.3);
+      const imageOpacity = normalizePercentageToUnitInterval(imageWatermark.opacity, 0.5);
+      const imageDims = embeddedImage.scale(imageScale);
       
       const position = calculatePosition(
         pageSize,
@@ -193,7 +212,7 @@ async function applyWatermark(
         width: imageDims.width,
         height: imageDims.height,
         rotate: degrees(watermark.rotation || 0),
-        opacity: imageWatermark.opacity,
+        opacity: imageOpacity,
       });
       
     } catch (error) {
