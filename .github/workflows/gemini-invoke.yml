@@ -19,6 +19,8 @@ defaults:
 jobs:
   invoke:
     runs-on: 'ubuntu-latest'
+    env:
+      GEMINI_AUTH_CONFIGURED: '${{ secrets.GEMINI_API_KEY != '' || secrets.GOOGLE_API_KEY != '' || vars.GCP_WIF_PROVIDER != '' }}'
     permissions:
       contents: 'read'
       id-token: 'write'
@@ -40,7 +42,15 @@ jobs:
       - name: 'Checkout Code'
         uses: 'actions/checkout@v4' # ratchet:exclude
 
+      - name: 'Skip Gemini invoke when auth is not configured'
+        if: |-
+          ${{ env.GEMINI_AUTH_CONFIGURED != 'true' }}
+        run: |-
+          echo 'Skipping Gemini invoke because no Gemini authentication is configured for this repository.'
+
       - name: 'Run Gemini CLI'
+        if: |-
+          ${{ env.GEMINI_AUTH_CONFIGURED == 'true' }}
         id: 'run_gemini'
         uses: 'google-github-actions/run-gemini-cli@v0' # ratchet:exclude
         env:

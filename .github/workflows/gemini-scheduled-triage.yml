@@ -29,6 +29,8 @@ jobs:
   triage:
     runs-on: 'ubuntu-latest'
     timeout-minutes: 7
+    env:
+      GEMINI_AUTH_CONFIGURED: '${{ secrets.GEMINI_API_KEY != '' || secrets.GOOGLE_API_KEY != '' || vars.GCP_WIF_PROVIDER != '' }}'
     permissions:
       contents: 'read'
       id-token: 'write'
@@ -88,7 +90,7 @@ jobs:
       - name: 'Run Gemini Issue Analysis'
         id: 'gemini_issue_analysis'
         if: |-
-          ${{ steps.find_issues.outputs.issues_to_triage != '[]' }}
+          ${{ steps.find_issues.outputs.issues_to_triage != '[]' && env.GEMINI_AUTH_CONFIGURED == 'true' }}
         uses: 'google-github-actions/run-gemini-cli@v0' # ratchet:exclude
         env:
           GITHUB_TOKEN: '' # Do not pass any auth token here since this runs on untrusted inputs
@@ -128,6 +130,12 @@ jobs:
               }
             }
           prompt: '/gemini-scheduled-triage'
+
+      - name: 'Skip Gemini scheduled triage when auth is not configured'
+        if: |-
+          ${{ steps.find_issues.outputs.issues_to_triage != '[]' && env.GEMINI_AUTH_CONFIGURED != 'true' }}
+        run: |-
+          echo 'Skipping Gemini scheduled triage because no Gemini authentication is configured for this repository.'
 
   label:
     runs-on: 'ubuntu-latest'

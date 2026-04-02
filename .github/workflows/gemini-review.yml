@@ -20,6 +20,8 @@ jobs:
   review:
     runs-on: 'ubuntu-latest'
     timeout-minutes: 7
+    env:
+      GEMINI_AUTH_CONFIGURED: '${{ secrets.GEMINI_API_KEY != '' || secrets.GOOGLE_API_KEY != '' || vars.GCP_WIF_PROVIDER != '' }}'
     permissions:
       contents: 'read'
       id-token: 'write'
@@ -41,7 +43,15 @@ jobs:
       - name: 'Checkout repository'
         uses: 'actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8' # ratchet:actions/checkout@v6
 
+      - name: 'Skip Gemini review when auth is not configured'
+        if: |-
+          ${{ env.GEMINI_AUTH_CONFIGURED != 'true' }}
+        run: |-
+          echo 'Skipping Gemini review because no Gemini authentication is configured for this repository.'
+
       - name: 'Run Gemini pull request review'
+        if: |-
+          ${{ env.GEMINI_AUTH_CONFIGURED == 'true' }}
         uses: 'google-github-actions/run-gemini-cli@v0' # ratchet:exclude
         id: 'gemini_pr_review'
         env:
