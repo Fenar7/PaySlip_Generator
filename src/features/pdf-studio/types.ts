@@ -92,6 +92,7 @@ export type ImageItem = {
   isConverting?: boolean;
   ocrText?: string;
   ocrStatus?: 'pending' | 'processing' | 'complete' | 'error';
+  ocrErrorMessage?: string;
 };
 
 export type PageSize = "a4" | "letter";

@@ -1,6 +1,6 @@
 "use client";
 
-import type { ImageItem, PageSettings, WatermarkSettings, PageNumberFormat, WatermarkPosition } from "@/features/pdf-studio/types";
+import type { ImageItem, PageSettings, WatermarkSettings, PageNumberFormat, WatermarkPosition, PageDimensions } from "@/features/pdf-studio/types";
 import {
   getEffectivePageDimensions,
   calculateImagePlacement,
@@ -99,16 +99,7 @@ export async function generatePdfFromImages(
     });
 
     if (settings.enableOcr && item.ocrText) {
-      // For now, use a simplified approach to place OCR text.
-      // This might need more sophisticated layout algorithms for better text alignment.
-      page.drawText(item.ocrText, {
-        x: placement.x,
-        y: pageDimensions.heightPt - placement.y - placement.height + PAGE_NUMBER_FONT_SIZE, // Offset for baseline
-        font: pageNumberFont, // Using an existing font
-        size: PAGE_NUMBER_FONT_SIZE, // Using an existing size
-        color: rgb(0, 0, 0),
-        opacity: 0, // Make it invisible
-      });
+      await embedInvisibleOcrText(page, item.ocrText, pageDimensions, pageNumberFont);
     }
 
     // Apply watermark using the new enhanced system
@@ -131,8 +122,53 @@ export async function generatePdfFromImages(
 }
 
 /**
- * Enhanced watermark application function as per PRD specifications
+ * Embed normalized OCR text as an invisible searchable text layer.
+ *
+ * Goals:
+ * - text must be invisible (opacity 0) but still indexed by PDF readers
+ * - text spans the image area at a very small font size so it doesn't overflow
+ * - empty/whitespace-only text is silently skipped
+ *
+ * This approach gives "searchable PDF" behavior without attempting
+ * bounding-box layout reconstruction (out of scope for v1).
  */
+async function embedInvisibleOcrText(
+  page: PDFPage,
+  ocrText: string,
+  pageDimensions: PageDimensions,
+  font: PDFFont,
+): Promise<void> {
+  // Normalize and skip empty text
+  const normalized = ocrText
+    .replace(/[\r\n]+/g, " ")
+    .replace(/[ \t]{2,}/g, " ")
+    .trim();
+
+  if (!normalized) return;
+
+  const { rgb } = await import("pdf-lib");
+
+  // Use very small font (1pt) so even long text stays within page bounds
+  const INVISIBLE_FONT_SIZE = 1;
+
+  try {
+    page.drawText(normalized, {
+      x: 0,
+      y: pageDimensions.heightPt - INVISIBLE_FONT_SIZE,
+      font,
+      size: INVISIBLE_FONT_SIZE,
+      maxWidth: pageDimensions.widthPt,
+      lineHeight: INVISIBLE_FONT_SIZE,
+      color: rgb(0, 0, 0),
+      opacity: 0,
+    });
+  } catch {
+    // If text embedding fails (e.g. unsupported characters), skip silently
+    // to ensure export never fails due to OCR text rendering issues
+  }
+}
+
+
 async function applyWatermark(
   page: PDFPage,
   watermark: WatermarkSettings, 
