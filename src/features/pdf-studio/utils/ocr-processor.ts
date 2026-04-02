@@ -137,6 +137,15 @@ export async function terminateOcrWorker(): Promise<void> {
   }
 }
 
+/**
+ * Cancel all in-progress and pending OCR processing.
+ * Terminates the worker immediately. Callers are responsible
+ * for updating image statuses to 'cancelled'.
+ */
+export async function cancelAllOcr(): Promise<void> {
+  await terminateOcrWorker();
+}
+
 export function resetOcrProcessorForTests(): void {
   workerPromise = null;
   recognitionQueue = Promise.resolve();

@@ -29,11 +29,15 @@ export async function encryptPdfViaApi(
 
   let response: Response;
   try {
-    response = await fetch("/api/pdf/encrypt", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        pdfBytes: Array.from(pdfBytes),
+    const formData = new FormData();
+    formData.append(
+      "pdf",
+      new Blob([pdfBytes as unknown as BlobPart], { type: "application/octet-stream" }),
+      "document.pdf",
+    );
+    formData.append(
+      "options",
+      JSON.stringify({
         userPassword: passwordSettings.userPassword,
         ownerPassword: passwordSettings.ownerPassword || undefined,
         permissions: {
@@ -42,6 +46,12 @@ export async function encryptPdfViaApi(
           modifying: passwordSettings.permissions.modifying,
         },
       }),
+    );
+
+    response = await fetch("/api/pdf/encrypt", {
+      method: "POST",
+      // No Content-Type header — browser sets multipart/form-data with boundary
+      body: formData,
     });
   } catch {
     throw new PdfEncryptionError(
