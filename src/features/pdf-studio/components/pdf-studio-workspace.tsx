@@ -21,6 +21,11 @@ import {
   type GenerationProgress,
 } from "@/features/pdf-studio/utils/pdf-generator";
 import {
+  encryptPdfViaApi,
+  PdfEncryptionError,
+} from "@/features/pdf-studio/utils/pdf-encryptor";
+import { validatePasswords } from "@/features/pdf-studio/utils/password";
+import {
   clearPdfStudioSession,
   loadPdfStudioSession,
   savePdfStudioSession,
@@ -333,23 +338,64 @@ export function PdfStudioWorkspace() {
       return;
     }
 
+    // Validate passwords up-front if protection is enabled (Case C)
+    if (settings.password.enabled) {
+      const validation = validatePasswords(
+        settings.password.userPassword,
+        settings.password.confirmPassword,
+      );
+      if (!validation.isValid) {
+        setActionState({
+          status: "error",
+          message: validation.errors[0] ?? "Password is invalid. Please check the Password Protection settings.",
+        });
+        return;
+      }
+    }
+
     setActionState({ status: "generating" });
     setProgress({ current: 0, total: images.length, stage: "loading" });
 
     try {
+      // Generate base PDF (always client-side, never encrypted here)
       const pdfBytes = await generatePdfFromImages(images, settings, (p) => {
         setProgress(p);
       });
 
-      downloadPdfBlob(pdfBytes, settings.filename);
+      if (settings.password.enabled) {
+        // Case B: encrypt via server API
+        setProgress({ current: images.length, total: images.length, stage: "finalizing" });
+
+        const encryptedBytes = await encryptPdfViaApi(pdfBytes, settings.password);
+
+        // Clear passwords from state after successful encrypted export (security)
+        setSettings((prev) => ({
+          ...prev,
+          password: {
+            ...prev.password,
+            userPassword: "",
+            confirmPassword: "",
+            ownerPassword: undefined,
+          },
+        }));
+
+        downloadPdfBlob(encryptedBytes, settings.filename);
+      } else {
+        // Case A: no password — download directly
+        downloadPdfBlob(pdfBytes, settings.filename);
+      }
+
       setActionState({ status: "success" });
     } catch (error) {
+      // Case D: fail-closed — never silently fallback to unprotected download
       setActionState({
         status: "error",
         message:
-          error instanceof Error
+          error instanceof PdfEncryptionError
             ? error.message
-            : "Unable to generate the PDF. Check the images and try again.",
+            : error instanceof Error
+              ? error.message
+              : "Unable to generate the PDF. Check the images and try again.",
       });
     }
   }, [images, settings]);

@@ -1,6 +1,6 @@
 "use client";
 
-import type { ImageItem, PageSettings, WatermarkSettings, PageNumberFormat, WatermarkPosition, PasswordSettings } from "@/features/pdf-studio/types";
+import type { ImageItem, PageSettings, WatermarkSettings, PageNumberFormat, WatermarkPosition } from "@/features/pdf-studio/types";
 import {
   getEffectivePageDimensions,
   calculateImagePlacement,
@@ -111,37 +111,7 @@ export async function generatePdfFromImages(
 
   onProgress?.({ current: total, total, stage: "finalizing" });
 
-  // Apply password protection if enabled
-  if (settings.password.enabled && settings.password.userPassword) {
-    await encryptPdf(pdfDoc, settings.password);
-  }
-
   return pdfDoc.save();
-}
-
-/**
- * Apply PDF encryption (placeholder for future implementation)
- * TODO: Implement proper PDF encryption once compatible library version is available
- */
-async function encryptPdf(
-  pdfDoc: import("pdf-lib").PDFDocument,
-  passwordSettings: PasswordSettings
-): Promise<void> {
-  if (!passwordSettings.userPassword) {
-    console.warn('PDF encryption enabled but no user password provided');
-    return;
-  }
-  
-  // TODO: Implement encryption when pdf-lib supports it or find alternative
-  // For now, we'll log the intention and continue without encryption
-  console.log('PDF encryption requested but not yet implemented:', {
-    hasUserPassword: Boolean(passwordSettings.userPassword),
-    hasOwnerPassword: Boolean(passwordSettings.ownerPassword),
-    permissions: passwordSettings.permissions
-  });
-  
-  // Placeholder - actual encryption to be implemented later
-  console.warn('PDF generated without encryption - feature pending library support');
 }
 
 /**
