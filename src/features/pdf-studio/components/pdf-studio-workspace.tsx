@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { FormSection } from "@/components/forms/form-section";
 import { ImageOrganizer } from "@/features/pdf-studio/components/image-organizer";
 import { PageSettingsPanel } from "@/features/pdf-studio/components/page-settings-panel";
@@ -20,6 +20,7 @@ import {
   downloadPdfBlob,
   type GenerationProgress,
 } from "@/features/pdf-studio/utils/pdf-generator";
+import { estimatePdfSize } from "@/features/pdf-studio/utils/pdf-size-estimator";
 import {
   encryptPdfViaApi,
   PdfEncryptionError,
@@ -79,7 +80,7 @@ function GenerationDialog({
         <button
           type="button"
           onClick={onClose}
-          className="absolute right-3 top-3 inline-flex h-9 w-9 items-center justify-center rounded-full border border-[var(--border-soft)] bg-white/92 text-[var(--foreground-soft)] shadow-[0_10px_24px_rgba(34,34,34,0.05)] transition-colors hover:bg-[rgba(248,241,235,0.82)] sm:right-4 sm:top-4 sm:h-10 sm:w-10"
+          className="absolute right-3 top-3 z-20 inline-flex h-9 w-9 items-center justify-center rounded-full border border-[var(--border-soft)] bg-white/92 text-[var(--foreground-soft)] shadow-[0_10px_24px_rgba(34,34,34,0.05)] transition-colors hover:bg-[rgba(248,241,235,0.82)] sm:right-4 sm:top-4 sm:h-10 sm:w-10"
           aria-label="Close export dialog"
         >
           ×
@@ -222,8 +223,12 @@ export function PdfStudioWorkspace() {
   const [mobileTab, setMobileTab] = useState<"upload" | "settings" | "preview">("upload");
   const [sessionStatus, setSessionStatus] = useState<string | undefined>(undefined);
   const [hasHydratedSession, setHasHydratedSession] = useState(false);
+  const [estimatedPdfSizeBytes, setEstimatedPdfSizeBytes] = useState<number | null>(null);
+  const [estimateStatus, setEstimateStatus] = useState<"idle" | "estimating" | "ready" | "error">("idle");
 
   const selectedIdSet = useMemo(() => new Set(selectedIds), [selectedIds]);
+  const estimateCacheRef = useRef(new Map<string, number>());
+  const estimateRunIdRef = useRef(0);
 
   const commitImages = useCallback((updater: (prevImages: ImageItem[]) => ImageItem[]) => {
     setImages(prevImages => {
@@ -439,6 +444,55 @@ export function PdfStudioWorkspace() {
       window.clearTimeout(timeout);
     };
   }, [hasHydratedSession, images, settings]);
+
+  useEffect(() => {
+    if (!hasHydratedSession) {
+      return;
+    }
+
+    if (images.length === 0) {
+      const resetTimeout = window.setTimeout(() => {
+        setEstimatedPdfSizeBytes(null);
+        setEstimateStatus("idle");
+      }, 0);
+
+      return () => {
+        window.clearTimeout(resetTimeout);
+      };
+    }
+
+    const timeout = window.setTimeout(() => {
+      const runId = estimateRunIdRef.current + 1;
+      estimateRunIdRef.current = runId;
+      setEstimateStatus("estimating");
+
+      void estimatePdfSize(images, settings, estimateCacheRef.current)
+        .then((estimatedBytes) => {
+          if (estimateRunIdRef.current !== runId) {
+            return;
+          }
+
+          setEstimatedPdfSizeBytes(estimatedBytes);
+          setEstimateStatus("ready");
+        })
+        .catch(() => {
+          if (estimateRunIdRef.current !== runId) {
+            return;
+          }
+
+          setEstimatedPdfSizeBytes(null);
+          setEstimateStatus("error");
+        });
+    }, 250);
+
+    return () => {
+      window.clearTimeout(timeout);
+    };
+  }, [
+    hasHydratedSession,
+    images,
+    settings,
+  ]);
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -757,7 +811,12 @@ export function PdfStudioWorkspace() {
                 title="Page configuration"
                 description="Choose page size, orientation, how images fill the page, and margin spacing."
               >
-                <PageSettingsPanel settings={settings} onChange={setSettings} />
+                <PageSettingsPanel
+                  settings={settings}
+                  onChange={setSettings}
+                  estimatedPdfSizeBytes={estimatedPdfSizeBytes}
+                  estimateStatus={estimateStatus}
+                />
               </FormSection>
             </section>
 
