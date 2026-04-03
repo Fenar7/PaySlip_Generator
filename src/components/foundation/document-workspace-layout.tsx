@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type ReactNode, useCallback } from "react";
 import { cn } from "@/lib/utils";
 
 export type WorkspaceAction = {
@@ -55,15 +55,22 @@ type DocumentWorkspaceLayoutProps = {
   builderContent: ReactNode;
   previewContent: ReactNode;
   exportDialog?: WorkspaceExportDialog;
+  documentEditorContent?: ReactNode;
 };
 
-type MobileTab = "build" | "preview" | "export";
+type ViewMode = "form" | "document";
+type MobileTab = "build" | "preview" | "export" | "document";
 
-const mobileTabs = [
+const formMobileTabs = [
   { id: "build", label: "Build" },
   { id: "preview", label: "Preview" },
   { id: "export", label: "Export" },
-] as const;
+] as const satisfies { id: MobileTab; label: string }[];
+
+const documentMobileTabs = [
+  { id: "document", label: "Document" },
+  { id: "export", label: "Export" },
+] as const satisfies { id: MobileTab; label: string }[];
 
 function ExportInfoIcon({ kind }: { kind: "spark" | "download" | "shield" }) {
   const commonProps = {
@@ -186,9 +193,19 @@ export function DocumentWorkspaceLayout({
   builderContent,
   previewContent,
   exportDialog,
+  documentEditorContent,
 }: DocumentWorkspaceLayoutProps) {
   const [mobileTab, setMobileTab] = useState<MobileTab>("build");
   const [isDesktopWorkspace, setIsDesktopWorkspace] = useState(false);
+  const [viewMode, setViewMode] = useState<ViewMode>("form");
+
+  const handleSetViewMode = useCallback(
+    (mode: ViewMode) => {
+      setViewMode(mode);
+      setMobileTab(mode === "document" ? "document" : "build");
+    },
+    [],
+  );
 
   useEffect(() => {
     if (typeof window === "undefined" || typeof window.matchMedia !== "function") {
@@ -229,8 +246,50 @@ export function DocumentWorkspaceLayout({
               <p className="mt-3 max-w-3xl text-[0.98rem] leading-7 text-[var(--foreground-soft)]">
                 {description}
               </p>
-              <div className="mt-5 hidden flex-wrap gap-2 xl:flex">
+              <div className="mt-5 hidden flex-wrap items-center gap-2 xl:flex">
                 {actions.map((action) => renderAction(action, true))}
+                {documentEditorContent ? (
+                  <div className="ml-auto flex gap-1 rounded-lg border border-[var(--border-soft)] bg-[var(--surface-soft)] p-1">
+                    <button
+                      type="button"
+                      onClick={() => handleSetViewMode("form")}
+                      title="Form view"
+                      className={cn(
+                        "inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-colors",
+                        viewMode === "form"
+                          ? "bg-white text-[var(--foreground)] shadow-[var(--shadow-soft)]"
+                          : "text-[var(--foreground-soft)] hover:text-[var(--foreground)]",
+                      )}
+                    >
+                      <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2" />
+                        <rect x="9" y="3" width="6" height="4" rx="1" />
+                        <line x1="9" y1="12" x2="15" y2="12" />
+                        <line x1="9" y1="16" x2="13" y2="16" />
+                      </svg>
+                      Form
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleSetViewMode("document")}
+                      title="Document view"
+                      className={cn(
+                        "inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-colors",
+                        viewMode === "document"
+                          ? "bg-white text-[var(--foreground)] shadow-[var(--shadow-soft)]"
+                          : "text-[var(--foreground-soft)] hover:text-[var(--foreground)]",
+                      )}
+                    >
+                      <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                        <polyline points="14 2 14 8 20 8" />
+                        <line x1="9" y1="13" x2="15" y2="13" />
+                        <line x1="9" y1="17" x2="12" y2="17" />
+                      </svg>
+                      Document
+                    </button>
+                  </div>
+                ) : null}
               </div>
             </div>
 
@@ -269,8 +328,36 @@ export function DocumentWorkspaceLayout({
         {!isDesktopWorkspace ? (
           <div className="xl:hidden">
             <div className="sticky top-4 z-20 rounded-xl border border-[var(--border-strong)] bg-white/95 p-1.5 shadow-[var(--shadow-soft)] backdrop-blur sm:p-2">
+              {documentEditorContent ? (
+                <div className="mb-1.5 flex gap-1 border-b border-[var(--border-soft)] pb-1.5 sm:mb-2 sm:pb-2">
+                  <button
+                    type="button"
+                    onClick={() => handleSetViewMode("form")}
+                    className={cn(
+                      "flex-1 rounded-md px-2 py-1.5 text-[0.76rem] font-medium transition-colors",
+                      viewMode === "form"
+                        ? "bg-[var(--foreground)] text-white"
+                        : "text-[var(--foreground-soft)] hover:bg-[var(--surface-soft)]",
+                    )}
+                  >
+                    Form
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleSetViewMode("document")}
+                    className={cn(
+                      "flex-1 rounded-md px-2 py-1.5 text-[0.76rem] font-medium transition-colors",
+                      viewMode === "document"
+                        ? "bg-[var(--foreground)] text-white"
+                        : "text-[var(--foreground-soft)] hover:bg-[var(--surface-soft)]",
+                    )}
+                  >
+                    Document
+                  </button>
+                </div>
+              ) : null}
               <div className="flex gap-1.5 sm:gap-2">
-                {mobileTabs.map((tab) => (
+                {(viewMode === "document" && documentEditorContent ? documentMobileTabs : formMobileTabs).map((tab) => (
                   <button
                     key={tab.id}
                     type="button"
@@ -344,6 +431,8 @@ export function DocumentWorkspaceLayout({
           </aside>
 
           <div className="space-y-5">
+          {/* Builder section — not rendered in document view */}
+          {viewMode === "form" ? (
           <section
             className={cn(
               "rounded-2xl border border-[var(--border-strong)] bg-white p-4 shadow-[var(--shadow-soft)] md:p-5",
@@ -383,7 +472,10 @@ export function DocumentWorkspaceLayout({
 
             <div className="mt-5 space-y-5">{builderContent}</div>
           </section>
+          ) : null}
 
+          {/* Preview section — not rendered in document view */}
+          {viewMode === "form" ? (
           <section
             className={cn(
               "rounded-none border-0 bg-transparent p-0 shadow-none sm:rounded-2xl sm:border sm:border-[var(--border-strong)] sm:bg-white sm:p-4 sm:shadow-[var(--shadow-card)] md:p-5",
@@ -427,6 +519,14 @@ export function DocumentWorkspaceLayout({
 
             {previewContent}
           </section>
+          ) : null}
+
+          {/* Document editor section — only mounted when in document view */}
+          {documentEditorContent && (viewMode === "document") && (!isDesktopWorkspace ? mobileTab === "document" : true) ? (
+            <section>
+              {documentEditorContent}
+            </section>
+          ) : null}
 
           {!isDesktopWorkspace ? (
           <section

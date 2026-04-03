@@ -28,6 +28,7 @@ import {
   voucherDefaultValues,
   voucherTemplateOptions,
 } from "@/features/voucher/constants";
+import { VoucherDocumentEditor } from "@/features/voucher/components/voucher-document-editor";
 import { VoucherPreview } from "@/features/voucher/components/voucher-preview";
 import { voucherFormSchema } from "@/features/voucher/schema";
 import type { VoucherFormValues } from "@/features/voucher/types";
@@ -489,6 +490,7 @@ function VoucherPanel() {
         </>
       }
       previewContent={<VoucherPreview document={previewDocument} />}
+      documentEditorContent={<VoucherDocumentEditor />}
     />
   );
 }
