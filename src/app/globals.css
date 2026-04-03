@@ -256,6 +256,21 @@ button:not(:disabled),
   page-break-inside: avoid;
 }
 
+/* Document inline edit field resets */
+.document-inline-date::-webkit-calendar-picker-indicator,
+.document-inline-date::-webkit-inner-spin-button {
+  display: none;
+  -webkit-appearance: none;
+}
+.document-inline-number::-webkit-outer-spin-button,
+.document-inline-number::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+.document-inline-number {
+  -moz-appearance: textfield;
+}
+
 @media print {
   html,
   body {

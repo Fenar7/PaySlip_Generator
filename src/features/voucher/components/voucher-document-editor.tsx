@@ -5,6 +5,7 @@ import { normalizeVoucher } from "@/features/voucher/utils/normalize-voucher";
 import type { VoucherFormValues } from "@/features/voucher/types";
 import { DocumentBrandMark } from "@/components/document/document-brand-mark";
 import {
+  DocumentEditorRoot,
   InlineDateField,
   InlineNumberField,
   InlineSelectField,
@@ -27,138 +28,166 @@ export function VoucherDocumentEditor() {
   const { control } = useFormContext<VoucherFormValues>();
   const watchedValues = useWatch({ control }) as VoucherFormValues;
   const doc = normalizeVoucher(watchedValues);
-
   const branding = doc.branding;
-  const isPayment = doc.voucherType === "payment";
 
   return (
-    <div className="mx-auto w-full max-w-[794px]">
-      <div className="rounded-2xl border border-[var(--border-strong)] bg-white shadow-[var(--shadow-card)]" style={{ minHeight: 700 }}>
-        {/* Accent stripe */}
-        <div className="h-2 w-full rounded-t-2xl" style={{ background: branding.accentColor || "var(--accent)" }} />
-
-        <div className="p-10 pt-8">
-          {/* Header */}
-          <div className="flex items-start justify-between gap-6">
-            <div className="flex items-start gap-4">
-              <DocumentBrandMark
-                branding={branding}
-                className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl border border-[var(--border-soft)] bg-[var(--surface-soft)]"
-                initialsClassName="text-base font-semibold text-[var(--foreground)]"
-              />
-              <div className="min-w-0 flex-1">
-                <InlineTextField
-                  name="branding.companyName"
-                  placeholder="Company Name"
-                  className="text-lg font-semibold text-[var(--foreground)]"
-                />
-                <InlineTextArea
-                  name="branding.address"
-                  placeholder="Company address"
-                  className="mt-0.5 text-sm text-[var(--foreground-soft)]"
-                />
-                <InlineTextField
-                  name="branding.email"
-                  placeholder="Email"
-                  className="mt-0.5 text-sm text-[var(--foreground-soft)]"
-                />
-                <InlineTextField
-                  name="branding.phone"
-                  placeholder="Phone"
-                  className="mt-0.5 text-sm text-[var(--foreground-soft)]"
-                />
-              </div>
-            </div>
-
-            <div className="text-right">
-              <p className="text-2xl font-bold uppercase tracking-wide text-[var(--foreground)]">
-                {isPayment ? "Payment Voucher" : "Receipt Voucher"}
-              </p>
-              <div className="mt-4 space-y-1 text-sm">
-                <div className="flex items-center justify-end gap-2">
-                  <span className="text-[var(--muted-foreground)]">Voucher #</span>
-                  <InlineTextField name="voucherNumber" placeholder="VCH-001" className="w-28 text-right font-medium" />
-                </div>
-                <div className="flex items-center justify-end gap-2">
-                  <span className="text-[var(--muted-foreground)]">Date</span>
-                  <InlineDateField name="date" className="w-36 text-right" />
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Divider */}
-          <div className="my-8 border-t border-[var(--border-soft)]" />
-
-          {/* Core fields */}
-          <div className="space-y-5">
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div>
-                <p className="text-[0.68rem] font-semibold uppercase tracking-[0.2em] text-[var(--muted-foreground)]">
-                  {isPayment ? "Paid To" : "Received From"}
-                </p>
-                <InlineTextField
-                  name="counterpartyName"
-                  placeholder={isPayment ? "Payee name" : "Payer name"}
-                  className="mt-1 text-base font-medium"
-                />
-              </div>
-              <div>
-                <p className="text-[0.68rem] font-semibold uppercase tracking-[0.2em] text-[var(--muted-foreground)]">Amount (₹)</p>
-                <InlineNumberField name="amount" placeholder="0.00" className="mt-1 text-2xl font-bold tabular-nums text-[var(--foreground)]" />
-                <p className="mt-0.5 text-xs italic text-[var(--muted-foreground)]">{doc.amountInWords || "—"}</p>
-              </div>
-            </div>
-
-            <div>
-              <p className="text-[0.68rem] font-semibold uppercase tracking-[0.2em] text-[var(--muted-foreground)]">Purpose / Description</p>
-              <InlineTextArea name="purpose" placeholder="Purpose of payment…" className="mt-1 text-sm" />
-            </div>
-
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div>
-                <p className="text-[0.68rem] font-semibold uppercase tracking-[0.2em] text-[var(--muted-foreground)]">Payment Mode</p>
-                <InlineSelectField name="paymentMode" options={PAYMENT_MODE_OPTIONS} className="mt-1 text-sm" />
-              </div>
-              <div>
-                <p className="text-[0.68rem] font-semibold uppercase tracking-[0.2em] text-[var(--muted-foreground)]">Reference / Cheque #</p>
-                <InlineTextField name="referenceNumber" placeholder="Reference number" className="mt-1 text-sm" />
-              </div>
-            </div>
-
-            <div>
-              <p className="text-[0.68rem] font-semibold uppercase tracking-[0.2em] text-[var(--muted-foreground)]">Notes</p>
-              <InlineTextArea name="notes" placeholder="Additional notes…" className="mt-1 text-sm" />
-            </div>
-          </div>
-
-          {/* Divider */}
-          <div className="my-8 border-t border-[var(--border-soft)]" />
-
-          {/* Approvals */}
-          <div className="grid gap-6 sm:grid-cols-3">
-            <div>
-              <p className="text-[0.68rem] font-semibold uppercase tracking-[0.2em] text-[var(--muted-foreground)]">Prepared By</p>
-              <div className="mt-8 border-b border-[var(--border-soft)]" />
-              <p className="mt-1 text-center text-xs text-[var(--muted-foreground)]">Signature</p>
-            </div>
-            <div>
-              <p className="text-[0.68rem] font-semibold uppercase tracking-[0.2em] text-[var(--muted-foreground)]">Approved By</p>
-              <InlineTextField name="approvedBy" placeholder="Name" className="mt-1 text-sm" />
-              <div className="mt-4 border-b border-[var(--border-soft)]" />
-              <p className="mt-1 text-center text-xs text-[var(--muted-foreground)]">Signature</p>
-            </div>
-            <div>
-              <p className="text-[0.68rem] font-semibold uppercase tracking-[0.2em] text-[var(--muted-foreground)]">
-                {isPayment ? "Received By" : "Authorized By"}
-              </p>
-              <InlineTextField name="receivedBy" placeholder="Name" className="mt-1 text-sm" />
-              <div className="mt-4 border-b border-[var(--border-soft)]" />
-              <p className="mt-1 text-center text-xs text-[var(--muted-foreground)]">Signature</p>
-            </div>
+    <DocumentEditorRoot branding={branding}>
+      {/* Header Brand */}
+      <div className="flex items-start justify-between gap-6 border-b border-[rgba(29,23,16,0.08)] pb-6">
+        <div>
+          <p className="text-[0.65rem] font-semibold uppercase tracking-[0.34em] text-[rgba(29,23,16,0.45)]">
+            {doc.title}
+          </p>
+          <InlineTextField
+            name="branding.companyName"
+            placeholder="Company Name"
+            className="mt-3 text-[1.85rem] font-medium leading-tight text-[var(--voucher-ink)]"
+          />
+          <div className="mt-4 space-y-1.5 text-sm leading-6 text-[rgba(29,23,16,0.68)]">
+            <InlineTextArea
+              name="branding.address"
+              placeholder="Company address"
+            />
+            <InlineTextField name="branding.email" placeholder="Email" />
+            <InlineTextField name="branding.phone" placeholder="Phone" />
           </div>
         </div>
+        <DocumentBrandMark branding={branding} />
       </div>
-    </div>
+
+      {/* Meta grid */}
+      <div className="grid gap-4 md:grid-cols-[1.15fr_0.85fr]">
+        {/* Left card — editable fields */}
+        <section className="rounded-[1.5rem] border border-[rgba(29,23,16,0.08)] bg-[rgba(255,255,255,0.86)] p-5">
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div>
+              <p className="text-[0.68rem] font-semibold uppercase tracking-[0.25em] text-[rgba(29,23,16,0.45)]">
+                Voucher no.
+              </p>
+              <InlineTextField
+                name="voucherNumber"
+                placeholder="VCH-001"
+                className="mt-2 text-base font-medium"
+              />
+            </div>
+            <div>
+              <p className="text-[0.68rem] font-semibold uppercase tracking-[0.25em] text-[rgba(29,23,16,0.45)]">
+                Date
+              </p>
+              <InlineDateField
+                name="date"
+                className="mt-2 text-base font-medium"
+              />
+            </div>
+            <div>
+              <p className="text-[0.68rem] font-semibold uppercase tracking-[0.25em] text-[rgba(29,23,16,0.45)]">
+                {doc.counterpartyLabel}
+              </p>
+              <InlineTextField
+                name="counterpartyName"
+                placeholder="Name"
+                className="mt-2 text-base font-medium"
+              />
+            </div>
+            <div>
+              <p className="text-[0.68rem] font-semibold uppercase tracking-[0.25em] text-[rgba(29,23,16,0.45)]">
+                Payment mode
+              </p>
+              <InlineSelectField
+                name="paymentMode"
+                options={PAYMENT_MODE_OPTIONS}
+                className="mt-2 text-base font-medium"
+              />
+            </div>
+            <div>
+              <p className="text-[0.68rem] font-semibold uppercase tracking-[0.25em] text-[rgba(29,23,16,0.45)]">
+                Amount
+              </p>
+              <InlineNumberField
+                name="amount"
+                placeholder="0.00"
+                className="mt-2 text-base font-medium"
+              />
+            </div>
+            <div>
+              <p className="text-[0.68rem] font-semibold uppercase tracking-[0.25em] text-[rgba(29,23,16,0.45)]">
+                Reference
+              </p>
+              <InlineTextField
+                name="referenceNumber"
+                placeholder="Reference number"
+                className="mt-2 text-base font-medium"
+              />
+            </div>
+          </div>
+        </section>
+
+        {/* Right accent box — display-only */}
+        <aside
+          className="rounded-[1.5rem] p-5 text-white"
+          style={{ backgroundColor: "var(--voucher-accent)" }}
+        >
+          <p className="text-[0.68rem] font-semibold uppercase tracking-[0.25em] text-white/70">
+            Amount
+          </p>
+          <p className="mt-3 text-3xl font-medium">
+            {doc.amountFormatted}
+          </p>
+          <p className="mt-4 text-sm leading-7 text-white/82">
+            {doc.amountInWords}
+          </p>
+        </aside>
+      </div>
+
+      {/* Purpose section */}
+      <section className="rounded-[1.5rem] border border-[rgba(29,23,16,0.08)] bg-[rgba(255,255,255,0.9)] p-5">
+        <p className="text-[0.68rem] font-semibold uppercase tracking-[0.25em] text-[rgba(29,23,16,0.45)]">
+          Purpose / Narration
+        </p>
+        <InlineTextArea
+          name="purpose"
+          placeholder="Purpose of payment…"
+          className="mt-3 text-sm leading-7 text-[rgba(29,23,16,0.82)]"
+        />
+      </section>
+
+      {/* Notes section — always shown in editor */}
+      <section className="rounded-[1.5rem] border border-dashed border-[rgba(29,23,16,0.12)] bg-[rgba(255,255,255,0.72)] p-5">
+        <p className="text-[0.68rem] font-semibold uppercase tracking-[0.25em] text-[rgba(29,23,16,0.45)]">
+          Notes
+        </p>
+        <InlineTextArea
+          name="notes"
+          placeholder="Additional notes…"
+          className="mt-3 text-sm leading-7 text-[rgba(29,23,16,0.8)]"
+        />
+      </section>
+
+      {/* Signature section */}
+      <section className="grid gap-4 md:grid-cols-2">
+        <div className="rounded-[1.5rem] border border-[rgba(29,23,16,0.08)] bg-[rgba(255,255,255,0.9)] p-5">
+          <div className="h-16 border-b border-dashed border-[rgba(29,23,16,0.16)]" />
+          <div className="mt-4 flex items-center gap-1 text-sm font-medium text-[rgba(29,23,16,0.82)]">
+            <span>Approved by:</span>
+            <InlineTextField
+              name="approvedBy"
+              placeholder="Name"
+              className="text-sm font-medium text-[rgba(29,23,16,0.82)]"
+            />
+          </div>
+        </div>
+        <div className="rounded-[1.5rem] border border-[rgba(29,23,16,0.08)] bg-[rgba(255,255,255,0.9)] p-5">
+          <div className="h-16 border-b border-dashed border-[rgba(29,23,16,0.16)]" />
+          <div className="mt-4 flex items-center gap-1 text-sm font-medium text-[rgba(29,23,16,0.82)]">
+            <span>Received by:</span>
+            <InlineTextField
+              name="receivedBy"
+              placeholder="Name"
+              className="text-sm font-medium text-[rgba(29,23,16,0.82)]"
+            />
+          </div>
+        </div>
+      </section>
+    </DocumentEditorRoot>
   );
 }

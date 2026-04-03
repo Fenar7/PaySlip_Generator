@@ -5,24 +5,21 @@ import { normalizeSalarySlip } from "@/features/salary-slip/utils/normalize-sala
 import type { SalarySlipFormValues } from "@/features/salary-slip/types";
 import { DocumentBrandMark } from "@/components/document/document-brand-mark";
 import {
+  DocumentEditorRoot,
   InlineDateField,
   InlineTextArea,
   InlineTextField,
 } from "@/components/document/inline-edit-fields";
-import { cn } from "@/lib/utils";
 
 function RemoveRowButton({ onClick }: { onClick: () => void }) {
   return (
     <button
       type="button"
       onClick={onClick}
-      className="ml-1 inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[var(--muted-foreground)] transition-colors hover:bg-red-50 hover:text-red-500"
+      className="ml-1 inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[rgba(29,23,16,0.4)] transition-colors hover:bg-red-50 hover:text-red-500"
       aria-label="Remove row"
     >
-      <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <line x1="18" y1="6" x2="6" y2="18" />
-        <line x1="6" y1="6" x2="18" y2="18" />
-      </svg>
+      ×
     </button>
   );
 }
@@ -32,20 +29,48 @@ function AddRowButton({ onClick, label }: { onClick: () => void; label: string }
     <button
       type="button"
       onClick={onClick}
-      className="mt-2 inline-flex items-center gap-1.5 text-[0.78rem] font-medium text-[var(--accent)] transition-opacity hover:opacity-75"
+      className="mt-2 inline-flex items-center gap-1.5 text-[0.78rem] font-medium text-[var(--voucher-accent)] transition-opacity hover:opacity-75"
     >
-      <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <circle cx="12" cy="12" r="10" />
-        <line x1="12" y1="8" x2="12" y2="16" />
-        <line x1="8" y1="12" x2="16" y2="12" />
-      </svg>
-      {label}
+      ＋ {label}
     </button>
   );
 }
 
-const cellClass = "px-2 py-1.5 text-sm";
-const thClass = cn(cellClass, "text-left text-[0.66rem] font-semibold uppercase tracking-[0.18em] text-[var(--muted-foreground)]");
+function SummaryCard({
+  label,
+  value,
+  accent,
+}: {
+  label: string;
+  value: string;
+  accent?: boolean;
+}) {
+  return (
+    <div
+      className="rounded-[1.25rem] border px-4 py-4"
+      style={
+        accent
+          ? {
+              backgroundColor: "var(--voucher-accent)",
+              borderColor: "transparent",
+              color: "white",
+            }
+          : undefined
+      }
+    >
+      <p
+        className={
+          accent
+            ? "text-[0.68rem] uppercase tracking-[0.24em] text-white/72"
+            : "text-[0.68rem] uppercase tracking-[0.24em] text-[rgba(29,23,16,0.45)]"
+        }
+      >
+        {label}
+      </p>
+      <p className="mt-3 text-2xl font-medium">{value}</p>
+    </div>
+  );
+}
 
 export function SalarySlipDocumentEditor() {
   const { control } = useFormContext<SalarySlipFormValues>();
@@ -67,215 +92,207 @@ export function SalarySlipDocumentEditor() {
   const branding = doc.branding;
 
   return (
-    <div className="mx-auto w-full max-w-[794px]">
-      <div className="rounded-2xl border border-[var(--border-strong)] bg-white shadow-[var(--shadow-card)]" style={{ minHeight: 1000 }}>
-        {/* Accent stripe */}
-        <div className="h-2 w-full rounded-t-2xl" style={{ background: branding.accentColor || "var(--accent)" }} />
-
-        <div className="p-10 pt-8">
-          {/* Header */}
-          <div className="flex items-start justify-between gap-6">
-            <div className="flex items-start gap-4">
-              <DocumentBrandMark
-                branding={branding}
-                className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl border border-[var(--border-soft)] bg-[var(--surface-soft)]"
-                initialsClassName="text-base font-semibold text-[var(--foreground)]"
+    <DocumentEditorRoot branding={branding}>
+      {/* ── Header Card ── */}
+      <section className="document-break-inside-avoid rounded-[1.6rem] border border-[rgba(29,23,16,0.08)] bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(247,241,232,0.96))] p-6">
+        <div className="flex items-start justify-between gap-6">
+          {/* Left: brand + employee */}
+          <div className="flex items-start gap-4">
+            <DocumentBrandMark branding={branding} />
+            <div>
+              <p className="text-[0.68rem] uppercase tracking-[0.32em] text-[rgba(29,23,16,0.45)]">
+                Salary Slip
+              </p>
+              <div className="mt-2 flex items-center gap-2 text-sm text-[rgba(29,23,16,0.7)]">
+                <InlineTextField name="month" placeholder="Month" className="w-16" />
+                <InlineTextField name="year" placeholder="Year" className="w-12" />
+                <InlineDateField name="payDate" placeholder="Pay date" className="w-28" />
+              </div>
+              <InlineTextField
+                name="employeeName"
+                placeholder="Employee Name"
+                className="mt-3 text-[2rem] font-medium"
               />
-              <div className="min-w-0 flex-1">
-                <InlineTextField
-                  name="branding.companyName"
-                  placeholder="Company Name"
-                  className="text-lg font-semibold text-[var(--foreground)]"
-                />
-                <InlineTextArea
-                  name="branding.address"
-                  placeholder="Company address"
-                  className="mt-0.5 text-sm text-[var(--foreground-soft)]"
-                />
-              </div>
-            </div>
-            <div className="text-right">
-              <p className="text-2xl font-bold uppercase tracking-wide text-[var(--foreground)]">Salary Slip</p>
-              <div className="mt-2 flex items-center justify-end gap-1.5">
-                <InlineTextField name="payPeriodLabel" placeholder="Pay Period" className="w-32 text-right text-sm text-[var(--foreground-soft)]" />
-                <span className="text-[var(--muted-foreground)]">·</span>
-                <InlineTextField name="month" placeholder="Month" className="w-20 text-right text-sm" />
-                <InlineTextField name="year" placeholder="Year" className="w-14 text-right text-sm" />
-              </div>
-              <div className="mt-1 flex items-center justify-end gap-2 text-sm">
-                <span className="text-[var(--muted-foreground)]">Pay Date</span>
-                <InlineDateField name="payDate" className="w-36 text-right" />
-              </div>
+              <p className="mt-3 text-sm leading-7 text-[rgba(29,23,16,0.7)]">
+                {doc.payPeriodLabel}
+                {doc.payDate ? ` · Paid on ${doc.payDate}` : ""}
+              </p>
             </div>
           </div>
 
-          {/* Divider */}
-          <div className="my-6 border-t border-[var(--border-soft)]" />
+          {/* Right: company info */}
+          <div className="max-w-[15rem] text-right text-sm leading-7 text-[rgba(29,23,16,0.72)]">
+            <InlineTextField
+              name="branding.companyName"
+              placeholder="Company Name"
+              className="font-medium text-[var(--voucher-ink)] text-right"
+            />
+            <InlineTextField
+              name="branding.address"
+              placeholder="Address"
+              className="text-right"
+            />
+            <InlineTextField
+              name="branding.email"
+              placeholder="Email"
+              className="text-right"
+            />
+            <InlineTextField
+              name="branding.phone"
+              placeholder="Phone"
+              className="text-right"
+            />
+          </div>
+        </div>
 
-          {/* Employee Info */}
-          <div className="grid gap-3 sm:grid-cols-2">
-            <div>
-              <p className="text-[0.66rem] font-semibold uppercase tracking-[0.2em] text-[var(--muted-foreground)]">Employee</p>
-              <InlineTextField name="employeeName" placeholder="Employee Name" className="mt-1 font-medium" />
-              <InlineTextField name="employeeId" placeholder="Employee ID" className="mt-0.5 text-sm text-[var(--foreground-soft)]" />
-              <InlineTextField name="department" placeholder="Department" className="mt-0.5 text-sm text-[var(--foreground-soft)]" />
-              <InlineTextField name="designation" placeholder="Designation" className="mt-0.5 text-sm text-[var(--foreground-soft)]" />
-            </div>
-            <div>
-              <p className="text-[0.66rem] font-semibold uppercase tracking-[0.2em] text-[var(--muted-foreground)]">Details</p>
-              <div className="mt-1 space-y-0.5 text-sm">
-                <div className="flex items-center gap-2">
-                  <span className="w-20 text-xs text-[var(--muted-foreground)]">PAN</span>
-                  <InlineTextField name="pan" placeholder="PAN" className="text-sm" />
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className="w-20 text-xs text-[var(--muted-foreground)]">UAN</span>
-                  <InlineTextField name="uan" placeholder="UAN" className="text-sm" />
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className="w-20 text-xs text-[var(--muted-foreground)]">Work Location</span>
-                  <InlineTextField name="workLocation" placeholder="Location" className="text-sm" />
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className="w-20 text-xs text-[var(--muted-foreground)]">Joining Date</span>
-                  <InlineDateField name="joiningDate" className="text-sm" />
-                </div>
-              </div>
+        {/* Employee profile + Summary cards */}
+        <div className="mt-6 grid md:grid-cols-[1.15fr_0.85fr] gap-4">
+          {/* Employee profile */}
+          <div className="rounded-[1.35rem] border border-[rgba(29,23,16,0.08)] bg-white/88 p-5">
+            <p className="text-[0.68rem] uppercase tracking-[0.25em] text-[rgba(29,23,16,0.45)]">
+              Employee profile
+            </p>
+            <div className="mt-4 grid sm:grid-cols-2 gap-3 text-sm text-[rgba(29,23,16,0.78)]">
+              <p className="flex items-center gap-1">Employee ID: <InlineTextField name="employeeId" placeholder="—" /></p>
+              <p className="flex items-center gap-1">Department: <InlineTextField name="department" placeholder="—" /></p>
+              <p className="flex items-center gap-1">Designation: <InlineTextField name="designation" placeholder="—" /></p>
+              <p className="flex items-center gap-1">Location: <InlineTextField name="workLocation" placeholder="—" /></p>
+              <p className="flex items-center gap-1">Joined: <InlineDateField name="joiningDate" placeholder="—" /></p>
+              <p className="flex items-center gap-1">PAN: <InlineTextField name="pan" placeholder="—" /></p>
+              <p className="flex items-center gap-1">UAN: <InlineTextField name="uan" placeholder="—" /></p>
+              <p className="flex items-center gap-1">Mode: <InlineTextField name="paymentMethod" placeholder="—" /></p>
+              <p className="flex items-center gap-1">Bank: <InlineTextField name="bankName" placeholder="—" /></p>
+              <p className="flex items-center gap-1">Account: <InlineTextField name="bankAccountNumber" placeholder="—" /></p>
+              <p className="flex items-center gap-1">IFSC: <InlineTextField name="bankIfsc" placeholder="—" /></p>
             </div>
           </div>
 
-          {/* Attendance row */}
-          <div className="mt-4 flex flex-wrap gap-4 rounded-xl border border-[var(--border-soft)] bg-[var(--surface-soft)] px-4 py-3">
-            {[
-              { label: "Working Days", name: "workingDays" },
-              { label: "Paid Days", name: "paidDays" },
-              { label: "Leave Days", name: "leaveDays" },
-              { label: "LOP Days", name: "lossOfPayDays" },
-            ].map((item) => (
-              <div key={item.name} className="min-w-[80px]">
-                <p className="text-[0.64rem] font-semibold uppercase tracking-[0.18em] text-[var(--muted-foreground)]">{item.label}</p>
-                <InlineTextField name={item.name} placeholder="—" className="mt-0.5 text-sm font-medium tabular-nums" />
-              </div>
-            ))}
+          {/* Summary cards */}
+          <div className="grid gap-3">
+            <SummaryCard label="Earnings" value={doc.totalEarningsFormatted} />
+            <SummaryCard label="Deductions" value={doc.totalDeductionsFormatted} />
+            <SummaryCard label="Net salary" value={doc.netSalaryFormatted} accent />
           </div>
+        </div>
+      </section>
 
-          {/* Earnings + Deductions tables */}
-          <div className="mt-6 grid gap-4 sm:grid-cols-2">
-            {/* Earnings */}
+      {/* ── Earnings & Deductions + Side Panel ── */}
+      <section className="grid lg:grid-cols-[1.05fr_0.95fr] gap-4">
+        {/* Earnings and deductions */}
+        <div className="rounded-[1.35rem] border border-[rgba(29,23,16,0.08)] bg-[rgba(255,255,255,0.95)] p-5">
+          <p className="text-[0.68rem] uppercase tracking-[0.25em] text-[rgba(29,23,16,0.45)]">
+            Earnings and deductions
+          </p>
+          <div className="mt-4 grid sm:grid-cols-2 gap-4">
+            {/* Earnings column */}
             <div>
-              <div className="overflow-hidden rounded-xl border border-[var(--border-soft)]">
-                <table className="w-full border-collapse text-sm">
-                  <thead>
-                    <tr className="border-b border-[var(--border-soft)] bg-[var(--surface-soft)]">
-                      <th className={cn(thClass, "w-[60%]")}>Earnings</th>
-                      <th className={cn(thClass, "text-right")}>Amount (₹)</th>
-                      <th className="w-8" />
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {earningFields.map((field, index) => (
-                      <tr key={field.id} className="border-b border-[var(--border-soft)] last:border-0">
-                        <td className={cellClass}>
-                          <InlineTextField name={`earnings.${index}.label`} placeholder="Earning item" />
-                        </td>
-                        <td className={cn(cellClass, "text-right")}>
-                          <InlineTextField name={`earnings.${index}.amount`} placeholder="0.00" className="text-right tabular-nums" />
-                        </td>
-                        <td className="pr-1">
-                          {earningFields.length > 1 && <RemoveRowButton onClick={() => removeEarning(index)} />}
-                        </td>
-                      </tr>
-                    ))}
-                    <tr className="border-t border-[var(--border-soft)] bg-[var(--surface-soft)]">
-                      <td className={cn(cellClass, "font-semibold")}>Total Earnings</td>
-                      <td className={cn(cellClass, "text-right font-semibold tabular-nums")}>{doc.totalEarningsFormatted}</td>
-                      <td />
-                    </tr>
-                  </tbody>
-                </table>
+              <p className="text-sm font-medium text-[rgba(29,23,16,0.72)]">Earnings</p>
+              <div className="mt-3 divide-y divide-[rgba(29,23,16,0.08)]">
+                {earningFields.map((field, index) => (
+                  <div key={field.id} className="grid grid-cols-[1fr_auto_auto] gap-2 py-3 text-sm">
+                    <InlineTextField name={`earnings.${index}.label`} placeholder="Earning item" />
+                    <InlineTextField name={`earnings.${index}.amount`} placeholder="0.00" className="text-right font-medium" />
+                    {earningFields.length > 1 && (
+                      <RemoveRowButton onClick={() => removeEarning(index)} />
+                    )}
+                  </div>
+                ))}
               </div>
               <AddRowButton label="Add earning" onClick={() => appendEarning({ label: "", amount: "" })} />
             </div>
 
-            {/* Deductions */}
+            {/* Deductions column */}
             <div>
-              <div className="overflow-hidden rounded-xl border border-[var(--border-soft)]">
-                <table className="w-full border-collapse text-sm">
-                  <thead>
-                    <tr className="border-b border-[var(--border-soft)] bg-[var(--surface-soft)]">
-                      <th className={cn(thClass, "w-[60%]")}>Deductions</th>
-                      <th className={cn(thClass, "text-right")}>Amount (₹)</th>
-                      <th className="w-8" />
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {deductionFields.map((field, index) => (
-                      <tr key={field.id} className="border-b border-[var(--border-soft)] last:border-0">
-                        <td className={cellClass}>
-                          <InlineTextField name={`deductions.${index}.label`} placeholder="Deduction item" />
-                        </td>
-                        <td className={cn(cellClass, "text-right")}>
-                          <InlineTextField name={`deductions.${index}.amount`} placeholder="0.00" className="text-right tabular-nums" />
-                        </td>
-                        <td className="pr-1">
-                          {deductionFields.length > 1 && <RemoveRowButton onClick={() => removeDeduction(index)} />}
-                        </td>
-                      </tr>
-                    ))}
-                    <tr className="border-t border-[var(--border-soft)] bg-[var(--surface-soft)]">
-                      <td className={cn(cellClass, "font-semibold")}>Total Deductions</td>
-                      <td className={cn(cellClass, "text-right font-semibold tabular-nums")}>{doc.totalDeductionsFormatted}</td>
-                      <td />
-                    </tr>
-                  </tbody>
-                </table>
+              <p className="text-sm font-medium text-[rgba(29,23,16,0.72)]">Deductions</p>
+              <div className="mt-3 divide-y divide-[rgba(29,23,16,0.08)]">
+                {deductionFields.map((field, index) => (
+                  <div key={field.id} className="grid grid-cols-[1fr_auto_auto] gap-2 py-3 text-sm">
+                    <InlineTextField name={`deductions.${index}.label`} placeholder="Deduction item" />
+                    <InlineTextField name={`deductions.${index}.amount`} placeholder="0.00" className="text-right font-medium" />
+                    {deductionFields.length > 1 && (
+                      <RemoveRowButton onClick={() => removeDeduction(index)} />
+                    )}
+                  </div>
+                ))}
               </div>
               <AddRowButton label="Add deduction" onClick={() => appendDeduction({ label: "", amount: "" })} />
             </div>
           </div>
+        </div>
 
-          {/* Net Salary */}
-          <div className="mt-4 flex items-center justify-end gap-4 rounded-xl border border-[var(--border-soft)] bg-[var(--surface-soft)] px-5 py-4">
-            <div>
-              <p className="text-[0.66rem] font-semibold uppercase tracking-[0.2em] text-[var(--muted-foreground)]">Net Salary</p>
-              <p className="mt-0.5 text-xs italic text-[var(--muted-foreground)]">{doc.netSalaryInWords || "—"}</p>
-            </div>
-            <p className="text-2xl font-bold tabular-nums text-[var(--foreground)]">{doc.netSalaryFormatted}</p>
+        {/* Right side panel */}
+        <div className="space-y-4">
+          {/* Net salary in words */}
+          <div className="rounded-[1.35rem] border border-[rgba(29,23,16,0.08)] bg-[rgba(255,255,255,0.95)] p-5">
+            <p className="text-[0.68rem] uppercase tracking-[0.25em] text-[rgba(29,23,16,0.45)]">
+              Net salary in words
+            </p>
+            <p className="mt-4 text-lg leading-8 text-[rgba(29,23,16,0.84)]">
+              {doc.netSalaryInWords}
+            </p>
           </div>
 
-          {/* Disbursement */}
-          <div className="mt-6 rounded-xl border border-[var(--border-soft)] p-4">
-            <p className="text-[0.68rem] font-semibold uppercase tracking-[0.2em] text-[var(--muted-foreground)]">Disbursement</p>
-            <div className="mt-2 grid gap-y-1 sm:grid-cols-4">
-              {[
-                { label: "Method", name: "paymentMethod" },
-                { label: "Bank", name: "bankName" },
-                { label: "Account No.", name: "bankAccountNumber" },
-                { label: "IFSC", name: "bankIfsc" },
-              ].map((item) => (
-                <div key={item.name}>
-                  <span className="text-xs text-[var(--muted-foreground)]">{item.label}</span>
-                  <InlineTextField name={item.name} placeholder="—" className="text-sm" />
-                </div>
-              ))}
+          {/* Attendance summary */}
+          <div className="rounded-[1.35rem] border border-[rgba(29,23,16,0.08)] bg-[rgba(255,255,255,0.95)] p-5">
+            <p className="text-[0.68rem] uppercase tracking-[0.25em] text-[rgba(29,23,16,0.45)]">
+              Attendance summary
+            </p>
+            <div className="mt-4 grid sm:grid-cols-2 gap-3 text-sm text-[rgba(29,23,16,0.78)]">
+              <p className="flex items-center gap-1">Working days: <InlineTextField name="workingDays" placeholder="—" /></p>
+              <p className="flex items-center gap-1">Paid days: <InlineTextField name="paidDays" placeholder="—" /></p>
+              <p className="flex items-center gap-1">Leave days: <InlineTextField name="leaveDays" placeholder="—" /></p>
+              <p className="flex items-center gap-1">Loss of pay: <InlineTextField name="lossOfPayDays" placeholder="—" /></p>
             </div>
           </div>
 
-          {/* Notes + Prepared By */}
-          <div className="mt-6 grid gap-4 sm:grid-cols-2">
-            <div>
-              <p className="text-[0.68rem] font-semibold uppercase tracking-[0.2em] text-[var(--muted-foreground)]">Notes</p>
-              <InlineTextArea name="notes" placeholder="Any additional notes…" className="mt-1 text-sm" />
-            </div>
-            <div className="flex flex-col items-end justify-end">
-              <div className="w-44 text-center">
-                <div className="h-12 border-b border-[var(--border-soft)]" />
-                <InlineTextField name="preparedBy" placeholder="Prepared By" className="mt-1 text-center text-xs text-[var(--muted-foreground)]" />
-              </div>
-            </div>
+          {/* Notes */}
+          <div className="rounded-[1.35rem] border border-dashed border-[rgba(29,23,16,0.14)] bg-[rgba(255,255,255,0.88)] p-5">
+            <p className="text-[0.68rem] uppercase tracking-[0.25em] text-[rgba(29,23,16,0.45)]">
+              Notes
+            </p>
+            <InlineTextArea name="notes" placeholder="Any additional notes…" className="mt-3 text-sm leading-7 text-[rgba(29,23,16,0.8)]" />
           </div>
         </div>
-      </div>
-    </div>
+      </section>
+
+      {/* ── Disbursement ── */}
+      <section className="rounded-[1.35rem] border border-[rgba(29,23,16,0.08)] bg-[rgba(255,255,255,0.95)] p-5">
+        <p className="text-[0.68rem] uppercase tracking-[0.25em] text-[rgba(29,23,16,0.45)]">
+          Disbursement
+        </p>
+        <div className="mt-4 grid sm:grid-cols-4 gap-3 text-sm">
+          <div>
+            <span className="text-[rgba(29,23,16,0.45)]">Method</span>
+            <InlineTextField name="paymentMethod" placeholder="—" />
+          </div>
+          <div>
+            <span className="text-[rgba(29,23,16,0.45)]">Bank</span>
+            <InlineTextField name="bankName" placeholder="—" />
+          </div>
+          <div>
+            <span className="text-[rgba(29,23,16,0.45)]">Account No.</span>
+            <InlineTextField name="bankAccountNumber" placeholder="—" />
+          </div>
+          <div>
+            <span className="text-[rgba(29,23,16,0.45)]">IFSC</span>
+            <InlineTextField name="bankIfsc" placeholder="—" />
+          </div>
+        </div>
+      </section>
+
+      {/* ── Signature ── */}
+      <section className="grid md:grid-cols-2 gap-4">
+        <div className="rounded-[1.35rem] border border-[rgba(29,23,16,0.08)] bg-[rgba(255,255,255,0.95)] p-5">
+          <div className="h-16 border-b border-dashed border-[rgba(29,23,16,0.16)]" />
+          <p className="mt-4 text-sm font-medium">
+            Prepared by: <InlineTextField name="preparedBy" placeholder="Name" className="inline" />
+          </p>
+        </div>
+        <div className="rounded-[1.35rem] border border-[rgba(29,23,16,0.08)] bg-[rgba(255,255,255,0.95)] p-5">
+          <div className="h-16 border-b border-dashed border-[rgba(29,23,16,0.16)]" />
+          <p className="mt-4 text-sm font-medium">Employee acknowledgement</p>
+        </div>
+      </section>
+    </DocumentEditorRoot>
   );
 }
