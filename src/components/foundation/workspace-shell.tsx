@@ -19,9 +19,8 @@ export function WorkspaceShell({
 }: WorkspaceShellProps) {
   return (
     <main className="relative isolate overflow-hidden">
-      <div className="absolute inset-x-0 top-0 -z-10 h-[34rem] bg-[radial-gradient(circle_at_top,rgba(232,64,30,0.10),transparent_36%),radial-gradient(circle_at_80%_10%,rgba(87,87,96,0.05),transparent_26%)]" />
       <div className="mx-auto flex w-full max-w-[var(--container-shell)] flex-col gap-8 px-4 py-8 sm:px-5 lg:px-6 lg:py-12">
-        <div className="flex flex-col gap-6 rounded-[2.5rem] border border-[var(--border-strong)] bg-[linear-gradient(180deg,rgba(255,255,255,0.92),rgba(246,240,234,0.96))] p-6 shadow-[var(--shadow-card)] backdrop-blur-sm lg:flex-row lg:items-end lg:justify-between">
+        <div className="flex flex-col gap-6 rounded-2xl border border-[var(--border-strong)] bg-white p-6 shadow-[var(--shadow-card)] lg:flex-row lg:items-end lg:justify-between">
           <div className="max-w-3xl">
             <p className="text-[0.68rem] font-semibold uppercase tracking-[0.34em] text-[var(--muted-foreground)]">
               {eyebrow}
@@ -77,7 +76,7 @@ export function WorkspaceShell({
                         This section belongs to the Slipwise product shell.
                       </p>
                     </div>
-                    <span className="h-10 w-10 rounded-2xl border border-[var(--border-soft)] bg-[linear-gradient(180deg,rgba(232,64,30,0.08),rgba(255,255,255,1))] shadow-[0_10px_24px_rgba(34,34,34,0.03)]" />
+                    <span className="h-10 w-10 rounded-xl border border-[var(--border-soft)] bg-[var(--surface-soft)]" />
                   </div>
                 </article>
               ))}

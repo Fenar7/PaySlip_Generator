@@ -67,13 +67,12 @@ export function ModuleCard({ module }: ModuleCardProps) {
   return (
     <article
       data-animate="generator-card"
-      className="group relative overflow-hidden rounded-[2.35rem] border border-[var(--border-strong)] bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(248,241,235,0.98))] p-6 shadow-[var(--shadow-soft)]"
+      className="group relative overflow-hidden rounded-2xl border border-[var(--border-strong)] bg-white p-6 shadow-[var(--shadow-soft)] transition-shadow hover:shadow-[var(--shadow-card)]"
     >
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(232,64,30,0.10),transparent_42%),radial-gradient(circle_at_bottom_left,rgba(34,34,34,0.04),transparent_32%)] opacity-0 transition-opacity duration-200 group-hover:opacity-100" />
       <div className="relative flex h-full flex-col gap-6">
         <div className="flex items-start justify-between gap-4">
           <div>
-            <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white text-[var(--accent)] shadow-[0_12px_26px_rgba(34,34,34,0.06)]">
+            <span className="flex h-12 w-12 items-center justify-center rounded-xl border border-[var(--border-soft)] bg-[var(--surface-soft)] text-[var(--accent)]">
               <Icon className="h-5 w-5" />
             </span>
             <p className="mt-4 text-[0.68rem] font-semibold uppercase tracking-[0.32em] text-[var(--muted-foreground)]">
@@ -92,7 +91,7 @@ export function ModuleCard({ module }: ModuleCardProps) {
         <ul className="space-y-2 text-[0.95rem] text-[var(--foreground-soft)]">
           {module.highlights.map((highlight) => (
             <li key={highlight} className="flex items-center gap-3">
-              <span className="h-2 w-2 rounded-full bg-[linear-gradient(135deg,var(--accent),var(--accent-strong))] shadow-[0_0_0_6px_rgba(232,64,30,0.08)]" />
+              <span className="h-1.5 w-1.5 rounded-full bg-[var(--muted-foreground)]" />
               {highlight}
             </li>
           ))}

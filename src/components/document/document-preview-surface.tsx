@@ -123,7 +123,7 @@ export function DocumentPreviewSurface({
         ) : (
           <div className="rounded-[1.25rem] border border-[rgba(34,34,34,0.08)] bg-white/94 px-4 py-3.5 shadow-[0_10px_22px_rgba(34,34,34,0.035)]">
             <div className="flex items-center gap-2.5">
-              <span className="h-2.5 w-2.5 rounded-full bg-[rgba(232,64,30,0.76)]" />
+              <span className="h-2.5 w-2.5 rounded-full bg-[rgba(248,113,113,0.85)]" />
               <span className="h-2.5 w-2.5 rounded-full bg-[rgba(87,87,96,0.38)]" />
               <span className="h-2.5 w-2.5 rounded-full bg-[rgba(173,173,173,0.72)]" />
             </div>

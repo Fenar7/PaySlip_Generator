@@ -79,6 +79,10 @@ function sanitizeImages(images: unknown): ImageItem[] {
       crop: sanitizeCrop(item.crop),
       name: item.name,
       sizeBytes: item.sizeBytes,
+      // Restore completed OCR state — no file needed to use existing ocrText
+      ...(item.ocrStatus === "complete" && typeof item.ocrText === "string" && item.ocrText
+        ? { ocrText: item.ocrText, ocrStatus: "complete" as const }
+        : {}),
     }));
 }
 
@@ -193,6 +197,9 @@ function sanitizeSettings(settings: unknown): PageSettings {
           typeof candidate.watermark?.image?.opacity === "number"
             ? Math.min(100, Math.max(1, candidate.watermark.image.opacity))
             : defaults.watermark.image?.opacity || 50,
+        ...(typeof candidate.watermark?.image?.previewUrl === "string" && candidate.watermark.image.previewUrl
+          ? { previewUrl: candidate.watermark.image.previewUrl }
+          : {}),
       },
       position:
         candidate.watermark?.position === "top-left" ||
@@ -217,14 +224,10 @@ function sanitizeSettings(settings: unknown): PageSettings {
     },
     password: {
       enabled: typeof candidate.password?.enabled === "boolean" ? candidate.password.enabled : defaults.password.enabled,
-      userPassword:
-        typeof candidate.password?.userPassword === "string" ? candidate.password.userPassword : defaults.password.userPassword,
-      confirmPassword:
-        typeof candidate.password?.confirmPassword === "string"
-          ? candidate.password.confirmPassword
-          : defaults.password.confirmPassword,
-      ownerPassword:
-        typeof candidate.password?.ownerPassword === "string" ? candidate.password.ownerPassword : defaults.password.ownerPassword,
+      // Security: never restore raw passwords from storage — always start empty
+      userPassword: defaults.password.userPassword,
+      confirmPassword: defaults.password.confirmPassword,
+      ownerPassword: defaults.password.ownerPassword,
       permissions: {
         printing:
           typeof candidate.password?.permissions?.printing === "boolean"
@@ -255,12 +258,13 @@ export function loadPdfStudioSession(): PdfStudioSession | null {
       return null;
     }
 
-    const parsed = JSON.parse(raw) as Partial<PdfStudioSession>;
+    const rawParsed = JSON.parse(raw) as Partial<PdfStudioSession> & { _hadImageWatermark?: boolean };
 
     return {
-      images: sanitizeImages(parsed.images),
-      settings: sanitizeSettings(parsed.settings),
-      savedAt: typeof parsed.savedAt === "string" ? parsed.savedAt : new Date().toISOString(),
+      images: sanitizeImages(rawParsed.images),
+      settings: sanitizeSettings(rawParsed.settings),
+      savedAt: typeof rawParsed.savedAt === "string" ? rawParsed.savedAt : new Date().toISOString(),
+      watermarkImageCleared: rawParsed._hadImageWatermark === true,
     };
   } catch {
     return null;
@@ -272,16 +276,47 @@ export function savePdfStudioSession(images: ImageItem[], settings: PageSettings
     return false;
   }
 
-  const payload: PdfStudioSession = {
-    images: images.map(({ id, previewUrl, rotation, crop, name, sizeBytes }) => ({
+  // Build safe watermark settings for persistence
+  const safeWatermark = { ...settings.watermark };
+  if (safeWatermark.type === "image") {
+    const previewUrl = safeWatermark.image?.previewUrl;
+    if (!previewUrl || previewUrl.startsWith("blob:")) {
+      // Blob URLs die on reload — downgrade to none so restore is honest
+      safeWatermark.type = "none";
+      // Keep scale/opacity for user convenience if they re-upload
+    } else {
+      // Data URL — safe to persist, strip the non-serializable File
+      safeWatermark.image = {
+        previewUrl,
+        scale: safeWatermark.image!.scale,
+        opacity: safeWatermark.image!.opacity,
+      };
+    }
+  }
+
+  const payload: PdfStudioSession & { _hadImageWatermark?: boolean } = {
+    images: images.map(({ id, previewUrl, rotation, crop, name, sizeBytes, ocrText, ocrStatus }) => ({
       id,
       previewUrl,
       rotation,
       crop,
       name,
       sizeBytes,
+      // Only persist completed OCR — other states require the source file to re-run
+      ...(ocrStatus === "complete" && ocrText ? { ocrText, ocrStatus: "complete" as const } : {}),
     })),
-    settings,
+    settings: {
+      ...settings,
+      watermark: safeWatermark,
+      password: {
+        ...settings.password,
+        // Security: strip raw passwords before persisting to storage
+        userPassword: "",
+        confirmPassword: "",
+        ownerPassword: undefined,
+      },
+    },
+    _hadImageWatermark: settings.watermark.type === "image" && safeWatermark.type === "none",
     savedAt: new Date().toISOString(),
   };
 

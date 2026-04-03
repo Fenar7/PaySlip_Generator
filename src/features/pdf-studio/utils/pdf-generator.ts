@@ -1,6 +1,6 @@
 "use client";
 
-import type { ImageItem, PageSettings, WatermarkSettings, PageNumberFormat, WatermarkPosition, PasswordSettings } from "@/features/pdf-studio/types";
+import type { ImageItem, PageSettings, WatermarkSettings, PageNumberFormat, WatermarkPosition, PageDimensions } from "@/features/pdf-studio/types";
 import {
   getEffectivePageDimensions,
   calculateImagePlacement,
@@ -13,6 +13,22 @@ const PAGE_NUMBER_FONT_SIZE = 10;
 const WATERMARK_FONT_SIZE = 34;
 const DEFAULT_MARGINS = 20; // 20px margins for position calculations
 
+export function normalizePercentageToUnitInterval(value: number | undefined, fallback = 0.5): number {
+  if (typeof value !== "number" || Number.isNaN(value)) {
+    return fallback;
+  }
+
+  return Math.min(1, Math.max(0, value / 100));
+}
+
+export function normalizePercentageToScale(value: number | undefined, fallback = 0.3): number {
+  if (typeof value !== "number" || Number.isNaN(value)) {
+    return fallback;
+  }
+
+  return Math.min(1, Math.max(0.1, value / 100));
+}
+
 export type GenerationProgress = {
   current: number;
   total: number;
@@ -23,6 +39,7 @@ export async function generatePdfFromImages(
   images: ImageItem[],
   settings: PageSettings,
   onProgress?: (progress: GenerationProgress) => void,
+  signal?: AbortSignal,
 ): Promise<Uint8Array> {
   const { PDFDocument, StandardFonts, rgb } = await import("pdf-lib");
 
@@ -35,6 +52,11 @@ export async function generatePdfFromImages(
   applyDocumentMetadata(pdfDoc, settings);
 
   for (let i = 0; i < images.length; i++) {
+    // Check for cancellation before each page
+    if (signal?.aborted) {
+      throw new DOMException("PDF generation was cancelled.", "AbortError");
+    }
+
     const item = images[i];
 
     onProgress?.({ current: i, total, stage: "loading" });
@@ -83,16 +105,7 @@ export async function generatePdfFromImages(
     });
 
     if (settings.enableOcr && item.ocrText) {
-      // For now, use a simplified approach to place OCR text.
-      // This might need more sophisticated layout algorithms for better text alignment.
-      page.drawText(item.ocrText, {
-        x: placement.x,
-        y: pageDimensions.heightPt - placement.y - placement.height + PAGE_NUMBER_FONT_SIZE, // Offset for baseline
-        font: pageNumberFont, // Using an existing font
-        size: PAGE_NUMBER_FONT_SIZE, // Using an existing size
-        color: rgb(0, 0, 0),
-        opacity: 0, // Make it invisible
-      });
+      await embedInvisibleOcrText(page, item.ocrText, pageDimensions, pageNumberFont);
     }
 
     // Apply watermark using the new enhanced system
@@ -111,42 +124,57 @@ export async function generatePdfFromImages(
 
   onProgress?.({ current: total, total, stage: "finalizing" });
 
-  // Apply password protection if enabled
-  if (settings.password.enabled && settings.password.userPassword) {
-    await encryptPdf(pdfDoc, settings.password);
-  }
-
   return pdfDoc.save();
 }
 
 /**
- * Apply PDF encryption (placeholder for future implementation)
- * TODO: Implement proper PDF encryption once compatible library version is available
+ * Embed normalized OCR text as an invisible searchable text layer.
+ *
+ * Goals:
+ * - text must be invisible (opacity 0) but still indexed by PDF readers
+ * - text spans the image area at a very small font size so it doesn't overflow
+ * - empty/whitespace-only text is silently skipped
+ *
+ * This approach gives "searchable PDF" behavior without attempting
+ * bounding-box layout reconstruction (out of scope for v1).
  */
-async function encryptPdf(
-  pdfDoc: import("pdf-lib").PDFDocument,
-  passwordSettings: PasswordSettings
+async function embedInvisibleOcrText(
+  page: PDFPage,
+  ocrText: string,
+  pageDimensions: PageDimensions,
+  font: PDFFont,
 ): Promise<void> {
-  if (!passwordSettings.userPassword) {
-    console.warn('PDF encryption enabled but no user password provided');
-    return;
+  // Normalize and skip empty text
+  const normalized = ocrText
+    .replace(/[\r\n]+/g, " ")
+    .replace(/[ \t]{2,}/g, " ")
+    .trim();
+
+  if (!normalized) return;
+
+  const { rgb } = await import("pdf-lib");
+
+  // Use very small font (1pt) so even long text stays within page bounds
+  const INVISIBLE_FONT_SIZE = 1;
+
+  try {
+    page.drawText(normalized, {
+      x: 0,
+      y: pageDimensions.heightPt - INVISIBLE_FONT_SIZE,
+      font,
+      size: INVISIBLE_FONT_SIZE,
+      maxWidth: pageDimensions.widthPt,
+      lineHeight: INVISIBLE_FONT_SIZE,
+      color: rgb(0, 0, 0),
+      opacity: 0,
+    });
+  } catch {
+    // If text embedding fails (e.g. unsupported characters), skip silently
+    // to ensure export never fails due to OCR text rendering issues
   }
-  
-  // TODO: Implement encryption when pdf-lib supports it or find alternative
-  // For now, we'll log the intention and continue without encryption
-  console.log('PDF encryption requested but not yet implemented:', {
-    hasUserPassword: Boolean(passwordSettings.userPassword),
-    hasOwnerPassword: Boolean(passwordSettings.ownerPassword),
-    permissions: passwordSettings.permissions
-  });
-  
-  // Placeholder - actual encryption to be implemented later
-  console.warn('PDF generated without encryption - feature pending library support');
 }
 
-/**
- * Enhanced watermark application function as per PRD specifications
- */
+
 async function applyWatermark(
   page: PDFPage,
   watermark: WatermarkSettings, 
@@ -181,6 +209,7 @@ async function applyWatermark(
     
     // Parse color (assuming hex format like "#000000")
     const color = await hexToRgb(textWatermark.color || "#999999");
+    const opacity = normalizePercentageToUnitInterval(textWatermark.opacity, 0.5);
     
     page.drawText(textWatermark.content, {
       x: position.x,
@@ -189,7 +218,7 @@ async function applyWatermark(
       font: watermarkFont,
       rotate: degrees(watermark.rotation || 0),
       color: color,
-      opacity: textWatermark.opacity,
+      opacity,
     });
     
   } else if (watermark.type === 'image' && watermark.image?.previewUrl) {
@@ -209,7 +238,9 @@ async function applyWatermark(
         embeddedImage = await pdfDoc.embedJpg(imageBytes);
       }
       
-      const imageDims = embeddedImage.scale(imageWatermark.scale || 0.3);
+      const imageScale = normalizePercentageToScale(imageWatermark.scale, 0.3);
+      const imageOpacity = normalizePercentageToUnitInterval(imageWatermark.opacity, 0.5);
+      const imageDims = embeddedImage.scale(imageScale);
       
       const position = calculatePosition(
         pageSize,
@@ -223,7 +254,7 @@ async function applyWatermark(
         width: imageDims.width,
         height: imageDims.height,
         rotate: degrees(watermark.rotation || 0),
-        opacity: imageWatermark.opacity,
+        opacity: imageOpacity,
       });
       
     } catch (error) {

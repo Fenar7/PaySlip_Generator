@@ -12,10 +12,10 @@ import { cn } from "@/lib/utils";
 
 function baseInputClass(hasError?: boolean) {
   return cn(
-    "w-full rounded-[1rem] border bg-white px-4 py-3.5 text-sm text-[var(--foreground)] shadow-[0_10px_24px_rgba(34,34,34,0.035)] outline-none transition-[border-color,box-shadow,background-color] placeholder:text-[var(--muted-foreground)]/80",
+    "w-full rounded-lg border bg-white px-4 py-3.5 text-base font-medium text-[var(--foreground)] outline-none transition-[border-color,box-shadow,background-color] placeholder:text-[var(--muted-foreground)] placeholder:font-normal",
     hasError
-      ? "border-[var(--danger)] focus:border-[var(--danger)] focus:bg-white focus:shadow-[0_0_0_4px_rgba(220,38,38,0.08)]"
-      : "border-[var(--border-soft)] focus:border-[var(--accent)] focus:bg-white focus:shadow-[0_0_0_4px_var(--accent-soft)]",
+      ? "border-[var(--danger)] focus:border-[var(--danger)] focus:shadow-[0_0_0_3px_rgba(220,38,38,0.1)]"
+      : "border-[var(--border-soft)] focus:border-[#9ca3af] focus:shadow-[0_0_0_3px_rgba(156,163,175,0.18)]",
   );
 }
 
@@ -182,10 +182,10 @@ export function ToggleField<TFormValues extends FieldValues>({
             aria-checked={Boolean(field.value)}
             onClick={() => field.onChange(!field.value)}
             className={cn(
-              "flex w-full items-center gap-3 rounded-[1rem] border px-4 py-3.5 text-left shadow-[0_10px_24px_rgba(34,34,34,0.035)] transition-[border-color,background-color,box-shadow]",
+              "flex w-full items-center gap-3 rounded-lg border px-4 py-3 text-left transition-[border-color,background-color,box-shadow]",
               field.value
                 ? "border-[var(--accent)] bg-white"
-                : "border-[var(--border-soft)] bg-[rgba(255,255,255,0.82)]",
+                : "border-[var(--border-soft)] bg-white",
             )}
           >
             <span className="min-w-0 flex-1">
@@ -199,7 +199,7 @@ export function ToggleField<TFormValues extends FieldValues>({
             <span
               className={cn(
                 "relative inline-block h-6 w-11 shrink-0 overflow-hidden rounded-full transition-colors duration-200",
-                field.value ? "bg-[var(--accent)]" : "bg-[rgba(87,87,96,0.18)]",
+                field.value ? "bg-[var(--accent)]" : "bg-[#d1d5db]",
               )}
             >
               <span
@@ -238,7 +238,7 @@ export function ColorField<TFormValues extends FieldValues>({
       hint={hint}
       error={typeof fieldError === "string" ? fieldError : undefined}
     >
-          <div className="flex items-center gap-3 rounded-[1rem] border border-[var(--border-soft)] bg-white px-3.5 py-3.5 shadow-[0_10px_24px_rgba(34,34,34,0.035)]">
+          <div className="flex items-center gap-3 rounded-lg border border-[var(--border-soft)] bg-white px-3.5 py-3.5">
         <input
           id={name}
           type="color"
@@ -277,7 +277,7 @@ export function FileUploadField<TFormValues extends FieldValues>({
           hint={hint}
           error={fieldState.error?.message}
         >
-          <div className="space-y-3 rounded-[1rem] border border-[var(--border-soft)] bg-white p-4 shadow-[0_10px_24px_rgba(34,34,34,0.035)]">
+          <div className="space-y-3 rounded-lg border border-[var(--border-soft)] bg-white p-4">
             <input
               type="file"
               accept="image/png,image/jpeg,image/webp,image/svg+xml"
@@ -323,11 +323,11 @@ export function FileUploadField<TFormValues extends FieldValues>({
                 clearErrors(name);
                 field.onChange(dataUrl);
               }}
-              className="block w-full text-sm text-[var(--foreground)] file:mr-4 file:rounded-full file:border-0 file:bg-[var(--surface-soft)] file:px-4 file:py-2.5 file:text-sm file:font-medium file:text-[var(--foreground)]"
+              className="block w-full text-[15px] text-[var(--foreground)] file:mr-4 file:cursor-pointer file:rounded-full file:border-0 file:bg-[var(--surface-soft)] file:px-4 file:py-2 file:text-sm file:font-medium file:text-[var(--foreground)] focus:ring-[var(--neutral-gray)]"
             />
 
             {field.value ? (
-              <div className="flex items-center justify-between rounded-[0.9rem] border border-[var(--border-soft)] bg-[rgba(255,255,255,0.82)] px-3 py-3">
+              <div className="flex items-center justify-between rounded-lg border border-[var(--border-soft)] bg-[var(--surface-soft)] px-3 py-3">
                 <p className="text-[0.75rem] leading-6 text-[var(--foreground-soft)]">
                   Logo loaded into the current session preview.
                 </p>

@@ -36,62 +36,82 @@ function calculatePreviewPosition(
   contentWidth: number,
   contentHeight: number,
   margin: number = 20
-): { left: string; top: string; transformOrigin: string } {
-  let left: string, top: string, transformOrigin: string;
+): { left: string; top: string; transformOrigin: string; translateX: string; translateY: string } {
+  let left: string, top: string, transformOrigin: string, translateX: string, translateY: string;
   
   switch (position) {
     case 'top-left':
       left = `${margin}px`;
       top = `${margin}px`;
       transformOrigin = 'top left';
+      translateX = '0';
+      translateY = '0';
       break;
     case 'top-center':
       left = '50%';
       top = `${margin}px`;
       transformOrigin = 'top center';
+      translateX = '-50%';
+      translateY = '0';
       break;
     case 'top-right':
       left = `${containerWidth - margin}px`;
       top = `${margin}px`;
       transformOrigin = 'top right';
+      translateX = '-100%';
+      translateY = '0';
       break;
     case 'center-left':
       left = `${margin}px`;
       top = '50%';
       transformOrigin = 'center left';
+      translateX = '0';
+      translateY = '-50%';
       break;
     case 'center':
       left = '50%';
       top = '50%';
       transformOrigin = 'center';
+      translateX = '-50%';
+      translateY = '-50%';
       break;
     case 'center-right':
       left = `${containerWidth - margin}px`;
       top = '50%';
       transformOrigin = 'center right';
+      translateX = '-100%';
+      translateY = '-50%';
       break;
     case 'bottom-left':
       left = `${margin}px`;
       top = `${containerHeight - margin}px`;
       transformOrigin = 'bottom left';
+      translateX = '0';
+      translateY = '-100%';
       break;
     case 'bottom-center':
       left = '50%';
       top = `${containerHeight - margin}px`;
       transformOrigin = 'bottom center';
+      translateX = '-50%';
+      translateY = '-100%';
       break;
     case 'bottom-right':
       left = `${containerWidth - margin}px`;
       top = `${containerHeight - margin}px`;
       transformOrigin = 'bottom right';
+      translateX = '-100%';
+      translateY = '-100%';
       break;
     default:
       left = '50%';
       top = '50%';
       transformOrigin = 'center';
+      translateX = '-50%';
+      translateY = '-50%';
   }
   
-  return { left, top, transformOrigin };
+  return { left, top, transformOrigin, translateX, translateY };
 }
 
 /**
@@ -132,7 +152,7 @@ function WatermarkOverlay({
         style={{
           left: position.left,
           top: position.top,
-          transform: `translate(${position.left === '50%' ? '-50%' : position.left.includes('right') ? '-100%' : '0'}, ${position.top === '50%' ? '-50%' : position.top.includes('bottom') ? '-100%' : '0'}) rotate(${watermark.rotation || 0}deg)`,
+          transform: `translate(${position.translateX}, ${position.translateY}) rotate(${watermark.rotation || 0}deg)`,
           transformOrigin: position.transformOrigin,
           fontSize: `${fontSize}px`,
           color: watermark.text.color || '#999999',
@@ -158,7 +178,7 @@ function WatermarkOverlay({
         style={{
           left: position.left,
           top: position.top,
-          transform: `translate(${position.left === '50%' ? '-50%' : position.left.includes('right') ? '-100%' : '0'}, ${position.top === '50%' ? '-50%' : position.top.includes('bottom') ? '-100%' : '0'}) rotate(${watermark.rotation || 0}deg)`,
+          transform: `translate(${position.translateX}, ${position.translateY}) rotate(${watermark.rotation || 0}deg)`,
           transformOrigin: position.transformOrigin,
           opacity: (watermark.image.opacity || 50) / 100,
           zIndex: 10,
@@ -331,7 +351,7 @@ export function PdfPreview({ images, settings }: PdfPreviewProps) {
 
   if (images.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center gap-4 rounded-[1.6rem] border border-dashed border-[var(--border-strong)] bg-[rgba(248,241,235,0.4)] px-6 py-16 text-center">
+      <div className="flex flex-col items-center justify-center gap-4 rounded-2xl border border-dashed border-[var(--border-strong)] bg-[var(--surface-soft)] px-6 py-16 text-center">
         <div className="inline-flex h-12 w-12 items-center justify-center rounded-[1rem] border border-[var(--border-soft)] bg-white text-[var(--muted-foreground)] shadow-[0_8px_20px_rgba(34,34,34,0.05)]">
           <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
             <rect x="3" y="3" width="18" height="18" rx="3" />
