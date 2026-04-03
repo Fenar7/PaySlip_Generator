@@ -109,7 +109,7 @@ export function ImageThumbnail({
         isDragging
           ? "z-50 shadow-[0_28px_60px_rgba(34,34,34,0.14)] ring-2 ring-[var(--accent)] ring-offset-2"
           : isSelected
-            ? "border-[var(--accent)] ring-2 ring-[rgba(232,64,30,0.18)] ring-offset-2"
+            ? "border-[var(--accent)] ring-2 ring-[rgba(220,38,38,0.15)] ring-offset-2"
           : "hover:shadow-[0_14px_32px_rgba(34,34,34,0.08)]",
       )}
     >

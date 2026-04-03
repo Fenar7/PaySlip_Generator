@@ -5,8 +5,7 @@ type PreviewFrameProps = {
 
 export function PreviewFrame({ title, summary }: PreviewFrameProps) {
   return (
-    <div className="relative overflow-hidden rounded-[2.5rem] border border-[var(--border-strong)] bg-[linear-gradient(180deg,rgba(255,255,255,0.92),rgba(245,239,233,0.94))] p-5 shadow-[var(--shadow-card)]">
-      <div className="absolute inset-x-10 top-0 h-28 rounded-full bg-[radial-gradient(circle,rgba(232,64,30,0.14),transparent_68%)] blur-3xl" />
+    <div className="relative overflow-hidden rounded-2xl border border-[var(--border-strong)] bg-white p-5 shadow-[var(--shadow-card)]">
       <div className="relative rounded-[1.75rem] border border-[var(--border-soft)] bg-white p-6 shadow-[0_12px_30px_rgba(15,23,42,0.04)]">
         <div className="flex items-center justify-between border-b border-[var(--border-soft)] pb-4">
           <div>

@@ -51,8 +51,8 @@ function OptionGroup<T extends string>({
             className={cn(
               "rounded-[0.9rem] border px-3 py-2.5 text-left text-[0.8rem] font-medium transition-colors",
               value === option.value
-                ? "border-[var(--accent)] bg-white text-[var(--foreground)] shadow-[0_8px_20px_rgba(232,64,30,0.10)]"
-                : "border-[var(--border-soft)] bg-[rgba(248,241,235,0.6)] text-[var(--foreground-soft)] hover:border-[var(--border-strong)] hover:bg-white",
+                ? "border-[var(--accent)] bg-white text-[var(--foreground)] shadow-[var(--shadow-soft)]"
+                : "border-[var(--border-soft)] bg-[var(--surface-soft)] text-[var(--foreground-soft)] hover:border-[var(--border-strong)] hover:bg-white",
             )}
           >
             {option.label}

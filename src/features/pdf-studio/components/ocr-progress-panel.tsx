@@ -103,7 +103,7 @@ export function OcrProgressPanel({ images, isOcrUnavailable, onRetry, onRetryAll
             <button
               type="button"
               onClick={onCancelOcr}
-              className="shrink-0 rounded-md border border-[var(--border-soft)] bg-white px-2.5 py-1 text-[0.72rem] font-medium text-[var(--foreground-soft)] hover:bg-[rgba(248,241,235,0.9)] transition-colors"
+              className="shrink-0 rounded-md border border-[var(--border-soft)] bg-white px-2.5 py-1 text-[0.72rem] font-medium text-[var(--foreground-soft)] hover:bg-[var(--surface-soft)] transition-colors"
             >
               Cancel OCR
             </button>

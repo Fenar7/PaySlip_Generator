@@ -351,7 +351,7 @@ export function ImageOrganizer({
               "flex cursor-pointer flex-col items-center justify-center gap-3 rounded-[1.6rem] border-2 border-dashed px-6 py-10 text-center transition-colors",
               error
                 ? "border-[var(--danger)] bg-[rgba(220,38,38,0.04)]"
-                : "border-[var(--border-strong)] bg-[rgba(248,241,235,0.6)] hover:border-[var(--accent)] hover:bg-[rgba(232,64,30,0.04)]",
+                : "border-[var(--border-strong)] bg-[var(--surface-soft)] hover:border-[var(--accent)] hover:bg-white",
             )}
           >
             <span className="inline-flex h-14 w-14 items-center justify-center rounded-[1.2rem] border border-[var(--border-soft)] bg-white text-[var(--accent)] shadow-[0_12px_28px_rgba(34,34,34,0.06)]">
@@ -431,7 +431,7 @@ export function ImageOrganizer({
             </div>
 
             {hasSelection ? (
-              <div className="flex flex-wrap items-center gap-2 rounded-[1.2rem] border border-[rgba(232,64,30,0.14)] bg-[rgba(248,241,235,0.82)] px-3 py-3 shadow-[0_10px_24px_rgba(34,34,34,0.03)]">
+              <div className="flex flex-wrap items-center gap-2 rounded-xl border border-[var(--border-soft)] bg-white px-3 py-3 shadow-[var(--shadow-soft)]">
                 <p className="mr-2 text-[0.78rem] font-medium text-[var(--foreground)]">
                   {selectedIds.length} selected
                 </p>

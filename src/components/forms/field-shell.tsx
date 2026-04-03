@@ -24,7 +24,7 @@ export function FieldShell({
     <div className={cn("space-y-2.5", className)}>
       <label
         htmlFor={htmlFor}
-        className="flex items-center gap-2 whitespace-nowrap text-[0.76rem] font-semibold uppercase tracking-[0.08em] text-[var(--foreground-soft)]"
+        className="flex items-center gap-2 whitespace-nowrap text-[0.875rem] font-semibold text-[#1f2937]"
       >
         {label}
         {required ? (

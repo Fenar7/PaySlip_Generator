@@ -469,7 +469,7 @@ export function CropEditorDialog({ item, onApply, onClose }: CropEditorDialogPro
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center px-3 py-4 sm:px-4 sm:py-6">
       <button type="button" onClick={onClose} className="absolute inset-0 bg-[rgba(34,34,34,0.32)]" aria-label="Close crop dialog" />
-      <div className="relative z-10 w-full max-w-[56rem] overflow-hidden rounded-[2rem] border border-[rgba(255,255,255,0.72)] bg-[linear-gradient(180deg,rgba(255,255,255,0.99),rgba(248,241,235,0.98))] p-4 shadow-[0_28px_72px_rgba(34,34,34,0.14)] sm:p-6">
+      <div className="relative z-10 w-full max-w-[56rem] overflow-hidden rounded-2xl border border-[var(--border-strong)] bg-white p-4 shadow-[0_8px_30px_rgba(0,0,0,0.12)] sm:p-6">
         <div className="flex flex-col gap-5 lg:grid lg:grid-cols-[minmax(0,1.35fr)_20rem] lg:items-start">
           <div className="space-y-4">
             <div className="flex items-start justify-between gap-4">
@@ -490,7 +490,7 @@ export function CropEditorDialog({ item, onApply, onClose }: CropEditorDialogPro
               <button
                 type="button"
                 onClick={onClose}
-                className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-[var(--border-soft)] bg-white text-[var(--foreground-soft)] shadow-[0_10px_24px_rgba(34,34,34,0.05)] transition-colors hover:bg-[rgba(248,241,235,0.82)]"
+                className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-[var(--border-soft)] bg-white text-[var(--foreground-soft)] shadow-[var(--shadow-soft)] transition-colors hover:bg-[var(--surface-soft)]"
                 aria-label="Close crop dialog"
               >
                 ×
@@ -596,7 +596,7 @@ export function CropEditorDialog({ item, onApply, onClose }: CropEditorDialogPro
               <p className="mt-2 truncate text-sm font-medium text-[var(--foreground)]">{item.name}</p>
             </div>
 
-            <div className="space-y-3 rounded-[1rem] border border-[var(--border-soft)] bg-[rgba(248,241,235,0.55)] p-3">
+            <div className="space-y-3 rounded-lg border border-[var(--border-soft)] bg-[var(--surface-soft)] p-3">
               <label className="flex items-center justify-between gap-3">
                 <span className="text-[0.82rem] font-medium text-[var(--foreground)]">Preserve ratio</span>
                 <button
@@ -655,8 +655,8 @@ export function CropEditorDialog({ item, onApply, onClose }: CropEditorDialogPro
                     className={cn(
                       "rounded-[0.85rem] border px-2 py-2 text-[0.76rem] font-medium transition-colors",
                       aspectRatioPreset === option
-                        ? "border-[var(--accent)] bg-white text-[var(--foreground)] shadow-[0_8px_20px_rgba(232,64,30,0.10)]"
-                        : "border-[var(--border-soft)] bg-white/80 text-[var(--foreground-soft)] hover:border-[var(--border-strong)]",
+                        ? "border-[var(--accent)] bg-white text-[var(--foreground)] shadow-[var(--shadow-soft)]"
+                        : "border-[var(--border-soft)] bg-white text-[var(--foreground-soft)] hover:border-[var(--border-strong)]",
                       option === "original" && !naturalSize && "cursor-not-allowed opacity-50",
                     )}
                   >
@@ -716,14 +716,14 @@ export function CropEditorDialog({ item, onApply, onClose }: CropEditorDialogPro
                   setDraft(DEFAULT_CROP);
                   setAspectRatioPreset("free");
                 }}
-                className="inline-flex items-center justify-center rounded-full border border-[var(--border-strong)] bg-white px-4 py-2.5 text-sm font-medium text-[var(--foreground)] shadow-[0_10px_24px_rgba(34,34,34,0.04)] transition-colors hover:bg-[rgba(248,241,235,0.72)]"
+                className="inline-flex items-center justify-center rounded-full border border-[var(--border-strong)] bg-white px-4 py-2.5 text-sm font-medium text-[var(--foreground)] shadow-[var(--shadow-soft)] transition-colors hover:bg-[var(--surface-soft)]"
               >
                 Reset
               </button>
               <button
                 type="button"
                 onClick={() => onApply(appliedCrop)}
-                className="inline-flex items-center justify-center rounded-full border border-transparent bg-[linear-gradient(135deg,var(--accent),var(--accent-strong))] px-4 py-2.5 text-sm font-medium text-white shadow-[0_16px_30px_rgba(232,64,30,0.18)] transition-all hover:brightness-105"
+                className="inline-flex items-center justify-center rounded-full border border-transparent bg-[var(--accent)] px-4 py-2.5 text-sm font-medium text-white transition-all hover:bg-[var(--accent-strong)]"
               >
                 Apply crop
               </button>

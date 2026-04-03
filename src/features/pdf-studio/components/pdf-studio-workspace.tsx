@@ -74,21 +74,20 @@ function GenerationDialog({
         role="dialog"
         aria-modal="true"
         aria-labelledby="pdf-studio-dialog-title"
-        className="relative max-h-[calc(100vh-1.5rem)] w-full max-w-[34rem] overflow-y-auto overflow-x-hidden rounded-[1.6rem] border border-[rgba(255,255,255,0.7)] bg-[linear-gradient(180deg,rgba(255,255,255,0.99),rgba(248,241,235,0.98))] p-4 shadow-[0_28px_72px_rgba(34,34,34,0.12)] backdrop-blur-xl sm:max-h-[calc(100vh-3rem)] sm:rounded-[2.15rem] sm:p-6 md:p-7"
+        className="relative max-h-[calc(100vh-1.5rem)] w-full max-w-[34rem] overflow-y-auto overflow-x-hidden rounded-2xl border border-[var(--border-strong)] bg-white p-4 shadow-[0_8px_30px_rgba(0,0,0,0.12)] sm:max-h-[calc(100vh-3rem)] sm:p-6 md:p-7"
       >
-        <div className="pointer-events-none absolute inset-x-0 top-0 h-32 bg-[radial-gradient(circle_at_top,rgba(232,64,30,0.10),transparent_62%)] sm:h-40" />
 
         <button
           type="button"
           onClick={onClose}
-          className="absolute right-3 top-3 z-20 inline-flex h-9 w-9 items-center justify-center rounded-full border border-[var(--border-soft)] bg-white/92 text-[var(--foreground-soft)] shadow-[0_10px_24px_rgba(34,34,34,0.05)] transition-colors hover:bg-[rgba(248,241,235,0.82)] sm:right-4 sm:top-4 sm:h-10 sm:w-10"
+          className="absolute right-3 top-3 z-20 inline-flex h-9 w-9 items-center justify-center rounded-full border border-[var(--border-soft)] bg-white text-[var(--foreground-soft)] shadow-[var(--shadow-soft)] transition-colors hover:bg-[var(--surface-soft)] sm:right-4 sm:top-4 sm:h-10 sm:w-10"
           aria-label="Close export dialog"
         >
           ×
         </button>
 
         <div className="relative flex items-center gap-3 sm:gap-4">
-          <div className="inline-flex h-12 w-12 items-center justify-center rounded-[1rem] border border-[rgba(232,64,30,0.14)] bg-[linear-gradient(180deg,rgba(232,64,30,0.10),rgba(255,255,255,0.94))] text-[var(--accent)] shadow-[0_16px_34px_rgba(232,64,30,0.10)] sm:h-14 sm:w-14 sm:rounded-[1.2rem]">
+          <div className="inline-flex h-12 w-12 items-center justify-center rounded-xl border border-[var(--border-soft)] bg-[var(--surface-soft)] text-[var(--accent)] sm:h-14 sm:w-14">
             <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
               <path d="M7 3h8l4 4v14H7z" />
               <path d="M15 3v4h4" />
@@ -96,7 +95,7 @@ function GenerationDialog({
               <path d="m9.5 13.5 2.5 2.5 2.5-2.5" />
             </svg>
           </div>
-          <div className="inline-flex rounded-full border border-[var(--border-soft)] bg-white/90 px-3 py-1 text-[0.64rem] font-semibold uppercase tracking-[0.22em] text-[var(--muted-foreground)] shadow-[0_10px_24px_rgba(34,34,34,0.04)] sm:text-[0.68rem] sm:tracking-[0.26em]">
+          <div className="inline-flex rounded-full border border-[var(--border-soft)] bg-white px-3 py-1 text-[0.64rem] font-semibold uppercase tracking-[0.22em] text-[var(--muted-foreground)] sm:text-[0.68rem] sm:tracking-[0.26em]">
             PDF Studio
           </div>
         </div>
@@ -137,11 +136,11 @@ function GenerationDialog({
           </div>
         ) : null}
 
-        <div className="mt-5 rounded-[1.2rem] border border-[rgba(232,64,30,0.10)] bg-[linear-gradient(180deg,rgba(248,241,235,0.96),rgba(255,255,255,0.98))] p-3.5 shadow-[0_14px_30px_rgba(34,34,34,0.05)] sm:mt-6 sm:rounded-[1.4rem] sm:p-4">
+        <div className="mt-5 rounded-xl border border-[var(--border-soft)] bg-[var(--surface-soft)] p-3.5 sm:mt-6 sm:p-4">
           <div className="flex items-center gap-3">
             <span
               className={cn(
-                "inline-flex h-3 w-3 shrink-0 rounded-full shadow-[0_0_0_6px_rgba(232,64,30,0.08)]",
+                "inline-flex h-3 w-3 shrink-0 rounded-full",
                 isPending
                   ? "animate-pulse bg-[var(--accent)]"
                   : isSuccess
@@ -160,8 +159,8 @@ function GenerationDialog({
         </div>
 
         <div className="mt-4 space-y-2.5 sm:mt-5 sm:space-y-3">
-          <div className="flex items-start gap-3 rounded-[1rem] border border-[var(--border-soft)] bg-white/94 px-3.5 py-3.5 shadow-[0_10px_24px_rgba(34,34,34,0.04)] sm:gap-4 sm:rounded-[1.2rem] sm:px-4 sm:py-4">
-            <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[var(--surface-soft)] text-[var(--accent)] sm:h-10 sm:w-10">
+          <div className="flex items-start gap-3 rounded-xl border border-[var(--border-soft)] bg-white px-3.5 py-3.5 shadow-[var(--shadow-soft)] sm:gap-4 sm:px-4 sm:py-4">
+            <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[var(--surface-soft)] text-[var(--foreground-soft)] sm:h-10 sm:w-10">
               <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20z" /><path d="m9 12 2 2 4-4" /></svg>
             </span>
             <div>
@@ -660,11 +659,9 @@ export function PdfStudioWorkspace() {
 
   return (
     <main className="slipwise-shell-bg relative isolate overflow-hidden">
-      <div className="absolute inset-x-0 top-0 -z-10 h-[34rem] bg-[radial-gradient(circle_at_top,rgba(232,64,30,0.09),transparent_36%),radial-gradient(circle_at_82%_16%,rgba(87,87,96,0.05),transparent_28%)]" />
-      <div className="absolute inset-y-0 left-0 -z-10 hidden w-[24rem] bg-[linear-gradient(180deg,rgba(245,239,233,0.72),rgba(245,239,233,0))] xl:block" />
 
       <div className="mx-auto flex w-full max-w-[108rem] flex-col gap-5 px-3 py-5 sm:px-4 lg:px-5 lg:py-7">
-        <section className="rounded-[2.3rem] border border-[var(--border-strong)] bg-[linear-gradient(180deg,rgba(255,255,255,0.96),rgba(249,243,237,0.94))] p-5 shadow-[var(--shadow-card)] md:p-6">
+        <section className="rounded-2xl border border-[var(--border-strong)] bg-white p-5 shadow-[var(--shadow-card)] md:p-6">
           <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_22rem] xl:items-start">
             <div className="max-w-4xl">
               <p className="text-[0.68rem] font-semibold uppercase tracking-[0.34em] text-[var(--muted-foreground)]">
@@ -677,14 +674,14 @@ export function PdfStudioWorkspace() {
                 Upload up to {PDF_STUDIO_MAX_IMAGES} images, arrange them, configure page settings, and generate a clean downloadable PDF — entirely in your browser.
               </p>
               <div className="mt-5 hidden flex-wrap gap-2 xl:flex">
-                <Link href="/" className="inline-flex items-center justify-center rounded-full border border-[var(--border-strong)] bg-white px-4 py-2.5 text-sm font-medium text-[var(--foreground)] shadow-[0_10px_24px_rgba(34,34,34,0.04)] transition-colors hover:bg-[rgba(248,241,235,0.72)]">
+                <Link href="/" className="inline-flex items-center justify-center rounded-full border border-[var(--border-strong)] bg-white px-4 py-2.5 text-sm font-medium text-[var(--foreground)] shadow-[var(--shadow-soft)] transition-colors hover:bg-[var(--surface-soft)]">
                   Back to home
                 </Link>
                 <button
                   type="button"
                   onClick={handleUndo}
                   disabled={!canUndo}
-                  className="inline-flex items-center justify-center rounded-full border border-[var(--border-strong)] bg-white px-4 py-2.5 text-sm font-medium text-[var(--foreground)] shadow-[0_10px_24px_rgba(34,34,34,0.04)] transition-colors hover:bg-[rgba(248,241,235,0.72)] disabled:opacity-50"
+                  className="inline-flex items-center justify-center rounded-full border border-[var(--border-strong)] bg-white px-4 py-2.5 text-sm font-medium text-[var(--foreground)] shadow-[var(--shadow-soft)] transition-colors hover:bg-[var(--surface-soft)] disabled:opacity-50"
                 >
                   Undo
                 </button>
@@ -692,7 +689,7 @@ export function PdfStudioWorkspace() {
                   type="button"
                   onClick={handleRedo}
                   disabled={!canRedo}
-                  className="inline-flex items-center justify-center rounded-full border border-[var(--border-strong)] bg-white px-4 py-2.5 text-sm font-medium text-[var(--foreground)] shadow-[0_10px_24px_rgba(34,34,34,0.04)] transition-colors hover:bg-[rgba(248,241,235,0.72)] disabled:opacity-50"
+                  className="inline-flex items-center justify-center rounded-full border border-[var(--border-strong)] bg-white px-4 py-2.5 text-sm font-medium text-[var(--foreground)] shadow-[var(--shadow-soft)] transition-colors hover:bg-[var(--surface-soft)] disabled:opacity-50"
                 >
                   Redo
                 </button>
@@ -703,8 +700,8 @@ export function PdfStudioWorkspace() {
                   className={cn(
                     "inline-flex items-center justify-center rounded-full border px-4 py-2.5 text-sm font-medium transition-all",
                     isPending
-                      ? "border-[var(--border-strong)] bg-white text-[var(--foreground)] shadow-[0_10px_24px_rgba(34,34,34,0.04)] hover:bg-[rgba(248,241,235,0.72)]"
-                      : "border-transparent bg-[linear-gradient(135deg,var(--accent),var(--accent-strong))] text-white shadow-[0_16px_30px_rgba(232,64,30,0.18)] hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-65",
+                      ? "border-[var(--border-strong)] bg-white text-[var(--foreground)] shadow-[var(--shadow-soft)] hover:bg-[var(--surface-soft)]"
+                      : "border-transparent bg-[var(--accent)] text-white hover:bg-[var(--accent-strong)] disabled:cursor-not-allowed disabled:opacity-65",
                   )}
                 >
                   {isPending ? "Cancel" : "Generate PDF"}
@@ -712,7 +709,7 @@ export function PdfStudioWorkspace() {
               </div>
             </div>
 
-            <div className="rounded-[1.8rem] border border-[var(--border-soft)] bg-[rgba(255,255,255,0.86)] p-4 shadow-[0_14px_30px_rgba(34,34,34,0.05)]">
+            <div className="rounded-xl border border-[var(--border-soft)] bg-white p-4 shadow-[var(--shadow-soft)]">
               <div className="grid grid-cols-3 gap-2.5">
                 {[
                   { label: "Formats", value: PDF_STUDIO_SUPPORTED_EXTENSIONS.join(" · ") },
@@ -721,7 +718,7 @@ export function PdfStudioWorkspace() {
                 ].map((stat) => (
                   <div
                     key={stat.label}
-                    className="rounded-[1.05rem] border border-[var(--border-soft)] bg-white/92 px-3 py-3"
+                    className="rounded-lg border border-[var(--border-soft)] bg-[var(--surface-soft)] px-3 py-3"
                   >
                     <p className="text-[0.62rem] font-semibold uppercase tracking-[0.24em] text-[var(--muted-foreground)]">
                       {stat.label}
@@ -734,14 +731,14 @@ export function PdfStudioWorkspace() {
               </div>
 
               <div className="mt-4 flex flex-wrap gap-2 xl:hidden">
-                <Link href="/" className="inline-flex items-center justify-center rounded-full border border-[var(--border-strong)] bg-white px-4 py-2.5 text-sm font-medium text-[var(--foreground)] shadow-[0_10px_24px_rgba(34,34,34,0.04)] transition-colors hover:bg-[rgba(248,241,235,0.72)]">
+                <Link href="/" className="inline-flex items-center justify-center rounded-full border border-[var(--border-strong)] bg-white px-4 py-2.5 text-sm font-medium text-[var(--foreground)] shadow-[var(--shadow-soft)] transition-colors hover:bg-[var(--surface-soft)]">
                   Back to home
                 </Link>
                 <button
                   type="button"
                   onClick={handleUndo}
                   disabled={!canUndo}
-                  className="inline-flex items-center justify-center rounded-full border border-[var(--border-strong)] bg-white px-4 py-2.5 text-sm font-medium text-[var(--foreground)] shadow-[0_10px_24px_rgba(34,34,34,0.04)] transition-colors hover:bg-[rgba(248,241,235,0.72)] disabled:opacity-50"
+                  className="inline-flex items-center justify-center rounded-full border border-[var(--border-strong)] bg-white px-4 py-2.5 text-sm font-medium text-[var(--foreground)] shadow-[var(--shadow-soft)] transition-colors hover:bg-[var(--surface-soft)] disabled:opacity-50"
                 >
                   Undo
                 </button>
@@ -749,7 +746,7 @@ export function PdfStudioWorkspace() {
                   type="button"
                   onClick={handleRedo}
                   disabled={!canRedo}
-                  className="inline-flex items-center justify-center rounded-full border border-[var(--border-strong)] bg-white px-4 py-2.5 text-sm font-medium text-[var(--foreground)] shadow-[0_10px_24px_rgba(34,34,34,0.04)] transition-colors hover:bg-[rgba(248,241,235,0.72)] disabled:opacity-50"
+                  className="inline-flex items-center justify-center rounded-full border border-[var(--border-strong)] bg-white px-4 py-2.5 text-sm font-medium text-[var(--foreground)] shadow-[var(--shadow-soft)] transition-colors hover:bg-[var(--surface-soft)] disabled:opacity-50"
                 >
                   Redo
                 </button>
@@ -760,8 +757,8 @@ export function PdfStudioWorkspace() {
                   className={cn(
                     "inline-flex items-center justify-center rounded-full border px-4 py-2.5 text-sm font-medium transition-all",
                     isPending
-                      ? "border-[var(--border-strong)] bg-white text-[var(--foreground)] shadow-[0_10px_24px_rgba(34,34,34,0.04)] hover:bg-[rgba(248,241,235,0.72)]"
-                      : "border-transparent bg-[linear-gradient(135deg,var(--accent),var(--accent-strong))] text-white shadow-[0_16px_30px_rgba(232,64,30,0.18)] hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-65",
+                      ? "border-[var(--border-strong)] bg-white text-[var(--foreground)] shadow-[var(--shadow-soft)] hover:bg-[var(--surface-soft)]"
+                      : "border-transparent bg-[var(--accent)] text-white hover:bg-[var(--accent-strong)] disabled:cursor-not-allowed disabled:opacity-65",
                   )}
                 >
                   {isPending ? "Cancel" : "Generate PDF"}
@@ -772,7 +769,7 @@ export function PdfStudioWorkspace() {
         </section>
 
         {uploadError ? (
-          <div className="rounded-[1.4rem] border border-[rgba(220,38,38,0.16)] bg-[rgba(220,38,38,0.06)] px-5 py-4 text-sm text-[var(--danger)] shadow-[var(--shadow-soft)]">
+          <div className="rounded-xl border border-[rgba(220,38,38,0.2)] bg-[rgba(220,38,38,0.04)] px-5 py-4 text-sm text-[var(--danger)] shadow-[var(--shadow-soft)]">
             {uploadError}
           </div>
         ) : null}
@@ -780,7 +777,7 @@ export function PdfStudioWorkspace() {
         {sessionStatus || images.some(img => img.ocrStatus && img.ocrStatus !== 'complete') ? (
           <div className="space-y-3">
             {sessionStatus ? (
-              <div className="rounded-[1.4rem] border border-[rgba(87,87,96,0.12)] bg-white/75 px-5 py-4 text-sm text-[var(--foreground-soft)] shadow-[var(--shadow-soft)]">
+              <div className="rounded-xl border border-[var(--border-soft)] bg-white px-5 py-4 text-sm text-[var(--foreground-soft)] shadow-[var(--shadow-soft)]">
                 {sessionStatus}
               </div>
             ) : null}
@@ -795,7 +792,7 @@ export function PdfStudioWorkspace() {
         ) : null}
 
         <div className="xl:hidden">
-          <div className="sticky top-4 z-20 rounded-[1.4rem] border border-[var(--border-strong)] bg-[rgba(255,255,255,0.94)] p-1.5 shadow-[var(--shadow-soft)] backdrop-blur sm:rounded-[1.5rem] sm:p-2">
+          <div className="sticky top-4 z-20 rounded-xl border border-[var(--border-strong)] bg-white/95 p-1.5 shadow-[var(--shadow-soft)] backdrop-blur sm:p-2">
             <div className="flex gap-1.5 sm:gap-2">
               {mobileTabs.map((tab) => (
                 <button
@@ -803,10 +800,10 @@ export function PdfStudioWorkspace() {
                   type="button"
                   onClick={() => setMobileTab(tab.id)}
                   className={cn(
-                    "min-w-0 flex-1 rounded-[1rem] px-2.5 py-2.5 text-[0.82rem] font-medium transition-colors sm:rounded-[1.05rem] sm:px-4 sm:py-3 sm:text-sm",
+                    "min-w-0 flex-1 rounded-lg px-2.5 py-2.5 text-[0.82rem] font-medium transition-colors sm:px-4 sm:py-3 sm:text-sm",
                     mobileTab === tab.id
-                      ? "bg-[var(--accent)] text-white shadow-[0_14px_28px_rgba(232,64,30,0.2)]"
-                      : "bg-[rgba(248,241,235,0.72)] text-[var(--foreground-soft)]",
+                      ? "bg-[var(--foreground)] text-white"
+                      : "bg-transparent text-[var(--foreground-soft)] hover:bg-[var(--surface-soft)]",
                   )}
                 >
                   {tab.label}
@@ -838,18 +835,18 @@ export function PdfStudioWorkspace() {
                       key={section.id}
                       href={`#${section.id}`}
                       className={cn(
-                        "flex items-center gap-3 rounded-[1.1rem] border px-3 py-3 transition-colors",
+                        "flex items-center gap-3 rounded-lg border px-3 py-3 transition-colors",
                         index === 0
-                          ? "border-[rgba(232,64,30,0.14)] bg-[rgba(248,241,235,0.82)]"
-                          : "border-transparent hover:border-[var(--border-soft)] hover:bg-[rgba(248,241,235,0.72)]",
+                          ? "border-[var(--border-soft)] bg-[var(--surface-soft)]"
+                          : "border-transparent hover:border-[var(--border-soft)] hover:bg-[var(--surface-soft)]",
                       )}
                     >
                       <span
                         className={cn(
                           "inline-flex h-8 w-8 items-center justify-center rounded-full border text-[0.72rem] font-semibold",
                           index === 0
-                            ? "border-[rgba(232,64,30,0.16)] bg-white text-[var(--accent)]"
-                            : "border-[var(--border-soft)] bg-[rgba(248,241,235,0.82)] text-[var(--foreground)]",
+                            ? "border-[var(--border-strong)] bg-white text-[var(--foreground)]"
+                            : "border-[var(--border-soft)] bg-[var(--surface-soft)] text-[var(--foreground-soft)]",
                         )}
                       >
                         {String(index + 1).padStart(2, "0")}
@@ -922,11 +919,11 @@ export function PdfStudioWorkspace() {
             <section
               id="pdf-studio-preview"
               className={cn(
-                "scroll-mt-28 rounded-none border-0 bg-transparent p-0 shadow-none sm:rounded-[2.1rem] sm:border sm:border-[rgba(34,34,34,0.08)] sm:bg-[linear-gradient(180deg,rgba(247,241,235,0.82),rgba(255,255,255,0.98))] sm:p-4 sm:shadow-[var(--shadow-card)] md:p-5",
+                "scroll-mt-28 rounded-none border-0 bg-transparent p-0 shadow-none sm:rounded-2xl sm:border sm:border-[var(--border-strong)] sm:bg-white sm:p-4 sm:shadow-[var(--shadow-card)] md:p-5",
                 mobileTab !== "preview" && "hidden xl:block",
               )}
             >
-              <div className="mb-4 hidden rounded-[1.65rem] border border-[rgba(34,34,34,0.08)] bg-[linear-gradient(180deg,rgba(255,255,255,0.95),rgba(248,241,235,0.96))] p-4 shadow-[0_18px_32px_rgba(34,34,34,0.05)] sm:block">
+              <div className="mb-4 hidden rounded-xl border border-[var(--border-soft)] bg-white p-4 shadow-[var(--shadow-soft)] sm:block">
                 <div className="flex items-center gap-2">
                   <span className="h-2.5 w-2.5 rounded-full bg-[rgba(248,113,113,0.85)]" />
                   <span className="h-2.5 w-2.5 rounded-full bg-[rgba(251,191,36,0.85)]" />
@@ -961,7 +958,7 @@ export function PdfStudioWorkspace() {
               <PdfPreview images={images} settings={settings} />
             </section>
 
-            <section className="xl:hidden rounded-[1.8rem] border border-[var(--border-strong)] bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(248,241,235,0.98))] p-4 shadow-[var(--shadow-soft)] sm:rounded-[2rem] sm:p-5">
+            <section className="xl:hidden rounded-2xl border border-[var(--border-strong)] bg-white p-4 shadow-[var(--shadow-soft)] sm:p-5">
               <p className="text-[0.68rem] font-semibold uppercase tracking-[0.34em] text-[var(--muted-foreground)]">
                 Export
               </p>
@@ -979,15 +976,15 @@ export function PdfStudioWorkspace() {
                   className={cn(
                     "inline-flex w-full items-center justify-center rounded-full border px-5 py-3 text-sm font-medium transition-all",
                     isPending
-                      ? "border-[var(--border-strong)] bg-white text-[var(--foreground)] shadow-[0_10px_24px_rgba(34,34,34,0.04)] hover:bg-[rgba(248,241,235,0.72)]"
-                      : "border-transparent bg-[linear-gradient(135deg,var(--accent),var(--accent-strong))] text-white shadow-[0_16px_30px_rgba(232,64,30,0.18)] hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-65",
+                      ? "border-[var(--border-strong)] bg-white text-[var(--foreground)] shadow-[var(--shadow-soft)] hover:bg-[var(--surface-soft)]"
+                      : "border-transparent bg-[var(--accent)] text-white hover:bg-[var(--accent-strong)] disabled:cursor-not-allowed disabled:opacity-65",
                   )}
                 >
                   {isPending ? "Cancel generation" : "Generate PDF"}
                 </button>
                 <Link
                   href="/"
-                  className="inline-flex w-full items-center justify-center rounded-full border border-[var(--border-strong)] bg-white px-5 py-3 text-sm font-medium text-[var(--foreground)] shadow-[0_10px_24px_rgba(34,34,34,0.04)] transition-colors hover:bg-[rgba(248,241,235,0.72)]"
+                  className="inline-flex w-full items-center justify-center rounded-full border border-[var(--border-strong)] bg-white px-5 py-3 text-sm font-medium text-[var(--foreground)] shadow-[var(--shadow-soft)] transition-colors hover:bg-[var(--surface-soft)]"
                 >
                   Back to home
                 </Link>

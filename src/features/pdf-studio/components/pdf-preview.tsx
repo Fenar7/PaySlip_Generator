@@ -351,7 +351,7 @@ export function PdfPreview({ images, settings }: PdfPreviewProps) {
 
   if (images.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center gap-4 rounded-[1.6rem] border border-dashed border-[var(--border-strong)] bg-[rgba(248,241,235,0.4)] px-6 py-16 text-center">
+      <div className="flex flex-col items-center justify-center gap-4 rounded-2xl border border-dashed border-[var(--border-strong)] bg-[var(--surface-soft)] px-6 py-16 text-center">
         <div className="inline-flex h-12 w-12 items-center justify-center rounded-[1rem] border border-[var(--border-soft)] bg-white text-[var(--muted-foreground)] shadow-[0_8px_20px_rgba(34,34,34,0.05)]">
           <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
             <rect x="3" y="3" width="18" height="18" rx="3" />

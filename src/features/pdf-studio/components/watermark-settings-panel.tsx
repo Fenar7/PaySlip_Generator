@@ -56,8 +56,8 @@ function WatermarkTypeOption({
             className={cn(
               "rounded-[0.9rem] border px-3 py-2.5 text-left text-[0.8rem] font-medium transition-colors",
               value === option.value
-                ? "border-[var(--accent)] bg-white text-[var(--foreground)] shadow-[0_8px_20px_rgba(232,64,30,0.10)]"
-                : "border-[var(--border-soft)] bg-[rgba(248,241,235,0.6)] text-[var(--foreground-soft)] hover:border-[var(--border-strong)] hover:bg-white",
+                ? "border-[var(--accent)] bg-white text-[var(--foreground)] shadow-[var(--shadow-soft)]"
+                : "border-[var(--border-soft)] bg-[var(--surface-soft)] text-[var(--foreground-soft)] hover:border-[var(--border-strong)] hover:bg-white",
             )}
           >
             {option.label}
@@ -221,8 +221,8 @@ function PositionGrid({
             className={cn(
               "aspect-square rounded-[0.9rem] border px-3 py-2.5 text-center text-[0.8rem] font-medium transition-colors",
               value === position.value
-                ? "border-[var(--accent)] bg-white text-[var(--foreground)] shadow-[0_8px_20px_rgba(232,64,30,0.10)]"
-                : "border-[var(--border-soft)] bg-[rgba(248,241,235,0.6)] text-[var(--foreground-soft)] hover:border-[var(--border-strong)] hover:bg-white",
+                ? "border-[var(--accent)] bg-white text-[var(--foreground)] shadow-[var(--shadow-soft)]"
+                : "border-[var(--border-soft)] bg-[var(--surface-soft)] text-[var(--foreground-soft)] hover:border-[var(--border-strong)] hover:bg-white",
             )}
           >
             {position.label}
@@ -306,7 +306,7 @@ function ImageUploadSection({
         <button
           type="button"
           onClick={handleUploadClick}
-          className="w-full rounded-[0.8rem] border-2 border-dashed border-[var(--border-soft)] bg-[rgba(248,241,235,0.6)] px-4 py-6 text-center transition-colors hover:border-[var(--accent)] hover:bg-white"
+          className="w-full rounded-lg border-2 border-dashed border-[var(--border-soft)] bg-[var(--surface-soft)] px-4 py-6 text-center transition-colors hover:border-[var(--accent)] hover:bg-white"
         >
           <div className="space-y-2">
             <div className="mx-auto h-8 w-8 text-[var(--muted-foreground)]">
