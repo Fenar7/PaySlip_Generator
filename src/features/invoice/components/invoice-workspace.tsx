@@ -19,6 +19,7 @@ import {
   ToggleField,
 } from "@/components/forms/input-primitives";
 import { RepeaterSection } from "@/components/forms/repeater-section";
+import { InvoiceDocumentEditor } from "@/features/invoice/components/invoice-document-editor";
 import { InvoicePreview } from "@/features/invoice/components/invoice-preview";
 import { invoiceDefaultValues, invoiceTemplateOptions } from "@/features/invoice/constants";
 import { invoiceFormSchema } from "@/features/invoice/schema";
@@ -660,6 +661,7 @@ function InvoicePanel() {
         </>
       }
       previewContent={<InvoicePreview document={previewDocument} />}
+      documentEditorContent={<InvoiceDocumentEditor />}
     />
   );
 }

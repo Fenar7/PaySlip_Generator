@@ -20,6 +20,7 @@ import {
 } from "@/components/forms/input-primitives";
 import { RepeaterSection } from "@/components/forms/repeater-section";
 import { salarySlipDefaultValues, salarySlipTemplateOptions } from "@/features/salary-slip/constants";
+import { SalarySlipDocumentEditor } from "@/features/salary-slip/components/salary-slip-document-editor";
 import { SalarySlipPreview } from "@/features/salary-slip/components/salary-slip-preview";
 import { salarySlipFormSchema } from "@/features/salary-slip/schema";
 import type { SalarySlipFormValues } from "@/features/salary-slip/types";
@@ -650,6 +651,7 @@ function SalarySlipPanel() {
         </>
       }
       previewContent={<SalarySlipPreview document={previewDocumentWithTemplate} />}
+      documentEditorContent={<SalarySlipDocumentEditor />}
     />
   );
 }
