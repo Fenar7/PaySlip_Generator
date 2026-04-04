@@ -7,16 +7,13 @@ import { useSupabaseSession } from "./use-supabase-session";
 const ACTIVE_ORG_KEY = "slipwise_active_org_id";
 
 export function useActiveOrg() {
-  const { user } = useSupabaseSession();
-  const [orgs, setOrgs] = useState<OrgWithRole[]>([]);
+  const { user, isPending } = useSupabaseSession();
+  // null = not yet fetched, [] = fetched but empty
+  const [orgs, setOrgs] = useState<OrgWithRole[] | null>(null);
   const [activeOrg, setActiveOrgState] = useState<OrgWithRole | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    if (!user?.id) {
-      setIsLoading(false);
-      return;
-    }
+    if (!user?.id) return;
 
     getOrgsForUser(user.id).then((userOrgs) => {
       setOrgs(userOrgs);
@@ -27,7 +24,6 @@ export function useActiveOrg() {
       const active =
         userOrgs.find((o) => o.id === storedId) ?? userOrgs[0] ?? null;
       setActiveOrgState(active);
-      setIsLoading(false);
     });
   }, [user?.id]);
 
@@ -38,5 +34,8 @@ export function useActiveOrg() {
     }
   }, []);
 
-  return { activeOrg, orgs, setActiveOrg, isLoading };
+  // Loading while session is resolving, or user is set but orgs not yet fetched
+  const isLoading = isPending || (!!user?.id && orgs === null);
+
+  return { activeOrg, orgs: orgs ?? [], setActiveOrg, isLoading };
 }
