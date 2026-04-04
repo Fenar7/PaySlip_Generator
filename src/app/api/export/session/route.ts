@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
-import { voucherExportRequestSchema } from "@/features/voucher/schema";
-import { createVoucherExportSession } from "@/features/voucher/server/export-session-store";
+import { voucherExportRequestSchema } from "@/features/docs/voucher/schema";
+import { createVoucherExportSession } from "@/features/docs/voucher/server/export-session-store";
 import { serializeExportPayload } from "@/lib/server/export-payload";
 
 export const runtime = "nodejs";

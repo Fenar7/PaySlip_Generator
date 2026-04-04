@@ -1,0 +1,78 @@
+"use client";
+import { useState } from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { AuthCard } from "@/features/auth/components/auth-card";
+import { GoogleButton } from "@/features/auth/components/google-button";
+import { AuthDivider } from "@/features/auth/components/auth-divider";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { signIn } from "@/lib/auth-client";
+
+export default function LoginPage() {
+  const router = useRouter();
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setError("");
+    setLoading(true);
+    try {
+      const result = await signIn.email({ email, password, callbackURL: "/app/home" });
+      if (result?.error) {
+        setError(result.error.message ?? "Invalid email or password");
+      } else {
+        router.push("/app/home");
+      }
+    } catch {
+      setError("Something went wrong. Please try again.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <AuthCard title="Welcome back" subtitle="Sign in to your Slipwise account">
+      <GoogleButton />
+      <AuthDivider />
+      <form onSubmit={handleSubmit} className="space-y-4">
+        <Input
+          label="Email"
+          type="email"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          required
+          autoComplete="email"
+        />
+        <div>
+          <Input
+            label="Password"
+            type="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            required
+            autoComplete="current-password"
+          />
+          <div className="text-right mt-1">
+            <Link href="/auth/forgot-password" className="text-xs text-[#dc2626] hover:underline">
+              Forgot password?
+            </Link>
+          </div>
+        </div>
+        {error && <p className="text-sm text-red-600">{error}</p>}
+        <Button type="submit" className="w-full" disabled={loading}>
+          {loading ? "Signing in…" : "Sign in"}
+        </Button>
+      </form>
+      <p className="text-center text-sm text-[#666] mt-4">
+        Don&apos;t have an account?{" "}
+        <Link href="/auth/signup" className="text-[#dc2626] font-medium hover:underline">
+          Sign up
+        </Link>
+      </p>
+    </AuthCard>
+  );
+}

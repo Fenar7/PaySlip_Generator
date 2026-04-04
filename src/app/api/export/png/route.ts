@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
-import { voucherExportRequestSchema } from "@/features/voucher/schema";
-import { exportVoucherDocument } from "@/features/voucher/server/export-voucher";
-import { buildVoucherFilename } from "@/features/voucher/utils/build-voucher-filename";
+import { voucherExportRequestSchema } from "@/features/docs/voucher/schema";
+import { exportVoucherDocument } from "@/features/docs/voucher/server/export-voucher";
+import { buildVoucherFilename } from "@/features/docs/voucher/utils/build-voucher-filename";
 import { parseExportRequestBody } from "@/lib/server/parse-export-request-body";
 
 export const runtime = "nodejs";

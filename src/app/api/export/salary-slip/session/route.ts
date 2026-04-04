@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
-import { salarySlipExportRequestSchema } from "@/features/salary-slip/schema";
-import { createSalarySlipExportSession } from "@/features/salary-slip/server/export-session-store";
+import { salarySlipExportRequestSchema } from "@/features/docs/salary-slip/schema";
+import { createSalarySlipExportSession } from "@/features/docs/salary-slip/server/export-session-store";
 import { serializeExportPayload } from "@/lib/server/export-payload";
 
 export const runtime = "nodejs";

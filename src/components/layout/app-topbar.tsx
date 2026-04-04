@@ -1,0 +1,62 @@
+"use client";
+
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useSession, signOut } from "@/lib/auth-client";
+import { Avatar } from "@/components/ui/avatar";
+
+interface AppTopbarProps {
+  orgName?: string;
+}
+
+export function AppTopbar({ orgName }: AppTopbarProps) {
+  const { data: session, isPending } = useSession();
+  const router = useRouter();
+
+  const handleSignOut = async () => {
+    await signOut();
+    router.push("/auth/login");
+  };
+
+  return (
+    <header className="flex h-14 items-center border-b border-[var(--border-soft)] bg-white px-6 gap-4">
+      {/* Breadcrumb / org name */}
+      <div className="flex-1">
+        {orgName && (
+          <span className="text-sm text-[var(--muted-foreground)]">{orgName}</span>
+        )}
+      </div>
+
+      {/* User area */}
+      <div className="flex items-center gap-3">
+        {isPending ? (
+          <div className="w-8 h-8 rounded-full bg-[#333] animate-pulse" />
+        ) : session ? (
+          <div className="flex items-center gap-2">
+            <Avatar
+              name={session.user.name ?? undefined}
+              imageUrl={session.user.image ?? undefined}
+              size="sm"
+            />
+            <span className="text-sm font-medium text-[var(--foreground)] hidden sm:block">
+              {session.user.name}
+            </span>
+            <button
+              onClick={handleSignOut}
+              className="rounded-xl border border-[var(--border-strong)] bg-white px-3 py-1 text-xs font-medium text-[var(--foreground)] hover:bg-[var(--surface-soft)] transition-colors ml-1"
+            >
+              Sign out
+            </button>
+          </div>
+        ) : (
+          <Link
+            href="/auth/login"
+            className="rounded-xl border border-[var(--border-strong)] bg-white px-4 py-1.5 text-sm font-medium text-[var(--foreground)] hover:bg-[var(--surface-soft)] transition-colors"
+          >
+            Sign in
+          </Link>
+        )}
+      </div>
+    </header>
+  );
+}
