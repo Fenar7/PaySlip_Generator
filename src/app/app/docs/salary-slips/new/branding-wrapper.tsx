@@ -2,7 +2,34 @@
 import { useOrgBranding } from "@/hooks/use-org-branding";
 import { SalarySlipWorkspace } from "@/features/docs/salary-slip/components/salary-slip-workspace";
 
-export function SalarySlipBrandingWrapper() {
+interface WorkspaceEmployee {
+  id: string;
+  name: string;
+  email: string | null;
+  employeeId: string | null;
+  designation: string | null;
+  department: string | null;
+  bankName: string | null;
+  bankAccount: string | null;
+  bankIFSC: string | null;
+  panNumber: string | null;
+}
+
+interface WorkspacePreset {
+  id: string;
+  name: string;
+  components: { label: string; amount: number; type: "earning" | "deduction" }[];
+}
+
+interface BrandingWrapperProps {
+  employees?: WorkspaceEmployee[];
+  presets?: WorkspacePreset[];
+}
+
+export function SalarySlipBrandingWrapper({
+  employees = [],
+  presets = [],
+}: BrandingWrapperProps) {
   const branding = useOrgBranding();
 
   return (
@@ -15,7 +42,7 @@ export function SalarySlipBrandingWrapper() {
         } as React.CSSProperties
       }
     >
-      <SalarySlipWorkspace />
+      <SalarySlipWorkspace employees={employees} presets={presets} />
     </div>
   );
 }

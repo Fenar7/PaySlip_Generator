@@ -1,7 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { FormProvider, useFieldArray, useForm, useFormContext, useWatch } from "react-hook-form";
+import { saveSalarySlip, updateSalarySlip, releaseSalarySlip } from "@/app/app/docs/salary-slips/actions";
+import { EmployeePicker } from "./employee-picker";
+import { SalarySlipSaveBar } from "./salary-save-bar";
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
   DocumentWorkspaceLayout,
@@ -28,6 +31,119 @@ import { buildSalarySlipFilename } from "@/features/docs/salary-slip/utils/build
 import { normalizeSalarySlip } from "@/features/docs/salary-slip/utils/normalize-salary-slip";
 import { downloadBinaryExport } from "@/lib/browser/download-binary-export";
 import { cn } from "@/lib/utils";
+
+interface WorkspaceEmployee {
+  id: string;
+  name: string;
+  email: string | null;
+  employeeId: string | null;
+  designation: string | null;
+  department: string | null;
+  bankName: string | null;
+  bankAccount: string | null;
+  bankIFSC: string | null;
+  panNumber: string | null;
+}
+
+interface WorkspacePresetComponent {
+  label: string;
+  amount: number;
+  type: "earning" | "deduction";
+}
+
+interface WorkspacePreset {
+  id: string;
+  name: string;
+  components: WorkspacePresetComponent[];
+}
+
+interface WorkspaceProps {
+  employees?: WorkspaceEmployee[];
+  presets?: WorkspacePreset[];
+}
+
+const MONTH_NAMES = [
+  "January", "February", "March", "April", "May", "June",
+  "July", "August", "September", "October", "November", "December",
+];
+
+function monthNameToNumber(month: string): number {
+  const idx = MONTH_NAMES.findIndex(
+    (m) => m.toLowerCase() === month.trim().toLowerCase(),
+  );
+  return idx >= 0 ? idx + 1 : new Date().getMonth() + 1;
+}
+
+function PresetApplyButton({ presets }: { presets: WorkspacePreset[] }) {
+  const { control } = useFormContext<SalarySlipFormValues>();
+  const { replace: replaceEarnings } = useFieldArray({ control, name: "earnings" });
+  const { replace: replaceDeductions } = useFieldArray({ control, name: "deductions" });
+  const [isOpen, setIsOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  const applyPreset = (preset: WorkspacePreset) => {
+    const earnings = preset.components.filter((c) => c.type === "earning");
+    const deductions = preset.components.filter((c) => c.type === "deduction");
+    replaceEarnings(earnings.map((c) => ({ label: c.label, amount: String(c.amount) })));
+    replaceDeductions(deductions.map((c) => ({ label: c.label, amount: String(c.amount) })));
+    setIsOpen(false);
+  };
+
+  if (presets.length === 0) return null;
+
+  return (
+    <div ref={ref} className="relative mb-4">
+      <button
+        type="button"
+        onClick={() => setIsOpen((o) => !o)}
+        className="flex items-center gap-2 rounded-lg border border-dashed border-[var(--border-soft)] bg-[var(--surface-soft)] px-3 py-2 text-sm text-[var(--foreground-muted)] hover:border-[var(--accent)] hover:text-[var(--accent)] transition-colors"
+      >
+        <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth={2}
+            d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"
+          />
+        </svg>
+        Apply preset
+      </button>
+
+      {isOpen && (
+        <div className="absolute top-full left-0 z-50 mt-1 w-64 rounded-xl border border-[var(--border-soft)] bg-white shadow-lg">
+          <div className="max-h-48 overflow-y-auto py-1">
+            {presets.map((preset) => (
+              <button
+                key={preset.id}
+                type="button"
+                onClick={() => applyPreset(preset)}
+                className="w-full px-3 py-2 text-left text-sm hover:bg-slate-50 transition-colors"
+              >
+                <div className="font-medium text-slate-900">{preset.name}</div>
+                <div className="text-xs text-slate-400">
+                  {preset.components.length} components
+                </div>
+              </button>
+            ))}
+          </div>
+          <div className="border-t border-slate-100 p-2">
+            <a
+              href="/app/data/salary-presets/new"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-1 px-3 py-1.5 text-sm text-[var(--accent)] hover:bg-slate-50 rounded-lg"
+            >
+              <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+              </svg>
+              Manage presets
+            </a>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
 
 type SalarySlipActionState =
   | { status: "idle" }
@@ -120,8 +236,8 @@ function SalaryLineItemsEditor({
   );
 }
 
-function SalarySlipPanel() {
-  const { control, getValues, setValue, trigger } = useFormContextSafe();
+function SalarySlipPanel({ employees = [], presets = [] }: WorkspaceProps) {
+  const { control, getValues, setValue, trigger, reset } = useFormContextSafe();
   const values = useWatch({ control }) as SalarySlipFormValues;
   const [selectedTemplateId, setSelectedTemplateId] = useState(values.templateId);
   const previewDocumentWithTemplate = normalizeSalarySlip({
@@ -131,6 +247,74 @@ function SalarySlipPanel() {
   const [actionState, setActionState] = useState<SalarySlipActionState>({
     status: "idle",
   });
+  const [linkedDbEmployeeId, setLinkedDbEmployeeId] = useState<string | undefined>(undefined);
+  const [savedId, setSavedId] = useState<string | undefined>(undefined);
+  const [slipNumber, setSlipNumber] = useState<string | undefined>(undefined);
+  const [isSaving, setIsSaving] = useState(false);
+
+  async function buildSaveInput() {
+    const formValues = getValues();
+    const components = [
+      ...formValues.earnings.map((e) => ({
+        label: e.label,
+        amount: parseFloat(e.amount) || 0,
+        type: "earning" as const,
+      })),
+      ...formValues.deductions.map((d) => ({
+        label: d.label,
+        amount: parseFloat(d.amount) || 0,
+        type: "deduction" as const,
+      })),
+    ];
+    return {
+      employeeId: linkedDbEmployeeId,
+      month: monthNameToNumber(formValues.month),
+      year: parseInt(formValues.year) || new Date().getFullYear(),
+      formData: formValues as Record<string, unknown>,
+      components,
+    };
+  }
+
+  async function handleSaveDraft() {
+    setIsSaving(true);
+    try {
+      const input = await buildSaveInput();
+      if (savedId) {
+        await updateSalarySlip(savedId, input);
+        reset(getValues(), { keepValues: true });
+      } else {
+        const result = await saveSalarySlip(input, "draft");
+        if (result.success) {
+          setSavedId(result.data.id);
+          setSlipNumber(result.data.slipNumber);
+          reset(getValues(), { keepValues: true });
+        }
+      }
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
+  async function handleRelease() {
+    setIsSaving(true);
+    try {
+      const input = await buildSaveInput();
+      if (savedId) {
+        await updateSalarySlip(savedId, input);
+        await releaseSalarySlip(savedId);
+        reset(getValues(), { keepValues: true });
+      } else {
+        const result = await saveSalarySlip(input, "released");
+        if (result.success) {
+          setSavedId(result.data.id);
+          setSlipNumber(result.data.slipNumber);
+          reset(getValues(), { keepValues: true });
+        }
+      }
+    } finally {
+      setIsSaving(false);
+    }
+  }
 
   async function prepareDocument() {
     const isValid = await trigger();
@@ -239,6 +423,7 @@ function SalarySlipPanel() {
   }
 
   return (
+    <>
     <DocumentWorkspaceLayout
       eyebrow="Salary slip workspace"
       title="Salary Slip Generator"
@@ -410,6 +595,10 @@ function SalarySlipPanel() {
                 title="Employee details"
                 description="Define the person and role this salary slip belongs to."
               >
+                <EmployeePicker
+                  employees={employees}
+                  onSelect={setLinkedDbEmployeeId}
+                />
                 <TextField<SalarySlipFormValues>
                   name="employeeName"
                   label="Employee name"
@@ -523,6 +712,7 @@ function SalarySlipPanel() {
                 title="Earnings and deductions"
                 description="Totals and net salary update instantly from the repeatable rows below."
               >
+                <PresetApplyButton presets={presets} />
                 <SalaryLineItemsEditor
                   name="earnings"
                   title="Earnings"
@@ -653,6 +843,14 @@ function SalarySlipPanel() {
       previewContent={<SalarySlipPreview document={previewDocumentWithTemplate} />}
       documentEditorContent={<SalarySlipDocumentEditor />}
     />
+    <SalarySlipSaveBar
+      onSaveDraft={handleSaveDraft}
+      onRelease={handleRelease}
+      isSaving={isSaving}
+      savedId={savedId}
+      slipNumber={slipNumber}
+    />
+    </>
   );
 }
 
@@ -660,7 +858,7 @@ function useFormContextSafe() {
   return useFormContext<SalarySlipFormValues>();
 }
 
-export function SalarySlipWorkspace() {
+export function SalarySlipWorkspace({ employees = [], presets = [] }: WorkspaceProps) {
   const methods = useForm<SalarySlipFormValues>({
     resolver: zodResolver(salarySlipFormSchema),
     defaultValues: salarySlipDefaultValues,
@@ -669,7 +867,7 @@ export function SalarySlipWorkspace() {
 
   return (
     <FormProvider {...methods}>
-      <SalarySlipPanel />
+      <SalarySlipPanel employees={employees} presets={presets} />
     </FormProvider>
   );
 }
