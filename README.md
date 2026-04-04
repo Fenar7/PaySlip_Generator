@@ -23,14 +23,45 @@ npm run build
 
 ## Getting Started
 
-Install dependencies and run the development server:
+### Prerequisites
+- Node.js 22+
+- PostgreSQL database (local or [Neon](https://neon.tech) for cloud)
 
-```bash
-npm install
-npm run dev
-```
+### Setup
 
-Open [http://localhost:3000](http://localhost:3000) in your browser.
+1. **Clone and install**
+   ```bash
+   git clone <repo>
+   cd payslip-generator
+   npm install
+   ```
+
+2. **Configure environment**
+   ```bash
+   cp .env.example .env
+   ```
+   Edit `.env` and fill in your values:
+   - `DATABASE_URL` — PostgreSQL connection string
+   - `BETTER_AUTH_SECRET` — Random secret (generate with `openssl rand -base64 32`)
+   - `BETTER_AUTH_URL` — Your app URL (http://localhost:3000 for dev)
+   - `RESEND_API_KEY` — Optional (emails logged to console if absent)
+   - `GOOGLE_CLIENT_ID/SECRET` — Optional (disables Google OAuth if absent)
+
+3. **Set up the database**
+   ```bash
+   npx prisma generate    # generate the Prisma client
+   npx prisma migrate dev # run migrations (requires running PostgreSQL)
+   ```
+
+4. **Run the dev server**
+   ```bash
+   npm run dev
+   ```
+   Open [http://localhost:3000](http://localhost:3000)
+
+### Development without a database
+
+PDF Studio and the marketing homepage work without any database. For full auth + document persistence features, you need a running PostgreSQL instance.
 
 ## Phase 1 Scope
 
