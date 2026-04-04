@@ -10,7 +10,10 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:e2e": "playwright test",
-    "postinstall": "prisma generate"
+    "postinstall": "prisma generate",
+    "supabase:start": "bash scripts/supabase-start.sh",
+    "supabase:stop": "bash scripts/supabase-stop.sh",
+    "supabase:restart": "bash scripts/supabase-stop.sh && bash scripts/supabase-start.sh"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",

@@ -28,7 +28,15 @@ export async function updateSession(request: NextRequest) {
   // Refresh session — IMPORTANT: do not remove
   const {
     data: { user },
+    error: authError,
   } = await supabase.auth.getUser();
 
-  return { user, supabaseResponse };
+  // Clear stale/invalid sessions (e.g. old Better Auth JWTs or deleted users).
+  // Without this, the client loops on 403 user_not_found on every request.
+  if (authError && !user) {
+    console.warn("[middleware] Clearing invalid session:", authError.message);
+    await supabase.auth.signOut({ scope: "local" });
+  }
+
+  return { user: authError ? null : user, supabaseResponse };
 }

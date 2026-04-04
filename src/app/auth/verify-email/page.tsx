@@ -16,8 +16,16 @@ function VerifyEmailContent() {
     setLoading(true);
     try {
       const supabase = createSupabaseBrowser();
-      await supabase.auth.resend({ type: "signup", email });
-      setSent(true);
+      const { error } = await supabase.auth.resend({ type: "signup", email });
+      if (error) {
+        console.error("[verify-email] resend error:", error.message, error.code);
+        setSent(false);
+      } else {
+        console.log("[verify-email] resend success for:", email);
+        setSent(true);
+      }
+    } catch (err) {
+      console.error("[verify-email] unexpected error:", err);
     } finally {
       setLoading(false);
     }

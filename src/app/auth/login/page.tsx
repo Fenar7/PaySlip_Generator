@@ -24,12 +24,21 @@ export default function LoginPage() {
       const supabase = createSupabaseBrowser();
       const { error: signInError } = await supabase.auth.signInWithPassword({ email, password });
       if (signInError) {
+        console.error("[login] signIn error:", signInError.message, signInError.code);
+        if (signInError.code === "email_not_confirmed") {
+          // Resend confirmation and send user to the verify page
+          await supabase.auth.resend({ type: "signup", email });
+          router.push("/auth/verify-email?email=" + encodeURIComponent(email));
+          return;
+        }
         setError(signInError.message ?? "Invalid email or password");
       } else {
+        console.log("[login] signed in successfully");
         router.push("/app/home");
         router.refresh();
       }
-    } catch {
+    } catch (err) {
+      console.error("[login] unexpected error:", err);
       setError("Something went wrong. Please try again.");
     } finally {
       setLoading(false);
