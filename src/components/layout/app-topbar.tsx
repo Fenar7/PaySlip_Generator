@@ -1,15 +1,23 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useSession, signOut } from "@/lib/auth-client";
+import { Avatar } from "@/components/ui/avatar";
 
-// Placeholder — will be wired to real session in Slice 1.1.2
 interface AppTopbarProps {
-  userName?: string;
-  userImage?: string;
   orgName?: string;
 }
 
-export function AppTopbar({ userName, orgName }: AppTopbarProps) {
+export function AppTopbar({ orgName }: AppTopbarProps) {
+  const { data: session, isPending } = useSession();
+  const router = useRouter();
+
+  const handleSignOut = async () => {
+    await signOut();
+    router.push("/auth/login");
+  };
+
   return (
     <header className="flex h-14 items-center border-b border-[var(--border-soft)] bg-white px-6 gap-4">
       {/* Breadcrumb / org name */}
@@ -21,14 +29,24 @@ export function AppTopbar({ userName, orgName }: AppTopbarProps) {
 
       {/* User area */}
       <div className="flex items-center gap-3">
-        {userName ? (
+        {isPending ? (
+          <div className="w-8 h-8 rounded-full bg-[#333] animate-pulse" />
+        ) : session ? (
           <div className="flex items-center gap-2">
-            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[var(--accent)] text-xs font-semibold text-white">
-              {userName.charAt(0).toUpperCase()}
-            </div>
+            <Avatar
+              name={session.user.name ?? undefined}
+              imageUrl={session.user.image ?? undefined}
+              size="sm"
+            />
             <span className="text-sm font-medium text-[var(--foreground)] hidden sm:block">
-              {userName}
+              {session.user.name}
             </span>
+            <button
+              onClick={handleSignOut}
+              className="rounded-xl border border-[var(--border-strong)] bg-white px-3 py-1 text-xs font-medium text-[var(--foreground)] hover:bg-[var(--surface-soft)] transition-colors ml-1"
+            >
+              Sign out
+            </button>
           </div>
         ) : (
           <Link

@@ -3,12 +3,10 @@ import { AppTopbar } from "./app-topbar";
 
 interface AppShellProps {
   children: React.ReactNode;
-  userName?: string;
-  userImage?: string;
   orgName?: string;
 }
 
-export function AppShell({ children, userName, userImage, orgName }: AppShellProps) {
+export function AppShell({ children, orgName }: AppShellProps) {
   return (
     <div className="flex h-screen overflow-hidden">
       {/* Sidebar */}
@@ -18,7 +16,7 @@ export function AppShell({ children, userName, userImage, orgName }: AppShellPro
 
       {/* Main area */}
       <div className="flex flex-1 flex-col overflow-hidden">
-        <AppTopbar userName={userName} userImage={userImage} orgName={orgName} />
+        <AppTopbar orgName={orgName} />
         <main className="flex-1 overflow-y-auto bg-[var(--background)]">
           {children}
         </main>
