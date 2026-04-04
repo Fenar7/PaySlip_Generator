@@ -224,8 +224,10 @@ otp_length = 6
 otp_expiry = 3600
 
 # Use a production-ready SMTP server
+# Set enabled = true and run `npm run supabase:restart` after setting valid credentials.
+# Credentials must be exported in your shell (or use `npm run supabase:start` which sources .env).
 [auth.email.smtp]
-enabled = true
+enabled = false
 host = "smtp-relay.brevo.com"
 port = 587
 user = "env(BREVO_SMTP_USER)"
