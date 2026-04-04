@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { InvoiceWorkspace } from "@/features/docs/invoice/components/invoice-workspace";
+import { InvoiceBrandingWrapper } from "./branding-wrapper";
 
 export const metadata: Metadata = {
   title: "Invoice Studio",
@@ -7,5 +7,5 @@ export const metadata: Metadata = {
 };
 
 export default function NewInvoicePage() {
-  return <InvoiceWorkspace />;
+  return <InvoiceBrandingWrapper />;
 }

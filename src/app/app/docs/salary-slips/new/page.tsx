@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { SalarySlipWorkspace } from "@/features/docs/salary-slip/components/salary-slip-workspace";
+import { SalarySlipBrandingWrapper } from "./branding-wrapper";
 
 export const metadata: Metadata = {
   title: "Salary Slip Studio",
@@ -7,5 +7,5 @@ export const metadata: Metadata = {
 };
 
 export default function NewSalarySlipPage() {
-  return <SalarySlipWorkspace />;
+  return <SalarySlipBrandingWrapper />;
 }

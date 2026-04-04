@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { VoucherWorkspace } from "@/features/docs/voucher/components/voucher-workspace";
+import { VoucherBrandingWrapper } from "./branding-wrapper";
 
 export const metadata: Metadata = {
   title: "Voucher Studio",
@@ -7,5 +7,5 @@ export const metadata: Metadata = {
 };
 
 export default function NewVoucherPage() {
-  return <VoucherWorkspace />;
+  return <VoucherBrandingWrapper />;
 }
