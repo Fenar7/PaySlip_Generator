@@ -670,10 +670,21 @@ function useFormContextSafe() {
   return useFormContext<InvoiceFormValues>();
 }
 
-export function InvoiceWorkspace() {
+import type { ExistingInvoice } from "@/app/app/docs/invoices/new/branding-wrapper";
+
+interface InvoiceWorkspaceProps {
+  existingInvoice?: ExistingInvoice | null;
+}
+
+export function InvoiceWorkspace({ existingInvoice }: InvoiceWorkspaceProps) {
+  // Convert existing invoice data to form values if editing
+  const defaultValues = existingInvoice
+    ? convertInvoiceToFormValues(existingInvoice)
+    : invoiceDefaultValues;
+
   const form = useForm<InvoiceFormValues>({
     resolver: zodResolver(invoiceFormSchema),
-    defaultValues: invoiceDefaultValues,
+    defaultValues,
     mode: "onChange",
   });
 
@@ -682,4 +693,30 @@ export function InvoiceWorkspace() {
       <InvoicePanel />
     </FormProvider>
   );
+}
+
+function convertInvoiceToFormValues(invoice: ExistingInvoice): InvoiceFormValues {
+  const formData = invoice.formData as Record<string, unknown> | null;
+  
+  // If formData contains full form values, use them
+  if (formData && typeof formData === "object" && "templateId" in formData) {
+    return formData as InvoiceFormValues;
+  }
+  
+  // Otherwise, construct from database fields with defaults
+  return {
+    ...invoiceDefaultValues,
+    invoiceNumber: invoice.invoiceNumber,
+    invoiceDate: invoice.invoiceDate,
+    dueDate: invoice.dueDate || "",
+    notes: invoice.notes || "",
+    clientName: invoice.customer?.name || "",
+    lineItems: invoice.lineItems.map((item) => ({
+      description: item.description,
+      quantity: String(item.quantity),
+      unitPrice: String(item.unitPrice),
+      taxRate: String(item.taxRate),
+      discountAmount: String(item.discount),
+    })),
+  };
 }

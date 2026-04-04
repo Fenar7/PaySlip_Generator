@@ -17,7 +17,7 @@ model Profile {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  members   Member[]
+  members Member[]
 
   @@map("profiles")
 }
@@ -32,38 +32,46 @@ model Organization {
   createdAt DateTime @default(now())
   metadata  String?
 
-  members     Member[]
-  invitations Invitation[]
-  branding    BrandingProfile?
-  defaults    OrgDefaults?
+  members       Member[]
+  invitations   Invitation[]
+  branding      BrandingProfile?
+  defaults      OrgDefaults?
+  customers     Customer[]
+  vendors       Vendor[]
+  employees     Employee[]
+  invoices      Invoice[]
+  vouchers      Voucher[]
+  salarySlips   SalarySlip[]
+  salaryPresets SalaryPreset[]
+  attachments   FileAttachment[]
 
   @@map("organization")
 }
 
 model Member {
-  id             String       @id @default(cuid())
+  id             String   @id @default(cuid())
   organizationId String
-  userId         String       @db.Uuid
-  role           String       @default("member")
-  createdAt      DateTime     @default(now())
+  userId         String   @db.Uuid
+  role           String   @default("member")
+  createdAt      DateTime @default(now())
 
-  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  user           Profile      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user         Profile      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([organizationId, userId])
   @@map("member")
 }
 
 model Invitation {
-  id             String       @id @default(cuid())
+  id             String   @id @default(cuid())
   organizationId String
   email          String
   role           String?
-  status         String       @default("pending")
+  status         String   @default("pending")
   expiresAt      DateTime
-  inviterId      String       @db.Uuid
+  inviterId      String   @db.Uuid
 
-  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
   @@map("invitation")
 }
@@ -71,47 +79,280 @@ model Invitation {
 // ─── Custom domain models ──────────────────────────────────────────────────────
 
 model BrandingProfile {
-  id             String       @id @default(cuid())
-  organizationId String       @unique
+  id             String   @id @default(cuid())
+  organizationId String   @unique
   logoUrl        String?
-  accentColor    String       @default("#dc2626")
-  fontFamily     String       @default("Inter")
-  fontColor      String       @default("#1a1a1a")
-  createdAt      DateTime     @default(now())
-  updatedAt      DateTime     @updatedAt
+  accentColor    String   @default("#dc2626")
+  fontFamily     String   @default("Inter")
+  fontColor      String   @default("#1a1a1a")
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
-  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
   @@map("branding_profile")
 }
 
 model OrgDefaults {
-  id                     String       @id @default(cuid())
-  organizationId         String       @unique
+  id             String @id @default(cuid())
+  organizationId String @unique
 
-  bankName               String?
-  bankAccount            String?
-  bankIFSC               String?
-  taxId                  String?
-  gstin                  String?
-  businessAddress        String?
+  bankName        String?
+  bankAccount     String?
+  bankIFSC        String?
+  taxId           String?
+  gstin           String?
+  businessAddress String?
 
-  invoicePrefix          String       @default("INV")
-  invoiceCounter         Int          @default(1)
-  voucherPrefix          String       @default("VCH")
-  voucherCounter         Int          @default(1)
-  salarySlipPrefix       String       @default("SAL")
-  salarySlipCounter      Int          @default(1)
+  invoicePrefix     String @default("INV")
+  invoiceCounter    Int    @default(1)
+  voucherPrefix     String @default("VCH")
+  voucherCounter    Int    @default(1)
+  salarySlipPrefix  String @default("SAL")
+  salarySlipCounter Int    @default(1)
 
-  defaultInvoiceTemplate String       @default("minimal")
-  defaultVoucherTemplate String       @default("minimal-office")
-  defaultSlipTemplate    String       @default("modern-premium")
+  defaultInvoiceTemplate String @default("minimal")
+  defaultVoucherTemplate String @default("minimal-office")
+  defaultSlipTemplate    String @default("modern-premium")
 
-  createdAt              DateTime     @default(now())
-  updatedAt              DateTime     @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  organization           Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
   @@map("org_defaults")
 }
 
+// ─── Master Data Models ─────────────────────────────────────────────────────────
+
+model Customer {
+  id             String   @id @default(cuid())
+  organizationId String
+  name           String
+  email          String?
+  phone          String?
+  address        String?
+  taxId          String?
+  gstin          String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  invoices     Invoice[]
+
+  @@index([organizationId])
+  @@map("customer")
+}
+
+model Vendor {
+  id             String   @id @default(cuid())
+  organizationId String
+  name           String
+  email          String?
+  phone          String?
+  address        String?
+  taxId          String?
+  gstin          String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  vouchers     Voucher[]
+
+  @@index([organizationId])
+  @@map("vendor")
+}
+
+model Employee {
+  id             String   @id @default(cuid())
+  organizationId String
+  name           String
+  email          String?
+  employeeId     String?
+  designation    String?
+  department     String?
+  bankName       String?
+  bankAccount    String?
+  bankIFSC       String?
+  panNumber      String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  salarySlips  SalarySlip[]
+
+  @@index([organizationId])
+  @@map("employee")
+}
+
+// ─── Document Models ────────────────────────────────────────────────────────────
+
+enum InvoiceStatus {
+  DRAFT
+  ISSUED
+  VIEWED
+  DUE
+  PARTIALLY_PAID
+  PAID
+  OVERDUE
+  DISPUTED
+  CANCELLED
+  REISSUED
+}
+
+model Invoice {
+  id             String        @id @default(cuid())
+  organizationId String
+  customerId     String?
+  invoiceNumber  String
+  invoiceDate    String
+  dueDate        String?
+  status         InvoiceStatus @default(DRAFT)
+  formData       Json
+  totalAmount    Float         @default(0)
+  notes          String?
+  originalId     String?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+  archivedAt     DateTime?
+
+  organization Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  customer     Customer?         @relation(fields: [customerId], references: [id])
+  original     Invoice?          @relation("InvoiceReissue", fields: [originalId], references: [id])
+  reissues     Invoice[]         @relation("InvoiceReissue")
+  lineItems    InvoiceLineItem[]
+  attachments  FileAttachment[]  @relation("InvoiceAttachments")
+
+  @@unique([organizationId, invoiceNumber])
+  @@index([organizationId, status])
+  @@map("invoice")
+}
+
+model InvoiceLineItem {
+  id          String @id @default(cuid())
+  invoiceId   String
+  description String
+  quantity    Float  @default(1)
+  unitPrice   Float  @default(0)
+  taxRate     Float  @default(0)
+  discount    Float  @default(0)
+  amount      Float  @default(0)
+  sortOrder   Int    @default(0)
+
+  invoice Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  @@map("invoice_line_item")
+}
+
+model Voucher {
+  id             String    @id @default(cuid())
+  organizationId String
+  vendorId       String?
+  voucherNumber  String
+  voucherDate    String
+  type           String    @default("payment")
+  status         String    @default("draft")
+  formData       Json
+  totalAmount    Float     @default(0)
+  isMultiLine    Boolean   @default(false)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  archivedAt     DateTime?
+
+  organization Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  vendor       Vendor?          @relation(fields: [vendorId], references: [id])
+  lines        VoucherLine[]
+  attachments  FileAttachment[] @relation("VoucherAttachments")
+
+  @@unique([organizationId, voucherNumber])
+  @@index([organizationId, status])
+  @@map("voucher")
+}
+
+model VoucherLine {
+  id          String  @id @default(cuid())
+  voucherId   String
+  description String
+  date        String?
+  time        String?
+  amount      Float   @default(0)
+  category    String?
+  sortOrder   Int     @default(0)
+
+  voucher Voucher @relation(fields: [voucherId], references: [id], onDelete: Cascade)
+
+  @@map("voucher_line")
+}
+
+model SalarySlip {
+  id             String    @id @default(cuid())
+  organizationId String
+  employeeId     String?
+  slipNumber     String
+  month          Int
+  year           Int
+  status         String    @default("draft")
+  formData       Json
+  grossPay       Float     @default(0)
+  netPay         Float     @default(0)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  archivedAt     DateTime?
+
+  organization Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  employee     Employee?         @relation(fields: [employeeId], references: [id])
+  components   SalaryComponent[]
+  attachments  FileAttachment[]  @relation("SalarySlipAttachments")
+
+  @@unique([organizationId, slipNumber])
+  @@index([organizationId, status])
+  @@map("salary_slip")
+}
+
+model SalaryComponent {
+  id           String @id @default(cuid())
+  salarySlipId String
+  label        String
+  amount       Float  @default(0)
+  type         String
+  sortOrder    Int    @default(0)
+
+  salarySlip SalarySlip @relation(fields: [salarySlipId], references: [id], onDelete: Cascade)
+
+  @@map("salary_component")
+}
+
+model FileAttachment {
+  id             String   @id @default(cuid())
+  organizationId String
+  entityType     String
+  entityId       String
+  fileName       String
+  storageKey     String
+  mimeType       String
+  size           Int
+  createdAt      DateTime @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  invoice    Invoice?    @relation("InvoiceAttachments", fields: [entityId], references: [id], map: "file_attachment_invoice_fkey")
+  voucher    Voucher?    @relation("VoucherAttachments", fields: [entityId], references: [id], map: "file_attachment_voucher_fkey")
+  salarySlip SalarySlip? @relation("SalarySlipAttachments", fields: [entityId], references: [id], map: "file_attachment_salary_slip_fkey")
+
+  @@index([organizationId, entityType, entityId])
+  @@map("file_attachment")
+}
+
+model SalaryPreset {
+  id             String   @id @default(cuid())
+  organizationId String
+  name           String
+  components     Json
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@map("salary_preset")
+}
