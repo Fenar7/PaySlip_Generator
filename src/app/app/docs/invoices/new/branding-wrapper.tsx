@@ -29,9 +29,10 @@ export type ExistingInvoice = {
 
 interface InvoiceBrandingWrapperProps {
   existingInvoice?: ExistingInvoice | null;
+  initialTemplateId?: string;
 }
 
-export function InvoiceBrandingWrapper({ existingInvoice }: InvoiceBrandingWrapperProps) {
+export function InvoiceBrandingWrapper({ existingInvoice, initialTemplateId }: InvoiceBrandingWrapperProps) {
   const branding = useOrgBranding();
 
   return (
@@ -44,7 +45,7 @@ export function InvoiceBrandingWrapper({ existingInvoice }: InvoiceBrandingWrapp
         } as React.CSSProperties
       }
     >
-      <InvoiceWorkspace existingInvoice={existingInvoice} />
+      <InvoiceWorkspace existingInvoice={existingInvoice} initialTemplateId={initialTemplateId} />
     </div>
   );
 }
