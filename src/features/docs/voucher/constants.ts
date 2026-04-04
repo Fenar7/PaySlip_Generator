@@ -40,6 +40,8 @@ export const voucherDefaultValues: VoucherFormValues = {
   notes: "Settled after manager approval.",
   approvedBy: "Anita Thomas",
   receivedBy: "Rahul Menon",
+  isMultiLine: false,
+  lineItems: [],
   visibility: {
     showAddress: true,
     showEmail: true,

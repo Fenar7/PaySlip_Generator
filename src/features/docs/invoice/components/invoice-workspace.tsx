@@ -18,7 +18,6 @@ import {
   TextField,
   ToggleField,
 } from "@/components/forms/input-primitives";
-import { RepeaterSection } from "@/components/forms/repeater-section";
 import { InvoiceDocumentEditor } from "@/features/docs/invoice/components/invoice-document-editor";
 import { InvoicePreview } from "@/features/docs/invoice/components/invoice-preview";
 import { invoiceDefaultValues, invoiceTemplateOptions } from "@/features/docs/invoice/constants";
@@ -52,11 +51,6 @@ const invoiceWorkspaceSections: WorkspaceSectionMeta[] = [
   { id: "invoice-visibility", label: "Visibility" },
 ];
 
-function rowInputClass() {
-  return cn(
-    "w-full rounded-[1rem] border border-[var(--border-soft)] bg-white px-4 py-3 text-sm text-[var(--foreground)] shadow-[0_10px_24px_rgba(34,34,34,0.035)] outline-none transition-colors focus:border-[var(--accent)] focus:shadow-[0_0_0_4px_var(--accent-soft)]",
-  );
-}
 
 function InvoiceLineItemsEditor() {
   const { control, register, setFocus } = useFormContext<InvoiceFormValues>();

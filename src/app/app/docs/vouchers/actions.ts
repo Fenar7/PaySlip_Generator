@@ -23,6 +23,7 @@ export interface VoucherInput {
   voucherDate: string;
   type: "payment" | "receipt";
   isMultiLine?: boolean;
+  status?: "draft" | "approved";
   formData: Record<string, unknown>;
   lines: VoucherLineInput[];
 }
@@ -97,6 +98,7 @@ export async function updateVoucher(
         voucherDate: input.voucherDate,
         type: input.type,
         isMultiLine: input.isMultiLine,
+        ...(input.status && { status: input.status }),
         formData: input.formData as Prisma.InputJsonValue | undefined,
         totalAmount,
       },

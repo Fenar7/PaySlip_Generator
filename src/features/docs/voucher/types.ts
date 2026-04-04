@@ -3,6 +3,14 @@ import type { BrandingConfig } from "@/lib/branding";
 export type VoucherType = "payment" | "receipt";
 export type VoucherTemplateId = "minimal-office" | "traditional-ledger";
 
+export type LineItemFormValues = {
+  description: string;
+  date: string;
+  time: string;
+  amount: string;
+  category: string;
+};
+
 export type VoucherVisibilityConfig = {
   showAddress: boolean;
   showEmail: boolean;
@@ -30,6 +38,10 @@ export type VoucherFormValues = {
   approvedBy: string;
   receivedBy: string;
   visibility: VoucherVisibilityConfig;
+  // Extended fields
+  vendorId?: string;
+  isMultiLine?: boolean;
+  lineItems?: LineItemFormValues[];
 };
 
 export type VoucherDocument = {

@@ -2,6 +2,14 @@ import { z } from "zod";
 import type { VoucherFormValues } from "@/features/docs/voucher/types";
 import { voucherDefaultValues } from "@/features/docs/voucher/constants";
 
+const lineItemSchema = z.object({
+  description: z.string(),
+  date: z.string(),
+  time: z.string(),
+  amount: z.string(),
+  category: z.string(),
+});
+
 const brandingSchema = z.object({
   companyName: z.string().trim(),
   address: z.string().trim(),
@@ -70,6 +78,9 @@ export const voucherFormSchema = z.object({
   approvedBy: z.string().trim(),
   receivedBy: z.string().trim(),
   visibility: visibilitySchema,
+  vendorId: z.string().optional(),
+  isMultiLine: z.boolean().optional(),
+  lineItems: z.array(lineItemSchema).optional(),
 });
 
 export type VoucherFormSchema = z.infer<typeof voucherFormSchema>;
