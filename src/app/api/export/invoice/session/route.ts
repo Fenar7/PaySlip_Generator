@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { invoiceExportRequestSchema } from "@/features/invoice/schema";
+import { invoiceExportRequestSchema } from "@/features/docs/invoice/schema";
 import { serializeExportPayload } from "@/lib/server/export-payload";
 
 export const runtime = "nodejs";

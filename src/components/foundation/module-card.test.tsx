@@ -11,6 +11,6 @@ describe("ModuleCard", () => {
     ).toBeInTheDocument();
     expect(
       screen.getByRole("link", { name: /open workspace/i }),
-    ).toHaveAttribute("href", "/voucher");
+    ).toHaveAttribute("href", "/app/docs/vouchers/new");
   });
 });

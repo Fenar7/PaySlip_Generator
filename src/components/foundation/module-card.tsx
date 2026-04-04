@@ -98,7 +98,7 @@ export function ModuleCard({ module }: ModuleCardProps) {
         </ul>
 
         <Link
-          href={`/${module.slug}`}
+          href={module.href}
           className="slipwise-btn slipwise-btn-primary mt-auto w-fit gap-2 px-4 py-2 text-sm hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--background)]"
         >
           Open workspace

@@ -782,7 +782,7 @@ export function SlipwiseHome({ className }: SlipwiseHomeProps) {
               return (
                 <Link
                   key={module.slug}
-                  href={`/${module.slug}`}
+                  href={module.href}
                   onClick={closeWorkspaceDialog}
                   className="group slipwise-surface-card rounded-2xl p-5 transition duration-200 hover:-translate-y-0.5 hover:shadow-[var(--shadow-card)]"
                 >

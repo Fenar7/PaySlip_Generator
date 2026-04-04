@@ -1,0 +1,1652 @@
+﻿________________
+
+
+SLIPWISE ONE
+Master Product Requirements Document
+Enterprise Suite Restructure + SaaS Transformation PRD
+Version 1.1
+Date: April 3 2026, 4:22PM
+________________
+
+
+1. Document Purpose
+This document defines the complete product transformation of Slipwise into Slipwise One, a multi-product business document and workflow suite.
+This PRD is intended to be the master handoff document for:
+* product planning
+* engineering architecture
+* sprint planning
+* design direction
+* QA planning
+* future hiring and delivery sequencing
+This is not a lightweight idea note. It is the operational blueprint for taking the current product from a stateless document generator into a scalable SaaS suite.
+The current Slipwise product already has live document modules for Voucher, Salary Slip, Invoice, and PDF Studio, runs on Vercel, uses Next.js 16 + React 19 + TypeScript + Tailwind CSS, and intentionally excludes accounts, databases, storage, and recurring workflows. PDF Studio is already quite advanced and includes HEIC/HEIF, OCR, watermarking, page numbers, AES-256 password protection, compression, and metadata controls.
+The workshop notes clearly expand the ambition of the product toward onboarding, persistent design defaults, stored data, invoice statuses, payment proof, dashboards, sending, scheduling, recurring invoices, multi-user access, proxy controls, full PDF utility coverage, and passport photo editing.
+This document restructures all of that into one coherent suite.
+________________
+
+
+2. Product Identity and Suite Structure
+2.1 Master Product Name
+Slipwise One
+Slipwise One is the umbrella enterprise suite.
+It represents the full platform, not just document generation.
+________________
+
+
+2.2 Sub-Products / Suite Modules
+A. SW> Docs
+The document operations suite.
+Scope:
+* Invoice Studio
+* Voucher Studio
+* Salary Slip Studio
+* Template Store
+* Document Vault
+* PDF Studio utility suite
+B. SW> Pay
+The payment and receivables operations suite.
+Scope:
+* invoice payment state
+* partial payment tracking
+* proof uploads
+* reminders
+* send logs
+* scheduled sends
+* recurring invoices
+* customer payment interaction
+* payment-related insights
+C. SW> Flow
+The workflow and control suite.
+Scope:
+* approvals
+* ticketing
+* notifications
+* scheduling engine
+* workflow orchestration
+* proxy handling
+* operational control actions
+* activity flow across documents
+D. SW Pixel
+The photo and image editing suite.
+Scope:
+* passport photo editor
+* resize/compress tools
+* brightness/contrast
+* black-and-white conversion
+* print layout and naming/date
+* future image prep for document workflows
+E. SW Auth & Access
+The identity, security, and permissions suite.
+Scope:
+* signup/login
+* OTP
+* Google authentication
+* profile management
+* organization/workspace management
+* invite users
+* roles and permissions
+* 2FA
+* proxy grants
+* session control
+* audit access enforcement
+F. SW Intel
+The metrics, reporting, and insights suite.
+Scope:
+* dashboard
+* trends
+* reports
+* filters
+* KPI cards
+* operational summaries
+* insights from documents, payments, and workflows
+________________
+
+
+2.3 Product Positioning
+Slipwise One should be positioned as:
+“An enterprise-ready document operations suite for SMEs and growing businesses.”
+Not:
+* just a payslip generator
+* just a PDF converter
+* just a utility tool site
+* just a finance form app
+The core value is not document creation alone.
+The core value is document lifecycle + payment visibility + workflow control + organizational access + insights.
+________________
+
+
+3. Current Product Baseline
+The current product baseline matters because engineering should evolve it, not panic and rewrite everything for dramatic effect.
+3.1 Current Live Modules
+The current product already includes:
+* Voucher Generator
+* Salary Slip Generator
+* Invoice Generator
+* PDF Studio
+* shared homepage
+* shared workspace shell
+* shared form primitives
+* server export pipeline for document modules
+* client-side PDF Studio generation
+3.2 Current Architecture Summary
+Current stack:
+* Next.js 16
+* React 19
+* TypeScript
+* Tailwind CSS 4
+* pdf-lib
+* Motion
+* Vitest
+* Playwright
+* Puppeteer + @sparticuz/chromium for server-rendered exports in document modules
+* pdf-lib for client-side PDF Studio processing
+Current deploy model:
+* Vercel
+* stateless
+* serverless
+* no DB
+* no auth
+* no storage
+3.3 Current Product Limitations
+By design, the current product does not yet support:
+* user accounts
+* saved document history
+* persistent company profiles
+* recurring invoices
+* stored payment states
+* team collaboration
+* approval flow
+* organization controls
+* dashboards driven by stored business data
+That means current Slipwise is a strong document-generation product, but not yet a real document operations SaaS.
+________________
+
+
+4. Why the Product Must Be Restructured
+The workshop notes move the product beyond static generation and into persistent business workflows. The requested additions are not small. They include:
+* Zoho-style direct-input design
+* template store
+* multi-line vouchers
+* invoice query/ticketing
+* client-side payment status marking
+* partial payment support
+* payment proof upload
+* onboarding and default branding
+* send and schedule flows
+* recurring invoice generation
+* cloud storage and business data retention
+* dashboard and reports
+* multi-user role access
+* proxy actions with audit history
+* full PDF Studio suite
+* passport photo editing utility
+This means the product is no longer one app with a few extra features.
+It is now a suite architecture problem.
+________________
+
+
+5. Product Vision
+Slipwise One will become a modular SaaS suite that helps businesses:
+* create
+* store
+* send
+* track
+* approve
+* control
+* report on
+their most frequently used operational documents.
+The product should feel:
+   * premium
+   * calm
+   * precise
+   * reliable
+   * operationally useful
+   * not cluttered
+   * not “legacy ERP”
+   * enterprise-ready in control, but friendly enough for SMEs
+________________
+
+
+6. Strategic Product Principles
+6.1 Persist the workflow, not just the file
+A PDF alone is not the product.
+The product is:
+   * saved record
+   * state
+   * history
+   * proof
+   * reminder
+   * auditability
+   * team actionability
+6.2 Keep the paid core separate from the free utility layer
+PDF Studio and SW Pixel are growth levers.
+They should not derail the core SaaS.
+6.3 Build for 1,000 to 10,000 users without re-architecture
+The product should scale cleanly to that range with modular monolith architecture.
+6.4 Avoid premature complexity
+Do not start with microservices, event-driven overengineering, or infrastructure cosplay.
+6.5 Build suite clarity, not feature sprawl
+Every feature must clearly belong to one suite module, even if it interacts with others.
+________________
+
+
+7. User Segments
+7.1 Primary Paid Users
+   * SME founders
+   * finance admins
+   * HR admins
+   * operations teams
+   * hotel/admin operators
+   * clinics and front office managers
+   * retail business owners
+   * agencies
+   * service businesses
+7.2 Internal Workspace Roles
+   * Owner / Master Admin
+   * Admin / Co-owner
+   * Finance Manager
+   * HR Manager
+   * Voucher Operator
+   * Invoice Operator
+   * Viewer
+   * Proxy-enabled delegated actor
+7.3 Free Utility Users
+   * students
+   * office assistants
+   * public PDF users
+   * walk-in service centers
+   * document shop users
+   * passport photo utility users
+________________
+
+
+8. Jobs To Be Done
+8.1 SW> Docs
+   * I need to create a business document quickly
+   * I need it to follow my company design system
+   * I need to save it and reopen it later
+   * I need template flexibility by industry
+8.2 SW> Pay
+   * I need to know which invoices are paid, unpaid, partial, overdue
+   * I need customers to send proof of payment
+   * I need recurring invoices to go out on time
+   * I need reminders to happen without manual follow-up
+8.3 SW> Flow
+   * I need business document interactions to be controlled
+   * I need approvals, ticketing, notifications, and scheduling
+   * I need to understand who did what and why
+8.4 SW Auth & Access
+   * I need multiple people to use the system safely
+   * I need module-level access control
+   * I need temporary proxy access with proper logs
+8.5 SW Intel
+   * I need a clear operational dashboard
+   * I need totals, trends, reports, and summaries
+   * I need to understand the business at a glance
+8.6 SW Pixel
+   * I need to prepare passport-style photos quickly
+   * I need to resize/compress/adjust image output
+   * I need a utility that solves common public-facing image tasks
+________________
+
+
+9. Suite Information Architecture
+9.1 Platform Levels
+Level 1: Slipwise One
+Master suite brand
+Level 2: Sub-products
+   * SW> Docs
+   * SW> Pay
+   * SW> Flow
+   * SW Pixel
+   * SW Auth & Access
+   * SW Intel
+Level 3: Module Screens
+Each suite has multiple modules and subflows.
+________________
+
+
+9.2 Proposed App Route Structure
+Core Shell
+   * /app
+   * /app/home
+SW> Docs
+   * /app/docs
+   * /app/docs/invoices
+   * /app/docs/invoices/new
+   * /app/docs/invoices/:id
+   * /app/docs/vouchers
+   * /app/docs/vouchers/new
+   * /app/docs/vouchers/:id
+   * /app/docs/salary-slips
+   * /app/docs/salary-slips/new
+   * /app/docs/salary-slips/:id
+   * /app/docs/templates
+   * /app/docs/vault
+   * /app/docs/pdf-studio
+SW> Pay
+   * /app/pay
+   * /app/pay/receivables
+   * /app/pay/transactions
+   * /app/pay/proofs
+   * /app/pay/recurring
+   * /app/pay/reminders
+   * /app/pay/send-log
+SW> Flow
+   * /app/flow
+   * /app/flow/tickets
+   * /app/flow/approvals
+   * /app/flow/schedules
+   * /app/flow/notifications
+   * /app/flow/activity
+   * /app/flow/proxy
+SW Pixel
+   * /app/pixel
+   * /app/pixel/passport
+   * /app/pixel/compress
+   * /app/pixel/resize
+   * /app/pixel/print-layouts
+SW Auth & Access
+   * /auth/login
+   * /auth/signup
+   * /auth/verify
+   * /app/settings/profile
+   * /app/settings/security
+   * /app/settings/organization
+   * /app/settings/users
+   * /app/settings/roles
+   * /app/settings/access
+SW Intel
+   * /app/intel
+   * /app/intel/dashboard
+   * /app/intel/reports
+   * /app/intel/insights
+   * /app/intel/activity
+________________
+
+
+10. Product Breakdown by Sub-Product
+10.1 SW> Docs
+10.1.1 Objective
+SW> Docs is the core document creation and storage suite.
+It owns:
+   * creation workflows
+   * template system
+   * document save/edit/duplicate/archive
+   * document vault
+   * document-level preview/export
+   * PDF Studio as a utility layer inside the suite
+________________
+
+
+10.1.2 Modules Under SW> Docs
+   * Invoice Studio
+   * Voucher Studio
+   * Salary Slip Studio
+   * Template Store
+   * Document Vault
+   * PDF Studio
+________________
+
+
+10.1.3 Invoice Studio
+Current Baseline
+The current invoice generator already supports:
+   * business/client blocks
+   * shipping support
+   * tax IDs
+   * place of supply
+   * dynamic line items
+   * tax and discount math
+   * amount in words
+   * notes, terms, bank, signature, payment summary
+   * template switching
+   * export PDF/PNG/print
+Future Scope
+Invoice Studio will support:
+   * persistent save/edit/reopen
+   * customer linking
+   * template assignment
+   * default workspace styles
+   * invoice status lifecycle
+   * original vs reissue
+   * reissue reason
+   * payment state
+   * client query/ticket initiation
+   * send and resend
+   * scheduled send
+   * recurring generation trigger
+   * document timeline
+   * attachment support
+   * invoice vault listing
+   * filters and search
+Business Rules
+   * invoice number rules configurable by workspace
+   * draft and issued are separate states
+   * once paid or partially paid, state changes are recorded, not overwritten
+   * reissue must preserve audit trail
+   * invoice templates must be overrideable per document
+   * invoice can be linked to customer, project, or department later
+Acceptance Criteria
+   * invoice can be created, saved, resumed, duplicated, archived
+   * lifecycle state is visible
+   * payment state is stored
+   * send logs are visible
+   * linked client ticket and proof uploads are accessible
+________________
+
+
+10.1.4 Voucher Studio
+Current Baseline
+Current voucher module supports payment/receipt vouchers, branding, optional fields, amount in words, live preview, templates, and export.
+Future Scope
+Voucher Studio will support:
+   * persistent records
+   * multi-line voucher mode
+   * date and time per line
+   * grouped day or multi-day voucher
+   * approval state
+   * voucher category summaries
+   * receipt and payment subtype logic
+   * audit trail
+   * template store support
+   * operator-specific access
+Business Problem Solved
+The workshop note explicitly highlights the hospitality use case where multiple petty cash events in a day should not force multiple separate vouchers. A multi-line voucher structure solves that operational pain.
+Acceptance Criteria
+   * user can create single-line or multi-line voucher
+   * grouped entries calculate totals correctly
+   * voucher can be filtered by date/user/category
+   * voucher can be printed/exported in clean grouped layout
+________________
+
+
+10.1.5 Salary Slip Studio
+Current Baseline
+Current salary slip module supports employee details, attendance, bank details, repeatable earnings/deductions, totals, visibility toggles, templates, and export.
+Future Scope
+Salary Slip Studio will support:
+   * persistent employee linking
+   * saved component presets
+   * monthly salary record storage
+   * archive/release states
+   * access restrictions by HR roles
+   * export history
+   * org defaults
+   * correction/version handling
+Explicit Non-Goal
+This is not yet a full payroll engine.
+No tax filing, no statutory compliance automation, no payout orchestration in early phases.
+Acceptance Criteria
+   * salary slips are stored and searchable
+   * employees are reusable
+   * HR access restrictions work
+   * reports reflect salary records
+________________
+
+
+10.1.6 Template Store
+Objective
+Provide reusable business document templates across industries.
+Template Types
+   * general business
+   * medical invoice
+   * delivery invoice
+   * hotel invoice
+   * hospitality voucher
+   * corporate salary slip
+   * premium branded themes
+The notes explicitly call for a Zoho-like template store by domain.
+Features
+   * default workspace template
+   * per-document override
+   * preview thumbnails
+   * category filters
+   * typography presets
+   * color compatibility
+   * locked vs premium templates later
+________________
+
+
+10.1.7 Document Vault
+Objective
+Provide persistent storage and retrieval of generated records.
+Features
+   * saved invoices
+   * saved vouchers
+   * saved salary slips
+   * search
+   * filters
+   * archive/restore
+   * sort by type/date/status/user
+   * file attachment view
+   * export history later
+________________
+
+
+10.1.8 PDF Studio Under SW> Docs
+Current Baseline
+PDF Studio already supports:
+   * upload up to 30 images
+   * reorder
+   * rotate
+   * crop
+   * session persistence
+   * batch ops
+   * HEIC/HEIF
+   * OCR
+   * watermark
+   * page numbers
+   * password protection
+   * compression
+   * metadata
+   * client-side multi-page preview and PDF generation
+Future Positioning
+PDF Studio remains under SW> Docs as:
+   * free utility suite
+   * traffic acquisition tool
+   * secondary user entry point
+   * optional freemium conversion path
+Expansion Waves
+Wave 1:
+   * merge
+   * split
+   * delete pages
+   * extract pages
+   * organize
+   * rotate
+   * resize
+Wave 2:
+   * fill & sign
+   * protect/unlock
+   * page numbers improvements
+   * header/footer
+   * PDF to JPG
+   * PDF to Word feasibility
+Wave 3:
+   * OCR hardening
+   * deskew
+   * repair
+   * extract images
+   * remove annotations
+   * bookmarks
+   * advanced split modes
+Product Rule
+Keep simple tools client-side where practical.
+Move heavier tools server-assisted only when justified.
+________________
+
+
+10.2 SW> Pay
+10.2.1 Objective
+SW> Pay manages invoice-related payment visibility and collection workflows.
+It is not a payment gateway in early phases.
+It is a payment operations layer.
+________________
+
+
+10.2.2 Modules Under SW> Pay
+   * Receivables Dashboard
+   * Payment Status Manager
+   * Proof Uploads
+   * Send and Reminders
+   * Recurring Billing
+   * Payment Timeline
+   * Send Log
+________________
+
+
+10.2.3 Core Features
+A. Invoice Payment States
+   * draft
+   * issued
+   * viewed
+   * due
+   * partially paid
+   * paid
+   * overdue
+   * disputed
+   * cancelled
+   * reissued
+The notes explicitly require storing paid, due, and partially paid states as data.
+B. Customer Payment Action
+Client can:
+   * open tokenized invoice link
+   * mark paid
+   * mark partial
+   * enter amount paid
+   * upload screenshot/payment slip as proof
+C. Proof Review
+Internal user can:
+   * verify proof
+   * mark accepted/rejected
+   * comment on discrepancy
+   * return invoice to pending if needed
+D. Original vs Reissue
+The notes explicitly ask for first issue to be marked original, and later re-send/reissue to capture reissue state and reason.
+E. Recurring Invoices
+   * monthly
+   * weekly
+   * custom schedule
+   * generate draft
+   * auto-send
+   * pause/resume
+   * end-date or indefinite mode
+F. Send and Reminder Layer
+   * platform email send
+   * resend
+   * reminder before due
+   * reminder after due
+   * WhatsApp share link
+   * send log visibility
+G. Payment Metrics
+   * due this month
+   * overdue
+   * paid this month
+   * partial outstanding
+   * aging buckets later
+________________
+
+
+10.2.4 Acceptance Criteria
+   * invoice states persist and are queryable
+   * client proof upload works securely
+   * recurring invoices generate as scheduled
+   * send/reminder logs are visible
+   * dashboards consume SW> Pay data correctly
+________________
+
+
+10.3 SW> Flow
+10.3.1 Objective
+SW> Flow is the control and orchestration layer.
+It handles how actions move through the system:
+   * tickets
+   * notifications
+   * approvals
+   * schedules
+   * proxy-based delegation
+   * activity streams
+________________
+
+
+10.3.2 Modules Under SW> Flow
+   * Ticketing
+   * Approvals
+   * Scheduler
+   * Notification Center
+   * Proxy Control
+   * Activity Feed
+________________
+
+
+10.3.3 Ticketing
+Objective
+Allow invoice-related communication and discrepancy resolution.
+The notes explicitly request a ticketing feature where customers can click a link and raise a question/query on the invoice.
+Features
+   * tokenized public query page
+   * ticket created against invoice
+   * category
+   * description
+   * attachment optional later
+   * internal assignee
+   * replies
+   * resolution status
+   * customer-visible updates later
+________________
+
+
+10.3.4 Approvals
+Objective
+Allow role-based approval steps for selected documents.
+Early Scope
+   * voucher approval
+   * invoice approval optional
+   * salary release approval optional
+   * approval log
+   * approver identity shown
+Later
+   * approval chains
+   * threshold-based approval
+   * multi-step workflow builder
+________________
+
+
+10.3.5 Scheduler
+Objective
+Run timed actions.
+Features
+   * scheduled send
+   * recurring invoice generation
+   * reminder jobs
+   * future event-triggered automation placeholder
+The notes explicitly discuss scheduling by date/time now and event-based automation later.
+________________
+
+
+10.3.6 Notification Center
+Features
+   * send success/failure
+   * new ticket
+   * proof uploaded
+   * recurring invoice generated
+   * overdue reminders
+   * approval required
+   * proxy activated/revoked
+________________
+
+
+10.3.7 Proxy Control
+Objective
+Allow a delegated user to act temporarily on behalf of another user with strict audit trace.
+This is explicitly described in the notes using the John Doe / Sam scenario.
+Requirements
+   * admin assigns proxy
+   * define scope
+   * define time limit
+   * define represented user
+   * define reason
+   * all actions logged as:
+   * actor
+   * represented identity
+   * timestamp
+   * scope used
+   * document affected
+Rule
+Proxy is not a hidden impersonation feature.
+It is a visible delegated action system.
+________________
+
+
+10.3.8 Activity Feed
+Features
+   * document created
+   * document edited
+   * invoice sent
+   * proof uploaded
+   * ticket opened
+   * ticket resolved
+   * proxy used
+   * approval granted
+   * recurring job executed
+________________
+
+
+10.4 SW Pixel
+10.4.1 Objective
+SW Pixel is the photo and image-prep suite.
+It is mainly a traffic tool and utility product, but it also supports real business/public service usage.
+The notes explicitly request passport photo resizing, file size control, brightness/contrast, black-and-white conversion, and name/date insertion.
+________________
+
+
+10.4.2 Modules Under SW Pixel
+   * Passport Photo
+   * Resize & Compress
+   * Basic Adjustments
+   * Print Layout
+   * Name/Date Labelling
+________________
+
+
+10.4.3 Passport Photo Module
+Features
+   * upload photo
+   * crop to preset dimension
+   * passport preset library
+   * target file size compression
+   * brightness
+   * contrast
+   * grayscale / B&W
+   * name and date text
+   * print sheet layout
+   * export final image / sheet
+Positioning
+This should stay simple and useful.
+Do not turn it into Photoshop for people who fear software.
+________________
+
+
+10.5 SW Auth & Access
+10.5.1 Objective
+This suite handles identity, security, workspace, roles, and access control.
+The notes explicitly call for:
+   * account creation
+   * login/signup
+   * OTP
+   * Google auth
+   * 2FA
+   * profile management
+   * email/password change
+   * multiple users
+   * role-based access
+   * admin/co-owner
+   * proxy assignment
+________________
+
+
+10.5.2 Modules Under SW Auth & Access
+   * Signup/Login
+   * Verification
+   * Profile & Security
+   * Organization Setup
+   * Users & Invites
+   * Roles & Permissions
+   * Proxy Grants
+   * Session Security
+________________
+
+
+10.5.3 Core Features
+Identity
+   * signup
+   * login
+   * logout
+   * OTP verify
+   * Google auth
+   * forgot/reset password
+   * email change
+   * password change
+   * 2FA later
+Organization
+   * create workspace
+   * org branding defaults
+   * bank and tax defaults
+   * module preferences
+   * workspace settings
+Users and Roles
+   * invite user
+   * assign role
+   * activate/deactivate user
+   * module-specific permissions
+   * owner/admin/co-owner distinction
+Access Enforcement
+   * UI gating
+   * API gating
+   * audit tagging
+   * proxy-safe access tracking
+________________
+
+
+10.6 SW Intel
+10.6.1 Objective
+SW Intel is the reporting and insights layer.
+The notes explicitly call for dashboard, full reports, graphs, and insights based on stored invoice/voucher/salary data.
+________________
+
+
+10.6.2 Modules Under SW Intel
+   * Dashboard
+   * Reports
+   * Metrics Explorer
+   * Activity Insights
+   * Business Health Views
+________________
+
+
+10.6.3 Core Features
+Dashboard V1
+   * invoice due this month
+   * invoice paid this month
+   * partially paid invoices
+   * overdue invoices
+   * voucher spend total
+   * voucher spend by category
+   * salary total pending
+   * salary total processed
+   * recent activity
+   * trend chart
+Reports V1
+   * invoice report
+   * receivables report
+   * voucher report
+   * salary report
+   * export CSV
+   * filter by time, status, user, org entity
+Later
+   * near-real-time dashboard refresh
+   * anomaly alerts
+   * aging analysis
+   * customer-level insights
+   * department spending trends
+________________
+
+
+11. Cross-Suite Features
+11.1 Onboarding
+The notes explicitly require onboarding that lets the user set:
+   * authentication
+   * logo
+   * colors
+   * fonts
+   * font color
+so future documents inherit a default style.
+This onboarding belongs across:
+      * SW Auth & Access
+      * SW> Docs
+      * SW Intel readiness
+11.2 Storage
+Stored in cloud:
+      * documents
+      * attachments
+      * proofs
+      * logos
+      * image assets
+      * template metadata
+The notes explicitly state that invoices, vouchers, and salary slips must be stored in the cloud for later use and insights.
+11.3 Search
+Cross-suite search later should cover:
+         * invoices
+         * vouchers
+         * salary slips
+         * customers
+         * employees
+         * proofs
+         * tickets
+11.4 Auditability
+Needed for:
+         * access
+         * payment proofs
+         * reissues
+         * proxy usage
+         * approvals
+         * send logs
+________________
+
+
+12. Recommended Tech Stack
+12.1 Core App Layer
+         * Next.js App Router
+         * TypeScript
+         * Tailwind CSS
+         * React Hook Form
+         * Zod
+12.2 Data Layer
+         * PostgreSQL
+         * Prisma ORM
+12.3 Authentication
+         * Auth.js or Better Auth
+         * email/password
+         * OTP
+         * Google OAuth
+         * 2FA support later
+12.4 Storage
+         * AWS S3 from day one
+or S3-compatible storage if needed temporarily
+12.5 Background Jobs
+            * Trigger.dev initially
+Needed for:
+            * scheduled sends
+            * recurring invoices
+            * reminders
+            * nightly report generation
+            * future heavier processing
+12.6 Email
+            * Resend or Postmark
+            * platform-sent email first
+            * custom sender integration later
+12.7 Cache / Limits
+            * Upstash Redis
+12.8 Monitoring
+            * Sentry
+            * PostHog
+            * DB-backed audit logs
+12.9 Hosting
+Initial
+            * Vercel app hosting
+            * managed Postgres
+            * S3
+            * Trigger.dev
+            * Redis
+Later AWS migration
+            * ECS Fargate
+            * RDS PostgreSQL
+            * S3
+            * ElastiCache
+            * worker or queue stack if needed
+________________
+
+
+13. Architecture Approach
+13.1 Pattern
+Use a modular monolith.
+13.2 Why
+Because:
+            * shipping speed matters
+            * domain separation matters
+            * future migration matters
+            * microservices at this stage would be performance art
+13.3 Layering
+Presentation Layer
+            * pages
+            * layouts
+            * route handlers
+            * client components
+            * server actions
+Application Layer
+            * docs service
+            * pay service
+            * flow service
+            * pixel service
+            * auth/access service
+            * intel service
+Data Layer
+            * repositories
+            * Prisma models
+            * search/filter access
+            * storage references
+Infrastructure Layer
+            * auth adapter
+            * storage adapter
+            * email adapter
+            * queue adapter
+            * logging adapter
+________________
+
+
+14. High-Level Data Model
+Core entities:
+            * User
+            * Organization
+            * Membership
+            * Role
+            * Permission
+            * ProxyGrant
+            * BrandingProfile
+            * Customer
+            * Vendor
+            * Employee
+            * Invoice
+            * InvoiceLineItem
+            * InvoiceStateEvent
+            * InvoicePayment
+            * InvoiceProof
+            * InvoiceTicket
+            * Voucher
+            * VoucherLine
+            * SalarySlip
+            * SalaryComponent
+            * FileAttachment
+            * ScheduledSend
+            * RecurringInvoiceRule
+            * Notification
+            * ActivityLog
+            * AuditLog
+            * ReportSnapshot
+            * PixelJob later if needed
+All records must support:
+            * organization scoping
+            * timestamps
+            * creator/modifier
+            * status
+            * archive strategy
+________________
+
+
+15. Security Model
+15.1 Requirements
+            * authentication required for private suite access
+            * organization-level isolation
+            * role-based permissions
+            * proxy actions logged distinctly
+            * proof uploads securely stored
+            * public invoice/ticket pages tokenized
+            * no silent impersonation
+            * audit logs tamper-resistant at application level
+15.2 Public Links
+Only these should support secure public link behavior:
+            * invoice view
+            * payment proof submission
+            * ticket submission
+15.3 Proxy Rule
+Every proxy action must visibly preserve:
+            * who acted
+            * on whose behalf
+            * why
+            * when
+________________
+
+
+16. Non-Functional Requirements
+16.1 Performance
+            * core screens load acceptably on business-scale datasets
+            * dashboard must remain usable
+            * recurring jobs must not duplicate actions
+            * PDF Studio client operations should remain responsive
+16.2 Reliability
+            * scheduled sends retry-safe
+            * recurring invoice generation idempotent
+            * attachment uploads recoverable
+            * invoice status transitions safe
+16.3 Scalability
+Must support:
+            * 1,000 to 10,000 users
+            * growing orgs
+            * increasing document volume
+            * future AWS migration without rewrite
+16.4 Observability
+            * error monitoring
+            * job logging
+            * audit trail
+            * funnel analytics
+            * export/send failure visibility
+________________
+
+
+17. Out of Scope in Initial Enterprise Build
+Do not let engineering scope creep this into an ERP cemetery.
+Out of scope initially:
+            * full accounting ledger
+            * tax filing system
+            * payroll compliance engine
+            * payment gateway processing
+            * advanced CRM
+            * procurement
+            * inventory
+            * multi-region deployment
+            * enterprise SSO
+            * microservices architecture
+            * advanced AI insights engine
+            * full OCR translation suite
+________________
+
+
+18. Agile Delivery Model
+18.1 Sprint Length
+2 weeks
+18.2 Planning Model
+            * phase-based roadmap
+            * each phase broken into sprints
+            * each sprint has:
+            * objective
+            * epic ownership
+            * scope
+            * dependencies
+            * demo output
+            * acceptance gate
+18.3 Recommended Program Length
+18 sprints total
+Approx. 36 weeks
+Can shorten with larger team and parallel lanes
+________________
+
+
+19. Master Delivery Phases
+Phase 0: Stabilization + Suite Re-architecture
+Phase 1: SW Auth & Access Foundation
+Phase 2: SW> Docs Persistence and Core Save Layer
+Phase 3: SW> Docs UX Redesign + Template Store
+Phase 4: SW> Pay Lifecycle
+Phase 5: SW> Flow Orchestration
+Phase 6: SW Intel Dashboard and Reports
+Phase 7: Roles, Permissions, Proxy, Audit Hardening
+Phase 8: PDF Studio Expansion
+Phase 9: SW Pixel Launch
+Phase 10: Hardening, Pricing Readiness, AWS Path
+________________
+
+
+20. Detailed Phase and Sprint Plan
+PHASE 0: STABILIZATION + SUITE RE-ARCHITECTURE
+Duration: 2 sprints
+Sprint 0.1
+Goal: stabilize current product and rename structure internally
+Work:
+            * merge current feature branch safely
+            * stabilize PDF Studio known gaps
+            * finalize current baseline release
+            * define Slipwise One naming model
+            * define suite namespaces:
+            * docs
+            * pay
+            * flow
+            * pixel
+            * auth
+            * intel
+Deliverables:
+            * stable baseline branch
+            * updated internal naming map
+            * route migration plan
+Acceptance gate:
+            * no regression on current voucher, salary, invoice, PDF Studio baseline
+Sprint 0.2
+Goal: architecture definition and backlog decomposition
+Work:
+            * modular monolith boundaries
+            * DB schema v1 draft
+            * auth strategy
+            * storage strategy
+            * job system strategy
+            * audit strategy
+            * sprint backlog creation per suite
+Deliverables:
+            * technical architecture note
+            * phase backlog ready
+            * engineering estimate baseline
+Acceptance gate:
+            * architecture approved by founders and engineering lead
+________________
+
+
+PHASE 1: SW AUTH & ACCESS FOUNDATION
+Duration: 2 sprints
+Sprint 1.1
+Goal: user identity foundation
+Work:
+            * auth provider integration
+            * signup/login
+            * OTP verification
+            * session management
+            * protected app shell
+            * basic profile model
+Deliverables:
+            * private authenticated access working
+            * user can create account and sign in
+Acceptance gate:
+            * auth flows pass QA
+Sprint 1.2
+Goal: organization and onboarding
+Work:
+            * workspace/org creation
+            * company branding defaults
+            * font/color setup
+            * bank/tax defaults
+            * Google auth
+            * profile settings
+            * password/email update flow
+Deliverables:
+            * onboarding complete
+            * workspace defaults save correctly
+Acceptance gate:
+            * new org exits onboarding into working suite shell
+________________
+
+
+PHASE 2: SW> DOCS PERSISTENCE AND MASTER DATA
+Duration: 2 sprints
+Sprint 2.1
+Goal: core data entities
+Work:
+            * customer CRUD
+            * vendor CRUD
+            * employee CRUD
+            * branding profile save
+            * numbering settings
+            * template default references
+Deliverables:
+            * reusable master data layer live
+Acceptance gate:
+            * data persists and is scoped to organization
+Sprint 2.2
+Goal: persistent document records
+Work:
+            * invoice DB model
+            * voucher DB model
+            * salary slip DB model
+            * save/edit/archive/duplicate
+            * list pages
+            * search/filter basics
+            * attachment storage plumbing
+Deliverables:
+            * documents become stored business records
+Acceptance gate:
+            * user can save and reopen all three document types
+________________
+
+
+PHASE 3: SW> DOCS UX REDESIGN + TEMPLATE STORE
+Duration: 2 sprints
+Sprint 3.1
+Goal: invoice and voucher redesign
+Work:
+            * Zoho-style direct input redesign
+            * typography improvements
+            * line item UX improvement
+            * faster voucher entry flow
+            * workspace default template behavior
+Deliverables:
+            * invoice and voucher workflows feel like modern business software
+Acceptance gate:
+            * task time and usability improved on core flows
+Sprint 3.2
+Goal: template store + voucher multi-line mode + salary linking
+Work:
+            * template store v1
+            * medical/delivery/general templates
+            * multi-line voucher
+            * grouped voucher totals
+            * employee linking for salary slips
+            * preset salary components
+Deliverables:
+            * template store functional
+            * voucher grouped-entry mode live
+Acceptance gate:
+            * multi-line voucher works for hotel-style day-use scenario
+________________
+
+
+PHASE 4: SW> PAY LIFECYCLE
+Duration: 2 sprints
+Sprint 4.1
+Goal: invoice states and payment visibility
+Work:
+            * invoice state machine
+            * original vs reissue
+            * reissue reason
+            * paid / due / partial / overdue states
+            * invoice event timeline
+            * proof data model
+Deliverables:
+            * invoice lifecycle logic complete
+Acceptance gate:
+            * invoice state transitions are auditable and queryable
+Sprint 4.2
+Goal: payment proof and customer interaction
+Work:
+            * tokenized invoice page
+            * mark paid / partial
+            * proof upload
+            * internal proof review
+            * receivable summary list
+            * payment discrepancy handling
+Deliverables:
+            * customer payment proof flow working
+Acceptance gate:
+            * proof upload and review complete end-to-end
+________________
+
+
+PHASE 5: SW> FLOW ORCHESTRATION
+Duration: 2 sprints
+Sprint 5.1
+Goal: ticketing and notifications
+Work:
+            * invoice-linked ticketing
+            * public ticket submission page
+            * internal assignment
+            * reply thread
+            * notification center foundation
+            * activity feed
+Deliverables:
+            * invoice query/ticket flow live
+Acceptance gate:
+            * tickets can be created, replied to, resolved
+Sprint 5.2
+Goal: scheduling and recurring engine
+Work:
+            * Trigger.dev integration
+            * scheduled send model
+            * recurring invoice rules
+            * reminder scheduling
+            * retry/failure handling
+            * job activity logs
+Deliverables:
+            * timed workflows operational
+Acceptance gate:
+            * scheduled send and recurring invoice run successfully
+________________
+
+
+PHASE 6: SW INTEL DASHBOARD AND REPORTS
+Duration: 2 sprints
+Sprint 6.1
+Goal: dashboard v1
+Work:
+            * invoice KPI cards
+            * voucher KPI cards
+            * salary KPI cards
+            * trend chart
+            * recent activity
+            * pay-related summary blocks
+Deliverables:
+            * SW Intel dashboard first release
+Acceptance gate:
+            * dashboard values match stored records
+Sprint 6.2
+Goal: reporting and filters
+Work:
+            * invoice report
+            * receivables report
+            * voucher report
+            * salary report
+            * CSV export
+            * time/status filters
+            * dashboard performance optimization
+Deliverables:
+            * managers can use reports operationally
+Acceptance gate:
+            * exports and report filtering work reliably
+________________
+
+
+PHASE 7: ROLES, PERMISSIONS, PROXY, AUDIT HARDENING
+Duration: 2 sprints
+Sprint 7.1
+Goal: roles and access matrix
+Work:
+            * invite users
+            * owner/admin/co-owner
+            * module-level permissions
+            * read/write/send/approve controls
+            * UI gating
+            * API gating
+Deliverables:
+            * org can run multi-user workflows safely
+Acceptance gate:
+            * permission enforcement works in UI and backend
+Sprint 7.2
+Goal: proxy and audit
+Work:
+            * proxy grant model
+            * admin assign/revoke proxy
+            * actor vs represented logging
+            * audit viewer
+            * activity correlation
+            * proxy expiry behavior
+Deliverables:
+            * proxy access is usable and auditable
+Acceptance gate:
+            * all proxy actions clearly show actor and represented identity
+________________
+
+
+PHASE 8: PDF STUDIO EXPANSION
+Duration: 3 sprints
+Sprint 8.1
+Goal: page organization utilities
+Work:
+            * merge
+            * split
+            * delete pages
+            * extract pages
+            * organize/reorder
+            * rotate
+            * resize
+Deliverables:
+            * first expansion wave shipped
+Acceptance gate:
+            * wave 1 tools stable client-side
+Sprint 8.2
+Goal: document utility enhancements
+Work:
+            * fill & sign
+            * protect/unlock
+            * page numbers improvements
+            * header/footer
+            * PDF to JPG
+            * conversion feasibility for office formats
+Deliverables:
+            * second expansion wave shipped
+Acceptance gate:
+            * tool grouping and UX are consistent
+Sprint 8.3
+Goal: advanced hardening
+Work:
+            * OCR controls
+            * deskew feasibility
+            * repair feasibility
+            * heavy-tool routing plan
+            * usage analytics
+Deliverables:
+            * future PDF Studio roadmap validated
+Acceptance gate:
+            * heavy tool strategy defined and documented
+________________
+
+
+PHASE 9: SW PIXEL LAUNCH
+Duration: 1 sprint
+Sprint 9.1
+Goal: passport utility release
+Work:
+            * upload flow
+            * crop to presets
+            * resize/compress
+            * brightness/contrast
+            * grayscale
+            * name/date
+            * print/export sheet
+Deliverables:
+            * SW Pixel passport suite live
+Acceptance gate:
+            * common passport/photo workflows work on mobile and desktop
+________________
+
+
+PHASE 10: HARDENING, PRICING READINESS, AWS PATH
+Duration: 2 sprints
+Sprint 10.1
+Goal: production hardening and commercial readiness
+Work:
+            * performance checks
+            * rate limits
+            * storage usage tracking
+            * audit completeness review
+            * send log completeness
+            * recurring failure recovery
+            * plan usage metrics for pricing later
+Deliverables:
+            * enterprise readiness pass
+Acceptance gate:
+            * critical flows stable
+Sprint 10.2
+Goal: deployment maturity and migration readiness
+Work:
+            * AWS migration plan
+            * storage abstraction validation
+            * queue abstraction validation
+            * scaling checklist
+            * DR and backup plan
+            * technical debt closure
+Deliverables:
+            * Vercel-to-AWS path documented
+            * product ready for scale-up when needed
+Acceptance gate:
+            * architecture considered migration-safe
+________________
+
+
+21. Team Recommendation
+Minimum Team
+            * 1 frontend/full-stack engineer
+            * 1 backend/data engineer
+            * 1 product designer
+            * 1 QA shared
+            * founder as PM/product owner
+Better Team
+            * 2 frontend engineers
+            * 1 backend/platform engineer
+            * 1 product designer
+            * 1 QA/automation engineer
+            * 1 growth contributor for PDF Studio / SW Pixel lane
+________________
+
+
+22. Success Metrics
+Core SaaS Metrics
+            * signup to onboarding completion
+            * org activation
+            * saved documents per org
+            * recurring invoice adoption
+            * multi-user workspace count
+            * dashboard weekly active users
+            * payment proof usage
+            * ticket response rate
+Utility Metrics
+            * PDF Studio traffic
+            * tool repeat usage
+            * SW Pixel traffic
+            * conversion from utility user to registered workspace
+Operational Metrics
+            * export failure rate
+            * send failure rate
+            * recurring job failure rate
+            * proof upload success rate
+            * proxy audit completeness
+________________
+
+
+23. Key Risks
+Risk 1
+Building the free utility suite too aggressively before the paid workflow core is sticky.
+Risk 2
+Trying to add recurring/scheduling on top of stateless assumptions without completing persistence first.
+Risk 3
+Building proxy without airtight audit trails.
+Risk 4
+Letting suite naming become cosmetic while code architecture remains messy.
+Risk 5
+Turning the app into a broad tool mall instead of a coherent operational suite.
+________________
+
+
+24. Final Product Decision
+Slipwise One should be built as:
+Revenue Core
+            * SW> Docs
+            * SW> Pay
+            * SW> Flow
+            * SW Auth & Access
+            * SW Intel
+Growth Layer
+            * PDF Studio under SW> Docs
+            * SW Pixel
+That is the sane structure.
+________________
+
+
+25. Final Implementation Order
+            1. Stabilize current Slipwise baseline
+            2. Introduce Slipwise One suite shell and module namespaces
+            3. Build SW Auth & Access
+            4. Build persistence for SW> Docs
+            5. Redesign SW> Docs UX and templates
+            6. Build SW> Pay lifecycle
+            7. Build SW> Flow orchestration
+            8. Build SW Intel dashboards and reports
+            9. Add roles, permissions, proxy, audit hardening
+            10. Expand PDF Studio in waves
+            11. Launch SW Pixel later
+That is the correct order if you want a real product instead of a beautiful pile of unrelated controls.
+________________
+
+
+26. Closing Note for Engineering
+This product must be treated as a suite transition, not a module-addition exercise.
+The engineering team should plan this as:
+            * one modular monolith
+            * one shared design system
+            * one shared identity and org model
+            * one shared data platform
+            * multiple suite surfaces
+            * clear domain ownership per sub-product
+The entire point is to make Slipwise One feel like one product family, not six different tools forced to live in the same apartment.
+If you want, next I’ll turn this into Part 2: Technical Engineering Specification in the same text format with:
+            * database schema draft
+            * service boundaries
+            * permission matrix
+            * invoice state machine
+            * recurring job model
+            * API route structure
+            * event/audit model

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
-import { salarySlipExportRequestSchema } from "@/features/salary-slip/schema";
-import { exportSalarySlipDocument } from "@/features/salary-slip/server/export-salary-slip";
-import { buildSalarySlipFilename } from "@/features/salary-slip/utils/build-salary-slip-filename";
+import { salarySlipExportRequestSchema } from "@/features/docs/salary-slip/schema";
+import { exportSalarySlipDocument } from "@/features/docs/salary-slip/server/export-salary-slip";
+import { buildSalarySlipFilename } from "@/features/docs/salary-slip/utils/build-salary-slip-filename";
 import { parseExportRequestBody } from "@/lib/server/parse-export-request-body";
 
 export const runtime = "nodejs";

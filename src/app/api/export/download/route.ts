@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
-import { getVoucherExportSession } from "@/features/voucher/server/export-session-store";
-import type { VoucherDocument } from "@/features/voucher/types";
-import { exportVoucherDocument } from "@/features/voucher/server/export-voucher";
-import { buildVoucherFilename } from "@/features/voucher/utils/build-voucher-filename";
+import { getVoucherExportSession } from "@/features/docs/voucher/server/export-session-store";
+import type { VoucherDocument } from "@/features/docs/voucher/types";
+import { exportVoucherDocument } from "@/features/docs/voucher/server/export-voucher";
+import { buildVoucherFilename } from "@/features/docs/voucher/utils/build-voucher-filename";
 import { deserializeExportPayload } from "@/lib/server/export-payload";
 
 export const runtime = "nodejs";

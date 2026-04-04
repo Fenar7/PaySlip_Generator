@@ -1,4 +1,4 @@
-import { VoucherWorkspace } from "@/features/voucher/components/voucher-workspace";
+import { VoucherWorkspace } from "@/features/docs/voucher/components/voucher-workspace";
 
 export default function VoucherPage() {
   return <VoucherWorkspace />;

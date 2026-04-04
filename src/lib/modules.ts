@@ -1,5 +1,6 @@
 export type ProductModule = {
   slug: "voucher" | "salary-slip" | "invoice" | "pdf-studio";
+  href: string;
   name: string;
   eyebrow: string;
   description: string;
@@ -9,6 +10,7 @@ export type ProductModule = {
 export const productModules: ProductModule[] = [
   {
     slug: "voucher",
+    href: "/app/docs/vouchers/new",
     name: "Voucher Generator",
     eyebrow: "Operations",
     description:
@@ -21,6 +23,7 @@ export const productModules: ProductModule[] = [
   },
   {
     slug: "salary-slip",
+    href: "/app/docs/salary-slips/new",
     name: "Salary Slip Generator",
     eyebrow: "People Ops",
     description:
@@ -33,6 +36,7 @@ export const productModules: ProductModule[] = [
   },
   {
     slug: "invoice",
+    href: "/app/docs/invoices/new",
     name: "Invoice Generator",
     eyebrow: "Finance",
     description:
@@ -45,6 +49,7 @@ export const productModules: ProductModule[] = [
   },
   {
     slug: "pdf-studio",
+    href: "/app/docs/pdf-studio",
     name: "PDF Studio",
     eyebrow: "Utilities",
     description:

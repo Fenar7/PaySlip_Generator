@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
-import { invoiceExportRequestSchema } from "@/features/invoice/schema";
-import { exportInvoiceDocument } from "@/features/invoice/server/export-invoice";
-import { buildInvoiceFilename } from "@/features/invoice/utils/build-invoice-filename";
+import { invoiceExportRequestSchema } from "@/features/docs/invoice/schema";
+import { exportInvoiceDocument } from "@/features/docs/invoice/server/export-invoice";
+import { buildInvoiceFilename } from "@/features/docs/invoice/utils/build-invoice-filename";
 import { parseExportRequestBody } from "@/lib/server/parse-export-request-body";
 
 export const runtime = "nodejs";
