@@ -8,7 +8,7 @@ const envSchema = z.object({
   DIRECT_URL: z.string().optional(),
   RESEND_API_KEY: z.string().optional(),
   RESEND_FROM_EMAIL: z.string().email().optional().default("noreply@slipwise.app"),
-  NEXT_PUBLIC_APP_URL: z.string().url().default("http://localhost:3000"),
+  NEXT_PUBLIC_APP_URL: z.string().url().default("http://localhost:3001"),
   NEXT_PUBLIC_APP_NAME: z.string().default("Slipwise One"),
   NODE_ENV: z
     .enum(["development", "test", "production"])
