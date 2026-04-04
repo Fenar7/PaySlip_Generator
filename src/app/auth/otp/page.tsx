@@ -5,7 +5,7 @@ import Link from "next/link";
 import { AuthCard } from "@/features/auth/components/auth-card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { authClient } from "@/lib/auth-client";
+import { createSupabaseBrowser } from "@/lib/supabase/client";
 
 export default function OTPPage() {
   const router = useRouter();
@@ -20,7 +20,8 @@ export default function OTPPage() {
     setError("");
     setLoading(true);
     try {
-      await authClient.emailOtp.sendVerificationOtp({ email, type: "sign-in" });
+      const supabase = createSupabaseBrowser();
+      await supabase.auth.signInWithOtp({ email });
       setStep("otp");
     } catch {
       setError("Could not send code. Check the email address.");
@@ -34,11 +35,17 @@ export default function OTPPage() {
     setError("");
     setLoading(true);
     try {
-      const result = await authClient.emailOtp.verifyEmail({ email, otp });
-      if (result?.error) {
+      const supabase = createSupabaseBrowser();
+      const { error: verifyError } = await supabase.auth.verifyOtp({
+        email,
+        token: otp,
+        type: "email",
+      });
+      if (verifyError) {
         setError("Invalid or expired code.");
       } else {
         router.push("/app/home");
+        router.refresh();
       }
     } catch {
       setError("Invalid or expired code.");

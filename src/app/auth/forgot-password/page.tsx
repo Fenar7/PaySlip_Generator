@@ -4,7 +4,7 @@ import Link from "next/link";
 import { AuthCard } from "@/features/auth/components/auth-card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { authClient } from "@/lib/auth-client";
+import { createSupabaseBrowser } from "@/lib/supabase/client";
 
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState("");
@@ -15,7 +15,10 @@ export default function ForgotPasswordPage() {
     e.preventDefault();
     setLoading(true);
     try {
-      await authClient.requestPasswordReset({ email, redirectTo: "/auth/reset-password" });
+      const supabase = createSupabaseBrowser();
+      await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: `${window.location.origin}/auth/reset-password`,
+      });
     } finally {
       setLoading(false);
       setSubmitted(true);

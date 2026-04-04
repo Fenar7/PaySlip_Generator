@@ -1,13 +1,23 @@
 "use client";
 import { Button } from "@/components/ui/button";
-import { signIn } from "@/lib/auth-client";
+import { createSupabaseBrowser } from "@/lib/supabase/client";
 
 export function GoogleButton({ callbackURL = "/app/home" }: { callbackURL?: string }) {
+  const handleGoogleSignIn = () => {
+    const supabase = createSupabaseBrowser();
+    supabase.auth.signInWithOAuth({
+      provider: "google",
+      options: {
+        redirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent(callbackURL)}`,
+      },
+    });
+  };
+
   return (
     <Button
       variant="secondary"
       className="w-full"
-      onClick={() => signIn.social({ provider: "google", callbackURL })}
+      onClick={handleGoogleSignIn}
     >
       <svg className="w-4 h-4 mr-2" viewBox="0 0 24 24">
         <path

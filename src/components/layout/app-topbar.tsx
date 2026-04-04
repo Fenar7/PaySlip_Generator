@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useSession, signOut } from "@/lib/auth-client";
+import { useSupabaseSession } from "@/hooks/use-supabase-session";
+import { createSupabaseBrowser } from "@/lib/supabase/client";
 import { Avatar } from "@/components/ui/avatar";
 
 interface AppTopbarProps {
@@ -10,12 +11,13 @@ interface AppTopbarProps {
 }
 
 export function AppTopbar({ orgName }: AppTopbarProps) {
-  const { data: session, isPending } = useSession();
+  const { user, isPending } = useSupabaseSession();
   const router = useRouter();
 
   const handleSignOut = async () => {
-    await signOut();
-    router.push("/auth/login");
+    const supabase = createSupabaseBrowser();
+    await supabase.auth.signOut();
+    router.push("/");
   };
 
   return (
@@ -31,15 +33,15 @@ export function AppTopbar({ orgName }: AppTopbarProps) {
       <div className="flex items-center gap-3">
         {isPending ? (
           <div className="w-8 h-8 rounded-full bg-[#333] animate-pulse" />
-        ) : session ? (
+        ) : user ? (
           <div className="flex items-center gap-2">
             <Avatar
-              name={session.user.name ?? undefined}
-              imageUrl={session.user.image ?? undefined}
+              name={user.user_metadata.name ?? undefined}
+              imageUrl={user.user_metadata.avatar_url ?? undefined}
               size="sm"
             />
             <span className="text-sm font-medium text-[var(--foreground)] hidden sm:block">
-              {session.user.name}
+              {user.user_metadata.name}
             </span>
             <button
               onClick={handleSignOut}

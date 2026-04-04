@@ -1,14 +1,13 @@
 "use client";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { authClient, signOut } from "@/lib/auth-client";
+import { createSupabaseBrowser } from "@/lib/supabase/client";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 
 export default function SecuritySettingsPage() {
   const router = useRouter();
-  const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [saving, setSaving] = useState(false);
@@ -29,29 +28,26 @@ export default function SecuritySettingsPage() {
     }
     setSaving(true);
     try {
-      const result = await authClient.changePassword({
-        currentPassword,
-        newPassword,
-        revokeOtherSessions: true,
-      });
-      if (result?.error) {
-        setError(result.error.message ?? "Could not change password");
+      const supabase = createSupabaseBrowser();
+      const { error: updateError } = await supabase.auth.updateUser({ password: newPassword });
+      if (updateError) {
+        setError(updateError.message ?? "Could not change password");
       } else {
         setSuccess(true);
-        setCurrentPassword("");
         setNewPassword("");
         setConfirmPassword("");
       }
     } catch {
-      setError("Could not change password. Check your current password.");
+      setError("Could not change password.");
     } finally {
       setSaving(false);
     }
   }
 
   async function handleSignOutAll() {
-    await signOut();
-    router.push("/auth/login");
+    const supabase = createSupabaseBrowser();
+    await supabase.auth.signOut();
+    router.push("/");
   }
 
   return (
@@ -62,14 +58,6 @@ export default function SecuritySettingsPage() {
         </CardHeader>
         <CardContent>
           <form onSubmit={handleChangePassword} className="space-y-4 max-w-md">
-            <Input
-              label="Current password"
-              type="password"
-              value={currentPassword}
-              onChange={e => setCurrentPassword(e.target.value)}
-              required
-              autoComplete="current-password"
-            />
             <Input
               label="New password"
               type="password"
@@ -88,7 +76,7 @@ export default function SecuritySettingsPage() {
             />
             {success && (
               <p className="text-sm text-green-600">
-                ✓ Password changed. Other sessions have been signed out.
+                ✓ Password changed successfully.
               </p>
             )}
             {error && <p className="text-sm text-red-600">{error}</p>}

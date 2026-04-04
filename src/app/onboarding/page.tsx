@@ -3,7 +3,8 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { authClient } from "@/lib/auth-client";
+import { useSupabaseSession } from "@/hooks/use-supabase-session";
+import { createOrg } from "@/app/app/actions/org-actions";
 import {
   saveOnboardingBranding,
   saveOnboardingFinancials,
@@ -19,6 +20,7 @@ function slugify(str: string) {
 
 export default function OnboardingPage() {
   const router = useRouter();
+  const { user } = useSupabaseSession();
   const [step, setStep] = useState(1);
   const [orgId, setOrgId] = useState("");
   const [loading, setLoading] = useState(false);
@@ -52,17 +54,18 @@ export default function OnboardingPage() {
       setError("Organization name is required");
       return;
     }
+    if (!user?.id) {
+      setError("You must be signed in to create an organization");
+      return;
+    }
     setError("");
     setLoading(true);
     try {
-      const result = await authClient.organization.create({ name: orgName.trim(), slug });
-      if (result?.error) {
-        setError(result.error.message ?? "Could not create organization");
-        return;
+      const org = await createOrg({ name: orgName.trim(), slug, userId: user.id });
+      setOrgId(org.id);
+      if (typeof window !== "undefined") {
+        localStorage.setItem("slipwise_active_org_id", org.id);
       }
-      const id = result.data?.id ?? "";
-      setOrgId(id);
-      await authClient.organization.setActive({ organizationId: id });
       setStep(2);
     } catch {
       setError("Could not create organization. Try a different name.");

@@ -7,7 +7,7 @@ import { GoogleButton } from "@/features/auth/components/google-button";
 import { AuthDivider } from "@/features/auth/components/auth-divider";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { signUp } from "@/lib/auth-client";
+import { createSupabaseBrowser } from "@/lib/supabase/client";
 
 export default function SignupPage() {
   const router = useRouter();
@@ -31,9 +31,14 @@ export default function SignupPage() {
     }
     setLoading(true);
     try {
-      const result = await signUp.email({ name, email, password });
-      if (result?.error) {
-        setError(result.error.message ?? "Could not create account");
+      const supabase = createSupabaseBrowser();
+      const { error: signUpError } = await supabase.auth.signUp({
+        email,
+        password,
+        options: { data: { name } },
+      });
+      if (signUpError) {
+        setError(signUpError.message ?? "Could not create account");
       } else {
         router.push("/auth/verify-email?email=" + encodeURIComponent(email));
       }

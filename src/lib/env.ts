@@ -1,11 +1,11 @@
 import { z } from "zod";
 
 const envSchema = z.object({
+  NEXT_PUBLIC_SUPABASE_URL: z.string().url("NEXT_PUBLIC_SUPABASE_URL must be a valid URL"),
+  NEXT_PUBLIC_SUPABASE_ANON_KEY: z.string().min(1, "NEXT_PUBLIC_SUPABASE_ANON_KEY is required"),
+  SUPABASE_SERVICE_ROLE_KEY: z.string().optional(),
   DATABASE_URL: z.string().min(1, "DATABASE_URL is required"),
-  BETTER_AUTH_SECRET: z.string().min(32, "BETTER_AUTH_SECRET must be at least 32 chars"),
-  BETTER_AUTH_URL: z.string().url().default("http://localhost:3000"),
-  GOOGLE_CLIENT_ID: z.string().optional(),
-  GOOGLE_CLIENT_SECRET: z.string().optional(),
+  DIRECT_URL: z.string().optional(),
   RESEND_API_KEY: z.string().optional(),
   RESEND_FROM_EMAIL: z.string().email().optional().default("noreply@slipwise.app"),
   NEXT_PUBLIC_APP_URL: z.string().url().default("http://localhost:3000"),
@@ -22,7 +22,6 @@ function validateEnv(): Env {
   if (!result.success) {
     console.error("❌ Invalid environment variables:");
     console.error(result.error.flatten().fieldErrors);
-    // In production, throw. In dev, warn and continue with defaults where possible.
     if (process.env.NODE_ENV === "production") {
       throw new Error("Invalid environment variables");
     }
