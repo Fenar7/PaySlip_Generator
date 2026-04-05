@@ -7,6 +7,10 @@ const navItems = [
   { label: "Profile", href: "/app/settings/profile" },
   { label: "Security", href: "/app/settings/security" },
   { label: "Organization", href: "/app/settings/organization" },
+  { label: "Team Members", href: "/app/settings/users" },
+  { label: "Roles", href: "/app/settings/roles" },
+  { label: "Proxy Access", href: "/app/settings/access" },
+  { label: "Audit Log", href: "/app/settings/audit" },
 ];
 
 export default function SettingsLayout({ children }: { children: React.ReactNode }) {
