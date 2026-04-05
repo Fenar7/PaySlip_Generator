@@ -85,15 +85,19 @@ function buildLines(values: VoucherFormValues): VoucherInput["lines"] {
 function VoucherPanel({
   voucherId,
   vendors,
+  initialTemplateId,
 }: {
   voucherId?: string;
   vendors: Vendor[];
+  initialTemplateId?: string;
 }) {
   const { control, getValues, setValue, trigger } = useFormContextSafe();
   const values = useWatch({ control }) as VoucherFormValues;
   const isPayment = values.voucherType === "payment";
   const isMultiLine = values.isMultiLine ?? false;
-  const [selectedTemplateId, setSelectedTemplateId] = useState(values.templateId);
+  const [selectedTemplateId, setSelectedTemplateId] = useState(
+    initialTemplateId ? (initialTemplateId as VoucherFormValues["templateId"]) : values.templateId
+  );
   const visibility = values.visibility;
   const previewDocument = normalizeVoucher({
     ...values,
@@ -728,10 +732,12 @@ export function VoucherWorkspace({
   voucherId,
   initialValues,
   vendors = [],
+  initialTemplateId,
 }: {
   voucherId?: string;
   initialValues?: Partial<VoucherFormValues>;
   vendors?: Vendor[];
+  initialTemplateId?: string;
 }) {
   const methods = useForm<VoucherFormValues>({
     resolver: zodResolver(voucherFormSchema),
@@ -743,7 +749,7 @@ export function VoucherWorkspace({
 
   return (
     <FormProvider {...methods}>
-      <VoucherPanel voucherId={voucherId} vendors={vendors} />
+      <VoucherPanel voucherId={voucherId} vendors={vendors} initialTemplateId={initialTemplateId} />
     </FormProvider>
   );
 }

@@ -75,21 +75,30 @@ export async function deleteSalaryPreset(id: string): Promise<ActionResult<void>
   }
 }
 
-export async function listSalaryPresets() {
+export async function listSalaryPresets(params?: { limit?: number; offset?: number }) {
   try {
     const { orgId } = await requireOrgContext();
-    const presets = await db.salaryPreset.findMany({
-      where: { organizationId: orgId },
-      orderBy: { createdAt: "desc" },
-    });
-    return presets.map((p) => ({
-      id: p.id,
-      name: p.name,
-      components: p.components as unknown as PresetComponent[],
-    }));
+    const where = { organizationId: orgId };
+    const [presets, total] = await Promise.all([
+      db.salaryPreset.findMany({
+        where,
+        orderBy: { createdAt: "desc" },
+        ...(params?.limit !== undefined && { take: params.limit }),
+        ...(params?.offset !== undefined && { skip: params.offset }),
+      }),
+      db.salaryPreset.count({ where }),
+    ]);
+    return {
+      presets: presets.map((p) => ({
+        id: p.id,
+        name: p.name,
+        components: p.components as unknown as PresetComponent[],
+      })),
+      total,
+    };
   } catch (error) {
     console.error("listSalaryPresets error:", error);
-    return [];
+    return { presets: [], total: 0 };
   }
 }
 

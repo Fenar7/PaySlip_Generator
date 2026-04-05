@@ -61,6 +61,7 @@ interface WorkspacePreset {
 interface WorkspaceProps {
   employees?: WorkspaceEmployee[];
   presets?: WorkspacePreset[];
+  initialTemplateId?: string;
 }
 
 const MONTH_NAMES = [
@@ -237,10 +238,12 @@ function SalaryLineItemsEditor({
   );
 }
 
-function SalarySlipPanel({ employees = [], presets = [] }: WorkspaceProps) {
+function SalarySlipPanel({ employees = [], presets = [], initialTemplateId }: WorkspaceProps) {
   const { control, getValues, setValue, trigger, reset } = useFormContextSafe();
   const values = useWatch({ control }) as SalarySlipFormValues;
-  const [selectedTemplateId, setSelectedTemplateId] = useState(values.templateId);
+  const [selectedTemplateId, setSelectedTemplateId] = useState(
+    initialTemplateId ? (initialTemplateId as SalarySlipFormValues["templateId"]) : values.templateId
+  );
   const previewDocumentWithTemplate = normalizeSalarySlip({
     ...values,
     templateId: selectedTemplateId,
@@ -885,7 +888,7 @@ function useFormContextSafe() {
   return useFormContext<SalarySlipFormValues>();
 }
 
-export function SalarySlipWorkspace({ employees = [], presets = [] }: WorkspaceProps) {
+export function SalarySlipWorkspace({ employees = [], presets = [], initialTemplateId }: WorkspaceProps) {
   const methods = useForm<SalarySlipFormValues>({
     resolver: zodResolver(salarySlipFormSchema),
     defaultValues: salarySlipDefaultValues,
@@ -894,7 +897,7 @@ export function SalarySlipWorkspace({ employees = [], presets = [] }: WorkspaceP
 
   return (
     <FormProvider {...methods}>
-      <SalarySlipPanel employees={employees} presets={presets} />
+      <SalarySlipPanel employees={employees} presets={presets} initialTemplateId={initialTemplateId} />
     </FormProvider>
   );
 }
