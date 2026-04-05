@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { toast } from "sonner";
 import {
   FormProvider,
   useForm,
@@ -84,15 +85,19 @@ function buildLines(values: VoucherFormValues): VoucherInput["lines"] {
 function VoucherPanel({
   voucherId,
   vendors,
+  initialTemplateId,
 }: {
   voucherId?: string;
   vendors: Vendor[];
+  initialTemplateId?: string;
 }) {
   const { control, getValues, setValue, trigger } = useFormContextSafe();
   const values = useWatch({ control }) as VoucherFormValues;
   const isPayment = values.voucherType === "payment";
   const isMultiLine = values.isMultiLine ?? false;
-  const [selectedTemplateId, setSelectedTemplateId] = useState(values.templateId);
+  const [selectedTemplateId, setSelectedTemplateId] = useState(
+    initialTemplateId ? (initialTemplateId as VoucherFormValues["templateId"]) : values.templateId
+  );
   const visibility = values.visibility;
   const previewDocument = normalizeVoucher({
     ...values,
@@ -134,14 +139,25 @@ function VoucherPanel({
         lines: buildLines(currentValues),
       };
       if (savedId) {
-        await updateVoucher(savedId, input);
+        const result = await updateVoucher(savedId, input);
+        if (result.success) {
+          toast.success("Voucher saved");
+        } else {
+          toast.error(result.error || "Failed to save voucher");
+        }
       } else {
         const result = await saveVoucher(input, "draft");
         if (result.success) {
           setSavedId(result.data.id);
           setSavedNumber(result.data.voucherNumber);
+          toast.success("Voucher saved");
+        } else {
+          toast.error(result.error || "Failed to save voucher");
         }
       }
+    } catch (err) {
+      toast.error("An unexpected error occurred");
+      console.error(err);
     } finally {
       setIsSaving(false);
     }
@@ -161,14 +177,25 @@ function VoucherPanel({
         lines: buildLines(currentValues),
       };
       if (savedId) {
-        await updateVoucher(savedId, input);
+        const result = await updateVoucher(savedId, input);
+        if (result.success) {
+          toast.success("Voucher approved");
+        } else {
+          toast.error(result.error || "Failed to approve voucher");
+        }
       } else {
         const result = await saveVoucher(input, "approved");
         if (result.success) {
           setSavedId(result.data.id);
           setSavedNumber(result.data.voucherNumber);
+          toast.success("Voucher approved");
+        } else {
+          toast.error(result.error || "Failed to approve voucher");
         }
       }
+    } catch (err) {
+      toast.error("An unexpected error occurred");
+      console.error(err);
     } finally {
       setIsSaving(false);
     }
@@ -705,10 +732,12 @@ export function VoucherWorkspace({
   voucherId,
   initialValues,
   vendors = [],
+  initialTemplateId,
 }: {
   voucherId?: string;
   initialValues?: Partial<VoucherFormValues>;
   vendors?: Vendor[];
+  initialTemplateId?: string;
 }) {
   const methods = useForm<VoucherFormValues>({
     resolver: zodResolver(voucherFormSchema),
@@ -720,7 +749,7 @@ export function VoucherWorkspace({
 
   return (
     <FormProvider {...methods}>
-      <VoucherPanel voucherId={voucherId} vendors={vendors} />
+      <VoucherPanel voucherId={voucherId} vendors={vendors} initialTemplateId={initialTemplateId} />
     </FormProvider>
   );
 }

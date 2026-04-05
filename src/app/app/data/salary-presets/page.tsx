@@ -6,8 +6,12 @@ export const metadata = {
   title: "Salary Presets | Slipwise",
 };
 
-async function PresetsList() {
-  const presets = await listSalaryPresets();
+const LIMIT = 20;
+
+async function PresetsList({ page }: { page: number }) {
+  const offset = (page - 1) * LIMIT;
+  const { presets, total } = await listSalaryPresets({ limit: LIMIT, offset });
+  const totalPages = Math.ceil(total / LIMIT);
 
   if (presets.length === 0) {
     return (
@@ -42,78 +46,114 @@ async function PresetsList() {
   }
 
   return (
-    <div className="space-y-4">
-      {presets.map((preset) => {
-        const earnings = preset.components.filter((c) => c.type === "earning");
-        const deductions = preset.components.filter((c) => c.type === "deduction");
-        const totalEarnings = earnings.reduce((s, c) => s + c.amount, 0);
-        const totalDeductions = deductions.reduce((s, c) => s + c.amount, 0);
+    <>
+      <div className="space-y-4">
+        {presets.map((preset) => {
+          const earnings = preset.components.filter((c) => c.type === "earning");
+          const deductions = preset.components.filter((c) => c.type === "deduction");
+          const totalEarnings = earnings.reduce((s, c) => s + c.amount, 0);
+          const totalDeductions = deductions.reduce((s, c) => s + c.amount, 0);
 
-        return (
-          <div key={preset.id} className="rounded-xl border border-slate-200 bg-white p-5">
-            <div className="flex items-start justify-between">
-              <div className="flex-1">
-                <h3 className="font-semibold text-slate-900">{preset.name}</h3>
-                <div className="mt-2 flex flex-wrap gap-3 text-xs text-slate-500">
-                  <span className="text-green-700">
-                    Earnings: {earnings.length} items · ₹
-                    {totalEarnings.toLocaleString("en-IN")}
-                  </span>
-                  <span className="text-red-600">
-                    Deductions: {deductions.length} items · ₹
-                    {totalDeductions.toLocaleString("en-IN")}
-                  </span>
-                  <span className="font-medium text-slate-700">
-                    Net: ₹{(totalEarnings - totalDeductions).toLocaleString("en-IN")}
-                  </span>
-                </div>
-                <div className="mt-2 flex flex-wrap gap-1">
-                  {preset.components.slice(0, 6).map((c, i) => (
-                    <span
-                      key={i}
-                      className={`rounded-full px-2 py-0.5 text-xs ${
-                        c.type === "earning"
-                          ? "bg-green-50 text-green-700"
-                          : "bg-red-50 text-red-700"
-                      }`}
-                    >
-                      {c.label}
+          return (
+            <div key={preset.id} className="rounded-xl border border-slate-200 bg-white p-5">
+              <div className="flex items-start justify-between">
+                <div className="flex-1">
+                  <h3 className="font-semibold text-slate-900">{preset.name}</h3>
+                  <div className="mt-2 flex flex-wrap gap-3 text-xs text-slate-500">
+                    <span className="text-green-700">
+                      Earnings: {earnings.length} items · ₹
+                      {totalEarnings.toLocaleString("en-IN")}
                     </span>
-                  ))}
-                  {preset.components.length > 6 && (
-                    <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-500">
-                      +{preset.components.length - 6} more
+                    <span className="text-red-600">
+                      Deductions: {deductions.length} items · ₹
+                      {totalDeductions.toLocaleString("en-IN")}
                     </span>
-                  )}
+                    <span className="font-medium text-slate-700">
+                      Net: ₹{(totalEarnings - totalDeductions).toLocaleString("en-IN")}
+                    </span>
+                  </div>
+                  <div className="mt-2 flex flex-wrap gap-1">
+                    {preset.components.slice(0, 6).map((c, i) => (
+                      <span
+                        key={i}
+                        className={`rounded-full px-2 py-0.5 text-xs ${
+                          c.type === "earning"
+                            ? "bg-green-50 text-green-700"
+                            : "bg-red-50 text-red-700"
+                        }`}
+                      >
+                        {c.label}
+                      </span>
+                    ))}
+                    {preset.components.length > 6 && (
+                      <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-500">
+                        +{preset.components.length - 6} more
+                      </span>
+                    )}
+                  </div>
                 </div>
-              </div>
-              <div className="ml-4 flex gap-2">
-                <Link
-                  href={`/app/data/salary-presets/${preset.id}`}
-                  className="text-sm text-blue-600 hover:underline"
-                >
-                  Edit
-                </Link>
-                <form
-                  action={async () => {
-                    "use server";
-                    await deleteSalaryPreset(preset.id);
-                  }}
-                >
-                  <button type="submit" className="text-sm text-red-600 hover:underline">
-                    Delete
-                  </button>
-                </form>
+                <div className="ml-4 flex gap-2">
+                  <Link
+                    href={`/app/data/salary-presets/${preset.id}`}
+                    className="text-sm text-blue-600 hover:underline"
+                  >
+                    Edit
+                  </Link>
+                  <form
+                    action={async () => {
+                      "use server";
+                      await deleteSalaryPreset(preset.id);
+                    }}
+                  >
+                    <button type="submit" className="text-sm text-red-600 hover:underline">
+                      Delete
+                    </button>
+                  </form>
+                </div>
               </div>
             </div>
+          );
+        })}
+      </div>
+
+      {/* Pagination */}
+      {totalPages > 1 && (
+        <div className="mt-6 flex items-center justify-between">
+          <p className="text-sm text-slate-500">
+            Showing {offset + 1}–{Math.min(offset + LIMIT, total)} of {total}
+          </p>
+          <div className="flex gap-2">
+            {page > 1 && (
+              <Link
+                href={`?page=${page - 1}`}
+                className="rounded px-3 py-1 text-sm text-slate-600 hover:bg-slate-100"
+              >
+                Previous
+              </Link>
+            )}
+            {page < totalPages && (
+              <Link
+                href={`?page=${page + 1}`}
+                className="rounded px-3 py-1 text-sm text-slate-600 hover:bg-slate-100"
+              >
+                Next
+              </Link>
+            )}
           </div>
-        );
-      })}
-    </div>
+        </div>
+      )}
+    </>
   );
 }
 
-export default function SalaryPresetsPage() {
+export default async function SalaryPresetsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ page?: string }>;
+}) {
+  const params = await searchParams;
+  const page = Math.max(1, parseInt(params.page || "1", 10));
+
   return (
     <div className="min-h-screen bg-slate-50">
       <div className="mx-auto max-w-3xl px-4 py-8">
@@ -134,7 +174,7 @@ export default function SalaryPresetsPage() {
         <Suspense
           fallback={<div className="py-8 text-center text-slate-500">Loading...</div>}
         >
-          <PresetsList />
+          <PresetsList page={page} />
         </Suspense>
       </div>
     </div>

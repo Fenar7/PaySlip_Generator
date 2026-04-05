@@ -12,7 +12,10 @@ export interface TemplateDefinition {
   description: string;
   category: TemplateCategory;
   docTypes: DocType[];
+  /** Base templateId (used when no per-docType override is set). For invoices this is always the canonical value. */
   templateId: string;
+  /** Per-docType overrides when a template supports multiple doc types with different workspace IDs. */
+  templateIdByDocType?: Partial<Record<DocType, string>>;
   previewImage: string;
   isPremium: boolean;
   tags: string[];
@@ -27,6 +30,7 @@ export const TEMPLATE_REGISTRY: TemplateDefinition[] = [
     category: "general",
     docTypes: ["invoice", "voucher", "salary-slip"],
     templateId: "minimal",
+    templateIdByDocType: { voucher: "minimal-office", "salary-slip": "corporate-clean" },
     previewImage: "/templates/minimal-clean.svg",
     isPremium: false,
     tags: ["clean", "white", "simple"],
@@ -38,6 +42,7 @@ export const TEMPLATE_REGISTRY: TemplateDefinition[] = [
     category: "general",
     docTypes: ["invoice", "voucher"],
     templateId: "professional",
+    templateIdByDocType: { voucher: "traditional-ledger" },
     previewImage: "/templates/professional-navy.svg",
     isPremium: false,
     tags: ["structured", "professional", "corporate"],
@@ -71,7 +76,7 @@ export const TEMPLATE_REGISTRY: TemplateDefinition[] = [
     description: "Clean receipt format for patient billing and pharmacy use.",
     category: "medical",
     docTypes: ["voucher"],
-    templateId: "minimal",
+    templateId: "minimal-office",
     previewImage: "/templates/clinical-receipt.svg",
     isPremium: false,
     tags: ["pharmacy", "receipt", "patient"],
@@ -117,7 +122,7 @@ export const TEMPLATE_REGISTRY: TemplateDefinition[] = [
     description: "Clean restaurant receipt with table number and cover count support.",
     category: "hospitality",
     docTypes: ["voucher"],
-    templateId: "minimal",
+    templateId: "minimal-office",
     previewImage: "/templates/restaurant-bill.svg",
     isPremium: false,
     tags: ["restaurant", "food", "dining"],
@@ -129,7 +134,7 @@ export const TEMPLATE_REGISTRY: TemplateDefinition[] = [
     description: "Formal salary slip layout for mid to large enterprises.",
     category: "hr",
     docTypes: ["salary-slip"],
-    templateId: "professional",
+    templateId: "corporate-clean",
     previewImage: "/templates/corporate-salary.svg",
     isPremium: false,
     tags: ["corporate", "salary", "hr"],
@@ -140,7 +145,7 @@ export const TEMPLATE_REGISTRY: TemplateDefinition[] = [
     description: "Premium salary slip with CTC breakdown and benefits summary.",
     category: "hr",
     docTypes: ["salary-slip"],
-    templateId: "bold-brand",
+    templateId: "modern-premium",
     previewImage: "/templates/executive-slip.svg",
     isPremium: true,
     tags: ["executive", "premium", "ctc"],
@@ -167,4 +172,9 @@ export function getTemplatesForDocType(docType: DocType): TemplateDefinition[] {
 
 export function getTemplatesByCategory(category: TemplateCategory): TemplateDefinition[] {
   return TEMPLATE_REGISTRY.filter((t) => t.category === category);
+}
+
+/** Returns the correct templateId for the given docType, respecting per-docType overrides. */
+export function getEffectiveTemplateId(template: TemplateDefinition, docType: DocType): string {
+  return template.templateIdByDocType?.[docType] ?? template.templateId;
 }

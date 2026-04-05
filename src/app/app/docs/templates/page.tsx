@@ -5,7 +5,7 @@ import {
   type DocType,
   type TemplateCategory,
 } from "@/lib/docs/templates/registry";
-import { TemplateCard } from "./template-card";
+import { TemplateStoreClient } from "./template-store-client";
 
 export const metadata = {
   title: "Template Store | Slipwise",
@@ -116,11 +116,7 @@ export default async function TemplatesPage({
             </a>
           </div>
         ) : (
-          <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-            {filtered.map((template) => (
-              <TemplateCard key={template.id} template={template} />
-            ))}
-          </div>
+          <TemplateStoreClient templates={filtered} />
         )}
       </div>
     </div>

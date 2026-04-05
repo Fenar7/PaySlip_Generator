@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
+import { toast } from "sonner";
 import { FormProvider, useFieldArray, useForm, useFormContext, useWatch } from "react-hook-form";
 import { saveSalarySlip, updateSalarySlip, releaseSalarySlip } from "@/app/app/docs/salary-slips/actions";
 import { EmployeePicker } from "./employee-picker";
@@ -60,6 +61,7 @@ interface WorkspacePreset {
 interface WorkspaceProps {
   employees?: WorkspaceEmployee[];
   presets?: WorkspacePreset[];
+  initialTemplateId?: string;
 }
 
 const MONTH_NAMES = [
@@ -236,10 +238,12 @@ function SalaryLineItemsEditor({
   );
 }
 
-function SalarySlipPanel({ employees = [], presets = [] }: WorkspaceProps) {
+function SalarySlipPanel({ employees = [], presets = [], initialTemplateId }: WorkspaceProps) {
   const { control, getValues, setValue, trigger, reset } = useFormContextSafe();
   const values = useWatch({ control }) as SalarySlipFormValues;
-  const [selectedTemplateId, setSelectedTemplateId] = useState(values.templateId);
+  const [selectedTemplateId, setSelectedTemplateId] = useState(
+    initialTemplateId ? (initialTemplateId as SalarySlipFormValues["templateId"]) : values.templateId
+  );
   const previewDocumentWithTemplate = normalizeSalarySlip({
     ...values,
     templateId: selectedTemplateId,
@@ -280,16 +284,27 @@ function SalarySlipPanel({ employees = [], presets = [] }: WorkspaceProps) {
     try {
       const input = await buildSaveInput();
       if (savedId) {
-        await updateSalarySlip(savedId, input);
-        reset(getValues(), { keepValues: true });
+        const result = await updateSalarySlip(savedId, input);
+        if (result.success) {
+          reset(getValues(), { keepValues: true });
+          toast.success("Salary slip saved");
+        } else {
+          toast.error(result.error || "Failed to save salary slip");
+        }
       } else {
         const result = await saveSalarySlip(input, "draft");
         if (result.success) {
           setSavedId(result.data.id);
           setSlipNumber(result.data.slipNumber);
           reset(getValues(), { keepValues: true });
+          toast.success("Salary slip saved");
+        } else {
+          toast.error(result.error || "Failed to save salary slip");
         }
       }
+    } catch (err) {
+      toast.error("An unexpected error occurred");
+      console.error(err);
     } finally {
       setIsSaving(false);
     }
@@ -300,17 +315,32 @@ function SalarySlipPanel({ employees = [], presets = [] }: WorkspaceProps) {
     try {
       const input = await buildSaveInput();
       if (savedId) {
-        await updateSalarySlip(savedId, input);
-        await releaseSalarySlip(savedId);
-        reset(getValues(), { keepValues: true });
+        const updateResult = await updateSalarySlip(savedId, input);
+        if (!updateResult.success) {
+          toast.error(updateResult.error || "Failed to save salary slip");
+          return;
+        }
+        const releaseResult = await releaseSalarySlip(savedId);
+        if (releaseResult.success) {
+          reset(getValues(), { keepValues: true });
+          toast.success("Salary slip released");
+        } else {
+          toast.error(releaseResult.error || "Failed to release salary slip");
+        }
       } else {
         const result = await saveSalarySlip(input, "released");
         if (result.success) {
           setSavedId(result.data.id);
           setSlipNumber(result.data.slipNumber);
           reset(getValues(), { keepValues: true });
+          toast.success("Salary slip released");
+        } else {
+          toast.error(result.error || "Failed to release salary slip");
         }
       }
+    } catch (err) {
+      toast.error("An unexpected error occurred");
+      console.error(err);
     } finally {
       setIsSaving(false);
     }
@@ -858,7 +888,7 @@ function useFormContextSafe() {
   return useFormContext<SalarySlipFormValues>();
 }
 
-export function SalarySlipWorkspace({ employees = [], presets = [] }: WorkspaceProps) {
+export function SalarySlipWorkspace({ employees = [], presets = [], initialTemplateId }: WorkspaceProps) {
   const methods = useForm<SalarySlipFormValues>({
     resolver: zodResolver(salarySlipFormSchema),
     defaultValues: salarySlipDefaultValues,
@@ -867,7 +897,7 @@ export function SalarySlipWorkspace({ employees = [], presets = [] }: WorkspaceP
 
   return (
     <FormProvider {...methods}>
-      <SalarySlipPanel employees={employees} presets={presets} />
+      <SalarySlipPanel employees={employees} presets={presets} initialTemplateId={initialTemplateId} />
     </FormProvider>
   );
 }

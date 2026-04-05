@@ -30,9 +30,11 @@ export type ExistingVoucher = {
 export function VoucherBrandingWrapper({
   existingVoucher,
   vendors = [],
+  initialTemplateId,
 }: {
   existingVoucher?: ExistingVoucher;
   vendors?: Vendor[];
+  initialTemplateId?: string;
 }) {
   const branding = useOrgBranding();
 
@@ -59,6 +61,7 @@ export function VoucherBrandingWrapper({
         voucherId={existingVoucher?.id}
         initialValues={initialValues}
         vendors={vendors}
+        initialTemplateId={initialTemplateId}
       />
     </div>
   );

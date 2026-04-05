@@ -215,6 +215,8 @@ export default async function SalarySlipsPage({
   const status = params.status;
   const month = params.month ? parseInt(params.month, 10) : undefined;
   const year = params.year ? parseInt(params.year, 10) : undefined;
+  const currentYear = new Date().getFullYear();
+  const yearOptions = [currentYear - 2, currentYear - 1, currentYear, currentYear + 1];
 
   return (
     <div className="min-h-screen bg-slate-50">
@@ -231,6 +233,59 @@ export default async function SalarySlipsPage({
             Create Salary Slip
           </Link>
         </div>
+
+        {/* Search + Month/Year Filters */}
+        <form method="GET" className="mb-4">
+          {params.status && <input type="hidden" name="status" value={params.status} />}
+          <div className="flex flex-wrap items-end gap-3">
+            <div className="relative max-w-sm flex-1">
+              <input
+                type="text"
+                name="search"
+                defaultValue={params.search || ""}
+                placeholder="Search salary slips..."
+                className="w-full rounded-lg border border-slate-200 bg-white px-4 py-2 pl-9 text-sm text-slate-700 placeholder-slate-400 focus:border-red-400 focus:outline-none focus:ring-1 focus:ring-red-400"
+              />
+              <svg className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+              </svg>
+            </div>
+            <select
+              name="month"
+              defaultValue={params.month || ""}
+              className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 focus:border-red-400 focus:outline-none focus:ring-1 focus:ring-red-400"
+            >
+              <option value="">All Months</option>
+              {MONTHS.map((label, i) => (
+                <option key={i + 1} value={i + 1}>{label}</option>
+              ))}
+            </select>
+            <select
+              name="year"
+              defaultValue={params.year || ""}
+              className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 focus:border-red-400 focus:outline-none focus:ring-1 focus:ring-red-400"
+            >
+              <option value="">All Years</option>
+              {yearOptions.map((y) => (
+                <option key={y} value={y}>{y}</option>
+              ))}
+            </select>
+            <button
+              type="submit"
+              className="rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 transition-colors"
+            >
+              Filter
+            </button>
+            {(params.search || params.month || params.year) && (
+              <a
+                href={params.status ? `/app/docs/salary-slips?status=${params.status}` : "/app/docs/salary-slips"}
+                className="text-sm text-slate-500 hover:text-slate-700"
+              >
+                Clear
+              </a>
+            )}
+          </div>
+        </form>
 
         <div className="mb-4">
           <StatusFilterChips currentStatus={status} />

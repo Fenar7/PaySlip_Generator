@@ -24,11 +24,13 @@ interface WorkspacePreset {
 interface BrandingWrapperProps {
   employees?: WorkspaceEmployee[];
   presets?: WorkspacePreset[];
+  initialTemplateId?: string;
 }
 
 export function SalarySlipBrandingWrapper({
   employees = [],
   presets = [],
+  initialTemplateId,
 }: BrandingWrapperProps) {
   const branding = useOrgBranding();
 
@@ -42,7 +44,7 @@ export function SalarySlipBrandingWrapper({
         } as React.CSSProperties
       }
     >
-      <SalarySlipWorkspace employees={employees} presets={presets} />
+      <SalarySlipWorkspace employees={employees} presets={presets} initialTemplateId={initialTemplateId} />
     </div>
   );
 }
