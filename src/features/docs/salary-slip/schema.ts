@@ -41,7 +41,7 @@ const lineItemSchema = z.object({
 });
 
 export const salarySlipDocumentSchema = z.object({
-  templateId: z.enum(["corporate-clean", "modern-premium"]),
+  templateId: z.enum(["corporate-clean", "modern-premium", "classic-formal", "detailed-breakdown", "compact-payslip"]),
   title: z.string().trim().min(1),
   branding: brandingSchema,
   employeeName: z.string().trim().min(1),
@@ -94,7 +94,7 @@ export const salarySlipExportRequestSchema = z.object({
 
 export const salarySlipFormSchema = z
   .object({
-    templateId: z.enum(["corporate-clean", "modern-premium"]),
+    templateId: z.enum(["corporate-clean", "modern-premium", "classic-formal", "detailed-breakdown", "compact-payslip"]),
     branding: brandingSchema.extend({
       companyName: z.string().trim().min(1, "Company name is required."),
     }),

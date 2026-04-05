@@ -34,7 +34,7 @@ const visibilitySchema = z.object({
 });
 
 export const voucherDocumentSchema = z.object({
-  templateId: z.enum(["minimal-office", "traditional-ledger"]),
+  templateId: z.enum(["minimal-office", "traditional-ledger", "modern-card", "formal-bordered", "compact-receipt"]),
   voucherType: z.enum(["payment", "receipt"]),
   title: z.string().trim().min(1),
   counterpartyLabel: z.string().trim().min(1),
@@ -59,7 +59,7 @@ export const voucherExportRequestSchema = z.object({
 });
 
 export const voucherFormSchema = z.object({
-  templateId: z.enum(["minimal-office", "traditional-ledger"]),
+  templateId: z.enum(["minimal-office", "traditional-ledger", "modern-card", "formal-bordered", "compact-receipt"]),
   voucherType: z.enum(["payment", "receipt"]),
   branding: brandingSchema,
   voucherNumber: z.string().trim().min(1, "Voucher number is required."),

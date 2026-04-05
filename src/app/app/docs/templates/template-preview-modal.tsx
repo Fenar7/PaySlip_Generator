@@ -168,8 +168,14 @@ export function TemplatePreviewModal({
         <div className="flex min-h-0 flex-1 overflow-y-auto bg-slate-100 p-6">
           {preview ? (
             <div className="mx-auto w-full max-w-3xl">
-              {/* A4-like white page container */}
-              <div className="relative mx-auto overflow-hidden rounded-lg bg-white shadow-lg ring-1 ring-black/5">
+              {/* A4-like white page container with CSS vars templates depend on */}
+              <div
+                className="relative mx-auto overflow-hidden rounded-lg bg-white shadow-lg ring-1 ring-black/5"
+                style={{
+                  "--voucher-ink": "#1d1710",
+                  "--voucher-accent": SAMPLE_INVOICE_DOCUMENT.branding.accentColor || "#2563eb",
+                } as React.CSSProperties}
+              >
                 <div className="p-8 text-[13px]">
                   {preview}
                 </div>

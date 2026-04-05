@@ -1,6 +1,6 @@
 import type { BrandingConfig } from "@/lib/branding";
 
-export type InvoiceTemplateId = "minimal" | "professional" | "bold-brand";
+export type InvoiceTemplateId = "minimal" | "professional" | "bold-brand" | "classic-bordered" | "modern-edge";
 
 export type InvoiceExportFormat = "pdf" | "png";
 

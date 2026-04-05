@@ -1,6 +1,6 @@
 import type { BrandingConfig } from "@/lib/branding";
 
-export type SalarySlipTemplateId = "corporate-clean" | "modern-premium";
+export type SalarySlipTemplateId = "corporate-clean" | "modern-premium" | "classic-formal" | "detailed-breakdown" | "compact-payslip";
 
 export type SalarySlipLineItemFormValues = {
   label: string;
