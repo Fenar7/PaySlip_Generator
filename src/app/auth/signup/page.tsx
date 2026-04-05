@@ -32,17 +32,31 @@ export default function SignupPage() {
     setLoading(true);
     try {
       const supabase = createSupabaseBrowser();
-      const { error: signUpError } = await supabase.auth.signUp({
+      const { data, error: signUpError } = await supabase.auth.signUp({
         email,
         password,
-        options: { data: { name } },
+        options: {
+          data: { name },
+          // After email verification, Supabase redirects here to exchange the
+          // PKCE code for a session and then forward to onboarding.
+          emailRedirectTo: `${window.location.origin}/auth/callback?next=/onboarding`,
+        },
       });
       if (signUpError) {
+        console.error("[signup] signUp error:", signUpError.message, signUpError.code);
         setError(signUpError.message ?? "Could not create account");
+      } else if (data.session) {
+        // Email confirmations disabled — user is already signed in
+        console.log("[signup] signed up and session created immediately (no confirmation)");
+        router.push("/onboarding");
+        router.refresh();
       } else {
+        // Email confirmation required
+        console.log("[signup] user created, awaiting email confirmation");
         router.push("/auth/verify-email?email=" + encodeURIComponent(email));
       }
-    } catch {
+    } catch (err) {
+      console.error("[signup] unexpected error:", err);
       setError("Something went wrong. Please try again.");
     } finally {
       setLoading(false);

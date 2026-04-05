@@ -21,10 +21,23 @@ export default function OTPPage() {
     setLoading(true);
     try {
       const supabase = createSupabaseBrowser();
-      await supabase.auth.signInWithOtp({ email });
-      setStep("otp");
-    } catch {
-      setError("Could not send code. Check the email address.");
+      const { error: otpError } = await supabase.auth.signInWithOtp({
+        email,
+        options: {
+          // Redirect to callback after magic-link click (alternative to entering code)
+          emailRedirectTo: `${window.location.origin}/auth/callback`,
+        },
+      });
+      if (otpError) {
+        console.error("[otp] signInWithOtp error:", otpError.message, otpError.code);
+        setError(otpError.message ?? "Could not send code. Check the email address.");
+      } else {
+        console.log("[otp] OTP email sent to:", email);
+        setStep("otp");
+      }
+    } catch (err) {
+      console.error("[otp] unexpected error:", err);
+      setError("Could not send code. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -42,13 +55,16 @@ export default function OTPPage() {
         type: "email",
       });
       if (verifyError) {
-        setError("Invalid or expired code.");
+        console.error("[otp] verifyOtp error:", verifyError.message, verifyError.code);
+        setError("Invalid or expired code. Please request a new one.");
       } else {
+        console.log("[otp] verified successfully");
         router.push("/app/home");
         router.refresh();
       }
-    } catch {
-      setError("Invalid or expired code.");
+    } catch (err) {
+      console.error("[otp] unexpected error:", err);
+      setError("Something went wrong. Please try again.");
     } finally {
       setLoading(false);
     }
