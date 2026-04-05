@@ -2,7 +2,6 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { Button, Badge } from "@/components/ui";
-import { cn } from "@/lib/utils";
 import {
   getAuditLogs,
   exportAuditLogsCSV,

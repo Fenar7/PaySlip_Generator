@@ -20,14 +20,18 @@ export default function AcceptInvitePage() {
   const [error, setError] = useState("");
 
   useEffect(() => {
+    let cancelled = false;
     if (!token) {
-      setLoading(false);
+      const update = () => setLoading(false);
+      update();
       return;
     }
     getInvitationDetails(token).then((details) => {
+      if (cancelled) return;
       setInvitation(details);
       setLoading(false);
     });
+    return () => { cancelled = true; };
   }, [token]);
 
   async function handleAccept() {

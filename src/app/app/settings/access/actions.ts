@@ -12,13 +12,6 @@ type ActionResult =
   | { success: false; error: string };
 
 // ── helpers ──────────────────────────────────────────────────────────
-async function profileName(id: string) {
-  const p = await db.profile.findUnique({
-    where: { id },
-    select: { name: true },
-  });
-  return p?.name ?? "Unknown";
-}
 
 // ── getProxyGrants ──────────────────────────────────────────────────
 export async function getProxyGrants() {

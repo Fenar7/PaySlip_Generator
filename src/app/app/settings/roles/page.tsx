@@ -5,7 +5,6 @@ import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import {
   ALL_ROLES,
   ROLE_LABELS,
-  ALL_MODULES,
   PERMISSIONS,
   getRoleColor,
   type Role,
