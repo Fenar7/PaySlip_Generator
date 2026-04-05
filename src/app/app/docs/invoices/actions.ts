@@ -300,7 +300,7 @@ export async function listInvoices(params?: {
       skip,
       take: limit,
       orderBy: { createdAt: "desc" },
-      include: { customer: true },
+      include: { customer: true, publicTokens: true },
     }),
     db.invoice.count({ where }),
   ]);
@@ -313,11 +313,30 @@ export async function listInvoices(params?: {
   };
 }
 
+// ─── State Machine ────────────────────────────────────────────────────────────
+
+const ALLOWED_TRANSITIONS: Record<string, string[]> = {
+  DRAFT: ["ISSUED", "CANCELLED"],
+  ISSUED: ["VIEWED", "DUE", "PARTIALLY_PAID", "PAID", "OVERDUE", "DISPUTED", "CANCELLED"],
+  VIEWED: ["DUE", "PARTIALLY_PAID", "PAID", "OVERDUE", "DISPUTED", "CANCELLED"],
+  DUE: ["PARTIALLY_PAID", "PAID", "OVERDUE", "DISPUTED", "CANCELLED"],
+  PARTIALLY_PAID: ["PAID", "OVERDUE", "DISPUTED", "CANCELLED"],
+  PAID: ["DISPUTED", "REISSUED"],
+  OVERDUE: ["PARTIALLY_PAID", "PAID", "DISPUTED", "CANCELLED"],
+  DISPUTED: ["ISSUED", "CANCELLED"],
+  CANCELLED: [],
+  REISSUED: [],
+};
+
+function canTransition(from: string, to: string): boolean {
+  return ALLOWED_TRANSITIONS[from]?.includes(to) ?? false;
+}
+
 // ─── Status Transitions ───────────────────────────────────────────────────────
 
 export async function issueInvoice(id: string): Promise<ActionResult<void>> {
   try {
-    const { orgId } = await requireOrgContext();
+    const { orgId, userId } = await requireOrgContext();
 
     const existing = await db.invoice.findFirst({
       where: { id, organizationId: orgId },
@@ -327,14 +346,31 @@ export async function issueInvoice(id: string): Promise<ActionResult<void>> {
       return { success: false, error: "Invoice not found" };
     }
 
-    if (existing.status !== "DRAFT") {
-      return { success: false, error: "Can only issue draft invoices" };
+    if (!canTransition(existing.status, "ISSUED")) {
+      return { success: false, error: `Cannot issue invoice in ${existing.status} status` };
     }
 
-    await db.invoice.update({
-      where: { id },
-      data: { status: "ISSUED" },
-    });
+    await db.$transaction([
+      db.invoice.update({
+        where: { id },
+        data: { status: "ISSUED", issuedAt: new Date() },
+      }),
+      db.invoiceStateEvent.create({
+        data: {
+          invoiceId: id,
+          fromStatus: existing.status,
+          toStatus: "ISSUED",
+          actorId: userId,
+        },
+      }),
+      db.publicInvoiceToken.create({
+        data: {
+          invoiceId: id,
+          orgId,
+          token: crypto.randomUUID(),
+        },
+      }),
+    ]);
 
     revalidatePath("/app/docs/invoices");
     revalidatePath(`/app/docs/invoices/${id}`);
@@ -347,12 +383,34 @@ export async function issueInvoice(id: string): Promise<ActionResult<void>> {
 
 export async function markInvoicePaid(id: string): Promise<ActionResult<void>> {
   try {
-    const { orgId } = await requireOrgContext();
+    const { orgId, userId } = await requireOrgContext();
 
-    await db.invoice.update({
+    const existing = await db.invoice.findFirst({
       where: { id, organizationId: orgId },
-      data: { status: "PAID" },
     });
+
+    if (!existing) {
+      return { success: false, error: "Invoice not found" };
+    }
+
+    if (!canTransition(existing.status, "PAID")) {
+      return { success: false, error: `Cannot mark invoice as paid from ${existing.status} status` };
+    }
+
+    await db.$transaction([
+      db.invoice.update({
+        where: { id },
+        data: { status: "PAID", paidAt: new Date() },
+      }),
+      db.invoiceStateEvent.create({
+        data: {
+          invoiceId: id,
+          fromStatus: existing.status,
+          toStatus: "PAID",
+          actorId: userId,
+        },
+      }),
+    ]);
 
     revalidatePath("/app/docs/invoices");
     revalidatePath(`/app/docs/invoices/${id}`);
@@ -361,4 +419,295 @@ export async function markInvoicePaid(id: string): Promise<ActionResult<void>> {
     console.error("markInvoicePaid error:", error);
     return { success: false, error: "Failed to mark invoice as paid" };
   }
+}
+
+export async function recordPayment(
+  invoiceId: string,
+  input: { amount: number; isPartial: boolean; method?: string; note?: string }
+): Promise<ActionResult<void>> {
+  try {
+    const { orgId, userId } = await requireOrgContext();
+
+    const existing = await db.invoice.findFirst({
+      where: { id: invoiceId, organizationId: orgId },
+    });
+
+    if (!existing) {
+      return { success: false, error: "Invoice not found" };
+    }
+
+    const toStatus = input.isPartial ? "PARTIALLY_PAID" : "PAID";
+
+    if (!canTransition(existing.status, toStatus)) {
+      return { success: false, error: `Cannot record payment for invoice in ${existing.status} status` };
+    }
+
+    await db.$transaction([
+      db.invoicePayment.create({
+        data: {
+          invoiceId,
+          orgId,
+          amount: input.amount,
+          method: input.method ?? null,
+          note: input.note ?? null,
+          isPartial: input.isPartial,
+        },
+      }),
+      db.invoice.update({
+        where: { id: invoiceId },
+        data: {
+          status: toStatus,
+          ...(toStatus === "PAID" ? { paidAt: new Date() } : {}),
+        },
+      }),
+      db.invoiceStateEvent.create({
+        data: {
+          invoiceId,
+          fromStatus: existing.status,
+          toStatus,
+          actorId: userId,
+          metadata: { amount: input.amount, method: input.method } as Prisma.InputJsonValue,
+        },
+      }),
+    ]);
+
+    revalidatePath("/app/docs/invoices");
+    revalidatePath(`/app/docs/invoices/${invoiceId}`);
+    return { success: true, data: undefined };
+  } catch (error) {
+    console.error("recordPayment error:", error);
+    return { success: false, error: "Failed to record payment" };
+  }
+}
+
+export async function markOverdue(invoiceId: string): Promise<ActionResult<void>> {
+  try {
+    const { orgId, userId } = await requireOrgContext();
+
+    const existing = await db.invoice.findFirst({
+      where: { id: invoiceId, organizationId: orgId },
+    });
+
+    if (!existing) {
+      return { success: false, error: "Invoice not found" };
+    }
+
+    if (!canTransition(existing.status, "OVERDUE")) {
+      return { success: false, error: `Cannot mark invoice as overdue from ${existing.status} status` };
+    }
+
+    await db.$transaction([
+      db.invoice.update({
+        where: { id: invoiceId },
+        data: { status: "OVERDUE", overdueAt: new Date() },
+      }),
+      db.invoiceStateEvent.create({
+        data: {
+          invoiceId,
+          fromStatus: existing.status,
+          toStatus: "OVERDUE",
+          actorId: userId,
+        },
+      }),
+    ]);
+
+    revalidatePath("/app/docs/invoices");
+    revalidatePath(`/app/docs/invoices/${invoiceId}`);
+    return { success: true, data: undefined };
+  } catch (error) {
+    console.error("markOverdue error:", error);
+    return { success: false, error: "Failed to mark invoice as overdue" };
+  }
+}
+
+export async function disputeInvoice(
+  invoiceId: string,
+  reason: string
+): Promise<ActionResult<void>> {
+  try {
+    const { orgId, userId } = await requireOrgContext();
+
+    const existing = await db.invoice.findFirst({
+      where: { id: invoiceId, organizationId: orgId },
+    });
+
+    if (!existing) {
+      return { success: false, error: "Invoice not found" };
+    }
+
+    if (!canTransition(existing.status, "DISPUTED")) {
+      return { success: false, error: `Cannot dispute invoice in ${existing.status} status` };
+    }
+
+    await db.$transaction([
+      db.invoice.update({
+        where: { id: invoiceId },
+        data: { status: "DISPUTED" },
+      }),
+      db.invoiceStateEvent.create({
+        data: {
+          invoiceId,
+          fromStatus: existing.status,
+          toStatus: "DISPUTED",
+          actorId: userId,
+          reason,
+        },
+      }),
+    ]);
+
+    revalidatePath("/app/docs/invoices");
+    revalidatePath(`/app/docs/invoices/${invoiceId}`);
+    return { success: true, data: undefined };
+  } catch (error) {
+    console.error("disputeInvoice error:", error);
+    return { success: false, error: "Failed to dispute invoice" };
+  }
+}
+
+export async function cancelInvoice(
+  invoiceId: string,
+  reason: string
+): Promise<ActionResult<void>> {
+  try {
+    const { orgId, userId } = await requireOrgContext();
+
+    const existing = await db.invoice.findFirst({
+      where: { id: invoiceId, organizationId: orgId },
+    });
+
+    if (!existing) {
+      return { success: false, error: "Invoice not found" };
+    }
+
+    if (!canTransition(existing.status, "CANCELLED")) {
+      return { success: false, error: `Cannot cancel invoice in ${existing.status} status` };
+    }
+
+    await db.$transaction([
+      db.invoice.update({
+        where: { id: invoiceId },
+        data: { status: "CANCELLED" },
+      }),
+      db.invoiceStateEvent.create({
+        data: {
+          invoiceId,
+          fromStatus: existing.status,
+          toStatus: "CANCELLED",
+          actorId: userId,
+          reason,
+        },
+      }),
+    ]);
+
+    revalidatePath("/app/docs/invoices");
+    revalidatePath(`/app/docs/invoices/${invoiceId}`);
+    return { success: true, data: undefined };
+  } catch (error) {
+    console.error("cancelInvoice error:", error);
+    return { success: false, error: "Failed to cancel invoice" };
+  }
+}
+
+export async function reissueInvoice(
+  invoiceId: string,
+  reason: string
+): Promise<ActionResult<{ id: string; invoiceNumber: string }>> {
+  try {
+    const { orgId, userId } = await requireOrgContext();
+
+    const existing = await db.invoice.findFirst({
+      where: { id: invoiceId, organizationId: orgId },
+      include: { lineItems: true },
+    });
+
+    if (!existing) {
+      return { success: false, error: "Invoice not found" };
+    }
+
+    if (!canTransition(existing.status, "REISSUED")) {
+      return { success: false, error: `Cannot reissue invoice in ${existing.status} status` };
+    }
+
+    const newNumber = await nextDocumentNumber(orgId, "invoice");
+
+    const result = await db.$transaction(async (tx) => {
+      const newInvoice = await tx.invoice.create({
+        data: {
+          organizationId: orgId,
+          customerId: existing.customerId,
+          invoiceNumber: newNumber,
+          invoiceDate: new Date().toISOString().split("T")[0],
+          dueDate: existing.dueDate,
+          status: "DRAFT",
+          notes: existing.notes,
+          formData: existing.formData as Prisma.InputJsonValue,
+          totalAmount: existing.totalAmount,
+          originalId: invoiceId,
+          lineItems: {
+            create: existing.lineItems.map((item) => ({
+              description: item.description,
+              quantity: item.quantity,
+              unitPrice: item.unitPrice,
+              taxRate: item.taxRate,
+              discount: item.discount,
+              amount: item.amount,
+              sortOrder: item.sortOrder,
+            })),
+          },
+        },
+      });
+
+      await tx.invoice.update({
+        where: { id: invoiceId },
+        data: { status: "REISSUED", reissueReason: reason },
+      });
+
+      await tx.invoiceStateEvent.create({
+        data: {
+          invoiceId,
+          fromStatus: existing.status,
+          toStatus: "REISSUED",
+          actorId: userId,
+          reason,
+          metadata: { newInvoiceId: newInvoice.id, newInvoiceNumber: newNumber } as Prisma.InputJsonValue,
+        },
+      });
+
+      return newInvoice;
+    });
+
+    revalidatePath("/app/docs/invoices");
+    revalidatePath(`/app/docs/invoices/${invoiceId}`);
+    return { success: true, data: { id: result.id, invoiceNumber: newNumber } };
+  } catch (error) {
+    console.error("reissueInvoice error:", error);
+    return { success: false, error: "Failed to reissue invoice" };
+  }
+}
+
+// ─── Timeline & Tokens ───────────────────────────────────────────────────────
+
+export async function getInvoiceTimeline(invoiceId: string) {
+  const { orgId } = await requireOrgContext();
+
+  const invoice = await db.invoice.findFirst({
+    where: { id: invoiceId, organizationId: orgId },
+    select: { id: true },
+  });
+
+  if (!invoice) return [];
+
+  return db.invoiceStateEvent.findMany({
+    where: { invoiceId },
+    orderBy: { createdAt: "desc" },
+  });
+}
+
+export async function getPublicToken(invoiceId: string) {
+  const { orgId } = await requireOrgContext();
+
+  return db.publicInvoiceToken.findFirst({
+    where: { invoiceId, orgId },
+    orderBy: { createdAt: "desc" },
+  });
 }
