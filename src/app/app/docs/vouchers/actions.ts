@@ -1,0 +1,247 @@
+"use server";
+
+import { db } from "@/lib/db";
+import { requireOrgContext } from "@/lib/auth";
+import { nextDocumentNumber } from "@/lib/docs";
+import { revalidatePath } from "next/cache";
+import type { Prisma } from "@/generated/prisma/client";
+
+export type ActionResult<T> = 
+  | { success: true; data: T }
+  | { success: false; error: string };
+
+export interface VoucherLineInput {
+  description: string;
+  date?: string;
+  time?: string;
+  amount: number;
+  category?: string;
+}
+
+export interface VoucherInput {
+  vendorId?: string;
+  voucherDate: string;
+  type: "payment" | "receipt";
+  isMultiLine?: boolean;
+  formData: Record<string, unknown>;
+  lines: VoucherLineInput[];
+}
+
+export async function saveVoucher(
+  input: VoucherInput,
+  status: "draft" | "approved" = "draft"
+): Promise<ActionResult<{ id: string; voucherNumber: string }>> {
+  try {
+    const { orgId } = await requireOrgContext();
+    
+    const voucherNumber = await nextDocumentNumber(orgId, "voucher");
+    
+    const totalAmount = input.lines.reduce((sum, line) => sum + line.amount, 0);
+    
+    const voucher = await db.voucher.create({
+      data: {
+        organizationId: orgId,
+        vendorId: input.vendorId || null,
+        voucherNumber,
+        voucherDate: input.voucherDate,
+        type: input.type,
+        status,
+        isMultiLine: input.isMultiLine ?? false,
+        formData: input.formData as Prisma.InputJsonValue,
+        totalAmount,
+        lines: {
+          create: input.lines.map((line, index) => ({
+            description: line.description,
+            date: line.date || null,
+            time: line.time || null,
+            amount: line.amount,
+            category: line.category || null,
+            sortOrder: index,
+          })),
+        },
+      },
+    });
+    
+    revalidatePath("/app/docs/vouchers");
+    return { success: true, data: { id: voucher.id, voucherNumber } };
+  } catch (error) {
+    console.error("saveVoucher error:", error);
+    return { success: false, error: "Failed to save voucher" };
+  }
+}
+
+export async function updateVoucher(
+  id: string,
+  input: Partial<VoucherInput>
+): Promise<ActionResult<{ id: string }>> {
+  try {
+    const { orgId } = await requireOrgContext();
+    
+    const existing = await db.voucher.findFirst({
+      where: { id, organizationId: orgId },
+    });
+    
+    if (!existing) {
+      return { success: false, error: "Voucher not found" };
+    }
+    
+    let totalAmount = existing.totalAmount;
+    if (input.lines) {
+      totalAmount = input.lines.reduce((sum, line) => sum + line.amount, 0);
+    }
+    
+    await db.voucher.update({
+      where: { id },
+      data: {
+        vendorId: input.vendorId,
+        voucherDate: input.voucherDate,
+        type: input.type,
+        isMultiLine: input.isMultiLine,
+        formData: input.formData as Prisma.InputJsonValue | undefined,
+        totalAmount,
+      },
+    });
+    
+    if (input.lines) {
+      await db.voucherLine.deleteMany({ where: { voucherId: id } });
+      await db.voucherLine.createMany({
+        data: input.lines.map((line, index) => ({
+          voucherId: id,
+          description: line.description,
+          date: line.date || null,
+          time: line.time || null,
+          amount: line.amount,
+          category: line.category || null,
+          sortOrder: index,
+        })),
+      });
+    }
+    
+    revalidatePath("/app/docs/vouchers");
+    revalidatePath(`/app/docs/vouchers/${id}`);
+    return { success: true, data: { id } };
+  } catch (error) {
+    console.error("updateVoucher error:", error);
+    return { success: false, error: "Failed to update voucher" };
+  }
+}
+
+export async function archiveVoucher(id: string): Promise<ActionResult<void>> {
+  try {
+    const { orgId } = await requireOrgContext();
+    
+    await db.voucher.update({
+      where: { id, organizationId: orgId },
+      data: { archivedAt: new Date() },
+    });
+    
+    revalidatePath("/app/docs/vouchers");
+    return { success: true, data: undefined };
+  } catch (error) {
+    console.error("archiveVoucher error:", error);
+    return { success: false, error: "Failed to archive voucher" };
+  }
+}
+
+export async function duplicateVoucher(id: string): Promise<ActionResult<{ id: string; voucherNumber: string }>> {
+  try {
+    const { orgId } = await requireOrgContext();
+    
+    const existing = await db.voucher.findFirst({
+      where: { id, organizationId: orgId },
+      include: { lines: true },
+    });
+    
+    if (!existing) {
+      return { success: false, error: "Voucher not found" };
+    }
+    
+    const newNumber = await nextDocumentNumber(orgId, "voucher");
+    
+    const duplicate = await db.voucher.create({
+      data: {
+        organizationId: orgId,
+        vendorId: existing.vendorId,
+        voucherNumber: newNumber,
+        voucherDate: new Date().toISOString().split("T")[0],
+        type: existing.type,
+        status: "draft",
+        isMultiLine: existing.isMultiLine,
+        formData: existing.formData as Prisma.InputJsonValue,
+        totalAmount: existing.totalAmount,
+        lines: {
+          create: existing.lines.map((line) => ({
+            description: line.description,
+            date: line.date,
+            time: line.time,
+            amount: line.amount,
+            category: line.category,
+            sortOrder: line.sortOrder,
+          })),
+        },
+      },
+    });
+    
+    revalidatePath("/app/docs/vouchers");
+    return { success: true, data: { id: duplicate.id, voucherNumber: newNumber } };
+  } catch (error) {
+    console.error("duplicateVoucher error:", error);
+    return { success: false, error: "Failed to duplicate voucher" };
+  }
+}
+
+export async function getVoucher(id: string) {
+  const { orgId } = await requireOrgContext();
+  
+  return db.voucher.findFirst({
+    where: { id, organizationId: orgId, archivedAt: null },
+    include: {
+      lines: { orderBy: { sortOrder: "asc" } },
+      vendor: true,
+    },
+  });
+}
+
+export async function listVouchers(params?: {
+  type?: "payment" | "receipt";
+  status?: string;
+  search?: string;
+  page?: number;
+  limit?: number;
+}) {
+  const { orgId } = await requireOrgContext();
+  const page = params?.page ?? 1;
+  const limit = params?.limit ?? 20;
+  const skip = (page - 1) * limit;
+  
+  const where = {
+    organizationId: orgId,
+    archivedAt: null,
+    ...(params?.type && { type: params.type }),
+    ...(params?.status && { status: params.status }),
+    ...(params?.search && {
+      OR: [
+        { voucherNumber: { contains: params.search, mode: "insensitive" as const } },
+        { vendor: { name: { contains: params.search, mode: "insensitive" as const } } },
+      ],
+    }),
+  };
+  
+  const [vouchers, total] = await Promise.all([
+    db.voucher.findMany({
+      where,
+      skip,
+      take: limit,
+      orderBy: { createdAt: "desc" },
+      include: { vendor: true },
+    }),
+    db.voucher.count({ where }),
+  ]);
+  
+  return {
+    vouchers,
+    total,
+    page,
+    totalPages: Math.ceil(total / limit),
+  };
+}

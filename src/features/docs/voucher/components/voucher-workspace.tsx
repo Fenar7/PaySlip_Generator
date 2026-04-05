@@ -51,7 +51,7 @@ const voucherWorkspaceSections: WorkspaceSectionMeta[] = [
   { id: "voucher-visibility", label: "Visibility" },
 ];
 
-function VoucherPanel() {
+function VoucherPanel({ voucherId }: { voucherId?: string }) {
   const { control, getValues, setValue, trigger } = useFormContextSafe();
   const values = useWatch({ control }) as VoucherFormValues;
   const isPayment = values.voucherType === "payment";
@@ -64,6 +64,7 @@ function VoucherPanel() {
   const [actionState, setActionState] = useState<VoucherActionState>({
     status: "idle",
   });
+  const isEditing = Boolean(voucherId);
 
   async function prepareDocument() {
     const isValid = await trigger();
@@ -171,10 +172,14 @@ function VoucherPanel() {
   return (
     <DocumentWorkspaceLayout
       eyebrow="Voucher workspace"
-      title="Voucher Generator"
-      description="Create payment and receipt vouchers in a cleaner workspace with live preview, structured input, and export actions that stay close to the document."
+      title={isEditing ? "Edit Voucher" : "Voucher Generator"}
+      description={
+        isEditing
+          ? "Update the voucher details and export when ready."
+          : "Create payment and receipt vouchers in a cleaner workspace with live preview, structured input, and export actions that stay close to the document."
+      }
       actions={[
-        { id: "home", label: "Back to home", href: "/", variant: "secondary" },
+        { id: "home", label: "Back to vault", href: "/app/docs/vouchers", variant: "secondary" },
         {
           id: "print",
           label:
@@ -499,16 +504,24 @@ function useFormContextSafe() {
   return useFormContext<VoucherFormValues>();
 }
 
-export function VoucherWorkspace() {
+export function VoucherWorkspace({
+  voucherId,
+  initialValues,
+}: {
+  voucherId?: string;
+  initialValues?: Partial<VoucherFormValues>;
+}) {
   const methods = useForm<VoucherFormValues>({
     resolver: zodResolver(voucherFormSchema),
-    defaultValues: voucherDefaultValues,
+    defaultValues: initialValues
+      ? { ...voucherDefaultValues, ...initialValues }
+      : voucherDefaultValues,
     mode: "onChange",
   });
 
   return (
     <FormProvider {...methods}>
-      <VoucherPanel />
+      <VoucherPanel voucherId={voucherId} />
     </FormProvider>
   );
 }
