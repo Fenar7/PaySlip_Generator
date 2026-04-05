@@ -3,6 +3,15 @@ import { useOrgBranding } from "@/hooks/use-org-branding";
 import { VoucherWorkspace } from "@/features/docs/voucher/components/voucher-workspace";
 import type { VoucherFormValues } from "@/features/docs/voucher/types";
 
+interface Vendor {
+  id: string;
+  name: string;
+  email: string | null;
+  phone: string | null;
+  address: string | null;
+  gstin: string | null;
+}
+
 export type ExistingVoucher = {
   id: string;
   voucherNumber: string;
@@ -20,8 +29,10 @@ export type ExistingVoucher = {
 
 export function VoucherBrandingWrapper({
   existingVoucher,
+  vendors = [],
 }: {
   existingVoucher?: ExistingVoucher;
+  vendors?: Vendor[];
 }) {
   const branding = useOrgBranding();
 
@@ -47,6 +58,7 @@ export function VoucherBrandingWrapper({
       <VoucherWorkspace
         voucherId={existingVoucher?.id}
         initialValues={initialValues}
+        vendors={vendors}
       />
     </div>
   );

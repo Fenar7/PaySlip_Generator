@@ -1,0 +1,17 @@
+<svg width="200" height="260" viewBox="0 0 200 260" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="200" height="260" fill="white"/>
+  <rect x="16" y="16" width="60" height="8" rx="2" fill="#ccfbf1"/>
+  <rect x="130" y="16" width="54" height="8" rx="2" fill="#ccfbf1"/>
+  <rect x="16" y="32" width="40" height="4" rx="1" fill="#f0fdfa"/>
+  <!-- Teal top border -->
+  <rect width="200" height="4" fill="#0d9488"/>
+  <rect x="16" y="56" width="80" height="4" rx="1" fill="#99f6e4"/>
+  <rect x="16" y="64" width="60" height="3" rx="1" fill="#f0fdfa"/>
+  <rect x="16" y="80" width="168" height="1" fill="#99f6e4"/>
+  <rect x="16" y="90" width="168" height="3" rx="1" fill="#f0fdfa"/>
+  <rect x="16" y="96" width="168" height="3" rx="1" fill="#f0fdfa"/>
+  <rect x="16" y="102" width="168" height="3" rx="1" fill="#f0fdfa"/>
+  <rect x="16" y="130" width="80" height="3" rx="1" fill="#f0fdfa"/>
+  <rect x="110" y="150" width="74" height="4" rx="1" fill="#99f6e4"/>
+  <rect x="130" y="160" width="54" height="8" rx="2" fill="#0d9488"/>
+</svg>

@@ -18,16 +18,23 @@ import {
   TextField,
   ToggleField,
 } from "@/components/forms/input-primitives";
-import { RepeaterSection } from "@/components/forms/repeater-section";
 import { InvoiceDocumentEditor } from "@/features/docs/invoice/components/invoice-document-editor";
 import { InvoicePreview } from "@/features/docs/invoice/components/invoice-preview";
 import { invoiceDefaultValues, invoiceTemplateOptions } from "@/features/docs/invoice/constants";
 import { invoiceFormSchema } from "@/features/docs/invoice/schema";
 import type { InvoiceFormValues } from "@/features/docs/invoice/types";
+import type { InvoiceTemplateId } from "@/features/docs/invoice/types";
 import { buildInvoiceFilename } from "@/features/docs/invoice/utils/build-invoice-filename";
 import { normalizeInvoice } from "@/features/docs/invoice/utils/normalize-invoice";
 import { downloadBinaryExport } from "@/lib/browser/download-binary-export";
 import { cn } from "@/lib/utils";
+import { CustomerPicker } from "./customer-picker";
+import { InvoiceSaveBar } from "./invoice-save-bar";
+import {
+  saveInvoice,
+  updateInvoice,
+  issueInvoice,
+} from "@/app/app/docs/invoices/actions";
 
 type InvoiceActionState =
   | { status: "idle" }
@@ -44,102 +51,123 @@ const invoiceWorkspaceSections: WorkspaceSectionMeta[] = [
   { id: "invoice-visibility", label: "Visibility" },
 ];
 
-function rowInputClass() {
-  return cn(
-    "w-full rounded-[1rem] border border-[var(--border-soft)] bg-white px-4 py-3 text-sm text-[var(--foreground)] shadow-[0_10px_24px_rgba(34,34,34,0.035)] outline-none transition-colors focus:border-[var(--accent)] focus:shadow-[0_0_0_4px_var(--accent-soft)]",
-  );
-}
 
 function InvoiceLineItemsEditor() {
-  const { control, register } = useFormContext<InvoiceFormValues>();
-  const { fields, append, remove } = useFieldArray({
-    control,
-    name: "lineItems",
-  });
+  const { control, register, setFocus } = useFormContext<InvoiceFormValues>();
+  const { fields, append, remove } = useFieldArray({ control, name: "lineItems" });
+
+  const addRow = () => {
+    append({ description: "", quantity: "1", unitPrice: "", taxRate: "18", discountAmount: "0" });
+    setTimeout(() => {
+      setFocus(`lineItems.${fields.length}.description`);
+    }, 50);
+  };
 
   return (
-    <RepeaterSection
-      title="Line items"
-      description="Each row computes its base, discount, tax, and line total in the live preview."
-      actionLabel="Add line item"
-      onAdd={() =>
-        append({
-          description: "",
-          quantity: "1",
-          unitPrice: "",
-          taxRate: "18",
-          discountAmount: "0",
-        })
-      }
-    >
-      {fields.map((field, index) => (
-        <div
-          key={field.id}
-          className="rounded-[1.1rem] border border-[var(--border-soft)] bg-[var(--surface-soft)] p-4"
-        >
-          <div className="grid gap-4 sm:grid-cols-2">
-            <FieldShell label="Description" htmlFor={`lineItems-${index}-description`}>
-              <input
-                id={`lineItems-${index}-description`}
-                {...register(`lineItems.${index}.description` as const)}
-                className={rowInputClass()}
-                placeholder="HR outsourcing retainer"
-              />
-            </FieldShell>
-            <FieldShell label="Quantity" htmlFor={`lineItems-${index}-quantity`}>
-              <input
-                id={`lineItems-${index}-quantity`}
-                type="number"
-                {...register(`lineItems.${index}.quantity` as const)}
-                className={rowInputClass()}
-                placeholder="1"
-              />
-            </FieldShell>
-            <FieldShell label="Unit price" htmlFor={`lineItems-${index}-unitPrice`}>
-              <input
-                id={`lineItems-${index}-unitPrice`}
-                type="number"
-                {...register(`lineItems.${index}.unitPrice` as const)}
-                className={rowInputClass()}
-                placeholder="32000"
-              />
-            </FieldShell>
-            <FieldShell label="Tax rate (%)" htmlFor={`lineItems-${index}-taxRate`}>
-              <input
-                id={`lineItems-${index}-taxRate`}
-                type="number"
-                {...register(`lineItems.${index}.taxRate` as const)}
-                className={rowInputClass()}
-                placeholder="18"
-              />
-            </FieldShell>
-            <FieldShell label="Discount amount" htmlFor={`lineItems-${index}-discountAmount`}>
-              <input
-                id={`lineItems-${index}-discountAmount`}
-                type="number"
-                {...register(`lineItems.${index}.discountAmount` as const)}
-                className={rowInputClass()}
-                placeholder="0"
-              />
-            </FieldShell>
-            <div className="flex items-end">
-              <button
-                type="button"
-                onClick={() => remove(index)}
-                disabled={fields.length === 1}
-                className="slipwise-btn slipwise-btn-inline-muted inline-flex h-[3rem] w-full items-center justify-center px-4 text-sm disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                Remove
-              </button>
-            </div>
-          </div>
-        </div>
-      ))}
-    </RepeaterSection>
+    <div className="overflow-x-auto">
+      <table className="w-full text-sm">
+        <thead>
+          <tr className="border-b border-[var(--border-soft)]">
+            <th className="pb-2 text-left text-xs font-medium text-slate-500 pr-3 min-w-[200px]">Description</th>
+            <th className="pb-2 text-right text-xs font-medium text-slate-500 w-16 pr-2">Qty</th>
+            <th className="pb-2 text-right text-xs font-medium text-slate-500 w-24 pr-2">Rate</th>
+            <th className="pb-2 text-right text-xs font-medium text-slate-500 w-16 pr-2">Tax%</th>
+            <th className="pb-2 text-right text-xs font-medium text-slate-500 w-20 pr-2">Disc</th>
+            <th className="pb-2 w-6"></th>
+          </tr>
+        </thead>
+        <tbody>
+          {fields.map((field, index) => (
+            <tr key={field.id} className="border-b border-[var(--border-soft)]/50">
+              <td className="py-1.5 pr-3">
+                <input
+                  {...register(`lineItems.${index}.description`)}
+                  placeholder="Description"
+                  className="w-full rounded border border-transparent bg-transparent px-2 py-1 text-sm focus:border-[var(--accent)] focus:bg-white focus:outline-none"
+                />
+              </td>
+              <td className="py-1.5 pr-2">
+                <input
+                  {...register(`lineItems.${index}.quantity`)}
+                  type="number"
+                  placeholder="1"
+                  className="w-full rounded border border-transparent bg-transparent px-2 py-1 text-right text-sm focus:border-[var(--accent)] focus:bg-white focus:outline-none"
+                />
+              </td>
+              <td className="py-1.5 pr-2">
+                <input
+                  {...register(`lineItems.${index}.unitPrice`)}
+                  type="number"
+                  placeholder="0.00"
+                  className="w-full rounded border border-transparent bg-transparent px-2 py-1 text-right text-sm focus:border-[var(--accent)] focus:bg-white focus:outline-none"
+                />
+              </td>
+              <td className="py-1.5 pr-2">
+                <input
+                  {...register(`lineItems.${index}.taxRate`)}
+                  type="number"
+                  placeholder="0"
+                  className="w-full rounded border border-transparent bg-transparent px-2 py-1 text-right text-sm focus:border-[var(--accent)] focus:bg-white focus:outline-none"
+                />
+              </td>
+              <td className="py-1.5 pr-2">
+                <input
+                  {...register(`lineItems.${index}.discountAmount`)}
+                  type="number"
+                  placeholder="0"
+                  onKeyDown={(e) => {
+                    if (e.key === "Tab" && !e.shiftKey && index === fields.length - 1) {
+                      e.preventDefault();
+                      addRow();
+                    }
+                  }}
+                  className="w-full rounded border border-transparent bg-transparent px-2 py-1 text-right text-sm focus:border-[var(--accent)] focus:bg-white focus:outline-none"
+                />
+              </td>
+              <td className="py-1.5 pl-1">
+                {fields.length > 1 && (
+                  <button
+                    type="button"
+                    onClick={() => remove(index)}
+                    className="text-slate-300 hover:text-red-500 transition-colors"
+                  >
+                    <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                )}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      <button
+        type="button"
+        onClick={addRow}
+        className="mt-3 flex items-center gap-1 text-sm text-[var(--accent)] hover:opacity-80"
+      >
+        <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+        </svg>
+        Add line item
+      </button>
+    </div>
   );
 }
 
-function InvoicePanel() {
+interface InvoicePanelProps {
+  customers?: Array<{
+    id: string;
+    name: string;
+    email: string | null;
+    phone: string | null;
+    address: string | null;
+    taxId: string | null;
+    gstin: string | null;
+  }>;
+}
+
+function InvoicePanel({ customers = [] }: InvoicePanelProps) {
   const { control, getValues, setValue, trigger } = useFormContextSafe();
   const values = useWatch({ control }) as InvoiceFormValues;
   const [selectedTemplateId, setSelectedTemplateId] = useState(values.templateId);
@@ -432,6 +460,7 @@ function InvoicePanel() {
                 title="Client details"
                 description="Control how the client block appears in the invoice preview."
               >
+                <CustomerPicker customers={customers} />
                 <TextField<InvoiceFormValues>
                   name="clientName"
                   label="Client name"
@@ -674,23 +703,108 @@ import type { ExistingInvoice } from "@/app/app/docs/invoices/new/branding-wrapp
 
 interface InvoiceWorkspaceProps {
   existingInvoice?: ExistingInvoice | null;
+  initialTemplateId?: string;
+  customers?: Array<{
+    id: string;
+    name: string;
+    email: string | null;
+    phone: string | null;
+    address: string | null;
+    taxId: string | null;
+    gstin: string | null;
+  }>;
 }
 
-export function InvoiceWorkspace({ existingInvoice }: InvoiceWorkspaceProps) {
-  // Convert existing invoice data to form values if editing
-  const defaultValues = existingInvoice
+export function InvoiceWorkspace({ existingInvoice, initialTemplateId, customers = [] }: InvoiceWorkspaceProps) {
+  const baseValues = existingInvoice
     ? convertInvoiceToFormValues(existingInvoice)
     : invoiceDefaultValues;
+  const defaultValues = initialTemplateId && !existingInvoice
+    ? { ...baseValues, templateId: initialTemplateId as InvoiceTemplateId }
+    : baseValues;
 
-  const form = useForm<InvoiceFormValues>({
+  const methods = useForm<InvoiceFormValues>({
     resolver: zodResolver(invoiceFormSchema),
     defaultValues,
     mode: "onChange",
   });
 
+  const [savedId, setSavedId] = useState<string | undefined>(
+    existingInvoice?.id
+  );
+  const [savedInvoiceNumber, setSavedInvoiceNumber] = useState<string | undefined>(
+    existingInvoice?.invoiceNumber
+  );
+  const [isSaving, setIsSaving] = useState(false);
+
+  const handleSaveDraft = async (): Promise<string | undefined> => {
+    setIsSaving(true);
+    try {
+      const values = methods.getValues();
+      const lineItems = values.lineItems.map((item) => ({
+        description: item.description,
+        quantity: parseFloat(item.quantity) || 1,
+        unitPrice: parseFloat(item.unitPrice) || 0,
+        taxRate: parseFloat(item.taxRate) || 0,
+        discount: parseFloat(item.discountAmount) || 0,
+      }));
+      const result = savedId
+        ? await updateInvoice(savedId, {
+            invoiceDate: values.invoiceDate,
+            dueDate: values.dueDate || undefined,
+            notes: values.notes || undefined,
+            formData: values as Record<string, unknown>,
+            lineItems,
+          })
+        : await saveInvoice(
+            {
+              invoiceDate: values.invoiceDate,
+              dueDate: values.dueDate || undefined,
+              notes: values.notes || undefined,
+              formData: values as Record<string, unknown>,
+              lineItems,
+            },
+            "DRAFT"
+          );
+      if (result.success) {
+        setSavedId(result.data.id);
+        if (!savedId && "invoiceNumber" in result.data) {
+          setSavedInvoiceNumber(
+            (result.data as { id: string; invoiceNumber: string }).invoiceNumber
+          );
+        }
+        methods.reset(values);
+        return result.data.id;
+      }
+    } finally {
+      setIsSaving(false);
+    }
+    return undefined;
+  };
+
+  const handleIssue = async () => {
+    const id = await handleSaveDraft();
+    const targetId = id ?? savedId;
+    if (targetId) {
+      setIsSaving(true);
+      try {
+        await issueInvoice(targetId);
+      } finally {
+        setIsSaving(false);
+      }
+    }
+  };
+
   return (
-    <FormProvider {...form}>
-      <InvoicePanel />
+    <FormProvider {...methods}>
+      <InvoicePanel customers={customers} />
+      <InvoiceSaveBar
+        onSaveDraft={() => void handleSaveDraft()}
+        onIssue={() => void handleIssue()}
+        isSaving={isSaving}
+        savedId={savedId}
+        invoiceNumber={savedInvoiceNumber}
+      />
     </FormProvider>
   );
 }
