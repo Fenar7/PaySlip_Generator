@@ -37,8 +37,29 @@ export const suiteNavItems: NavItem[] = [
       { href: "/app/data/salary-presets", label: "Salary Presets" },
     ],
   },
-  { href: "/app/pay",   label: "Pay",   suite: "pay",   badge: "Soon" },
-  { href: "/app/flow",  label: "Flow",  suite: "flow",  badge: "Soon" },
+  {
+    href: "/app/pay/receivables",
+    label: "Pay",
+    suite: "pay",
+    children: [
+      { href: "/app/pay/receivables", label: "Receivables" },
+      { href: "/app/pay/proofs", label: "Payment Proofs" },
+      { href: "/app/pay/send-log", label: "Send Log" },
+      { href: "/app/pay/recurring", label: "Recurring Invoices" },
+    ],
+  },
+  {
+    href: "/app/flow/tickets",
+    label: "Flow",
+    suite: "flow",
+    children: [
+      { href: "/app/flow/tickets", label: "Tickets" },
+      { href: "/app/flow/approvals", label: "Approvals" },
+      { href: "/app/flow/notifications", label: "Notifications" },
+      { href: "/app/flow/activity", label: "Activity Feed" },
+      { href: "/app/flow/jobs", label: "Job Log" },
+    ],
+  },
   { href: "/app/intel", label: "Intel", suite: "intel", badge: "Soon" },
   { href: "/app/pixel", label: "Pixel", suite: "pixel", badge: "Soon" },
 ];

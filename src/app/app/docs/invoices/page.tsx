@@ -2,6 +2,7 @@ import { Suspense } from "react";
 import Link from "next/link";
 import { listInvoices, archiveInvoice, duplicateInvoice } from "./actions";
 import type { InvoiceStatus } from "./actions";
+import { CopyInvoiceLinkButton } from "./copy-link-button";
 
 export const metadata = {
   title: "Invoice Vault | Slipwise",
@@ -34,6 +35,19 @@ function formatCurrency(amount: number) {
     currency: "INR",
     minimumFractionDigits: 0,
   }).format(amount);
+}
+
+function getDueDateColor(dueDate: string | null, status: string): string {
+  if (!dueDate) return "text-slate-500";
+  if (status === "PAID") return "text-green-600";
+
+  const now = new Date();
+  const due = new Date(dueDate);
+  const diffDays = Math.ceil((due.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+
+  if (diffDays < 0 && status !== "PAID") return "text-red-600 font-medium";
+  if (diffDays <= 7) return "text-amber-600 font-medium";
+  return "text-slate-500";
 }
 
 async function InvoiceTable({
@@ -100,7 +114,7 @@ async function InvoiceTable({
               <td className="px-4 py-3 text-sm text-slate-500">
                 {invoice.invoiceDate}
               </td>
-              <td className="px-4 py-3 text-sm text-slate-500">
+              <td className={`px-4 py-3 text-sm ${getDueDateColor(invoice.dueDate, invoice.status)}`}>
                 {invoice.dueDate || "—"}
               </td>
               <td className="px-4 py-3 text-right text-sm font-medium text-slate-900">
@@ -110,7 +124,11 @@ async function InvoiceTable({
                 <StatusBadge status={invoice.status} />
               </td>
               <td className="px-4 py-3 text-right">
-                <InvoiceActions invoiceId={invoice.id} status={invoice.status} />
+                <InvoiceActions
+                  invoiceId={invoice.id}
+                  status={invoice.status}
+                  token={invoice.publicTokens?.[0]?.token}
+                />
               </td>
             </tr>
           ))}
@@ -147,7 +165,7 @@ async function InvoiceTable({
   );
 }
 
-function InvoiceActions({ invoiceId, status }: { invoiceId: string; status: string }) {
+function InvoiceActions({ invoiceId, status, token }: { invoiceId: string; status: string; token?: string }) {
   return (
     <div className="flex items-center justify-end gap-2">
       <Link
@@ -156,6 +174,7 @@ function InvoiceActions({ invoiceId, status }: { invoiceId: string; status: stri
       >
         Open
       </Link>
+      {token && <CopyInvoiceLinkButton token={token} />}
       <form action={async () => {
         "use server";
         await duplicateInvoice(invoiceId);
@@ -187,6 +206,9 @@ function StatusFilterChips({ currentStatus }: { currentStatus?: string }) {
     { value: "OVERDUE", label: "Overdue" },
     { value: "PAID", label: "Paid" },
     { value: "PARTIALLY_PAID", label: "Partial" },
+    { value: "DISPUTED", label: "Disputed" },
+    { value: "REISSUED", label: "Reissued" },
+    { value: "CANCELLED", label: "Cancelled" },
   ];
 
   return (

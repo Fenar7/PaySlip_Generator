@@ -212,16 +212,30 @@ model Invoice {
   totalAmount    Float         @default(0)
   notes          String?
   originalId     String?
+  issuedAt       DateTime?
+  paidAt         DateTime?
+  overdueAt      DateTime?
+  reissueReason  String?
   createdAt      DateTime      @default(now())
   updatedAt      DateTime      @updatedAt
   archivedAt     DateTime?
 
-  organization Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  customer     Customer?         @relation(fields: [customerId], references: [id])
-  original     Invoice?          @relation("InvoiceReissue", fields: [originalId], references: [id])
-  reissues     Invoice[]         @relation("InvoiceReissue")
-  lineItems    InvoiceLineItem[]
-  attachments  FileAttachment[]  @relation("InvoiceAttachments")
+  organization   Organization          @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  customer       Customer?             @relation(fields: [customerId], references: [id])
+  original       Invoice?              @relation("InvoiceReissue", fields: [originalId], references: [id])
+  reissues       Invoice[]             @relation("InvoiceReissue")
+  lineItems      InvoiceLineItem[]
+  attachments    FileAttachment[]      @relation("InvoiceAttachments")
+  stateEvents    InvoiceStateEvent[]
+  payments       InvoicePayment[]
+  proofs         InvoiceProof[]
+  publicTokens   PublicInvoiceToken[]
+  tickets        InvoiceTicket[]
+  scheduledSends ScheduledSend[]
+  recurringRule  RecurringInvoiceRule? @relation("RecurringBase")
+  generatedFrom  RecurringInvoiceRule? @relation("RecurringGenerated", fields: [generatedFromRuleId], references: [id])
+  generatedFromRuleId String?
+  approvalRequests ApprovalRequest[]   @relation("InvoiceApprovals")
 
   @@unique([organizationId, invoiceNumber])
   @@index([organizationId, status])
@@ -263,6 +277,7 @@ model Voucher {
   vendor       Vendor?          @relation(fields: [vendorId], references: [id])
   lines        VoucherLine[]
   attachments  FileAttachment[] @relation("VoucherAttachments")
+  approvalRequests ApprovalRequest[] @relation("VoucherApprovals")
 
   @@unique([organizationId, voucherNumber])
   @@index([organizationId, status])
@@ -303,6 +318,7 @@ model SalarySlip {
   employee     Employee?         @relation(fields: [employeeId], references: [id])
   components   SalaryComponent[]
   attachments  FileAttachment[]  @relation("SalarySlipAttachments")
+  approvalRequests ApprovalRequest[] @relation("SalarySlipApprovals")
 
   @@unique([organizationId, slipNumber])
   @@index([organizationId, status])
@@ -355,4 +371,282 @@ model SalaryPreset {
 
   @@index([organizationId])
   @@map("salary_preset")
+}
+
+// ─── Phase 4: SW Pay — Invoice Lifecycle ──────────────────────────────────────
+
+model InvoiceStateEvent {
+  id         String   @id @default(cuid())
+  invoiceId  String
+  fromStatus String
+  toStatus   String
+  actorId    String?  @db.Uuid
+  actorName  String?
+  reason     String?
+  metadata   Json?
+  createdAt  DateTime @default(now())
+
+  invoice Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  @@index([invoiceId])
+  @@map("invoice_state_event")
+}
+
+model InvoicePayment {
+  id         String   @id @default(cuid())
+  invoiceId  String
+  orgId      String
+  amount     Float
+  currency   String   @default("INR")
+  paidAt     DateTime @default(now())
+  method     String?
+  note       String?
+  isPartial  Boolean  @default(false)
+  createdAt  DateTime @default(now())
+
+  invoice Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  @@index([invoiceId])
+  @@map("invoice_payment")
+}
+
+enum ProofReviewStatus {
+  PENDING
+  ACCEPTED
+  REJECTED
+}
+
+model InvoiceProof {
+  id               String            @id @default(cuid())
+  invoiceId        String
+  fileUrl          String
+  fileName         String
+  amount           Float             @default(0)
+  paymentDate      String?
+  paymentMethod    String?
+  uploadedByToken  String?
+  uploadedByUserId String?           @db.Uuid
+  reviewStatus     ProofReviewStatus @default(PENDING)
+  reviewNote       String?
+  reviewedById     String?           @db.Uuid
+  reviewedAt       DateTime?
+  createdAt        DateTime          @default(now())
+
+  invoice Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  @@index([invoiceId])
+  @@map("invoice_proof")
+}
+
+model PublicInvoiceToken {
+  id             String    @id @default(cuid())
+  invoiceId      String
+  orgId          String
+  token          String    @unique @default(cuid())
+  expiresAt      DateTime?
+  accessCount    Int       @default(0)
+  lastAccessedAt DateTime?
+  createdAt      DateTime  @default(now())
+
+  invoice Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  @@index([token])
+  @@map("public_invoice_token")
+}
+
+// ─── Phase 5: SW Flow — Ticketing ─────────────────────────────────────────────
+
+enum TicketCategory {
+  BILLING_QUERY
+  AMOUNT_DISPUTE
+  MISSING_ITEM
+  OTHER
+}
+
+enum TicketStatus {
+  OPEN
+  IN_PROGRESS
+  RESOLVED
+  CLOSED
+}
+
+model InvoiceTicket {
+  id              String         @id @default(cuid())
+  invoiceId       String
+  orgId           String
+  submitterToken  String?
+  submitterName   String
+  submitterEmail  String
+  category        TicketCategory @default(OTHER)
+  description     String
+  status          TicketStatus   @default(OPEN)
+  assigneeId      String?        @db.Uuid
+  createdAt       DateTime       @default(now())
+  resolvedAt      DateTime?
+
+  invoice Invoice       @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  replies TicketReply[]
+
+  @@index([invoiceId])
+  @@index([orgId, status])
+  @@map("invoice_ticket")
+}
+
+model TicketReply {
+  id         String   @id @default(cuid())
+  ticketId   String
+  authorId   String?  @db.Uuid
+  authorName String
+  isInternal Boolean  @default(false)
+  message    String
+  createdAt  DateTime @default(now())
+
+  ticket InvoiceTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+
+  @@index([ticketId])
+  @@map("ticket_reply")
+}
+
+// ─── Phase 5: SW Flow — Approvals ─────────────────────────────────────────────
+
+enum ApprovalStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+model ApprovalRequest {
+  id            String         @id @default(cuid())
+  docType       String
+  docId         String
+  orgId         String
+  requestedById String         @db.Uuid
+  requestedByName String?
+  approverId    String?        @db.Uuid
+  approverName  String?
+  status        ApprovalStatus @default(PENDING)
+  note          String?
+  createdAt     DateTime       @default(now())
+  decidedAt     DateTime?
+
+  invoice    Invoice?    @relation("InvoiceApprovals", fields: [docId], references: [id], map: "approval_invoice_fkey")
+  voucher    Voucher?    @relation("VoucherApprovals", fields: [docId], references: [id], map: "approval_voucher_fkey")
+  salarySlip SalarySlip? @relation("SalarySlipApprovals", fields: [docId], references: [id], map: "approval_salary_slip_fkey")
+
+  @@index([orgId, status])
+  @@index([docType, docId])
+  @@map("approval_request")
+}
+
+// ─── Phase 5: SW Flow — Notifications ─────────────────────────────────────────
+
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String   @db.Uuid
+  orgId     String
+  type      String
+  title     String
+  body      String
+  link      String?
+  isRead    Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([userId, isRead])
+  @@index([orgId])
+  @@map("notification")
+}
+
+// ─── Phase 5: SW Flow — Activity Feed ─────────────────────────────────────────
+
+model ActivityLog {
+  id        String   @id @default(cuid())
+  orgId     String
+  actorId   String?  @db.Uuid
+  actorName String
+  event     String
+  docType   String?
+  docId     String?
+  meta      Json?
+  createdAt DateTime @default(now())
+
+  @@index([orgId, createdAt])
+  @@map("activity_log")
+}
+
+// ─── Phase 5: SW Flow — Scheduled Send ────────────────────────────────────────
+
+enum SendStatus {
+  PENDING
+  SENT
+  FAILED
+}
+
+model ScheduledSend {
+  id             String     @id @default(cuid())
+  invoiceId      String
+  orgId          String
+  recipientEmail String
+  scheduledAt    DateTime
+  status         SendStatus @default(PENDING)
+  sentAt         DateTime?
+  failReason     String?
+  createdAt      DateTime   @default(now())
+
+  invoice Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  @@index([orgId, status])
+  @@index([scheduledAt, status])
+  @@map("scheduled_send")
+}
+
+// ─── Phase 5: SW Flow — Recurring Invoice ─────────────────────────────────────
+
+enum RecurringFrequency {
+  WEEKLY
+  MONTHLY
+  QUARTERLY
+  YEARLY
+}
+
+enum RecurringStatus {
+  ACTIVE
+  PAUSED
+  COMPLETED
+}
+
+model RecurringInvoiceRule {
+  id             String             @id @default(cuid())
+  orgId          String
+  baseInvoiceId  String             @unique
+  frequency      RecurringFrequency @default(MONTHLY)
+  nextRunAt      DateTime
+  endDate        DateTime?
+  autoSend       Boolean            @default(false)
+  status         RecurringStatus    @default(ACTIVE)
+  runsCount      Int                @default(0)
+  lastRunAt      DateTime?
+  createdAt      DateTime           @default(now())
+
+  baseInvoice      Invoice   @relation("RecurringBase", fields: [baseInvoiceId], references: [id], onDelete: Cascade)
+  generatedInvoices Invoice[] @relation("RecurringGenerated")
+
+  @@index([orgId, status])
+  @@index([nextRunAt, status])
+  @@map("recurring_invoice_rule")
+}
+
+// ─── Phase 5: SW Flow — Job Log ───────────────────────────────────────────────
+
+model JobLog {
+  id          String    @id @default(cuid())
+  jobName     String
+  jobId       String?
+  status      String    @default("pending")
+  invoiceId   String?
+  triggeredAt DateTime  @default(now())
+  completedAt DateTime?
+  error       String?
+
+  @@index([jobName, status])
+  @@map("job_log")
 }

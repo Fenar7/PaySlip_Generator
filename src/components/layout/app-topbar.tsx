@@ -6,6 +6,8 @@ import { useSupabaseSession } from "@/hooks/use-supabase-session";
 import { createSupabaseBrowser } from "@/lib/supabase/client";
 import { Avatar } from "@/components/ui/avatar";
 
+import { NotificationBell } from "@/features/flow/components/notification-bell";
+
 interface AppTopbarProps {
   orgName?: string;
 }
@@ -31,6 +33,7 @@ export function AppTopbar({ orgName }: AppTopbarProps) {
 
       {/* User area */}
       <div className="flex items-center gap-3">
+        <NotificationBell />
         {isPending ? (
           <div className="w-8 h-8 rounded-full bg-[#333] animate-pulse" />
         ) : user ? (
