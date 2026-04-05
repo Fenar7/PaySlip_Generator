@@ -1,4 +1,4 @@
-"use server";
+import "server-only";
 
 import { createSupabaseServer } from "@/lib/supabase/server";
 import { db } from "@/lib/db";
