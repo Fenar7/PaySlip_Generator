@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Lato } from "next/font/google";
+import { Toaster } from "sonner";
 import { slipwiseBrand } from "@/components/foundation/slipwise-brand";
 import "./globals.css";
 
@@ -34,7 +35,10 @@ export default function RootLayout({
       data-scroll-behavior="smooth"
       className={`${lato.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col">{children}</body>
+      <body className="min-h-full flex flex-col">
+        {children}
+        <Toaster richColors position="top-right" />
+      </body>
     </html>
   );
 }

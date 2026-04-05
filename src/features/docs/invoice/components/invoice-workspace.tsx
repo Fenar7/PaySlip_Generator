@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { toast } from "sonner";
 import { FormProvider, useFieldArray, useForm, useFormContext, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
@@ -774,8 +775,14 @@ export function InvoiceWorkspace({ existingInvoice, initialTemplateId, customers
           );
         }
         methods.reset(values);
+        toast.success("Invoice saved successfully");
         return result.data.id;
+      } else {
+        toast.error(result.error || "Failed to save invoice");
       }
+    } catch (err) {
+      toast.error("An unexpected error occurred");
+      console.error(err);
     } finally {
       setIsSaving(false);
     }
@@ -788,7 +795,15 @@ export function InvoiceWorkspace({ existingInvoice, initialTemplateId, customers
     if (targetId) {
       setIsSaving(true);
       try {
-        await issueInvoice(targetId);
+        const result = await issueInvoice(targetId);
+        if (result.success) {
+          toast.success("Invoice issued successfully");
+        } else {
+          toast.error(result.error || "Failed to issue invoice");
+        }
+      } catch (err) {
+        toast.error("An unexpected error occurred");
+        console.error(err);
       } finally {
         setIsSaving(false);
       }

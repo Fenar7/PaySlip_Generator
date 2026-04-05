@@ -4,7 +4,7 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import type { TemplateDefinition, DocType } from "@/lib/docs/templates/registry";
-import { DOCTYPE_LABELS, CATEGORY_LABELS } from "@/lib/docs/templates/registry";
+import { DOCTYPE_LABELS, CATEGORY_LABELS, getEffectiveTemplateId } from "@/lib/docs/templates/registry";
 
 const DOC_NEW_PATHS: Record<DocType, string> = {
   invoice: "/app/docs/invoices/new",
@@ -24,12 +24,12 @@ export function TemplateCard({ template, onSetDefault }: TemplateCardProps) {
 
   const handleUseOnce = () => {
     const path = DOC_NEW_PATHS[activeDocType];
-    router.push(`${path}?template=${template.templateId}`);
+    router.push(`${path}?template=${getEffectiveTemplateId(template, activeDocType)}`);
   };
 
   const handleSetDefault = () => {
     startTransition(() => {
-      onSetDefault?.(template.templateId, activeDocType);
+      onSetDefault?.(getEffectiveTemplateId(template, activeDocType), activeDocType);
     });
   };
 
