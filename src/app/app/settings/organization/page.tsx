@@ -1,13 +1,13 @@
 "use client";
 import { useState, useEffect } from "react";
-import { authClient } from "@/lib/auth-client";
+import { useActiveOrg } from "@/hooks/use-active-org";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { getOrgSettings, saveOrgBranding, saveOrgFinancials } from "../actions";
 
 export default function OrganizationSettingsPage() {
-  const { data: activeOrg } = authClient.useActiveOrganization();
+  const { activeOrg } = useActiveOrg();
   const [accentColor, setAccentColor] = useState("#dc2626");
   const [fontFamily, setFontFamily] = useState("Inter");
   const [bankName, setBankName] = useState("");

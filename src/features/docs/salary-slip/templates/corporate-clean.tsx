@@ -108,6 +108,9 @@ export function CorporateCleanSalarySlipTemplate({
             <div className="mt-3 space-y-1.5 text-sm text-[rgba(29,23,16,0.72)]">
               {document.payDate ? <p>Pay date: {document.payDate}</p> : null}
               {document.paymentMethod ? <p>Payment method: {document.paymentMethod}</p> : null}
+              {document.visibility.showBankDetails && document.bankName ? (
+                <p>Bank: {document.bankName}</p>
+              ) : null}
             </div>
           </div>
         </div>

@@ -4,7 +4,7 @@ import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { AuthCard } from "@/features/auth/components/auth-card";
 import { Button } from "@/components/ui/button";
-import { authClient } from "@/lib/auth-client";
+import { createSupabaseBrowser } from "@/lib/supabase/client";
 
 function VerifyEmailContent() {
   const searchParams = useSearchParams();
@@ -15,7 +15,8 @@ function VerifyEmailContent() {
   async function handleResend() {
     setLoading(true);
     try {
-      await authClient.sendVerificationEmail({ email, callbackURL: "/app/home" });
+      const supabase = createSupabaseBrowser();
+      await supabase.auth.resend({ type: "signup", email });
       setSent(true);
     } finally {
       setLoading(false);

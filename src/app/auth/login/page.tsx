@@ -7,7 +7,7 @@ import { GoogleButton } from "@/features/auth/components/google-button";
 import { AuthDivider } from "@/features/auth/components/auth-divider";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { signIn } from "@/lib/auth-client";
+import { createSupabaseBrowser } from "@/lib/supabase/client";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -21,11 +21,13 @@ export default function LoginPage() {
     setError("");
     setLoading(true);
     try {
-      const result = await signIn.email({ email, password, callbackURL: "/app/home" });
-      if (result?.error) {
-        setError(result.error.message ?? "Invalid email or password");
+      const supabase = createSupabaseBrowser();
+      const { error: signInError } = await supabase.auth.signInWithPassword({ email, password });
+      if (signInError) {
+        setError(signInError.message ?? "Invalid email or password");
       } else {
         router.push("/app/home");
+        router.refresh();
       }
     } catch {
       setError("Something went wrong. Please try again.");

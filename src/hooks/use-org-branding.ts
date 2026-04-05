@@ -1,6 +1,6 @@
 "use client";
 import { useState, useEffect } from "react";
-import { authClient } from "@/lib/auth-client";
+import { useActiveOrg } from "@/hooks/use-active-org";
 import { getOrgBranding } from "@/app/app/actions/get-branding";
 
 export interface OrgBranding {
@@ -16,7 +16,7 @@ const DEFAULT_BRANDING: OrgBranding = {
 };
 
 export function useOrgBranding(): OrgBranding {
-  const { data: activeOrg } = authClient.useActiveOrganization();
+  const { activeOrg } = useActiveOrg();
   const [branding, setBranding] = useState<OrgBranding>(DEFAULT_BRANDING);
 
   useEffect(() => {

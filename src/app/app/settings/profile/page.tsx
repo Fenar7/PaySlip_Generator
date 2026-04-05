@@ -1,20 +1,21 @@
 "use client";
 import { useState, useEffect } from "react";
-import { useSession, authClient } from "@/lib/auth-client";
+import { useSupabaseSession } from "@/hooks/use-supabase-session";
+import { createSupabaseBrowser } from "@/lib/supabase/client";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 
 export default function ProfileSettingsPage() {
-  const { data: session, isPending } = useSession();
+  const { user, isPending } = useSupabaseSession();
   const [name, setName] = useState("");
   const [saving, setSaving] = useState(false);
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState("");
 
   useEffect(() => {
-    if (session?.user.name) setName(session.user.name);
-  }, [session]);
+    if (user?.user_metadata.name) setName(user.user_metadata.name);
+  }, [user]);
 
   async function handleSave(e: React.FormEvent) {
     e.preventDefault();
@@ -22,9 +23,10 @@ export default function ProfileSettingsPage() {
     setSuccess(false);
     setSaving(true);
     try {
-      const result = await authClient.updateUser({ name });
-      if (result?.error) {
-        setError(result.error.message ?? "Could not save changes. Please try again.");
+      const supabase = createSupabaseBrowser();
+      const { error: updateError } = await supabase.auth.updateUser({ data: { name } });
+      if (updateError) {
+        setError(updateError.message ?? "Could not save changes. Please try again.");
       } else {
         setSuccess(true);
       }
@@ -55,7 +57,7 @@ export default function ProfileSettingsPage() {
             <div>
               <label className="block text-sm font-medium text-[#1a1a1a] mb-1">Email</label>
               <p className="text-sm text-[#666] bg-[#f8f8f8] border border-[#e5e5e5] rounded-md px-3 py-2">
-                {session?.user.email}
+                {user?.email}
               </p>
               <p className="text-xs text-[#999] mt-1">
                 Email cannot be changed here. Contact support if needed.

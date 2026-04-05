@@ -1,15 +1,12 @@
 "use client";
-import { useState, Suspense } from "react";
-import { useSearchParams, useRouter } from "next/navigation";
-import Link from "next/link";
+import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { AuthCard } from "@/features/auth/components/auth-card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { authClient } from "@/lib/auth-client";
+import { createSupabaseBrowser } from "@/lib/supabase/client";
 
 function ResetPasswordContent() {
-  const searchParams = useSearchParams();
-  const token = searchParams.get("token") ?? "";
   const router = useRouter();
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
@@ -29,9 +26,10 @@ function ResetPasswordContent() {
     }
     setLoading(true);
     try {
-      const result = await authClient.resetPassword({ newPassword: password, token });
-      if (result?.error) {
-        setError(result.error.message ?? "Reset failed. The link may have expired.");
+      const supabase = createSupabaseBrowser();
+      const { error: updateError } = await supabase.auth.updateUser({ password });
+      if (updateError) {
+        setError(updateError.message ?? "Reset failed. The link may have expired.");
       } else {
         router.push("/auth/login?reset=success");
       }
@@ -40,22 +38,6 @@ function ResetPasswordContent() {
     } finally {
       setLoading(false);
     }
-  }
-
-  if (!token) {
-    return (
-      <AuthCard
-        title="Invalid link"
-        subtitle="This password reset link is invalid or expired."
-      >
-        <Link
-          href="/auth/forgot-password"
-          className="block text-center text-sm text-[#dc2626] hover:underline"
-        >
-          Request a new link
-        </Link>
-      </AuthCard>
-    );
   }
 
   return (
@@ -87,9 +69,5 @@ function ResetPasswordContent() {
 }
 
 export default function ResetPasswordPage() {
-  return (
-    <Suspense>
-      <ResetPasswordContent />
-    </Suspense>
-  );
+  return <ResetPasswordContent />;
 }

@@ -7,77 +7,30 @@ datasource db {
   provider = "postgresql"
 }
 
-// ─── Better Auth core tables ──────────────────────────────────────────────────
+// ─── User Profile (linked to Supabase auth.users via UUID) ───────────────────
 
-model User {
-  id            String    @id @default(cuid())
-  name          String
-  email         String    @unique
-  emailVerified Boolean   @default(false)
-  image         String?
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
-
-  sessions      Session[]
-  accounts      Account[]
-  members       Member[]
-
-  @@map("user")
-}
-
-model Session {
-  id        String   @id @default(cuid())
-  userId    String
-  token     String   @unique
-  expiresAt DateTime
-  ipAddress String?
-  userAgent String?
+model Profile {
+  id        String   @id @db.Uuid // matches auth.users.id
+  name      String
+  email     String   @unique
+  avatarUrl String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  members   Member[]
 
-  @@map("session")
+  @@map("profiles")
 }
 
-model Account {
-  id                   String    @id @default(cuid())
-  userId               String
-  accountId            String
-  providerId           String
-  accessToken          String?
-  refreshToken         String?
-  accessTokenExpiresAt DateTime?
-  scope                String?
-  password             String?
-  createdAt            DateTime  @default(now())
-  updatedAt            DateTime  @updatedAt
-
-  user                 User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@map("account")
-}
-
-model Verification {
-  id         String    @id @default(cuid())
-  identifier String
-  value      String
-  expiresAt  DateTime
-  createdAt  DateTime? @default(now())
-  updatedAt  DateTime? @updatedAt
-
-  @@map("verification")
-}
-
-// ─── Better Auth Organization plugin tables ───────────────────────────────────
+// ─── Organization ─────────────────────────────────────────────────────────────
 
 model Organization {
-  id          String   @id @default(cuid())
-  name        String
-  slug        String   @unique
-  logo        String?
-  createdAt   DateTime @default(now())
-  metadata    String?
+  id        String   @id @default(cuid())
+  name      String
+  slug      String   @unique
+  logo      String?
+  createdAt DateTime @default(now())
+  metadata  String?
 
   members     Member[]
   invitations Invitation[]
@@ -90,12 +43,12 @@ model Organization {
 model Member {
   id             String       @id @default(cuid())
   organizationId String
-  userId         String
+  userId         String       @db.Uuid
   role           String       @default("member")
   createdAt      DateTime     @default(now())
 
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user           Profile      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([organizationId, userId])
   @@map("member")
@@ -108,7 +61,7 @@ model Invitation {
   role           String?
   status         String       @default("pending")
   expiresAt      DateTime
-  inviterId      String
+  inviterId      String       @db.Uuid
 
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
