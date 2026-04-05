@@ -17,7 +17,9 @@ model Profile {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  members Member[]
+  members          Member[]
+  auditActorLogs   AuditLog[] @relation("AuditActor")
+  auditRepLogs     AuditLog[] @relation("AuditRepresented")
 
   @@map("profiles")
 }
@@ -32,18 +34,21 @@ model Organization {
   createdAt DateTime @default(now())
   metadata  String?
 
-  members       Member[]
-  invitations   Invitation[]
-  branding      BrandingProfile?
-  defaults      OrgDefaults?
-  customers     Customer[]
-  vendors       Vendor[]
-  employees     Employee[]
-  invoices      Invoice[]
-  vouchers      Voucher[]
-  salarySlips   SalarySlip[]
-  salaryPresets SalaryPreset[]
-  attachments   FileAttachment[]
+  members         Member[]
+  invitations     Invitation[]
+  branding        BrandingProfile?
+  defaults        OrgDefaults?
+  customers       Customer[]
+  vendors         Vendor[]
+  employees       Employee[]
+  invoices        Invoice[]
+  vouchers        Voucher[]
+  salarySlips     SalarySlip[]
+  salaryPresets   SalaryPreset[]
+  attachments     FileAttachment[]
+  reportSnapshots ReportSnapshot[]
+  proxyGrants     ProxyGrant[]
+  auditLogs       AuditLog[]
 
   @@map("organization")
 }
@@ -649,4 +654,75 @@ model JobLog {
 
   @@index([jobName, status])
   @@map("job_log")
+}
+
+// ─── Phase 6: SW Intel — Report Snapshots ─────────────────────────────────────
+
+model ReportSnapshot {
+  id           String    @id @default(cuid())
+  orgId        String
+  reportType   String
+  filters      Json
+  rowCount     Int
+  generatedAt  DateTime  @default(now())
+  downloadedAt DateTime?
+  createdBy    String
+
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@index([orgId, reportType])
+  @@map("report_snapshot")
+}
+
+// ─── Phase 7: Proxy & Audit ───────────────────────────────────────────────────
+
+enum ProxyStatus {
+  ACTIVE
+  EXPIRED
+  REVOKED
+}
+
+model ProxyGrant {
+  id            String      @id @default(cuid())
+  orgId         String
+  actorId       String      @db.Uuid
+  representedId String      @db.Uuid
+  scope         String[]
+  reason        String
+  grantedBy     String      @db.Uuid
+  expiresAt     DateTime
+  status        ProxyStatus @default(ACTIVE)
+  revokedAt     DateTime?
+  revokedBy     String?     @db.Uuid
+  createdAt     DateTime    @default(now())
+
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@index([orgId, status])
+  @@index([actorId, status])
+  @@map("proxy_grant")
+}
+
+model AuditLog {
+  id            String   @id @default(cuid())
+  orgId         String
+  actorId       String   @db.Uuid
+  representedId String?  @db.Uuid
+  proxyGrantId  String?
+  action        String
+  entityType    String?
+  entityId      String?
+  metadata      Json?
+  ipAddress     String?
+  userAgent     String?
+  createdAt     DateTime @default(now())
+
+  organization  Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  actor         Profile      @relation("AuditActor", fields: [actorId], references: [id])
+  represented   Profile?     @relation("AuditRepresented", fields: [representedId], references: [id])
+
+  @@index([orgId, createdAt])
+  @@index([actorId])
+  @@index([entityType, entityId])
+  @@map("audit_log")
 }

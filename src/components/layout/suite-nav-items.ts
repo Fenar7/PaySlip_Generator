@@ -60,6 +60,15 @@ export const suiteNavItems: NavItem[] = [
       { href: "/app/flow/jobs", label: "Job Log" },
     ],
   },
-  { href: "/app/intel", label: "Intel", suite: "intel", badge: "Soon" },
+  {
+    href: "/app/intel/dashboard",
+    label: "Intel",
+    suite: "intel",
+    children: [
+      { href: "/app/intel/dashboard", label: "Dashboard" },
+      { href: "/app/intel/reports", label: "Reports" },
+      { href: "/app/intel/insights", label: "Insights" },
+    ],
+  },
   { href: "/app/pixel", label: "Pixel", suite: "pixel", badge: "Soon" },
 ];

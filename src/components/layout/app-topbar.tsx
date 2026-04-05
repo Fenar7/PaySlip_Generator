@@ -7,6 +7,7 @@ import { createSupabaseBrowser } from "@/lib/supabase/client";
 import { Avatar } from "@/components/ui/avatar";
 
 import { NotificationBell } from "@/features/flow/components/notification-bell";
+import { ProxyBanner } from "@/features/access/components/proxy-banner";
 
 interface AppTopbarProps {
   orgName?: string;
@@ -23,7 +24,9 @@ export function AppTopbar({ orgName }: AppTopbarProps) {
   };
 
   return (
-    <header className="flex h-14 items-center border-b border-[var(--border-soft)] bg-white px-6 gap-4">
+    <>
+      <ProxyBanner />
+      <header className="flex h-14 items-center border-b border-[var(--border-soft)] bg-white px-6 gap-4">
       {/* Breadcrumb / org name */}
       <div className="flex-1">
         {orgName && (
@@ -63,5 +66,6 @@ export function AppTopbar({ orgName }: AppTopbarProps) {
         )}
       </div>
     </header>
+    </>
   );
 }

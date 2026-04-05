@@ -1,0 +1,404 @@
+"use server";
+
+import { db } from "@/lib/db";
+import { requireOrgContext } from "@/lib/auth";
+import { requirePermission } from "@/lib/permissions";
+import { sendEmail } from "@/lib/email";
+import { inviteEmailHtml } from "@/lib/email-templates/invite-email";
+import { revalidatePath } from "next/cache";
+
+export type ActionResult = { success: boolean; error?: string };
+
+export interface MemberWithProfile {
+  id: string;
+  userId: string;
+  role: string;
+  createdAt: Date;
+  user: {
+    id: string;
+    name: string;
+    email: string;
+    avatarUrl: string | null;
+  };
+}
+
+export interface InvitationRow {
+  id: string;
+  email: string;
+  role: string | null;
+  status: string;
+  expiresAt: Date;
+  inviterId: string;
+}
+
+export async function getOrgMembers(): Promise<MemberWithProfile[]> {
+  const { orgId, userId } = await requireOrgContext();
+  await requirePermission(orgId, userId, "settings_users", "read");
+
+  const members = await db.member.findMany({
+    where: { organizationId: orgId },
+    include: { user: true },
+    orderBy: { createdAt: "asc" },
+  });
+
+  return members.map((m) => ({
+    id: m.id,
+    userId: m.userId,
+    role: m.role,
+    createdAt: m.createdAt,
+    user: {
+      id: m.user.id,
+      name: m.user.name,
+      email: m.user.email,
+      avatarUrl: m.user.avatarUrl,
+    },
+  }));
+}
+
+export async function getPendingInvitations(): Promise<InvitationRow[]> {
+  const { orgId, userId } = await requireOrgContext();
+  await requirePermission(orgId, userId, "settings_users", "read");
+
+  const invitations = await db.invitation.findMany({
+    where: { organizationId: orgId, status: "pending" },
+    orderBy: { expiresAt: "desc" },
+  });
+
+  return invitations.map((inv) => ({
+    id: inv.id,
+    email: inv.email,
+    role: inv.role,
+    status: inv.status,
+    expiresAt: inv.expiresAt,
+    inviterId: inv.inviterId,
+  }));
+}
+
+export async function inviteUser(data: {
+  email: string;
+  role: string;
+}): Promise<ActionResult> {
+  try {
+    const { orgId, userId } = await requireOrgContext();
+    await requirePermission(orgId, userId, "settings_users", "create");
+
+    const existing = await db.member.findFirst({
+      where: {
+        organizationId: orgId,
+        user: { email: data.email },
+      },
+    });
+    if (existing) {
+      return { success: false, error: "User is already a member" };
+    }
+
+    const pendingInvite = await db.invitation.findFirst({
+      where: {
+        organizationId: orgId,
+        email: data.email,
+        status: "pending",
+      },
+    });
+    if (pendingInvite) {
+      return { success: false, error: "An invitation is already pending for this email" };
+    }
+
+    const expiresAt = new Date(Date.now() + 72 * 60 * 60 * 1000);
+
+    const invitation = await db.invitation.create({
+      data: {
+        organizationId: orgId,
+        email: data.email,
+        role: data.role,
+        status: "pending",
+        expiresAt,
+        inviterId: userId,
+      },
+    });
+
+    const [org, inviter] = await Promise.all([
+      db.organization.findUnique({ where: { id: orgId }, select: { name: true } }),
+      db.profile.findUnique({ where: { id: userId }, select: { name: true } }),
+    ]);
+
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3001";
+    const acceptUrl = `${appUrl}/auth/accept-invite?token=${invitation.id}`;
+
+    await sendEmail({
+      to: data.email,
+      subject: `You've been invited to ${org?.name ?? "an organization"} on Slipwise`,
+      html: inviteEmailHtml({
+        orgName: org?.name ?? "Organization",
+        inviterName: inviter?.name ?? "A team member",
+        role: data.role,
+        acceptUrl,
+      }),
+    });
+
+    revalidatePath("/app/settings/users");
+    return { success: true };
+  } catch (err) {
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : "Failed to invite user",
+    };
+  }
+}
+
+export async function updateMemberRole(
+  memberId: string,
+  role: string
+): Promise<ActionResult> {
+  try {
+    const { orgId, userId } = await requireOrgContext();
+    await requirePermission(orgId, userId, "settings_users", "edit");
+
+    const target = await db.member.findUnique({
+      where: { id: memberId },
+      select: { role: true, organizationId: true },
+    });
+
+    if (!target || target.organizationId !== orgId) {
+      return { success: false, error: "Member not found" };
+    }
+
+    if (target.role === "owner") {
+      return { success: false, error: "Cannot change the Owner role" };
+    }
+
+    if (role === "owner") {
+      return { success: false, error: "Cannot assign the Owner role" };
+    }
+
+    // If changing from admin, ensure at least 1 admin remains
+    if (target.role === "admin" && role !== "admin") {
+      const adminCount = await db.member.count({
+        where: { organizationId: orgId, role: "admin" },
+      });
+      if (adminCount <= 1) {
+        return {
+          success: false,
+          error: "Cannot change role — at least one Admin is required",
+        };
+      }
+    }
+
+    await db.member.update({
+      where: { id: memberId },
+      data: { role },
+    });
+
+    revalidatePath("/app/settings/users");
+    return { success: true };
+  } catch (err) {
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : "Failed to update role",
+    };
+  }
+}
+
+export async function deactivateMember(
+  memberId: string
+): Promise<ActionResult> {
+  try {
+    const { orgId, userId } = await requireOrgContext();
+    await requirePermission(orgId, userId, "settings_users", "edit");
+
+    const target = await db.member.findUnique({
+      where: { id: memberId },
+      select: { role: true, userId: true, organizationId: true },
+    });
+
+    if (!target || target.organizationId !== orgId) {
+      return { success: false, error: "Member not found" };
+    }
+
+    if (target.role === "owner") {
+      return { success: false, error: "Cannot deactivate the Owner" };
+    }
+
+    if (target.userId === userId) {
+      return { success: false, error: "Cannot deactivate yourself" };
+    }
+
+    await db.member.update({
+      where: { id: memberId },
+      data: { role: "deactivated" },
+    });
+
+    revalidatePath("/app/settings/users");
+    return { success: true };
+  } catch (err) {
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : "Failed to deactivate member",
+    };
+  }
+}
+
+export async function reactivateMember(
+  memberId: string
+): Promise<ActionResult> {
+  try {
+    const { orgId, userId } = await requireOrgContext();
+    await requirePermission(orgId, userId, "settings_users", "edit");
+
+    const target = await db.member.findUnique({
+      where: { id: memberId },
+      select: { role: true, organizationId: true },
+    });
+
+    if (!target || target.organizationId !== orgId) {
+      return { success: false, error: "Member not found" };
+    }
+
+    if (target.role !== "deactivated") {
+      return { success: false, error: "Member is not deactivated" };
+    }
+
+    await db.member.update({
+      where: { id: memberId },
+      data: { role: "viewer" },
+    });
+
+    revalidatePath("/app/settings/users");
+    return { success: true };
+  } catch (err) {
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : "Failed to reactivate member",
+    };
+  }
+}
+
+export async function removeMember(memberId: string): Promise<ActionResult> {
+  try {
+    const { orgId, userId } = await requireOrgContext();
+    await requirePermission(orgId, userId, "settings_users", "delete");
+
+    const target = await db.member.findUnique({
+      where: { id: memberId },
+      select: { role: true, userId: true, organizationId: true },
+    });
+
+    if (!target || target.organizationId !== orgId) {
+      return { success: false, error: "Member not found" };
+    }
+
+    if (target.role === "owner") {
+      return { success: false, error: "Cannot remove the Owner" };
+    }
+
+    if (target.userId === userId) {
+      return { success: false, error: "Cannot remove yourself" };
+    }
+
+    // If removing an admin, ensure at least 1 admin remains
+    if (target.role === "admin") {
+      const adminCount = await db.member.count({
+        where: { organizationId: orgId, role: "admin" },
+      });
+      if (adminCount <= 1) {
+        return {
+          success: false,
+          error: "Cannot remove — at least one Admin is required",
+        };
+      }
+    }
+
+    await db.member.delete({ where: { id: memberId } });
+
+    revalidatePath("/app/settings/users");
+    return { success: true };
+  } catch (err) {
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : "Failed to remove member",
+    };
+  }
+}
+
+export async function resendInvitation(
+  invitationId: string
+): Promise<ActionResult> {
+  try {
+    const { orgId, userId } = await requireOrgContext();
+    await requirePermission(orgId, userId, "settings_users", "create");
+
+    const invitation = await db.invitation.findUnique({
+      where: { id: invitationId },
+    });
+
+    if (!invitation || invitation.organizationId !== orgId) {
+      return { success: false, error: "Invitation not found" };
+    }
+
+    if (invitation.status !== "pending") {
+      return { success: false, error: "Invitation is no longer pending" };
+    }
+
+    const newExpiry = new Date(Date.now() + 72 * 60 * 60 * 1000);
+    await db.invitation.update({
+      where: { id: invitationId },
+      data: { expiresAt: newExpiry },
+    });
+
+    const [org, inviter] = await Promise.all([
+      db.organization.findUnique({ where: { id: orgId }, select: { name: true } }),
+      db.profile.findUnique({ where: { id: userId }, select: { name: true } }),
+    ]);
+
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3001";
+    const acceptUrl = `${appUrl}/auth/accept-invite?token=${invitation.id}`;
+
+    await sendEmail({
+      to: invitation.email,
+      subject: `Reminder: You've been invited to ${org?.name ?? "an organization"} on Slipwise`,
+      html: inviteEmailHtml({
+        orgName: org?.name ?? "Organization",
+        inviterName: inviter?.name ?? "A team member",
+        role: invitation.role ?? "viewer",
+        acceptUrl,
+      }),
+    });
+
+    revalidatePath("/app/settings/users");
+    return { success: true };
+  } catch (err) {
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : "Failed to resend invitation",
+    };
+  }
+}
+
+export async function cancelInvitation(
+  invitationId: string
+): Promise<ActionResult> {
+  try {
+    const { orgId, userId } = await requireOrgContext();
+    await requirePermission(orgId, userId, "settings_users", "delete");
+
+    const invitation = await db.invitation.findUnique({
+      where: { id: invitationId },
+    });
+
+    if (!invitation || invitation.organizationId !== orgId) {
+      return { success: false, error: "Invitation not found" };
+    }
+
+    await db.invitation.update({
+      where: { id: invitationId },
+      data: { status: "cancelled" },
+    });
+
+    revalidatePath("/app/settings/users");
+    return { success: true };
+  } catch (err) {
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : "Failed to cancel invitation",
+    };
+  }
+}
