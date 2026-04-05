@@ -1,12 +1,12 @@
 import type { Metadata } from "next";
-import { PdfStudioWorkspace } from "@/features/docs/pdf-studio/components/pdf-studio-workspace";
+import { PdfStudioHub } from "@/features/docs/pdf-studio/components/pdf-studio-hub";
 
 export const metadata: Metadata = {
-  title: "PDF Studio",
+  title: "PDF Studio | Slipwise",
   description:
-    "Convert images to PDF. Upload up to 30 images, arrange them, and download a clean merged PDF.",
+    "All-in-one PDF tools — create, merge, split, organize, and more. Free, private, browser-based.",
 };
 
 export default function PdfStudioPage() {
-  return <PdfStudioWorkspace />;
+  return <PdfStudioHub />;
 }

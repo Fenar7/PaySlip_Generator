@@ -70,5 +70,16 @@ export const suiteNavItems: NavItem[] = [
       { href: "/app/intel/insights", label: "Insights" },
     ],
   },
-  { href: "/app/pixel", label: "Pixel", suite: "pixel", badge: "Soon" },
+  {
+    href: "/app/pixel",
+    label: "Pixel",
+    suite: "pixel",
+    children: [
+      { href: "/app/pixel/passport", label: "Passport Photo" },
+      { href: "/app/pixel/resize", label: "Resize & Compress" },
+      { href: "/app/pixel/adjust", label: "Adjustments" },
+      { href: "/app/pixel/print-layout", label: "Print Layout" },
+      { href: "/app/pixel/label", label: "Labels" },
+    ],
+  },
 ];
