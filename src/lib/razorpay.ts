@@ -96,3 +96,97 @@ export async function fetchRazorpaySubscription(
 
   return rp.subscriptions.fetch(subscriptionId);
 }
+
+export async function createPaymentLink(params: {
+  amount: number;
+  currency?: string;
+  description: string;
+  referenceId: string;
+  customer?: { name?: string; email?: string; contact?: string };
+  expireBy?: number;
+  notifySms?: boolean;
+  notifyEmail?: boolean;
+  reminderEnable?: boolean;
+}): Promise<{ id: string; short_url: string } | null> {
+  const rp = getRazorpay();
+  if (!rp) return null;
+
+  return (rp as any).paymentLink.create({
+    amount: params.amount,
+    currency: params.currency ?? "INR",
+    description: params.description,
+    reference_id: params.referenceId,
+    customer: params.customer,
+    expire_by: params.expireBy,
+    notify: {
+      sms: params.notifySms ?? false,
+      email: params.notifyEmail ?? true,
+    },
+    reminder_enable: params.reminderEnable ?? true,
+  }) as Promise<{ id: string; short_url: string }>;
+}
+
+export async function createVirtualAccount(params: {
+  receiverTypes: string[];
+  description: string;
+  customerId?: string;
+  closeBy?: number;
+  notes?: Record<string, string>;
+}): Promise<{
+  id: string;
+  receivers: { account_number: string; ifsc: string }[];
+} | null> {
+  const rp = getRazorpay();
+  if (!rp) return null;
+
+  // Virtual Accounts API may not have SDK types — use any-cast
+  return (rp as any).virtualAccounts.create({
+    receivers: { types: params.receiverTypes },
+    description: params.description,
+    customer_id: params.customerId,
+    close_by: params.closeBy,
+    notes: params.notes,
+  }) as Promise<{
+    id: string;
+    receivers: { account_number: string; ifsc: string }[];
+  }>;
+}
+
+export async function pauseRazorpaySubscription(
+  subscriptionId: string,
+  pauseAt?: "now",
+): Promise<Subscriptions.RazorpaySubscription | null> {
+  const rp = getRazorpay();
+  if (!rp) return null;
+
+  return (rp as any).subscriptions.update(subscriptionId, {
+    pause_initiated_by: "customer",
+    ...(pauseAt && { pause_at: pauseAt }),
+  }) as Promise<Subscriptions.RazorpaySubscription>;
+}
+
+export async function resumeRazorpaySubscription(
+  subscriptionId: string,
+): Promise<Subscriptions.RazorpaySubscription | null> {
+  const rp = getRazorpay();
+  if (!rp) return null;
+
+  return (rp as any).subscriptions.resume(
+    subscriptionId,
+    { resume_at: "now" },
+  ) as Promise<Subscriptions.RazorpaySubscription>;
+}
+
+export async function changeSubscriptionPlan(
+  subscriptionId: string,
+  newPlanId: string,
+  immediate: boolean = false,
+): Promise<Subscriptions.RazorpaySubscription | null> {
+  const rp = getRazorpay();
+  if (!rp) return null;
+
+  return rp.subscriptions.update(subscriptionId, {
+    plan_id: newPlanId,
+    ...(immediate && { schedule_change_at: "now" }),
+  });
+}

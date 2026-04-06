@@ -4,6 +4,8 @@ import {
   recordRazorpayEvent,
   updateSubscriptionFromWebhook,
 } from "@/lib/billing";
+import { handlePaymentLinkPaid } from "@/lib/payment-links";
+import { handleVirtualAccountCredited } from "@/lib/smart-collect";
 
 export const dynamic = "force-dynamic";
 
@@ -126,6 +128,33 @@ export async function POST(request: Request) {
         console.error(
           `[Webhook] Payment failed: ${payment?.id} — ${payment?.error_description}`,
         );
+        break;
+      }
+
+      case "payment_link.paid": {
+        const paymentLink = event.payload?.payment_link?.entity;
+        const payment = event.payload?.payment?.entity;
+        if (paymentLink?.id && payment?.id) {
+          await handlePaymentLinkPaid(
+            paymentLink.id,
+            payment.id,
+            payment.amount ?? 0,
+          );
+        }
+        break;
+      }
+
+      case "virtual_account.credited": {
+        const va = event.payload?.virtual_account?.entity;
+        const payment = event.payload?.payment?.entity;
+        if (va?.id && payment?.id) {
+          await handleVirtualAccountCredited(va.id, payment.amount ?? 0, {
+            payerName: payment.bank_account?.name,
+            payerAccount: payment.bank_account?.account_number,
+            payerIfsc: payment.bank_account?.ifsc,
+            razorpayPaymentId: payment.id,
+          });
+        }
         break;
       }
 

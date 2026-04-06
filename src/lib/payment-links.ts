@@ -1,0 +1,141 @@
+import "server-only";
+import { db } from "@/lib/db";
+import { createPaymentLink, getRazorpay } from "@/lib/razorpay";
+
+type ActionResult<T> =
+  | { success: true; data: T }
+  | { success: false; error: string };
+
+export async function createInvoicePaymentLink(
+  orgId: string,
+  invoiceId: string,
+): Promise<ActionResult<{ paymentLinkId: string; shortUrl: string }>> {
+  if (!getRazorpay()) {
+    return { success: false, error: "Razorpay not configured" };
+  }
+
+  const invoice = await db.invoice.findFirst({
+    where: { id: invoiceId, organizationId: orgId },
+    include: { customer: true },
+  });
+
+  if (!invoice) {
+    return { success: false, error: "Invoice not found" };
+  }
+
+  if (invoice.status === "PAID" || invoice.status === "CANCELLED") {
+    return { success: false, error: `Invoice is already ${invoice.status}` };
+  }
+
+  if (invoice.razorpayPaymentLinkId) {
+    return { success: false, error: "Payment link already exists for this invoice" };
+  }
+
+  const amountPaise = Math.round(invoice.totalAmount * 100);
+  if (amountPaise <= 0) {
+    return { success: false, error: "Invoice amount must be greater than zero" };
+  }
+
+  const expireBy = invoice.dueDate
+    ? Math.floor(new Date(invoice.dueDate).getTime() / 1000)
+    : undefined;
+
+  try {
+    const link = await createPaymentLink({
+      amount: amountPaise,
+      description: `Invoice ${invoice.invoiceNumber}`,
+      referenceId: invoiceId,
+      customer: invoice.customer
+        ? {
+            name: invoice.customer.name,
+            email: invoice.customer.email ?? undefined,
+            contact: invoice.customer.phone ?? undefined,
+          }
+        : undefined,
+      expireBy: expireBy && expireBy > Math.floor(Date.now() / 1000) ? expireBy : undefined,
+      notifyEmail: true,
+    });
+
+    if (!link) {
+      return { success: false, error: "Failed to create payment link" };
+    }
+
+    await db.invoice.update({
+      where: { id: invoiceId },
+      data: {
+        razorpayPaymentLinkId: link.id,
+        razorpayPaymentLinkUrl: link.short_url,
+        paymentLinkExpiresAt: expireBy ? new Date(expireBy * 1000) : null,
+      },
+    });
+
+    return { success: true, data: { paymentLinkId: link.id, shortUrl: link.short_url } };
+  } catch (err) {
+    console.error("[PaymentLinks] create error:", err);
+    return { success: false, error: "Failed to create payment link on Razorpay" };
+  }
+}
+
+export async function handlePaymentLinkPaid(
+  paymentLinkId: string,
+  paymentId: string,
+  amount: number,
+): Promise<ActionResult<{ invoiceId: string }>> {
+  const invoice = await db.invoice.findFirst({
+    where: { razorpayPaymentLinkId: paymentLinkId },
+  });
+
+  if (!invoice) {
+    return { success: false, error: "No invoice found for this payment link" };
+  }
+
+  await db.invoicePayment.create({
+    data: {
+      invoiceId: invoice.id,
+      orgId: invoice.organizationId,
+      amount: amount / 100,
+      currency: "INR",
+      method: "razorpay_payment_link",
+      note: `Razorpay payment ${paymentId}`,
+      paidAt: new Date(),
+    },
+  });
+
+  await db.invoice.update({
+    where: { id: invoice.id },
+    data: {
+      status: "PAID",
+      paidAt: new Date(),
+    },
+  });
+
+  return { success: true, data: { invoiceId: invoice.id } };
+}
+
+export async function cancelPaymentLink(
+  invoiceId: string,
+): Promise<ActionResult<{ cancelled: boolean }>> {
+  const invoice = await db.invoice.findUnique({
+    where: { id: invoiceId },
+  });
+
+  if (!invoice) {
+    return { success: false, error: "Invoice not found" };
+  }
+
+  if (!invoice.razorpayPaymentLinkId) {
+    return { success: false, error: "No payment link on this invoice" };
+  }
+
+  // Clear the payment link from the invoice record
+  await db.invoice.update({
+    where: { id: invoiceId },
+    data: {
+      razorpayPaymentLinkId: null,
+      razorpayPaymentLinkUrl: null,
+      paymentLinkExpiresAt: null,
+    },
+  });
+
+  return { success: true, data: { cancelled: true } };
+}

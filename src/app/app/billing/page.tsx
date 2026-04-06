@@ -100,6 +100,29 @@ export default async function BillingPage() {
           </div>
         )}
 
+        {status === "paused" && (
+          <div className="mt-4 rounded-md border border-orange-200 bg-orange-50 p-3">
+            <p className="text-sm text-orange-800">
+              ⏸ Your subscription is paused
+              {sub?.pauseReason && <> — {sub.pauseReason}</>}.
+              {sub?.pausedUntil && (
+                <>
+                  {" "}
+                  Auto-resumes on{" "}
+                  <strong>
+                    {new Date(sub.pausedUntil).toLocaleDateString("en-IN", {
+                      day: "numeric",
+                      month: "long",
+                      year: "numeric",
+                    })}
+                  </strong>
+                  .
+                </>
+              )}
+            </p>
+          </div>
+        )}
+
         {sub?.currentPeriodEnd && (
           <p className="mt-3 text-sm text-gray-500">
             Next billing date:{" "}
@@ -178,14 +201,46 @@ export default async function BillingPage() {
               Cancel Subscription
             </Link>
           )}
+          {planId !== "free" &&
+            status === "active" && (
+              <Link
+                href={`/api/billing/razorpay/pause`}
+                onClick={(e) => {
+                  e.preventDefault();
+                  // Handled via form or client component
+                }}
+                className="rounded-md border border-orange-300 bg-white px-4 py-2 text-sm font-medium text-orange-700 hover:bg-orange-50"
+              >
+                Pause Subscription
+              </Link>
+            )}
+          {status === "paused" && (
+            <Link
+              href={`/api/billing/razorpay/resume`}
+              onClick={(e) => {
+                e.preventDefault();
+              }}
+              className="rounded-md bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700"
+            >
+              Resume Subscription
+            </Link>
+          )}
         </div>
       </div>
 
       {/* Billing History */}
       <div className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
-        <h2 className="text-lg font-semibold text-gray-900">
-          Billing History
-        </h2>
+        <div className="flex items-center justify-between">
+          <h2 className="text-lg font-semibold text-gray-900">
+            Billing History
+          </h2>
+          <Link
+            href="/app/billing/history"
+            className="text-sm font-medium text-indigo-600 hover:text-indigo-800"
+          >
+            View all →
+          </Link>
+        </div>
         <p className="mt-2 text-sm text-gray-500">
           Payment history will appear here once you have an active subscription.
         </p>
