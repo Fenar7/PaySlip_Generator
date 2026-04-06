@@ -22,7 +22,7 @@ export interface TemplateDefinition {
 }
 
 export const TEMPLATE_REGISTRY: TemplateDefinition[] = [
-  // General Business
+  // ── General Business ──────────────────────────────────────
   {
     id: "minimal-clean",
     name: "Minimal Clean",
@@ -52,20 +52,47 @@ export const TEMPLATE_REGISTRY: TemplateDefinition[] = [
     name: "Bold Brand",
     description: "Expressive branded header with confident summary area. Great for agencies.",
     category: "general",
-    docTypes: ["invoice"],
+    docTypes: ["invoice", "voucher"],
     templateId: "bold-brand",
+    templateIdByDocType: { voucher: "modern-card" },
     previewImage: "/templates/bold-brand.svg",
     isPremium: false,
     tags: ["branded", "colorful", "agency"],
   },
-  // Medical
+  {
+    id: "classic-bordered-entry",
+    name: "Classic Bordered",
+    description: "Traditional accounting ledger with sharp borders and structured tables.",
+    category: "general",
+    docTypes: ["invoice", "voucher", "salary-slip"],
+    templateId: "classic-bordered",
+    templateIdByDocType: { voucher: "formal-bordered", "salary-slip": "classic-formal" },
+    previewImage: "/templates/classic-bordered.svg",
+    isPremium: false,
+    tags: ["traditional", "bordered", "accounting"],
+  },
+  {
+    id: "modern-edge-entry",
+    name: "Modern Edge",
+    description: "Asymmetric editorial design with bold typography and accent sidebar.",
+    category: "general",
+    docTypes: ["invoice", "voucher", "salary-slip"],
+    templateId: "modern-edge",
+    templateIdByDocType: { voucher: "compact-receipt", "salary-slip": "detailed-breakdown" },
+    previewImage: "/templates/modern-edge.svg",
+    isPremium: false,
+    tags: ["modern", "editorial", "asymmetric"],
+  },
+
+  // ── Medical / Healthcare ──────────────────────────────────
   {
     id: "medical-invoice",
     name: "Medical Invoice",
     description: "Clinical layout with professional trust signals for healthcare providers.",
     category: "medical",
-    docTypes: ["invoice"],
-    templateId: "minimal",
+    docTypes: ["invoice", "voucher"],
+    templateId: "classic-bordered",
+    templateIdByDocType: { voucher: "formal-bordered" },
     previewImage: "/templates/medical-invoice.svg",
     isPremium: false,
     tags: ["healthcare", "clinical", "medical"],
@@ -76,19 +103,31 @@ export const TEMPLATE_REGISTRY: TemplateDefinition[] = [
     description: "Clean receipt format for patient billing and pharmacy use.",
     category: "medical",
     docTypes: ["voucher"],
-    templateId: "minimal-office",
+    templateId: "compact-receipt",
     previewImage: "/templates/clinical-receipt.svg",
     isPremium: false,
     tags: ["pharmacy", "receipt", "patient"],
   },
-  // Logistics
+  {
+    id: "medical-payslip",
+    name: "Hospital Payslip",
+    description: "Detailed payslip for hospital staff with shift and allowance breakdowns.",
+    category: "medical",
+    docTypes: ["salary-slip"],
+    templateId: "detailed-breakdown",
+    previewImage: "/templates/medical-payslip.svg",
+    isPremium: false,
+    tags: ["hospital", "staff", "payroll"],
+  },
+
+  // ── Delivery / Logistics ──────────────────────────────────
   {
     id: "delivery-note",
     name: "Delivery Note Invoice",
     description: "Combined delivery note and invoice for logistics and courier businesses.",
     category: "logistics",
     docTypes: ["invoice"],
-    templateId: "professional",
+    templateId: "modern-edge",
     previewImage: "/templates/delivery-note.svg",
     isPremium: false,
     tags: ["delivery", "logistics", "courier"],
@@ -98,13 +137,26 @@ export const TEMPLATE_REGISTRY: TemplateDefinition[] = [
     name: "Logistics Bill",
     description: "Freight and transport billing with route and cargo details.",
     category: "logistics",
-    docTypes: ["invoice"],
+    docTypes: ["invoice", "voucher"],
     templateId: "professional",
+    templateIdByDocType: { voucher: "formal-bordered" },
     previewImage: "/templates/logistics-bill.svg",
     isPremium: false,
     tags: ["freight", "transport", "cargo"],
   },
-  // Hospitality
+  {
+    id: "logistics-payslip",
+    name: "Driver Payslip",
+    description: "Compact payslip for fleet drivers with trip-based earnings.",
+    category: "logistics",
+    docTypes: ["salary-slip"],
+    templateId: "compact-payslip",
+    previewImage: "/templates/logistics-payslip.svg",
+    isPremium: false,
+    tags: ["driver", "fleet", "transport"],
+  },
+
+  // ── Hospitality ───────────────────────────────────────────
   {
     id: "hotel-invoice",
     name: "Hotel Invoice",
@@ -119,15 +171,27 @@ export const TEMPLATE_REGISTRY: TemplateDefinition[] = [
   {
     id: "restaurant-bill",
     name: "Restaurant Bill",
-    description: "Clean restaurant receipt with table number and cover count support.",
+    description: "Compact restaurant receipt with table number and cover count support.",
     category: "hospitality",
     docTypes: ["voucher"],
-    templateId: "minimal-office",
+    templateId: "compact-receipt",
     previewImage: "/templates/restaurant-bill.svg",
     isPremium: false,
     tags: ["restaurant", "food", "dining"],
   },
-  // HR
+  {
+    id: "hospitality-payslip",
+    name: "Hospitality Payslip",
+    description: "Staff payslip with tips, overtime, and service charge breakdowns.",
+    category: "hospitality",
+    docTypes: ["salary-slip"],
+    templateId: "modern-premium",
+    previewImage: "/templates/hospitality-payslip.svg",
+    isPremium: false,
+    tags: ["hotel", "staff", "tips"],
+  },
+
+  // ── Corporate HR ──────────────────────────────────────────
   {
     id: "corporate-salary",
     name: "Corporate Salary Slip",
@@ -145,10 +209,32 @@ export const TEMPLATE_REGISTRY: TemplateDefinition[] = [
     description: "Premium salary slip with CTC breakdown and benefits summary.",
     category: "hr",
     docTypes: ["salary-slip"],
-    templateId: "modern-premium",
+    templateId: "detailed-breakdown",
     previewImage: "/templates/executive-slip.svg",
     isPremium: true,
     tags: ["executive", "premium", "ctc"],
+  },
+  {
+    id: "startup-payslip",
+    name: "Startup Payslip",
+    description: "Modern compact payslip perfect for fast-moving startups.",
+    category: "hr",
+    docTypes: ["salary-slip"],
+    templateId: "compact-payslip",
+    previewImage: "/templates/startup-payslip.svg",
+    isPremium: false,
+    tags: ["startup", "compact", "modern"],
+  },
+  {
+    id: "classic-hr-slip",
+    name: "Classic HR Slip",
+    description: "Traditional bordered payslip used by established enterprises.",
+    category: "hr",
+    docTypes: ["salary-slip"],
+    templateId: "classic-formal",
+    previewImage: "/templates/classic-hr-slip.svg",
+    isPremium: false,
+    tags: ["traditional", "formal", "enterprise"],
   },
 ];
 

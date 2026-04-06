@@ -15,9 +15,10 @@ const DOC_NEW_PATHS: Record<DocType, string> = {
 interface TemplateCardProps {
   template: TemplateDefinition;
   onSetDefault?: (templateId: string, docType: DocType) => void;
+  onPreview?: (template: TemplateDefinition, docType: DocType) => void;
 }
 
-export function TemplateCard({ template, onSetDefault }: TemplateCardProps) {
+export function TemplateCard({ template, onSetDefault, onPreview }: TemplateCardProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [activeDocType, setActiveDocType] = useState<DocType>(template.docTypes[0]);
@@ -33,10 +34,19 @@ export function TemplateCard({ template, onSetDefault }: TemplateCardProps) {
     });
   };
 
+  const handlePreview = () => {
+    onPreview?.(template, activeDocType);
+  };
+
   return (
     <div className="group relative flex flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm hover:shadow-md transition-all hover:-translate-y-0.5">
-      {/* Preview */}
-      <div className="relative h-48 overflow-hidden bg-slate-50 border-b border-slate-200">
+      {/* Preview thumbnail */}
+      <button
+        type="button"
+        onClick={handlePreview}
+        className="relative h-48 w-full overflow-hidden bg-slate-50 border-b border-slate-200 cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-red-500"
+        aria-label={`Preview ${template.name}`}
+      >
         <div className="absolute inset-0 flex items-center justify-center p-4">
           <div className="w-full max-w-[140px] shadow-lg rounded overflow-hidden">
             <Image
@@ -54,8 +64,17 @@ export function TemplateCard({ template, onSetDefault }: TemplateCardProps) {
             PRO
           </div>
         )}
-        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/5 transition-colors" />
-      </div>
+        {/* Hover overlay with preview hint */}
+        <div className="absolute inset-0 flex flex-col items-center justify-center gap-1.5 bg-black/0 group-hover:bg-black/40 transition-all opacity-0 group-hover:opacity-100">
+          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-white/90 text-slate-700 shadow">
+            <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+              <path strokeLinecap="round" strokeLinejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+            </svg>
+          </div>
+          <span className="text-xs font-medium text-white drop-shadow">Click to preview</span>
+        </div>
+      </button>
 
       {/* Info */}
       <div className="flex flex-1 flex-col p-4">

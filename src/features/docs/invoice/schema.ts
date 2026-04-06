@@ -79,7 +79,7 @@ const lineItemDocumentSchema = z.object({
 });
 
 export const invoiceDocumentSchema = z.object({
-  templateId: z.enum(["minimal", "professional", "bold-brand"]),
+  templateId: z.enum(["minimal", "professional", "bold-brand", "classic-bordered", "modern-edge"]),
   title: z.string().trim().min(1),
   branding: brandingSchema,
   website: z.string().trim().optional(),
@@ -124,7 +124,7 @@ export const invoiceDocumentSchema = z.object({
 
 export const invoiceFormSchema = z
   .object({
-    templateId: z.enum(["minimal", "professional", "bold-brand"]),
+    templateId: z.enum(["minimal", "professional", "bold-brand", "classic-bordered", "modern-edge"]),
     branding: brandingSchema.extend({
       companyName: z.string().trim().min(1, "Business name is required."),
     }),

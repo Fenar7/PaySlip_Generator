@@ -1,7 +1,7 @@
 import type { BrandingConfig } from "@/lib/branding";
 
 export type VoucherType = "payment" | "receipt";
-export type VoucherTemplateId = "minimal-office" | "traditional-ledger";
+export type VoucherTemplateId = "minimal-office" | "traditional-ledger" | "modern-card" | "formal-bordered" | "compact-receipt";
 
 export type LineItemFormValues = {
   description: string;
