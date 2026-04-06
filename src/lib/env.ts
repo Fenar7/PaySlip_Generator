@@ -13,6 +13,14 @@ const envSchema = z.object({
   NODE_ENV: z
     .enum(["development", "test", "production"])
     .default("development"),
+  UPSTASH_REDIS_REST_URL: z.string().url().optional(),
+  UPSTASH_REDIS_REST_TOKEN: z.string().optional(),
+  SENTRY_DSN: z.string().url().optional(),
+  SENTRY_AUTH_TOKEN: z.string().optional(),
+  STORAGE_PROVIDER: z.enum(["supabase", "s3"]).default("supabase"),
+  RAZORPAY_KEY_ID: z.string().optional(),
+  RAZORPAY_KEY_SECRET: z.string().optional(),
+  RAZORPAY_WEBHOOK_SECRET: z.string().optional(),
 });
 
 type Env = z.infer<typeof envSchema>;

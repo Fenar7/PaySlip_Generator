@@ -120,6 +120,7 @@ export function ImageThumbnail({
           </div>
         ) : (
           <div className="aspect-[3/4] w-full overflow-hidden">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src={item.previewUrl}
               alt={item.name}

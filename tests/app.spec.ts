@@ -98,6 +98,43 @@ async function mockWorkspaceExport(
   });
 }
 
+async function mockWorkspaceSessionExport(
+  page: Page,
+  sessionEndpoint: string,
+  downloadEndpoint: string,
+  downloadUrl: string,
+  options?: { failFirst?: boolean; filename?: string },
+) {
+  let attempt = 0;
+
+  await page.route(sessionEndpoint, async (route) => {
+    attempt += 1;
+
+    await new Promise((resolve) => setTimeout(resolve, 150));
+
+    if (options?.failFirst && attempt === 1) {
+      await route.fulfill({
+        status: 500,
+        contentType: "application/json",
+        body: JSON.stringify({ error: "Slipwise could not generate the file." }),
+      });
+      return;
+    }
+
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        pdfUrl: downloadUrl,
+      }),
+    });
+  });
+
+  await mockWorkspaceExport(page, downloadEndpoint, {
+    filename: options?.filename,
+  });
+}
+
 const salarySlipDocumentPayload = {
   templateId: "corporate-clean",
   title: "Salary Slip",
@@ -390,10 +427,16 @@ test("voucher export dialog reaches success and closes cleanly", async ({ page }
 });
 
 test("salary slip export dialog supports retry after an export failure", async ({ page }) => {
-  await mockWorkspaceExport(page, "**/api/export/salary-slip/pdf", {
+  await mockWorkspaceSessionExport(
+    page,
+    "**/api/export/salary-slip/session",
+    "**/api/export/salary-slip/download?*",
+    "/api/export/salary-slip/download?format=pdf&payload=mock-session",
+    {
     failFirst: true,
     filename: "salary-slip.pdf",
-  });
+    },
+  );
 
   await page.goto("/salary-slip");
   await page.getByRole("button", { name: /^export pdf$/i }).click();
@@ -443,7 +486,7 @@ test("invoice route updates totals and template state as line items change", asy
   await page.getByRole("button", { name: /bold brand/i }).click();
   await expect(page.getByText(/balance due/i).first()).toBeVisible();
 
-  await page.locator('#lineItems-0-discountAmount').fill("1000");
+  await page.locator('input[name="lineItems.0.discountAmount"]').fill("1000");
   await page.locator('#amountPaid').fill("20000");
 
   await expect(page.getByText(/₹35,280.00/i).first()).toBeVisible();

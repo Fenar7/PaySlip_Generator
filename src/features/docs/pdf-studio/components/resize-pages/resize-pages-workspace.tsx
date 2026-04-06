@@ -336,6 +336,7 @@ export function ResizePagesWorkspace() {
                       aspectRatio: `${targetSize.widthMm} / ${targetSize.heightMm}`,
                     }}
                   >
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
                       src={pages[0].previewUrl}
                       alt="First page preview"

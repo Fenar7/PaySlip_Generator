@@ -16,16 +16,20 @@ export interface StorageAdapter {
 
 /** Development mock — no actual file storage, returns placeholder URLs */
 class LocalStorageAdapter implements StorageAdapter {
-  async upload(key: string, _data: Buffer | Blob, _contentType: string) {
+  async upload(key: string, data: Buffer | Blob, contentType: string) {
+    void data;
+    void contentType;
     // In dev, just return the key as a mock URL
     return `/api/storage/dev/${key}`;
   }
 
-  async getSignedUrl(key: string, _expiresInSeconds?: number) {
+  async getSignedUrl(key: string, expiresInSeconds?: number) {
+    void expiresInSeconds;
     return `/api/storage/dev/${key}`;
   }
 
-  async delete(_key: string) {
+  async delete(key: string) {
+    void key;
     // no-op in dev
   }
 }

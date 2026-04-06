@@ -119,8 +119,8 @@ function VoucherPanel({
   );
 
   // Sync multi-line total → amount field so preview stays live
-  const lineItems = values.lineItems ?? [];
   useEffect(() => {
+    const lineItems = values.lineItems ?? [];
     if (isMultiLine && lineItems.length > 0) {
       const total = lineItems.reduce(
         (sum, item) => sum + (parseFloat(String(item.amount)) || 0),
@@ -128,7 +128,7 @@ function VoucherPanel({
       );
       setValue("amount", total.toFixed(2));
     }
-  }, [isMultiLine, lineItems, setValue]);
+  }, [isMultiLine, setValue, values.lineItems]);
 
   const handleSaveDraft = useCallback(async () => {
     setIsSaving(true);
