@@ -22,7 +22,7 @@ async function rateLimit(
 
   try {
     const { Ratelimit } = await import("@upstash/ratelimit");
-    const { Redis } = await import("@upstash/redis");
+    const { Redis } = await import("@upstash/redis/cloudflare");
 
     const redis = new Redis({ url, token });
     const limiter = new Ratelimit({

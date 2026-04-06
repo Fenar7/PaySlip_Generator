@@ -68,7 +68,7 @@ export async function POST(request: Request) {
   }
 
   try {
-    let sub = await db.subscription.findUnique({ where: { orgId } });
+    const sub = await db.subscription.findUnique({ where: { orgId } });
     let customerId = sub?.razorpayCustomerId;
 
     if (!customerId) {

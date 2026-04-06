@@ -142,6 +142,7 @@ export default async function ProofDetailPage({
 
             <div className="rounded-lg border border-slate-100 bg-slate-50 overflow-hidden">
               {isImage ? (
+                // eslint-disable-next-line @next/next/no-img-element
                 <img
                   src={proof.fileUrl}
                   alt="Payment proof"

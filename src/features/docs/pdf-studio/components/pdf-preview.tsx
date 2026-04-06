@@ -184,6 +184,7 @@ function WatermarkOverlay({
           zIndex: 10,
         }}
       >
+        {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           src={watermark.image.previewUrl}
           alt="Watermark"
@@ -245,6 +246,7 @@ function PreviewPage({
           className="relative h-full w-full"
           style={{ padding: paddingPercent }}
         >
+          {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src={data.imageUrl}
             alt={`Page ${index + 1}`}

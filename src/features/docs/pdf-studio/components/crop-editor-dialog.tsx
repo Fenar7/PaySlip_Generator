@@ -506,6 +506,7 @@ export function CropEditorDialog({ item, onApply, onClose }: CropEditorDialogPro
                 onPointerCancel={(event) => endInteraction(event.pointerId)}
                 onPointerLeave={(event) => endInteraction(event.pointerId)}
               >
+                {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
                   src={item.previewUrl}
                   alt={item.name}

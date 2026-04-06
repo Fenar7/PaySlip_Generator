@@ -2,7 +2,6 @@
 
 import { db } from "@/lib/db";
 import { requireOrgContext } from "@/lib/auth";
-import { revalidatePath } from "next/cache";
 
 export type ActionResult<T> =
   | { success: true; data: T }

@@ -65,6 +65,7 @@ function PdfPageThumbnail({
       onClick={handleClick}
     >
       <div className="relative overflow-hidden rounded-t-[0.65rem] bg-[var(--surface-soft)]">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           src={item.previewUrl}
           alt={`Page ${index + 1}`}

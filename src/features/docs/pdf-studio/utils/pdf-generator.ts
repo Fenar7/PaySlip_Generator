@@ -41,7 +41,7 @@ export async function generatePdfFromImages(
   onProgress?: (progress: GenerationProgress) => void,
   signal?: AbortSignal,
 ): Promise<Uint8Array> {
-  const { PDFDocument, StandardFonts, rgb } = await import("pdf-lib");
+  const { PDFDocument, StandardFonts } = await import("pdf-lib");
 
   const pdfDoc = await PDFDocument.create();
   const pageNumberFont = await pdfDoc.embedFont(StandardFonts.Helvetica);

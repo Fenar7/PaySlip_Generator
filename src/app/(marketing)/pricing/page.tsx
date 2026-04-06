@@ -4,8 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { Check, Minus } from "lucide-react";
 
-const BILLING_CYCLES = ["monthly", "yearly"] as const;
-type BillingCycle = (typeof BILLING_CYCLES)[number];
+type BillingCycle = "monthly" | "yearly";
 
 const plans = [
   {

@@ -328,6 +328,7 @@ function ImageUploadSection({
         {watermark.image?.previewUrl && (
           <div className="flex items-center justify-between rounded-[0.9rem] border border-[var(--border-soft)] bg-[rgba(255,255,255,0.82)] p-3">
             <div className="flex items-center gap-3">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src={watermark.image.previewUrl}
                 alt="Watermark preview"
