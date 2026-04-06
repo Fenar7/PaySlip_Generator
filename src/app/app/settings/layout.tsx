@@ -11,6 +11,8 @@ const navItems = [
   { label: "Team Members", href: "/app/settings/users" },
   { label: "Roles", href: "/app/settings/roles" },
   { label: "Proxy Access", href: "/app/settings/access" },
+  { label: "API Keys", href: "/app/settings/api" },
+  { label: "Webhooks", href: "/app/settings/webhooks" },
   { label: "Enterprise", href: "/app/settings/enterprise" },
   { label: "Audit Log", href: "/app/settings/audit" },
 ];
