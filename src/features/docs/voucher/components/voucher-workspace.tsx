@@ -30,15 +30,18 @@ import {
   voucherTemplateOptions,
 } from "@/features/docs/voucher/constants";
 import { VoucherPreview } from "@/features/docs/voucher/components/voucher-preview";
+import { VoucherDocumentFrame } from "@/features/docs/voucher/components/voucher-document-frame";
 import { VendorPicker } from "@/features/docs/voucher/components/vendor-picker";
 import { MultiLineVoucherEditor } from "@/features/docs/voucher/components/multi-line-voucher-editor";
 import { VoucherSaveBar } from "@/features/docs/voucher/components/voucher-save-bar";
 import { voucherFormSchema } from "@/features/docs/voucher/schema";
-import type { VoucherFormValues } from "@/features/docs/voucher/types";
+import type { VoucherDocument, VoucherFormValues } from "@/features/docs/voucher/types";
+import { voucherTemplateRegistry } from "@/features/docs/voucher/templates";
 import { buildVoucherFilename } from "@/features/docs/voucher/utils/build-voucher-filename";
 import { normalizeVoucher } from "@/features/docs/voucher/utils/normalize-voucher";
 import { downloadBinaryExport } from "@/lib/browser/download-binary-export";
 import { cn } from "@/lib/utils";
+import { DocumentPreviewSurface } from "@/components/document/document-preview-surface";
 import {
   saveVoucher,
   updateVoucher,
@@ -709,7 +712,7 @@ function VoucherPanel({
           </>
         }
         previewContent={<VoucherPreview document={previewDocument} />}
-        documentEditorContent={<VoucherPreview document={previewDocument} />}
+        documentEditorContent={<VoucherEditableCanvas document={previewDocument} />}
       />
       <VoucherSaveBar
         onSaveDraft={handleSaveDraft}
@@ -725,6 +728,18 @@ function VoucherPanel({
 
 function useFormContextSafe() {
   return useFormContext<VoucherFormValues>();
+}
+
+function VoucherEditableCanvas({ document }: { document: VoucherDocument }) {
+  const template = voucherTemplateRegistry[document.templateId];
+  return (
+    <DocumentPreviewSurface
+      title={document.title}
+      templateName={template?.name ?? "Voucher"}
+    >
+      <VoucherDocumentFrame document={document} mode="edit" />
+    </DocumentPreviewSurface>
+  );
 }
 
 export function VoucherWorkspace({

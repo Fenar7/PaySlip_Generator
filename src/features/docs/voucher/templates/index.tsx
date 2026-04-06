@@ -15,7 +15,7 @@ export const voucherTemplateRegistry: Record<
       mode,
     }: {
       document: VoucherDocument;
-      mode?: "preview" | "print" | "pdf" | "png";
+      mode?: "preview" | "print" | "pdf" | "png" | "edit";
     }) => JSX.Element;
   }
 > = {

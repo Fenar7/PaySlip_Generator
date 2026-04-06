@@ -25,10 +25,13 @@ import {
 import { RepeaterSection } from "@/components/forms/repeater-section";
 import { salarySlipDefaultValues, salarySlipTemplateOptions } from "@/features/docs/salary-slip/constants";
 import { SalarySlipPreview } from "@/features/docs/salary-slip/components/salary-slip-preview";
+import { SalarySlipDocumentFrame } from "@/features/docs/salary-slip/components/salary-slip-document-frame";
 import { salarySlipFormSchema } from "@/features/docs/salary-slip/schema";
-import type { SalarySlipFormValues } from "@/features/docs/salary-slip/types";
+import type { SalarySlipDocument, SalarySlipFormValues } from "@/features/docs/salary-slip/types";
 import { buildSalarySlipFilename } from "@/features/docs/salary-slip/utils/build-salary-slip-filename";
 import { normalizeSalarySlip } from "@/features/docs/salary-slip/utils/normalize-salary-slip";
+import { salarySlipTemplateRegistry } from "@/features/docs/salary-slip/templates";
+import { DocumentPreviewSurface } from "@/components/document/document-preview-surface";
 import { downloadBinaryExport } from "@/lib/browser/download-binary-export";
 import { cn } from "@/lib/utils";
 
@@ -870,7 +873,7 @@ function SalarySlipPanel({ employees = [], presets = [], initialTemplateId }: Wo
         </>
       }
       previewContent={<SalarySlipPreview document={previewDocumentWithTemplate} />}
-      documentEditorContent={<SalarySlipPreview document={previewDocumentWithTemplate} />}
+      documentEditorContent={<SalarySlipEditableCanvas document={previewDocumentWithTemplate} />}
     />
     <SalarySlipSaveBar
       onSaveDraft={handleSaveDraft}
@@ -885,6 +888,15 @@ function SalarySlipPanel({ employees = [], presets = [], initialTemplateId }: Wo
 
 function useFormContextSafe() {
   return useFormContext<SalarySlipFormValues>();
+}
+
+function SalarySlipEditableCanvas({ document }: { document: SalarySlipDocument }) {
+  const template = salarySlipTemplateRegistry[document.templateId];
+  return (
+    <DocumentPreviewSurface title={document.title} templateName={template?.name ?? "Salary Slip"}>
+      <SalarySlipDocumentFrame document={document} mode="edit" />
+    </DocumentPreviewSurface>
+  );
 }
 
 export function SalarySlipWorkspace({ employees = [], presets = [], initialTemplateId }: WorkspaceProps) {

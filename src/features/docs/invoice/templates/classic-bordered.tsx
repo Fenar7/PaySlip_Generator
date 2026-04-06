@@ -1,15 +1,30 @@
+"use client";
+
 import { DocumentBrandMark } from "@/components/document/document-brand-mark";
 import { cn } from "@/lib/utils";
 import type { InvoiceDocument } from "@/features/docs/invoice/types";
+import { useFieldArray, useFormContext, useWatch } from "react-hook-form";
+import type { InvoiceFormValues } from "@/features/docs/invoice/types";
+import { normalizeInvoice } from "@/features/docs/invoice/utils/normalize-invoice";
+import {
+  InlineDateField,
+  InlineNumberField,
+  InlineTextArea,
+  InlineTextField,
+} from "@/components/document/inline-edit-fields";
 
 export function ClassicBorderedInvoiceTemplate({
   document,
   mode = "preview",
 }: {
   document: InvoiceDocument;
-  mode?: "preview" | "print" | "pdf" | "png";
+  mode?: "preview" | "print" | "pdf" | "png" | "edit";
 }) {
   const printLike = mode !== "preview";
+
+  if (mode === "edit") {
+    return <ClassicBorderedEditor document={document} />;
+  }
 
   const showBank =
     document.visibility.showBankDetails &&
@@ -311,6 +326,411 @@ export function ClassicBorderedInvoiceTemplate({
           ) : null}
         </section>
       ) : null}
+    </div>
+  );
+}
+
+function RemoveRowButton({ onClick }: { onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="ml-1 inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[rgba(29,23,16,0.4)] transition-colors hover:bg-red-50 hover:text-red-500"
+      aria-label="Remove row"
+    >
+      <svg
+        className="h-3.5 w-3.5"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      >
+        <line x1="18" y1="6" x2="6" y2="18" />
+        <line x1="6" y1="6" x2="18" y2="18" />
+      </svg>
+    </button>
+  );
+}
+
+function AddRowButton({ onClick, label }: { onClick: () => void; label: string }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="mt-3 inline-flex items-center gap-1.5 text-[0.82rem] font-medium text-[var(--voucher-accent)] transition-opacity hover:opacity-75"
+    >
+      <svg
+        className="h-4 w-4"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      >
+        <circle cx="12" cy="12" r="10" />
+        <line x1="12" y1="8" x2="12" y2="16" />
+        <line x1="8" y1="12" x2="16" y2="12" />
+      </svg>
+      {label}
+    </button>
+  );
+}
+
+function ClassicBorderedEditor({ document }: { document: InvoiceDocument }) {
+  const { control } = useFormContext<InvoiceFormValues>();
+  const { fields, append, remove } = useFieldArray({ control, name: "lineItems" });
+  const watchedValues = useWatch({ control }) as InvoiceFormValues;
+  const doc = normalizeInvoice(watchedValues);
+
+  return (
+    <div className="space-y-0 text-[var(--voucher-ink)]">
+      {/* ── Header ── */}
+      <section className="border-b-2 border-[var(--voucher-ink)] pb-4">
+        <div className="flex flex-col gap-6 md:flex-row md:items-start">
+          <div className="flex flex-1 items-start gap-3">
+            <DocumentBrandMark
+              branding={document.branding}
+              className="flex h-14 w-14 shrink-0 items-center justify-center border border-[rgba(29,23,16,0.2)] bg-[rgba(29,23,16,0.04)] p-1.5"
+              initialsClassName="text-sm font-bold text-[var(--voucher-ink)]"
+              imageClassName="h-full w-full object-cover"
+            />
+            <div>
+              <InlineTextField
+                name="branding.companyName"
+                className="text-xl font-bold uppercase tracking-wide"
+              />
+              <InlineTextArea
+                name="branding.address"
+                className="mt-1 text-[0.78rem] leading-5 text-[rgba(29,23,16,0.7)]"
+                placeholder="Business address"
+              />
+              <InlineTextField
+                name="branding.email"
+                className="text-[0.78rem] leading-5 text-[rgba(29,23,16,0.7)]"
+                placeholder="Business email"
+              />
+              <InlineTextField
+                name="branding.phone"
+                className="text-[0.78rem] leading-5 text-[rgba(29,23,16,0.7)]"
+                placeholder="Business phone"
+              />
+              <InlineTextField
+                name="website"
+                className="text-[0.78rem] leading-5 text-[rgba(29,23,16,0.7)]"
+                placeholder="Website"
+              />
+              <InlineTextField
+                name="businessTaxId"
+                className="text-[0.78rem] font-medium leading-5 text-[rgba(29,23,16,0.7)]"
+                placeholder="GSTIN"
+              />
+            </div>
+          </div>
+
+          <div className="text-right">
+            <p className="text-[0.68rem] font-bold uppercase tracking-[0.2em] text-[rgba(29,23,16,0.5)]">
+              {document.title}
+            </p>
+            <InlineTextField
+              name="invoiceNumber"
+              className="mt-1 text-2xl font-bold tracking-tight text-right"
+            />
+          </div>
+        </div>
+      </section>
+
+      {/* ── Two-column: From/Bill To + Invoice Details ── */}
+      <section className="grid gap-4 border-b border-[rgba(29,23,16,0.15)] py-5 md:grid-cols-[1.15fr_0.85fr] md:gap-6">
+        <div className="space-y-4">
+          <div>
+            <p className="text-[0.68rem] font-bold uppercase tracking-[0.18em] text-[rgba(29,23,16,0.5)]">
+              From
+            </p>
+            <InlineTextField
+              name="branding.companyName"
+              className="mt-1.5 text-sm font-semibold"
+            />
+            <InlineTextArea
+              name="branding.address"
+              className="mt-1 text-[0.78rem] leading-5 text-[rgba(29,23,16,0.7)]"
+              placeholder="Business address"
+            />
+          </div>
+          <div>
+            <p className="text-[0.68rem] font-bold uppercase tracking-[0.18em] text-[rgba(29,23,16,0.5)]">
+              Bill To
+            </p>
+            <InlineTextField
+              name="clientName"
+              className="mt-1.5 text-sm font-semibold"
+              placeholder="Client name"
+            />
+            <InlineTextArea
+              name="clientAddress"
+              className="text-[0.78rem] leading-5 text-[rgba(29,23,16,0.7)]"
+              placeholder="Client address"
+            />
+            <InlineTextField
+              name="clientEmail"
+              className="text-[0.78rem] leading-5 text-[rgba(29,23,16,0.7)]"
+              placeholder="Client email"
+            />
+            <InlineTextField
+              name="clientPhone"
+              className="text-[0.78rem] leading-5 text-[rgba(29,23,16,0.7)]"
+              placeholder="Client phone"
+            />
+            <InlineTextField
+              name="clientTaxId"
+              className="text-[0.78rem] leading-5 text-[rgba(29,23,16,0.7)]"
+              placeholder="Client Tax ID"
+            />
+          </div>
+        </div>
+
+        {/* Invoice details grid */}
+        <div className="border border-[rgba(29,23,16,0.2)]">
+          <div className="flex border-b border-[rgba(29,23,16,0.2)]">
+            <span className="w-[45%] border-r border-[rgba(29,23,16,0.2)] bg-[rgba(29,23,16,0.04)] px-3 py-2 text-[0.68rem] font-bold uppercase tracking-[0.12em] text-[rgba(29,23,16,0.55)]">
+              Invoice Date
+            </span>
+            <InlineDateField
+              name="invoiceDate"
+              className="flex-1 px-3 py-2 text-sm font-medium"
+            />
+          </div>
+          <div className="flex border-b border-[rgba(29,23,16,0.2)]">
+            <span className="w-[45%] border-r border-[rgba(29,23,16,0.2)] bg-[rgba(29,23,16,0.04)] px-3 py-2 text-[0.68rem] font-bold uppercase tracking-[0.12em] text-[rgba(29,23,16,0.55)]">
+              Due Date
+            </span>
+            <InlineDateField
+              name="dueDate"
+              className="flex-1 px-3 py-2 text-sm font-medium"
+            />
+          </div>
+          <div className="flex border-b border-[rgba(29,23,16,0.2)]">
+            <span className="w-[45%] border-r border-[rgba(29,23,16,0.2)] bg-[rgba(29,23,16,0.04)] px-3 py-2 text-[0.68rem] font-bold uppercase tracking-[0.12em] text-[rgba(29,23,16,0.55)]">
+              Place of Supply
+            </span>
+            <InlineTextField
+              name="placeOfSupply"
+              className="flex-1 px-3 py-2 text-sm font-medium"
+              placeholder="Place of supply"
+            />
+          </div>
+          <div className="flex border-b border-[rgba(29,23,16,0.2)]">
+            <span className="w-[45%] border-r border-[rgba(29,23,16,0.2)] bg-[rgba(29,23,16,0.04)] px-3 py-2 text-[0.68rem] font-bold uppercase tracking-[0.12em] text-[rgba(29,23,16,0.55)]">
+              Grand Total
+            </span>
+            <span className="flex-1 px-3 py-2 text-sm font-bold">{doc.grandTotalFormatted}</span>
+          </div>
+          <div className="flex">
+            <span className="w-[45%] border-r border-[rgba(29,23,16,0.2)] px-3 py-2 text-[0.68rem] font-bold uppercase tracking-[0.12em] text-[var(--voucher-accent)]">
+              Balance Due
+            </span>
+            <span className="flex-1 px-3 py-2 text-sm font-bold text-[var(--voucher-accent)]">
+              {doc.balanceDueFormatted}
+            </span>
+          </div>
+        </div>
+      </section>
+
+      {/* ── Shipping ── */}
+      <section className="border-b border-[rgba(29,23,16,0.15)] py-4">
+        <p className="text-[0.68rem] font-bold uppercase tracking-[0.18em] text-[rgba(29,23,16,0.5)]">
+          Ship To
+        </p>
+        <InlineTextArea
+          name="shippingAddress"
+          className="mt-1.5 text-sm leading-6 text-[rgba(29,23,16,0.78)]"
+          placeholder="Shipping address"
+        />
+      </section>
+
+      {/* ── Line Items ── */}
+      <section className="py-5">
+        <table className="w-full text-left text-[0.78rem]" style={{ borderCollapse: "collapse" }}>
+          <thead>
+            <tr className="border border-[rgba(29,23,16,0.3)] bg-[rgba(29,23,16,0.06)] text-[0.65rem] font-bold uppercase tracking-[0.15em] text-[rgba(29,23,16,0.6)]">
+              <th className="border-r border-[rgba(29,23,16,0.15)] px-3 py-2.5">#</th>
+              <th className="border-r border-[rgba(29,23,16,0.15)] px-3 py-2.5">Description</th>
+              <th className="border-r border-[rgba(29,23,16,0.15)] px-3 py-2.5 text-center">Qty</th>
+              <th className="border-r border-[rgba(29,23,16,0.15)] px-3 py-2.5 text-right">Rate</th>
+              <th className="border-r border-[rgba(29,23,16,0.15)] px-3 py-2.5 text-right">Discount</th>
+              <th className="border-r border-[rgba(29,23,16,0.15)] px-3 py-2.5 text-right">Tax</th>
+              <th className="border-r border-[rgba(29,23,16,0.15)] px-3 py-2.5 text-right">Amount</th>
+              <th className="px-3 py-2.5" />
+            </tr>
+          </thead>
+          <tbody>
+            {fields.map((field, index) => (
+              <tr
+                key={field.id}
+                className={cn(
+                  "border border-[rgba(29,23,16,0.15)] align-top",
+                  index % 2 === 1 ? "bg-[rgba(29,23,16,0.025)]" : "",
+                )}
+              >
+                <td className="border-r border-[rgba(29,23,16,0.15)] px-3 py-2 text-center text-[rgba(29,23,16,0.45)]">
+                  {index + 1}
+                </td>
+                <td className="border-r border-[rgba(29,23,16,0.15)] px-3 py-2">
+                  <InlineTextField
+                    name={`lineItems.${index}.description`}
+                    className="text-[rgba(29,23,16,0.85)]"
+                  />
+                </td>
+                <td className="border-r border-[rgba(29,23,16,0.15)] px-3 py-2">
+                  <InlineNumberField
+                    name={`lineItems.${index}.quantity`}
+                    className="text-center"
+                  />
+                </td>
+                <td className="border-r border-[rgba(29,23,16,0.15)] px-3 py-2">
+                  <InlineNumberField
+                    name={`lineItems.${index}.unitPrice`}
+                    className="text-right"
+                  />
+                </td>
+                <td className="border-r border-[rgba(29,23,16,0.15)] px-3 py-2">
+                  <InlineNumberField
+                    name={`lineItems.${index}.discountAmount`}
+                    className="text-right"
+                  />
+                </td>
+                <td className="border-r border-[rgba(29,23,16,0.15)] px-3 py-2">
+                  <InlineNumberField
+                    name={`lineItems.${index}.taxRate`}
+                    className="text-right"
+                  />
+                </td>
+                <td className="border-r border-[rgba(29,23,16,0.15)] px-3 py-2 text-right font-medium">
+                  {doc.lineItems[index]?.lineTotalFormatted}
+                </td>
+                <td className="px-2 py-2">
+                  {fields.length > 1 && <RemoveRowButton onClick={() => remove(index)} />}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        <AddRowButton
+          label="Add line item"
+          onClick={() =>
+            append({
+              description: "",
+              quantity: "1",
+              unitPrice: "",
+              taxRate: "18",
+              discountAmount: "0",
+            })
+          }
+        />
+      </section>
+
+      {/* ── Summary ── */}
+      <section className="grid gap-5 md:grid-cols-[1fr_16rem]">
+        <div>
+          <p className="text-sm italic leading-6 text-[rgba(29,23,16,0.65)]">{doc.amountInWords}</p>
+        </div>
+
+        <div className="border border-[rgba(29,23,16,0.2)]">
+          <div className="flex justify-between border-b border-[rgba(29,23,16,0.12)] px-3 py-1.5 text-sm">
+            <span className="text-[rgba(29,23,16,0.65)]">Subtotal</span>
+            <span>{doc.subtotalFormatted}</span>
+          </div>
+          <div className="flex justify-between border-b border-[rgba(29,23,16,0.12)] px-3 py-1.5 text-sm">
+            <span className="text-[rgba(29,23,16,0.65)]">Discount</span>
+            <span>{doc.totalDiscountFormatted}</span>
+          </div>
+          <div className="flex justify-between border-b border-[rgba(29,23,16,0.12)] px-3 py-1.5 text-sm">
+            <span className="text-[rgba(29,23,16,0.65)]">Tax</span>
+            <span>{doc.totalTaxFormatted}</span>
+          </div>
+          {doc.extraCharges > 0 ? (
+            <div className="flex justify-between border-b border-[rgba(29,23,16,0.12)] px-3 py-1.5 text-sm">
+              <span className="text-[rgba(29,23,16,0.65)]">Extra Charges</span>
+              <span>{doc.extraChargesFormatted}</span>
+            </div>
+          ) : null}
+          {doc.invoiceLevelDiscount > 0 ? (
+            <div className="flex justify-between border-b border-[rgba(29,23,16,0.12)] px-3 py-1.5 text-sm">
+              <span className="text-[rgba(29,23,16,0.65)]">Invoice Discount</span>
+              <span>{doc.invoiceLevelDiscountFormatted}</span>
+            </div>
+          ) : null}
+          <div className="flex justify-between border-b border-[rgba(29,23,16,0.2)] bg-[rgba(29,23,16,0.05)] px-3 py-2 text-sm font-bold">
+            <span>Grand Total</span>
+            <span>{doc.grandTotalFormatted}</span>
+          </div>
+          {doc.visibility.showPaymentSummary ? (
+            <>
+              <div className="flex justify-between border-b border-[rgba(29,23,16,0.12)] px-3 py-1.5 text-sm">
+                <span className="text-[rgba(29,23,16,0.65)]">Paid</span>
+                <span>{doc.amountPaidFormatted}</span>
+              </div>
+              <div className="flex justify-between bg-[var(--voucher-accent)] px-3 py-2 text-sm font-bold text-white">
+                <span>Balance Due</span>
+                <span>{doc.balanceDueFormatted}</span>
+              </div>
+            </>
+          ) : null}
+        </div>
+      </section>
+
+      {/* ── Notes & Terms ── */}
+      <section className="space-y-3 border-t border-[rgba(29,23,16,0.15)] pt-4">
+        <div>
+          <p className="text-[0.68rem] font-bold uppercase tracking-[0.15em] text-[rgba(29,23,16,0.5)]">
+            Notes
+          </p>
+          <InlineTextArea
+            name="notes"
+            className="mt-1 text-sm leading-6 text-[rgba(29,23,16,0.75)]"
+            placeholder="Notes"
+          />
+        </div>
+        <div>
+          <p className="text-[0.68rem] font-bold uppercase tracking-[0.15em] text-[rgba(29,23,16,0.5)]">
+            Terms &amp; Conditions
+          </p>
+          <InlineTextArea
+            name="terms"
+            className="mt-1 text-sm leading-6 text-[rgba(29,23,16,0.75)]"
+            placeholder="Terms & conditions"
+          />
+        </div>
+      </section>
+
+      {/* ── Footer: Bank details left, Signature right ── */}
+      <section className="grid gap-4 border-t-2 border-[var(--voucher-ink)] pt-4 md:grid-cols-2 md:gap-6">
+        <div>
+          <p className="text-[0.68rem] font-bold uppercase tracking-[0.15em] text-[rgba(29,23,16,0.5)]">
+            Bank Details
+          </p>
+          <div className="mt-2 space-y-1 text-sm leading-5 text-[rgba(29,23,16,0.78)]">
+            <InlineTextField name="bankName" placeholder="Bank name" />
+            <InlineTextField name="bankAccountNumber" placeholder="Account number" />
+            <InlineTextField name="bankIfsc" placeholder="IFSC code" />
+          </div>
+        </div>
+
+        <div className="text-right">
+          <p className="text-[0.68rem] font-bold uppercase tracking-[0.15em] text-[rgba(29,23,16,0.5)]">
+            Authorized Signatory
+          </p>
+          <div className="mt-8 inline-block border-t border-[rgba(29,23,16,0.3)] px-6 pt-2">
+            <InlineTextField
+              name="authorizedBy"
+              className="mt-8 text-sm font-medium"
+              placeholder="Authorized by"
+            />
+          </div>
+        </div>
+      </section>
     </div>
   );
 }

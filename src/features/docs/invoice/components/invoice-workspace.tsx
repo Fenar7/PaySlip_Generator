@@ -20,10 +20,13 @@ import {
   ToggleField,
 } from "@/components/forms/input-primitives";
 import { InvoicePreview } from "@/features/docs/invoice/components/invoice-preview";
+import { InvoiceDocumentFrame } from "@/features/docs/invoice/components/invoice-document-frame";
+import { DocumentPreviewSurface } from "@/components/document/document-preview-surface";
+import { invoiceTemplateRegistry } from "@/features/docs/invoice/templates";
 import { invoiceDefaultValues, invoiceTemplateOptions } from "@/features/docs/invoice/constants";
 import { invoiceFormSchema } from "@/features/docs/invoice/schema";
 import type { InvoiceFormValues } from "@/features/docs/invoice/types";
-import type { InvoiceTemplateId } from "@/features/docs/invoice/types";
+import type { InvoiceDocument, InvoiceTemplateId } from "@/features/docs/invoice/types";
 import { buildInvoiceFilename } from "@/features/docs/invoice/utils/build-invoice-filename";
 import { normalizeInvoice } from "@/features/docs/invoice/utils/normalize-invoice";
 import { downloadBinaryExport } from "@/lib/browser/download-binary-export";
@@ -50,6 +53,16 @@ const invoiceWorkspaceSections: WorkspaceSectionMeta[] = [
   { id: "invoice-footer", label: "Footer" },
   { id: "invoice-visibility", label: "Visibility" },
 ];
+
+
+function InvoiceEditableCanvas({ document }: { document: InvoiceDocument }) {
+  const template = invoiceTemplateRegistry[document.templateId];
+  return (
+    <DocumentPreviewSurface title={document.title} templateName={template?.name ?? "Invoice"}>
+      <InvoiceDocumentFrame document={document} mode="edit" />
+    </DocumentPreviewSurface>
+  );
+}
 
 
 function InvoiceLineItemsEditor() {
@@ -690,7 +703,7 @@ function InvoicePanel({ customers = [] }: InvoicePanelProps) {
         </>
       }
       previewContent={<InvoicePreview document={previewDocument} />}
-      documentEditorContent={<InvoicePreview document={previewDocument} />}
+      documentEditorContent={<InvoiceEditableCanvas document={previewDocument} />}
     />
   );
 }
