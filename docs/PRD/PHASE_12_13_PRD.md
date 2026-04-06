@@ -1,6 +1,6 @@
 # Slipwise One — Phase 12 & Phase 13
 ## Product Requirements Document (PRD)
-### Version 1.0 | Global Expansion + API Platform + AWS Migration + AI
+### Version 1.0 | Razorpay Global Expansion + API Platform + AWS + AI
 ### Engineering Handover Document
 
 ---
@@ -8,7 +8,7 @@
 | Field | Value |
 |---|---|
 | **Product** | Slipwise One |
-| **Phases Covered** | Phase 12: Global Expansion + API + Enterprise · Phase 13: AWS + AI + Integrations |
+| **Phases Covered** | Phase 12: Global Billing Expansion + API + Enterprise · Phase 13: AWS + AI + Integrations |
 | **Document Version** | 1.0 |
 | **Date** | 2026-04-06 |
 | **Document Purpose** | Full engineering handover — autonomous multi-agent execution ready |
@@ -18,10 +18,42 @@
 | **Sprint Model** | 3 sprints (Phase 12) + 3 sprints (Phase 13) |
 | **Total Sprints** | 6 sprints |
 | **Engineering Model** | Multi-agent parallel execution recommended |
-| **Primary Billing** | Razorpay (India, already live from Phase 11) |
-| **Phase 12 Billing** | Stripe (global — USD/EUR/GBP) |
-| **Phase 13 Infra** | AWS ECS + RDS + S3 + CloudFront |
+| **Payment Gateway** | Razorpay (all phases — India + International) |
+| **No Stripe** | Razorpay is the sole payment gateway. Stripe is NOT used. |
 | **Parent Company** | Zenxvio |
+
+---
+
+## 🇮🇳 Payment Gateway: Razorpay Only (All Markets)
+
+**Decision:** Razorpay is the **only payment gateway** for all phases of Slipwise One.
+
+Razorpay capabilities used across Phase 12:
+
+| Feature | Razorpay Support | Usage |
+|---|---|---|
+| UPI (India) | ✅ Native, 0% fee | Subscriptions + one-time |
+| UPI AutoPay | ✅ NPCI mandate | Recurring subscriptions |
+| Indian Cards (Visa/MC/Amex/RuPay) | ✅ Full support | All plans |
+| International Cards | ✅ Visa/MC/Amex international | Global users paying in INR |
+| Netbanking | ✅ All major Indian banks | Indian customers |
+| Wallets | ✅ Paytm, PhonePe, etc. | Indian customers |
+| Payment Links | ✅ Hosted payment page | Invoice payment collection |
+| Smart Collect (VA) | ✅ Virtual bank account | Automated payment reconciliation |
+| Subscriptions v2 | ✅ Full lifecycle | All plan tiers |
+| Multi-currency display | ✅ Display in USD/EUR, settle in INR | International pricing display |
+| GST compliant invoices | ✅ Built-in | All billing receipts |
+| Razorpay Invoices | ✅ Native invoice creation | Alternative invoice delivery |
+| Instant Settlement | ✅ Available (extra fee) | Enterprise option |
+| RazorpayX (Payouts) | ✅ Vendor/salary payouts | Future SW Pay expansion |
+
+**Why not Stripe:**
+- Razorpay covers 100% of the required use cases
+- Faster India approval (1-2 weeks vs 3 months for Stripe)
+- Lower fees on UPI (0% vs Stripe's 2.9%)
+- GST invoices built-in (Stripe requires manual setup)
+- UPI recurring mandates not available on Stripe
+- All our target customers (India-first SMBs) prefer UPI/netbanking
 
 ---
 
@@ -29,8 +61,8 @@
 
 1. [Product Context & Phase Summary](#1-product-context--phase-summary)
 2. [Current State Post Phase 11](#2-current-state-post-phase-11)
-3. [Phase 12 — Global Expansion, API Platform & Enterprise](#3-phase-12--global-expansion-api-platform--enterprise)
-   - 3.1 Sprint 12.1 — BillingGateway Adapter + Stripe Global Billing
+3. [Phase 12 — Razorpay Expansion, API Platform & Enterprise](#3-phase-12--razorpay-expansion-api-platform--enterprise)
+   - 3.1 Sprint 12.1 — Razorpay Feature Expansion + International Billing
    - 3.2 Sprint 12.2 — Public REST API Platform
    - 3.3 Sprint 12.3 — Enterprise Features (SSO, Multi-Org, White-Label)
    - 3.4 Database Schema Additions
@@ -52,7 +84,7 @@
 9. [Multi-Agent Execution Strategy](#9-multi-agent-execution-strategy)
 10. [Appendix A — Environment Variables](#appendix-a--environment-variables)
 11. [Appendix B — API Contract Reference](#appendix-b--api-contract-reference)
-12. [Appendix C — Stripe Quick Reference](#appendix-c--stripe-quick-reference)
+12. [Appendix C — Razorpay Advanced Features Reference](#appendix-c--razorpay-advanced-features-reference)
 13. [Appendix D — AWS Architecture Diagram](#appendix-d--aws-architecture-diagram)
 
 ---
@@ -79,255 +111,369 @@
 | 0–9 | Foundation → PDF Studio → Pixel | ✅ Done |
 | 10 | Hardening + Infrastructure | ✅ Done |
 | 11 | Razorpay Billing + Growth + Marketing | ✅ Done |
-| **12** | **Global Billing + API Platform + Enterprise** | 🔲 This Document |
-| **13** | **AWS Migration + AI + Integrations** | 🔲 This Document |
+| **12** | **Razorpay Expansion + API Platform + Enterprise** | 🔲 This Document |
+| **13** | **AWS Migration + AI + Integrations + Mobile** | 🔲 This Document |
 
 ---
 
 ## 2. Current State Post Phase 11
 
-### What Exists in Codebase
+### What Exists in Codebase (Phase 11 Deliverables)
 
 | File/Module | Location | Purpose |
 |---|---|---|
-| Plan config | `src/lib/plans/config.ts` | 4 tiers, PlanLimits interface |
+| Plan config | `src/lib/plans/config.ts` | 4 tiers (Free/Starter/Pro/Enterprise), PlanLimits |
 | Plan enforcement | `src/lib/plans/enforcement.ts` | `checkLimit`, `checkFeature`, `requirePlan` |
 | Usage tracking | `src/lib/plans/usage.ts` | `incrementUsage`, `getMonthlyUsage` |
-| Razorpay SDK | `src/lib/razorpay.ts` | Lazy-init wrapper, webhook verify |
-| Billing logic | `src/lib/billing.ts` | Subscription CRUD, trial management |
-| Billing API | `src/app/api/billing/razorpay/*` | Create, webhook, cancel |
+| Razorpay SDK | `src/lib/razorpay.ts` | Lazy-init wrapper, webhook verify, subscription CRUD |
+| Billing logic | `src/lib/billing.ts` | Subscription CRUD, trial management, idempotent events |
+| Billing API | `src/app/api/billing/razorpay/*` | create-subscription, webhook, cancel |
 | Billing UI | `src/app/app/billing/*` | Overview, upgrade, success, cancel |
-| Rate limiting | `src/lib/rate-limit.ts` | Upstash Redis sliding window |
+| Rate limiting | `src/lib/rate-limit.ts` | Upstash Redis sliding window, fail-open |
 | Storage adapter | `src/lib/storage-adapter.ts` | Supabase impl + S3 stub |
 | Referrals | `src/lib/referral.ts` | Codes, conversion, credits |
 | Onboarding | `src/lib/onboarding-tracker.ts` | 7-step tracker |
 | Document sharing | `src/lib/document-sharing.ts` | Share tokens, revoke |
-| Marketing | `src/app/(marketing)/*` | 6 public pages |
+| Marketing | `src/app/(marketing)/*` | Homepage, pricing, features, privacy, terms |
 
-### Current Prisma Models (40 total post Phase 11)
+### Razorpay Integration Already Live (Phase 11)
 
-Relevant models for Phase 12-13 context:
-- `Subscription` — orgId, planId, status, razorpaySubId, razorpayCustomerId, trialEndsAt
-- `UsageRecord` — orgId, resource, periodMonth, count
-- `RazorpayEvent` — id, type, payload, processedAt
-- `Organization` — id, name, slug, createdAt
-- `Profile` — id (UUID), name, email, avatarUrl
-- `Member` — orgId, userId, role
+- Subscription lifecycle: created → authenticated → active → paused → halted → cancelled
+- Webhooks: 9 event types with idempotency via `RazorpayEvent` model
+- Plan enforcement: Free / Starter ₹999 / Pro ₹2,999 / Enterprise ₹9,999
+- Trial system: 14-day Pro trial for new upgrades
+- Billing UI: overview, upgrade (monthly/yearly toggle), success, cancel
 
-### What Phase 12 Must Add
+### What Phase 12 Adds
 
-1. **No Stripe integration** — international users cannot pay
-2. **No public API** — no programmatic access for power users/integrations
-3. **No SSO/SAML** — enterprise clients cannot use their identity provider
-4. **No multi-org management** — users cannot switch between multiple orgs
-5. **No API keys** — no developer access to document data
-6. **No custom domains** — all users on slipwise.app subdomain
-
-### What Phase 13 Must Add
-
-1. **Deployed on Vercel** — no cost control, no SLA, vertical scale only
-2. **Supabase storage only** — no CDN, no performance optimization at scale
-3. **No AI features** — manual data entry only
-4. **No GST integration** — manual GST calculations
-5. **No Tally/QuickBooks** — accountants cannot sync data
-6. **No mobile PWA** — desktop-only experience
+1. **No payment links for invoices** — customers can't pay invoices online (Pay Now button)
+2. **No international card billing** — international customers currently blocked
+3. **No Razorpay smart collect** — no automated bank transfer reconciliation
+4. **No pause/resume subscriptions** — missing from Phase 11 implementation
+5. **No public API** — no programmatic access for developers/integrations
+6. **No SSO/SAML** — enterprise clients can't use their identity provider
+7. **No multi-org management** — users stuck in single org
+8. **No API keys** — developers can't automate document workflows
 
 ---
 
-## 3. Phase 12 — Global Expansion, API Platform & Enterprise
+## 3. Phase 12 — Razorpay Expansion, API Platform & Enterprise
 
 ### Objective
 
-Scale Slipwise One globally. Add Stripe billing for international customers, build a developer-facing REST API with API keys and webhooks, and introduce enterprise-grade features (SSO/SAML, multi-org management, custom domains, white-label).
+Expand Razorpay usage beyond basic subscriptions to cover the full payment lifecycle. Add Razorpay Payment Links so customers can pay invoices online, Smart Collect for automated reconciliation, and international card support. Build a developer-facing REST API with API keys and webhooks, and introduce enterprise-grade features (SSO/SAML, multi-org, custom domains, white-label).
 
 ---
 
-### 3.1 Sprint 12.1 — BillingGateway Adapter + Stripe Global Billing
+### 3.1 Sprint 12.1 — Razorpay Feature Expansion + International Billing
 
-**Duration:** 1 sprint (before API and Enterprise sprints)
-**Goal:** Abstract billing so Razorpay (India) and Stripe (global) coexist under a single interface. Add Stripe checkout, webhooks, customer portal.
-**Dependency:** Must complete BEFORE Sprints 12.2 and 12.3 (API usage tracking needs billing)
+**Duration:** 1 sprint
+**Goal:** Unlock advanced Razorpay features: Payment Links (invoice pay-now), Smart Collect (virtual accounts), subscription pause/resume, international card support, RazorpayX payouts foundation.
+**Dependency:** Must complete BEFORE Sprints 12.2 and 12.3 (payment links used in API, billing UI enhanced)
 
-#### A. BillingGateway Interface
+#### A. Razorpay Payment Links (Invoice Pay-Now)
 
-Create `src/lib/billing-gateway.ts`:
+**Use case:** Sender creates invoice → email has "Pay Now" button → customer clicks → Razorpay hosted payment page → customer pays via UPI/card/netbanking → invoice auto-marked paid.
 
-```typescript
-export interface SubscriptionDetails {
-  externalCustomerId: string;
-  externalSubId: string;
-  status: SubscriptionStatus;
-  currentPeriodStart: Date;
-  currentPeriodEnd: Date;
-  cancelAtPeriodEnd: boolean;
-  checkoutUrl?: string;
-}
+**How it works:**
+- Razorpay Payment Links API: `POST https://api.razorpay.com/v1/payment_links`
+- Generate a shareable `short_url` (e.g., `https://rzp.io/l/xxxxx`)
+- Embed this URL in invoice email as "Pay Now" button
+- Embed as QR code on PDF invoice
+- Razorpay calls our webhook on payment: `payment_link.paid` event
+- Webhook handler: find invoice by `reference_id`, mark paid, notify sender
 
-export interface BillingGateway {
-  name: "razorpay" | "stripe";
-  createCustomer(params: { name: string; email: string; phone?: string; orgId: string }): Promise<{ customerId: string }>;
-  createSubscription(params: { customerId: string; planId: string; interval: "monthly" | "yearly"; currency: string }): Promise<SubscriptionDetails>;
-  cancelSubscription(subscriptionId: string, atPeriodEnd?: boolean): Promise<void>;
-  resumeSubscription(subscriptionId: string): Promise<void>;
-  changeSubscriptionPlan(subscriptionId: string, newPlanId: string): Promise<void>;
-  createBillingPortalSession(customerId: string, returnUrl: string): Promise<{ url: string }>;
-  verifyWebhookSignature(rawBody: string, signature: string): boolean;
-}
-```
-
-Rules:
-- `BILLING_GATEWAY=razorpay` (default) → use Razorpay
-- `BILLING_GATEWAY=stripe` → use Stripe
-- Org-level override: if org was created from a `IN` country IP → Razorpay; else → Stripe
-- Store `billingGateway: "razorpay" | "stripe"` on Subscription model
-- Update `src/lib/billing.ts` to use `BillingGateway` interface internally
-
-#### B. Stripe SDK Integration
-
-**Install:** `npm install stripe @stripe/stripe-js`
-
-Create `src/lib/stripe.ts`:
-- `getStripe()` — lazy-init Stripe SDK (return null if keys not configured)
-- `verifyStripeWebhookSignature(rawBody, signature)` — use `stripe.webhooks.constructEvent`
-- `createStripeCustomer(params)` — creates Stripe customer
-- `createStripeCheckoutSession(params)` — hosted checkout for subscriptions
-- `createStripePortalSession(customerId, returnUrl)` — Stripe customer portal
-- `cancelStripeSubscription(subscriptionId)` — cancel at period end
-- `retrieveStripeSubscription(subscriptionId)` — fetch full details
-
-**Stripe Products/Prices Configuration:**
-- Create Stripe Products and Prices via Stripe Dashboard
-- Store Price IDs in env vars (see Appendix A)
-- Support currencies: INR (₹), USD ($), EUR (€), GBP (£), SGD (S$), AED (د.إ)
-
-**Currency Detection Logic:**
-1. Check `Accept-Language` header → map locale to currency
-2. Check user's org `countryCode` field (if set)
-3. Check Cloudflare/Vercel `CF-IPCountry` / `x-vercel-ip-country` header
-4. Default: USD
-
-#### C. Stripe API Routes
-
-Create `src/app/api/billing/stripe/`:
-
-##### `create-checkout-session/route.ts` — POST
-Request body:
+**API endpoint:** `POST /api/billing/razorpay/create-payment-link`
+Request:
 ```json
 {
-  "orgId": "clxxxx",
-  "planId": "starter" | "pro" | "enterprise",
-  "billingInterval": "monthly" | "yearly",
-  "currency": "USD" | "EUR" | "GBP",
-  "successUrl": "https://app.slipwise.com/app/billing/success?session_id={CHECKOUT_SESSION_ID}",
-  "cancelUrl": "https://app.slipwise.com/app/billing/cancel"
+  "invoiceId": "clxxxx",
+  "amount": 118000,
+  "currency": "INR",
+  "description": "Invoice #INV-2026-0042",
+  "customerName": "Acme Corp",
+  "customerEmail": "accounts@acme.com",
+  "customerPhone": "9876543210",
+  "expiryDate": "2026-05-15"
 }
 ```
-Response: `{ checkoutUrl: string }` — redirect to Stripe hosted checkout
-
-Edge cases:
-- If org already has active Stripe subscription → return error "Already subscribed, use portal"
-- If org is on Razorpay → return error "Please use INR billing"
-- Auth required — 401 if not authenticated
-
-##### `webhook/route.ts` — POST
-Handle Stripe events:
-- `checkout.session.completed` → activate subscription
-- `customer.subscription.created` → create Subscription record
-- `customer.subscription.updated` → update plan/status
-- `customer.subscription.deleted` → mark cancelled
-- `invoice.payment_succeeded` → update period dates, reset usage if new period
-- `invoice.payment_failed` → set status to `past_due`, notify org admin
-- `invoice.upcoming` → send renewal reminder email (7 days before)
-- `customer.subscription.trial_will_end` → send trial ending email (3 days before)
-- `payment_intent.payment_failed` → increment retry counter
-
-Idempotency: check `StripeEvent` model before processing (identical to `RazorpayEvent` pattern)
-Always return 200 OK to Stripe regardless of processing outcome.
-Log all events in console with `[Stripe Webhook]` prefix.
-
-##### `cancel/route.ts` — POST
+Response:
 ```json
-{ "orgId": "clxxxx", "immediateCancel": false }
+{
+  "paymentLinkId": "plink_xxxxxx",
+  "shortUrl": "https://rzp.io/l/xxxxx",
+  "qrCodeUrl": "data:image/png;base64,..."
+}
 ```
-- `immediateCancel: false` → cancel at period end (default)
-- `immediateCancel: true` → cancel immediately (Enterprise only, requires confirmation)
-- Update Subscription record: `cancelAtPeriodEnd: true` or status `cancelled`
 
-##### `portal/route.ts` — POST
-```json
-{ "orgId": "clxxxx", "returnUrl": "/app/billing" }
+**SDK call:**
+```javascript
+razorpay.paymentLink.create({
+  amount: 118000,  // in paise
+  currency: "INR",
+  description: "Invoice #INV-2026-0042",
+  reference_id: invoiceId,  // used in webhook to find invoice
+  customer: { name, email, contact },
+  expire_by: unixTimestamp,
+  notify: { sms: true, email: true },
+  reminder_enable: true,
+  callback_url: `${appUrl}/api/billing/razorpay/webhook`,
+  callback_method: "get"
+})
 ```
-- Creates Stripe Customer Portal session
-- Returns `{ url: string }` — redirect to Stripe portal
-- Portal allows: update card, download invoices, cancel subscription
 
-#### D. Multi-Currency Pricing
+**Webhook event:** `payment_link.paid`
+Handler:
+1. Extract `reference_id` (= invoiceId)
+2. Find invoice in DB
+3. Get payment amount, method, date from payload
+4. Create `InvoicePayment` record
+5. Set invoice status to `PAID`
+6. Create `SendLog` entry
+7. Send confirmation email to org owner: "Invoice #{number} has been paid!"
+8. Create `Notification` for org admin
 
-**Starter Plan pricing:**
-| Currency | Monthly | Yearly | Notes |
-|---|---|---|---|
-| INR | ₹999 | ₹9,990 | Razorpay |
-| USD | $12 | $120 | Stripe |
-| EUR | €11 | €110 | Stripe |
-| GBP | £10 | £100 | Stripe |
-| SGD | S$16 | S$160 | Stripe |
+**Database changes:**
+```prisma
+// Add to Invoice model:
+razorpayPaymentLinkId   String?
+razorpayPaymentLinkUrl  String?
+paymentLinkExpiresAt    DateTime?
+```
 
-**Pro Plan pricing:**
-| Currency | Monthly | Yearly |
-|---|---|---|
-| INR | ₹2,999 | ₹29,990 |
-| USD | $29 | $290 |
-| EUR | €27 | €270 |
-| GBP | £24 | £240 |
-| SGD | S$40 | S$400 |
+**UI integration:**
+- Invoice actions dropdown: "Generate Pay Now Link" button (Starter+)
+- On generate: show link + copy button + QR code
+- Invoice detail page: show payment link status (active/expired/paid)
+- Invoice email template: add "Pay Now →" CTA button (if payment link exists)
+- Invoice PDF: embed payment QR code in bottom-right corner
 
-**Enterprise Plan:** Custom pricing — "Contact Sales" CTA
+**Plan access:** Free = no payment links; Starter+ = unlimited payment links
 
-#### E. Upgrade/Downgrade Flow
+#### B. Razorpay Smart Collect (Virtual Accounts)
 
-1. **Upgrade (Starter → Pro):**
-   - Immediately switch to Pro
-   - Prorate charge for remaining period
-   - Razorpay: raise new subscription with plan change
-   - Stripe: `stripe.subscriptions.update({ items: [{ price: newPriceId }] })`
+**Use case:** Large clients prefer NEFT/RTGS/IMPS bank transfers. Assign each client a dedicated virtual account number → any transfer auto-reconciled to that customer.
 
-2. **Downgrade (Pro → Starter):**
-   - Downgrade takes effect at end of current billing period
-   - Show "Your plan will change to Starter on {date}" banner
-   - Do NOT immediately reduce features
-   - Stripe: schedule downgrade via `proration_behavior: "none"` + future date
+**How it works:**
+- Razorpay Smart Collect API: creates a virtual bank account per customer
+- Customer is given: account number + IFSC (Federal Bank / YES Bank route)
+- Customer does NEFT/RTGS transfer using their regular bank
+- Razorpay detects the transfer, calls our webhook: `virtual_account.credited`
+- Webhook: find customer, match amount to oldest outstanding invoice, mark paid
 
-3. **Free → Paid:**
-   - New subscription created
-   - Trial starts immediately (14 days Pro trial)
-   - Credit card required to activate trial
+**API endpoint:** `POST /api/billing/razorpay/create-virtual-account`
+Request: `{ customerId: "clxxxx", invoiceId?: "clxxxx" }`
+Response: `{ virtualAccountId, accountNumber, ifsc, description }`
 
-4. **Pause subscription (Pro+ only):**
-   - Pause billing for up to 3 months
-   - Features frozen at current plan level
-   - Stripe: `stripe.subscriptions.update({ pause_collection: { behavior: "void" } })`
+**SDK call:**
+```javascript
+razorpay.virtualAccount.create({
+  receivers: { types: ["bank_account"] },
+  description: `Slipwise - Acme Corp`,
+  amount: invoiceAmountInPaise,  // optional: fixed amount
+  customer_id: razorpayCustomerId,
+  close_by: unixTimestamp,
+  notify: { email: true }
+})
+```
 
-5. **Reactivate:**
-   - Remove pause
-   - Resume normal billing from next cycle
+**Webhook event:** `virtual_account.credited`
+Handler:
+1. Extract `virtual_account_id` and `amount_paid`
+2. Find customer with this virtual account
+3. Match to oldest unpaid invoice with matching or close amount
+4. Auto-reconcile: create `InvoicePayment`, mark invoice paid
+5. If amount doesn't match any invoice → create `UnmatchedPayment` record for manual review
+6. Notify org admin of payment received
 
-#### F. Billing UI Updates
+**Database changes:**
+```prisma
+model CustomerVirtualAccount {
+  id                  String    @id @default(cuid())
+  orgId               String
+  customerId          String
+  razorpayVaId        String    @unique
+  accountNumber       String
+  ifsc                String
+  isActive            Boolean   @default(true)
+  createdAt           DateTime  @default(now())
+  closedAt            DateTime?
 
-Update `src/app/app/billing/` pages:
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  customer     Customer     @relation(fields: [customerId], references: [id], onDelete: Cascade)
 
-**Overview page updates:**
-- Show `billingGateway` (Razorpay/Stripe badge)
-- Show currency symbol based on gateway
-- Add "Manage via Stripe Portal" button for Stripe customers
-- Show next renewal date with amount
-- Show payment method (card last 4 digits, UPI handle, or "Bank Transfer")
-- Invoices/receipts table: list past 12 invoices with download links
+  @@index([orgId, customerId])
+  @@map("customer_virtual_account")
+}
 
-**Upgrade page updates:**
-- Add currency selector (INR/USD/EUR/GBP/SGD)
-- Auto-detect currency from locale
-- Show Razorpay for INR, Stripe for others
-- Add "Payment protected by Razorpay" / "Payment protected by Stripe" badge
+model UnmatchedPayment {
+  id              String   @id @default(cuid())
+  orgId           String
+  virtualAccountId String
+  amountPaise     BigInt
+  payerName       String?
+  payerAccount    String?
+  payerIfsc       String?
+  razorpayPaymentId String
+  status          String   @default("unmatched") // "unmatched" | "matched" | "ignored"
+  matchedInvoiceId String?
+  receivedAt      DateTime @default(now())
+  resolvedAt      DateTime?
+
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@index([orgId, status])
+  @@map("unmatched_payment")
+}
+```
+
+**UI:** Settings → Smart Collect
+- Per-customer: "Enable Smart Collect" button
+- Shows assigned account number + IFSC
+- Unmatched payments dashboard: list + manual match buttons
+
+**Plan access:** Pro+ only
+
+#### C. Subscription Pause / Resume
+
+**Use case:** Customer going on leave / business slow season wants to pause billing for 1-3 months without cancelling.
+
+**Razorpay API:**
+```javascript
+// Pause subscription
+razorpay.subscriptions.update(subscriptionId, { pause_collection: { behavior: "void", resumes_at: unixTimestamp } })
+
+// Resume subscription
+razorpay.subscriptions.resume(subscriptionId)
+```
+
+**Update `src/lib/razorpay.ts`:**
+- Add `pauseRazorpaySubscription(subscriptionId: string, resumeAt: Date): Promise<void>`
+- Add `resumeRazorpaySubscription(subscriptionId: string): Promise<void>`
+
+**Update `src/lib/billing.ts`:**
+- Add `pauseSubscription(orgId: string, resumeAt: Date): Promise<void>`
+- Add `resumeSubscription(orgId: string): Promise<void>`
+
+**New webhook events to handle** (add to existing webhook handler):
+- `subscription.paused` → status = `paused`, set `pausedAt`
+- `subscription.resumed` → status = `active`, clear `pausedUntil`
+
+**Database changes:**
+```prisma
+// Add to Subscription model:
+pausedAt        DateTime?
+pausedUntil     DateTime?
+pauseReason     String?
+```
+
+**API routes:**
+- `POST /api/billing/razorpay/pause` — `{ orgId, resumeDate }`
+- `POST /api/billing/razorpay/resume` — `{ orgId }`
+
+**UI:**
+- Billing overview page: "Pause Subscription" button (Pro+ only)
+- Date picker: "Resume billing on" (max 3 months)
+- Active pause banner: "Subscription paused until {date}. Click to resume early."
+
+**Plan access:** Pro+ only (Starter cannot pause — must cancel)
+
+#### D. Subscription Upgrade / Downgrade (Enhanced)
+
+**Phase 11 implemented basic cancel + re-subscribe. Phase 12 implements in-place plan changes:**
+
+**Upgrade (Starter → Pro):**
+```javascript
+// Razorpay: change plan on existing subscription
+razorpay.subscriptions.update(subscriptionId, {
+  plan_id: newRazorpayPlanId,
+  quantity: 1,
+  remaining_count: newRemainingCount,
+  replace_immediately: 1  // take effect now, not at period end
+})
+```
+- Immediate effect
+- Prorate current period: charge proportional amount for upgrade
+- Show "You've been upgraded to Pro ✓" success message
+
+**Downgrade (Pro → Starter):**
+- Takes effect at end of current billing period
+- Razorpay: update at cycle end (`replace_immediately: 0`)
+- Show banner: "Your plan will change to Starter on {next billing date}"
+- Pro features remain active until period end
+
+**Update `src/lib/razorpay.ts`:**
+- Add `changeSubscriptionPlan(subscriptionId: string, newPlanId: string, immediate: boolean): Promise<void>`
+
+**New API route:** `POST /api/billing/razorpay/change-plan`
+Body: `{ orgId, newPlanId, billingInterval, immediate }`
+
+#### E. International Card Support
+
+**Razorpay supports international cards (Visa/MC/Amex) for India-based merchants.**
+
+**Requirements for activation:**
+1. Enable international payments in Razorpay Dashboard → Settings → International Payments
+2. Razorpay handles currency conversion (customer pays in USD/EUR, merchant receives INR)
+3. No code changes required — existing subscription flow works for international cards
+4. Add note to pricing page: "International cards accepted. Amount charged in INR equivalent."
+
+**UI changes:**
+- Upgrade page: add "International cards accepted" badge under payment section
+- Show approximate USD/EUR price on pricing page:
+  - "≈ $12/month (charged in ₹999)" for Starter
+  - "≈ $36/month (charged in ₹2,999)" for Pro
+- Note: "Prices in INR. International customers are charged in INR equivalent."
+
+**Exchange rate display:** `GET /api/billing/exchange-rates`
+- Fetches rates from ExchangeRate-API (free tier, cached hourly in Redis)
+- Used only for display — actual charge always in INR via Razorpay
+
+#### F. Razorpay Invoices (Supplementary)
+
+**Use case:** For Enterprise customers who need Razorpay-branded payment receipts via Razorpay's own invoicing system (in addition to Slipwise invoices).
+
+**Razorpay Invoices API:** Create and send payment invoices via Razorpay.
+
+```javascript
+razorpay.invoice.create({
+  type: "invoice",
+  date: unixTimestamp,
+  customer_id: razorpayCustomerId,
+  line_items: [{ name: "Pro Plan - Monthly", amount: 299900 }],
+  sms_notify: 1,
+  email_notify: 1,
+  currency: "INR",
+  expire_by: unixTimestamp
+})
+```
+
+**When used:** After each subscription renewal, generate a Razorpay Invoice for compliance/GST records. Store `razorpayInvoiceId` on `UsageRecord` or create a new `BillingInvoice` model.
+
+**Database model:**
+```prisma
+model BillingInvoice {
+  id                  String   @id @default(cuid())
+  orgId               String
+  razorpayInvoiceId   String?  @unique
+  razorpayPaymentId   String?
+  planId              String
+  amountPaise         BigInt
+  currency            String   @default("INR")
+  periodStart         DateTime
+  periodEnd           DateTime
+  status              String   @default("paid") // "paid" | "pending" | "failed"
+  pdfUrl              String?  // Razorpay invoice PDF URL
+  createdAt           DateTime @default(now())
+
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@index([orgId, createdAt])
+  @@map("billing_invoice")
+}
+```
+
+**UI:** Billing overview → "Billing History" section → list all `BillingInvoice` with PDF download links
 
 ---
 
@@ -338,15 +484,14 @@ Update `src/app/app/billing/` pages:
 
 #### A. API Key Management
 
-##### Database Models (add to schema.prisma):
-
+**Database models:**
 ```prisma
 model ApiKey {
   id          String    @id @default(cuid())
   orgId       String
   name        String
-  keyHash     String    @unique  // SHA-256 of the actual key
-  keyPrefix   String              // First 8 chars for identification e.g. "slw_live"
+  keyHash     String    @unique  // SHA-256 of the actual key — NEVER store plaintext
+  keyPrefix   String              // First 12 chars for identification e.g. "slw_live_Ab12"
   scopes      String[]            // ["read:invoices", "write:invoices", ...]
   lastUsedAt  DateTime?
   expiresAt   DateTime?
@@ -356,6 +501,7 @@ model ApiKey {
   revokedAt   DateTime?
 
   organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  requestLogs  ApiRequestLog[]
 
   @@index([orgId, isActive])
   @@index([keyHash])
@@ -363,16 +509,16 @@ model ApiKey {
 }
 
 model ApiWebhookEndpoint {
-  id          String    @id @default(cuid())
-  orgId       String
-  url         String
-  events      String[]  // ["invoice.created", "invoice.sent", "invoice.paid", ...]
-  secret      String    // HMAC signing secret (stored hashed)
-  isActive    Boolean   @default(true)
-  description String?
-  createdAt   DateTime  @default(now())
+  id              String    @id @default(cuid())
+  orgId           String
+  url             String
+  events          String[]  // ["invoice.created", "invoice.paid", ...]
+  secretHash      String    // SHA-256 of signing secret
+  isActive        Boolean   @default(true)
+  description     String?
+  failureCount    Int       @default(0)
+  createdAt       DateTime  @default(now())
   lastDeliveredAt DateTime?
-  failureCount    Int   @default(0)
 
   organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
   deliveries   ApiWebhookDelivery[]
@@ -410,14 +556,15 @@ model ApiRequestLog {
   ip         String?
   createdAt  DateTime @default(now())
 
+  apiKey ApiKey? @relation(fields: [apiKeyId], references: [id])
+
   @@index([orgId, createdAt])
   @@index([apiKeyId, createdAt])
   @@map("api_request_log")
 }
 ```
 
-##### API Scopes Definition:
-
+**API Scopes:**
 | Scope | Description |
 |---|---|
 | `read:invoices` | Read invoice list and details |
@@ -428,99 +575,76 @@ model ApiRequestLog {
 | `delete:vouchers` | Delete vouchers |
 | `read:salary_slips` | Read salary slip list and details |
 | `write:salary_slips` | Create and update salary slips |
-| `read:customers` | Read customers list |
+| `read:customers` | Read customers |
 | `write:customers` | Create and update customers |
-| `read:employees` | Read employees list |
+| `read:employees` | Read employees |
 | `write:employees` | Create and update employees |
-| `read:vendors` | Read vendors list |
+| `read:vendors` | Read vendors |
 | `write:vendors` | Create and update vendors |
 | `read:reports` | Read report snapshots |
 | `webhooks:manage` | Create and manage webhook endpoints |
 
-Per-plan API access:
+**Per-plan API access:**
 - **Free:** No API access
 - **Starter:** No API access
-- **Pro:** API access — up to 2 API keys, 10,000 requests/month
-- **Enterprise:** Unlimited API keys, unlimited requests
+- **Pro:** Up to 2 API keys, 10,000 requests/month
+- **Enterprise:** Unlimited API keys, unlimited requests/month
 
-##### API Key Generation UI
+**API Key Format:** `slw_live_` + nanoid(32) (production) or `slw_test_` + nanoid(32) (test)
 
-Route: `src/app/app/settings/api/page.tsx`
+**Key security:**
+- Show key ONCE on creation (copy-to-clipboard)
+- Store ONLY SHA-256 hash in DB
+- After dismissing creation modal: key cannot be retrieved — must regenerate
+- Show prefix for identification: "slw_live_Ab12..."
 
-Features:
-- List all API keys for org (name, prefix, scopes, last used, status)
-- Create new API key:
+**API Key UI:** `src/app/app/settings/api/page.tsx`
+- List all API keys: name, prefix, scopes, last used, status, expiry
+- Create new key:
   - Name (required)
-  - Select scopes (checkbox list)
-  - Expiry (optional: 30/90/365 days or never)
-  - Show key ONCE on creation (copy-to-clipboard, dismiss warning)
-- Revoke key (confirm dialog)
-- Regenerate key (creates new key, old key immediately invalid)
-- Show monthly usage counter (X / 10,000 requests)
+  - Scope selector (checkbox list with descriptions)
+  - Expiry (never / 30 / 90 / 365 days)
+  - After creation: one-time key reveal with "I've copied this key" confirmation
+- Revoke key (confirmation: "This will immediately break any integration using this key")
+- Regenerate: creates new key + immediately revokes old
+- Usage meter: "X / 10,000 requests this month"
 
-Edge cases:
-- Attempt to create key on Free/Starter plan → show `UpgradeGate` with "Upgrade to Pro" message
-- After showing key once, it CANNOT be retrieved again. Store only `keyHash` (SHA-256)
-- If user refreshes after seeing key → show "Key was shown once. If lost, regenerate."
+#### B. API Authentication Middleware
 
-##### API Authentication
+Create `src/app/api/v1/_middleware.ts` (or use Next.js middleware pattern):
 
-All API requests must include:
-```
-Authorization: Bearer slw_live_xxxxxxxxxxxxx
-```
-or
-```
-X-API-Key: slw_live_xxxxxxxxxxxxx
-```
-
-Key format: `slw_live_` + nanoid(32) (production) or `slw_test_` + nanoid(32) (test)
-
-API key verification middleware (`src/app/api/v1/middleware.ts`):
-1. Extract Bearer token from Authorization header
+```typescript
+// Per-request validation flow:
+1. Extract token: Authorization: Bearer {key} OR X-API-Key: {key}
 2. SHA-256 hash the token
-3. Lookup `ApiKey` by `keyHash` where `isActive = true`
-4. Check `expiresAt` — reject if expired
-5. Extract scopes from `ApiKey.scopes`
-6. Check requested endpoint's required scope
-7. Check plan limit (`Pro` required minimum)
-8. Set `req.apiContext = { orgId, apiKeyId, scopes }` on request
-9. Update `lastUsedAt` asynchronously (fire-and-forget)
-10. Log to `ApiRequestLog` asynchronously
+3. Lookup ApiKey by keyHash WHERE isActive = true
+4. Check expiresAt — return 401 if expired
+5. Check plan allows API access (Pro+ required)
+6. Check request scope against ApiKey.scopes
+7. Set request context: { orgId, apiKeyId, scopes }
+8. Update lastUsedAt (async, fire-and-forget)
+9. Log to ApiRequestLog (async, fire-and-forget)
+```
 
-#### B. REST API Endpoints
+#### C. REST API Endpoints
 
 Base URL: `/api/v1/`
-All endpoints: 
-- Return `Content-Type: application/json`
-- Accept `Content-Type: application/json` for write operations
-- Support pagination via `?page=1&limit=20` (max limit 100)
-- Support sorting via `?sort=createdAt&order=desc`
 
-##### Standard Response Envelope
-
-**Success:**
+**Standard Response Envelope:**
 ```json
+// Success:
 {
   "success": true,
   "data": { ... },
-  "meta": {
-    "page": 1,
-    "limit": 20,
-    "total": 143,
-    "hasMore": true
-  }
+  "meta": { "page": 1, "limit": 20, "total": 143, "hasMore": true }
 }
-```
 
-**Error:**
-```json
+// Error:
 {
   "success": false,
   "error": {
     "code": "INVOICE_NOT_FOUND",
-    "message": "Invoice with ID clxxxx not found",
-    "details": {}
+    "message": "Invoice with ID clxxxx not found"
   }
 }
 ```
@@ -532,24 +656,24 @@ All endpoints:
 | `FORBIDDEN` | 403 | Valid key but missing scope |
 | `NOT_FOUND` | 404 | Resource not found |
 | `VALIDATION_ERROR` | 422 | Invalid request body |
-| `RATE_LIMITED` | 429 | Too many requests |
-| `PLAN_LIMIT_REACHED` | 402 | Monthly quota exceeded |
+| `RATE_LIMITED` | 429 | Monthly quota exceeded |
+| `PLAN_LIMIT_REACHED` | 402 | Document creation quota hit |
 | `INTERNAL_ERROR` | 500 | Server error |
-| `FEATURE_GATED` | 402 | Feature not in plan |
 
 ##### Invoices API
 
 `GET /api/v1/invoices`
 - Scope: `read:invoices`
-- Query params: `?status=draft|sent|paid|overdue|cancelled&customer=clxxxx&from=2026-01-01&to=2026-04-30&page=1&limit=20&sort=createdAt&order=desc`
-- Returns: paginated invoice list with `id, number, status, totalAmount, customer, dueDate, createdAt`
+- Query: `?status=DRAFT|SENT|PAID|OVERDUE|CANCELLED&customerId=&from=&to=&page=1&limit=20&sort=createdAt&order=desc`
+- Returns: paginated invoice list: `{ id, invoiceNumber, status, totalAmount, currency, customerId, dueDate, createdAt }`
 
 `GET /api/v1/invoices/:id`
 - Scope: `read:invoices`
-- Returns: full invoice with all line items, payments, status events
+- Returns: full invoice with line items, payments, status events
 
 `POST /api/v1/invoices`
 - Scope: `write:invoices`
+- Increments `invoicesPerMonth` usage; reject if plan limit hit (402)
 - Body:
 ```json
 {
@@ -570,47 +694,45 @@ All endpoints:
   "terms": "Payment due within 30 days"
 }
 ```
-- Returns: created invoice with `id`, computed `invoiceNumber`, computed totals
-- Edge case: increments `invoicesPerMonth` usage counter; reject if plan limit reached
+- Returns: created invoice with computed `invoiceNumber` and totals
 
 `PATCH /api/v1/invoices/:id`
 - Scope: `write:invoices`
-- Body: partial invoice fields (cannot change `status` directly — use action endpoints)
-- Only allowed if invoice status is `DRAFT`
-- Returns: updated invoice
+- Only DRAFT invoices can be patched
+- Partial update of fields
 
 `DELETE /api/v1/invoices/:id`
 - Scope: `delete:invoices`
-- Only allowed if invoice status is `DRAFT` or `CANCELLED`
-- Soft-delete pattern (set `deletedAt` timestamp)
+- Only DRAFT or CANCELLED invoices
+- Soft delete: set `deletedAt`
 
 `POST /api/v1/invoices/:id/send`
 - Scope: `write:invoices`
-- Body: `{ "recipientEmail": "client@example.com", "message": "optional custom message" }`
-- Sends invoice PDF via email
-- Changes status to `SENT`
-- Increments `emailSendsPerMonth` usage counter
+- Body: `{ "recipientEmail": "client@example.com", "message": "optional" }`
+- Sends invoice PDF via Resend; changes status to SENT
+- Increments `emailSendsPerMonth`
 
 `POST /api/v1/invoices/:id/mark-paid`
 - Scope: `write:invoices`
-- Body: `{ "amount": 50000, "paymentMethod": "upi", "paymentDate": "2026-04-06", "reference": "TXN123" }`
-- Creates `InvoicePayment` record
-- Changes status to `PAID`
+- Body: `{ "amount": 118000, "paymentMethod": "upi", "paymentDate": "2026-04-06", "reference": "TXN123" }`
+- Creates `InvoicePayment`; changes status to PAID
+
+`POST /api/v1/invoices/:id/payment-link`
+- Scope: `write:invoices`
+- Creates Razorpay payment link for this invoice
+- Returns `{ shortUrl, qrCodeDataUrl, expiresAt }`
 
 `GET /api/v1/invoices/:id/pdf`
 - Scope: `read:invoices`
-- Returns: PDF as binary stream with `Content-Type: application/pdf`
-- `Content-Disposition: attachment; filename="invoice-{number}.pdf"`
+- Returns: PDF binary with `Content-Type: application/pdf`
 
 ##### Vouchers API
 
 `GET /api/v1/vouchers`
 - Scope: `read:vouchers`
-- Query params: `?type=receipt|payment|journal&from=&to=&page=&limit=`
-- Returns: paginated voucher list
+- Query: `?type=receipt|payment|journal&from=&to=&page=&limit=`
 
 `GET /api/v1/vouchers/:id`
-- Scope: `read:vouchers`
 
 `POST /api/v1/vouchers`
 - Scope: `write:vouchers`
@@ -629,19 +751,15 @@ All endpoints:
 ```
 
 `PATCH /api/v1/vouchers/:id`
-- Scope: `write:vouchers`
-
 `DELETE /api/v1/vouchers/:id`
-- Scope: `delete:vouchers`
 
 ##### Salary Slips API
 
 `GET /api/v1/salary-slips`
 - Scope: `read:salary_slips`
-- Query params: `?employeeId=&month=2026-03&page=&limit=`
+- Query: `?employeeId=&month=2026-03&page=&limit=`
 
 `GET /api/v1/salary-slips/:id`
-- Scope: `read:salary_slips`
 
 `POST /api/v1/salary-slips`
 - Scope: `write:salary_slips`
@@ -661,39 +779,30 @@ All endpoints:
 ```
 
 `GET /api/v1/salary-slips/:id/pdf`
-- Scope: `read:salary_slips`
 - Returns: PDF binary
 
 ##### Customers API
 
-`GET /api/v1/customers`
-- Scope: `read:customers`
-- Query params: `?search=&page=&limit=`
-
+`GET /api/v1/customers` — Scope: `read:customers`
 `GET /api/v1/customers/:id`
-
-`POST /api/v1/customers`
-- Scope: `write:customers`
+`POST /api/v1/customers` — Scope: `write:customers`
 - Body: `{ name, email, phone, gstNumber, address: { line1, city, state, pincode, country } }`
-
 `PATCH /api/v1/customers/:id`
-- Scope: `write:customers`
-
-`DELETE /api/v1/customers/:id`
-- Scope: `delete:customers` (not in standard scopes — omit or add)
 
 ##### Employees API
 
-`GET /api/v1/employees`
-- Scope: `read:employees`
-
+`GET /api/v1/employees` — Scope: `read:employees`
 `GET /api/v1/employees/:id`
-
-`POST /api/v1/employees`
-- Scope: `write:employees`
-- Body: `{ name, email, phone, employeeId, designation, department, joinDate, pan, aadhaarLast4, bank: { name, accountNumber, ifsc } }`
-
+`POST /api/v1/employees` — Scope: `write:employees`
+- Body: `{ name, email, phone, employeeId, designation, department, joinDate, pan, bank: { name, accountNumber, ifsc } }`
 `PATCH /api/v1/employees/:id`
+
+##### Vendors API
+
+`GET /api/v1/vendors` — Scope: `read:vendors`
+`GET /api/v1/vendors/:id`
+`POST /api/v1/vendors` — Scope: `write:vendors`
+`PATCH /api/v1/vendors/:id`
 
 ##### Reports API
 
@@ -703,95 +812,95 @@ All endpoints:
 - Returns: `{ totalInvoiced, totalCollected, totalOutstanding, totalVouchers, slipsGenerated, byMonth: [...] }`
 
 `GET /api/v1/reports/outstanding`
-- Scope: `read:reports`
-- Returns: list of unpaid invoices grouped by aging (0-30, 31-60, 61-90, 90+ days)
+- Returns: unpaid invoices grouped by aging: 0-30, 31-60, 61-90, 90+ days
 
-#### C. Outbound Webhooks
+`GET /api/v1/openapi.json`
+- No auth required
+- Returns OpenAPI 3.1 spec
+
+#### D. Outbound Webhooks
 
 **Management UI:** `src/app/app/settings/webhooks/page.tsx`
-
-Features:
-- List all webhook endpoints
-- Add endpoint: URL, select events, description
+- List all webhook endpoints (URL, events, status, last delivery)
+- Add endpoint: URL (HTTPS only, no localhost/RFC-1918), events, description
 - Test endpoint: sends `ping` event
 - View delivery history per endpoint (last 50)
 - Retry failed delivery
 - Disable/enable endpoint
-- View secret (show once, then masked)
+- Rotate signing secret
 
 **Supported outbound events:**
 | Event | Trigger |
 |---|---|
-| `invoice.created` | New invoice created |
+| `invoice.created` | Invoice created |
 | `invoice.updated` | Invoice fields changed |
-| `invoice.sent` | Invoice emailed |
-| `invoice.paid` | Invoice marked paid |
+| `invoice.sent` | Invoice emailed to customer |
+| `invoice.paid` | Invoice marked paid (manual or via payment link) |
 | `invoice.overdue` | Invoice past due date |
 | `invoice.cancelled` | Invoice cancelled |
+| `invoice.payment_link.created` | Payment link generated |
 | `voucher.created` | Voucher created |
 | `voucher.updated` | Voucher updated |
 | `salary_slip.created` | Salary slip created |
 | `salary_slip.sent` | Salary slip emailed |
-| `subscription.activated` | Plan activated |
+| `subscription.activated` | Razorpay subscription active |
 | `subscription.trial_ending` | Trial ends in 3 days |
 | `subscription.cancelled` | Subscription cancelled |
 | `member.invited` | Team member invited |
-| `member.joined` | Team member accepted invite |
+| `member.joined` | Invite accepted |
+| `payment.received` | Payment link / virtual account payment received |
 | `ping` | Test event |
 
-**Webhook payload format:**
+**Webhook payload:**
 ```json
 {
   "id": "evt_01HXXX",
   "type": "invoice.paid",
   "created": "2026-04-06T08:00:00Z",
   "orgId": "clxxxx",
-  "data": {
-    "object": { ... full invoice object ... }
-  },
+  "data": { "object": { ... full object ... } },
   "apiVersion": "2026-04"
 }
 ```
 
-**Signing:**
-- `Slipwise-Signature: t=1234567890,v1=xxxxxxxxxxxx`
+**Signing header:** `Slipwise-Signature: t={timestamp},v1={hmac_sha256}`
 - HMAC-SHA256 of `{timestamp}.{rawBody}` using endpoint secret
-- Verify: compute expected signature, compare with `crypto.timingSafeEqual`
+- Receiver verifies with `crypto.timingSafeEqual`
 
 **Delivery mechanics:**
-- Attempt delivery immediately via background job
-- Timeout: 30 seconds
-- Retry on non-2xx: 3 retries with exponential backoff (5min, 30min, 2hr)
-- After 3 failures: mark delivery failed, increment `failureCount` on endpoint
-- After 10 consecutive failures: auto-disable endpoint + notify org admin
+- Attempt delivery immediately via `setImmediate` / background job
+- Timeout: 30 seconds per attempt
+- Retry on non-2xx: 3 retries (5 min, 30 min, 2 hr backoff)
+- Auto-disable endpoint after 10 consecutive failures + notify org admin
+- Log every attempt in `ApiWebhookDelivery`
 
-#### D. Developer Portal
+**SSRF protection:** Reject URLs matching:
+- `localhost`, `127.0.0.1`, `0.0.0.0`
+- RFC-1918: `10.x.x.x`, `172.16-31.x.x`, `192.168.x.x`
+- Non-HTTPS (HTTP URLs rejected)
+- `169.254.x.x` (AWS metadata service)
 
-Route: `src/app/(marketing)/developers/page.tsx`
+#### E. Developer Portal
+
+**Route:** `src/app/(marketing)/developers/page.tsx`
 
 Contents:
-- Hero: "Build on Slipwise One" + code snippet
-- Getting Started section with auth example
-- Interactive API reference (link to OpenAPI spec)
+- Hero: "Build on Slipwise One" with code snippet
+- Quick start: create API key → first API call (cURL example)
+- Authentication guide
+- Full endpoint reference (link to OpenAPI spec)
 - Code examples: Node.js, Python, PHP, cURL
-- Webhook guide with payload examples
-- Link to changelog
-
-Route: `src/app/api/v1/openapi.json/route.ts`
-- Returns OpenAPI 3.1 spec as JSON
-- Auto-generated from route definitions
-- Include all endpoints, schemas, error codes
+- Webhook integration guide with HMAC verification example
+- Changelog and versioning policy
 
 ---
 
 ### 3.3 Sprint 12.3 — Enterprise Features
 
 **Duration:** 1 sprint (parallel with 12.2)
-**Goal:** Enterprise-grade authentication (SSO/SAML), multi-org management, custom domains, white-labeling, SLA features.
+**Goal:** Enterprise authentication (SSO/SAML), multi-org management, custom domains, white-labeling.
 
 #### A. SSO / SAML 2.0
-
-**Install:** `npm install @auth/core saml2-js` or use a managed service like WorkOS/Auth0
 
 **Supported Identity Providers:**
 - Okta
@@ -801,23 +910,16 @@ Route: `src/app/api/v1/openapi.json/route.ts`
 - OneLogin
 - Any SAML 2.0 compliant IdP
 
-**Flow:**
-1. Org admin configures SSO in Settings → Security → SSO
-2. Admin enters IdP metadata URL or XML
-3. Slipwise shows SP metadata (ACS URL, Entity ID) for IdP configuration
-4. Admin tests SSO connection
-5. Admin enforces SSO (optional — blocks password login for org members)
-
-**Database models:**
+**Database model:**
 ```prisma
 model SsoConfig {
   id              String    @id @default(cuid())
   orgId           String    @unique
-  provider        String    // "okta" | "azure" | "google" | "saml"
+  provider        String    // "okta" | "azure" | "google" | "saml_custom"
   metadataUrl     String?
-  metadataXml     String?
-  acsUrl          String    // e.g. https://app.slipwise.com/api/auth/sso/{orgSlug}/callback
-  entityId        String    // e.g. https://app.slipwise.com
+  metadataXml     String?   @db.Text
+  acsUrl          String    // https://app.slipwise.com/api/auth/sso/{orgSlug}/callback
+  entityId        String    // https://app.slipwise.com
   ssoEnforced     Boolean   @default(false)
   isActive        Boolean   @default(true)
   testedAt        DateTime?
@@ -830,40 +932,40 @@ model SsoConfig {
 }
 ```
 
-**SSO API Routes:**
-- `GET /api/auth/sso/{orgSlug}/initiate` — redirect to IdP login
-- `POST /api/auth/sso/{orgSlug}/callback` — handle SAML assertion, create session
-- `GET /api/auth/sso/{orgSlug}/metadata` — return SP metadata XML
+**SSO Routes:**
+- `GET /api/auth/sso/[orgSlug]/initiate` — redirect to IdP with SAMLRequest
+- `POST /api/auth/sso/[orgSlug]/callback` — receive SAML assertion, create session
+- `GET /api/auth/sso/[orgSlug]/metadata` — return SP metadata XML for IdP config
 
 **SSO Login Flow:**
-1. User visits `https://app.slipwise.com/auth/login?org=acme`
-2. If org has SSO configured and enforced → redirect to IdP
-3. IdP authenticates user → sends SAML assertion to ACS URL
-4. Parse assertion, extract email + name
-5. Find Profile by email → update session → redirect to app
-6. If no Profile exists → create Profile + Member → onboard user
-7. If SSO enforced → block regular email/password login for this org's members
+1. User visits `https://app.slipwise.com/auth/login?org=acme-corp`
+2. Org has SSO configured → redirect to IdP
+3. IdP authenticates → sends SAML assertion to ACS URL
+4. Parse + verify assertion signature (reject if expired >5 min or invalid sig)
+5. Extract email, name from assertion attributes
+6. Find `Profile` by email → create Supabase session → redirect to `/app/home`
+7. If no Profile: create Profile + Member (default viewer) → onboard
+8. If SSO enforced: block standard email/password login for this org
 
 **Settings UI:** `src/app/app/settings/security/sso/page.tsx`
-- SSO configuration form
-- Test SSO button
-- "Enforce SSO" toggle (with warning: "All members must use SSO after enabling")
-- Show SP metadata for admin to configure in IdP
+- SSO config form: provider selector, metadata URL / XML upload
+- SP metadata display (copy ACS URL, Entity ID for IdP setup)
+- "Test SSO" button (opens SSO login in new window)
+- "Enforce SSO" toggle with warning
+- Last tested timestamp
 
-**Plan requirement:** Enterprise plan only. Show `UpgradeGate` for non-Enterprise orgs.
+**Plan requirement:** Enterprise only — show `UpgradeGate` for others
 
 #### B. Multi-Organization Management
 
-**Use case:** A user may own or be a member of multiple organizations (e.g., personal freelance + company).
+**Use case:** A user owns/belongs to multiple orgs (personal freelance + company).
 
-**Database changes:**
+**Database model:**
 ```prisma
-// Profile already has multiple Members
-// Add org switcher state:
 model UserOrgPreference {
-  userId           String   @id @db.Uuid
-  activeOrgId      String
-  updatedAt        DateTime @updatedAt
+  userId      String   @id @db.Uuid
+  activeOrgId String
+  updatedAt   DateTime @updatedAt
 
   user Profile      @relation(fields: [userId], references: [id], onDelete: Cascade)
   org  Organization @relation(fields: [activeOrgId], references: [id], onDelete: Cascade)
@@ -872,45 +974,39 @@ model UserOrgPreference {
 }
 ```
 
-**Org Switcher UI:**
-- Add org switcher to app header/sidebar
-- Shows list of all orgs user belongs to with role badge
-- Quick switch without re-login
+**Org Switcher UI** (add to app header):
+- Dropdown showing all orgs user belongs to (with role badge)
+- Click to switch — updates `UserOrgPreference.activeOrgId`
 - "Create New Organization" option
-- "Leave Organization" option (not for owners)
+- "Leave Organization" (not for owners)
+- Current org highlighted with checkmark
 
 **Org switching flow:**
-1. User clicks org switcher
-2. List orgs from `db.member.findMany({ where: { userId } })`
-3. User selects org
-4. Update `UserOrgPreference.activeOrgId`
-5. Refresh app with new org context
-6. All documents, settings, billing reflect selected org
+1. User clicks org name in header
+2. `db.member.findMany({ where: { userId } })` → list orgs
+3. User selects → `PUT /api/org/switch { activeOrgId }`
+4. Cookie/session updated → page reloads with new org context
+5. All documents, settings, billing reflect new org
 
 **Edge cases:**
 - Owner cannot leave org (must transfer ownership first)
-- If only 1 org: hide switcher (or show as non-interactive)
-- If user leaves org while viewing it: redirect to another org or org creation
-- Deleted org: automatically removed from switcher
+- Deleted org: auto-removed from switcher
+- If only 1 org: show org name non-interactively (no dropdown)
+
+**New API route:** `PUT /api/org/switch` — `{ activeOrgId }` — updates preference, validates membership
 
 #### C. Custom Domains
 
-**Use case:** Enterprise clients want `billing.acme.com` instead of `slipwise.app`.
-
-**Implementation:**
-- Use Vercel custom domain API or Cloudflare Workers routing
-- `OrgDomain` model stores verified domain + SSL status
-- CNAME: `docs.acme.com` → `custom.slipwise.app`
+**Use case:** Enterprise: `docs.acme.com` or `billing.acme.com` instead of `app.slipwise.com`.
 
 **Database model:**
 ```prisma
 model OrgDomain {
   id           String    @id @default(cuid())
   orgId        String    @unique
-  domain       String    @unique  // e.g. "billing.acme.com"
+  domain       String    @unique  // "billing.acme.com"
   verified     Boolean   @default(false)
-  sslEnabled   Boolean   @default(false)
-  verifyToken  String    // DNS TXT record value for domain verification
+  verifyToken  String    // DNS TXT record value
   createdAt    DateTime  @default(now())
   verifiedAt   DateTime?
 
@@ -921,38 +1017,27 @@ model OrgDomain {
 ```
 
 **Domain verification flow:**
-1. Org admin enters custom domain in Settings → Branding → Custom Domain
-2. System generates verify token (nanoid)
-3. Admin adds DNS TXT record: `_slipwise-verify.acme.com → {token}`
-4. Admin clicks "Verify Domain"
-5. Backend calls DNS lookup to confirm TXT record
-6. Mark domain verified, provision SSL via Vercel/Cloudflare API
-7. Public share links and invoice pages use custom domain
+1. Admin enters domain in Settings → Branding → Custom Domain
+2. System generates `verifyToken` (nanoid)
+3. Admin adds DNS TXT: `_slipwise-verify.acme.com` → `{token}`
+4. Admin clicks "Verify" → backend DNS lookup confirms TXT record
+5. Mark verified → provision via Vercel custom domain API
+6. Share links use custom domain: `https://billing.acme.com/share/invoice/{token}`
 
-**Plan requirement:** Enterprise plan only.
+**Plan requirement:** Enterprise only
 
 #### D. White-Label (Remove Slipwise Branding)
 
 **Plan:** Enterprise only
 
-White-label options:
-- Remove "Powered by Slipwise" from:
-  - Shared document pages
-  - Exported PDFs (footer area)
-  - Email footers
-  - Invoice/Voucher/Salary Slip PDFs
-- Custom logo in emails (already in BrandingProfile)
-- Custom color scheme for exported docs
-
-**Database changes:**
+**Database model:**
 ```prisma
-// Add to OrgDefaults or create new OrgWhiteLabel model
 model OrgWhiteLabel {
   id              String   @id @default(cuid())
   orgId           String   @unique
   removeBranding  Boolean  @default(false)
   emailFromName   String?  // "Acme Corp" instead of "Slipwise One"
-  emailReplyTo    String?  // custom reply-to address
+  emailReplyTo    String?
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
@@ -962,37 +1047,32 @@ model OrgWhiteLabel {
 }
 ```
 
-**White-label check in PDF generation:**
-- Before rendering PDF template: check `orgWhiteLabel.removeBranding`
-- If true: skip footer Slipwise logo and watermark
-- Else: render "Generated with Slipwise One" footer text in gray
+**White-label applies to:**
+- PDF exports: hide "Generated with Slipwise One" footer
+- Shared document pages: remove Slipwise logo
+- Emails: `From: Acme Corp <noreply@slipwise.app>` instead of "Slipwise One"
+- Invoice watermark: removed
+- Payment link pages: remove "Powered by Slipwise"
 
-#### E. Enterprise Admin Dashboard
+**PDF generation check:**
+```typescript
+const whiteLabel = await db.orgWhiteLabel.findUnique({ where: { orgId } });
+const hideBranding = whiteLabel?.removeBranding ?? false;
+// Pass to PDF template renderer
+```
 
-Route: `src/app/app/settings/enterprise/page.tsx`
+#### E. Org Email Domain Auto-Provisioning
 
-Sections:
-1. **SSO Configuration** — Configure IdP, test, enforce
-2. **Custom Domain** — Add/verify domain
-3. **White-Label** — Toggle branding removal
-4. **API Keys** — Manage keys (already in 12.2)
-5. **Webhooks** — Manage endpoints (already in 12.2)
-6. **Audit Log** — Full audit trail (existing, enhanced)
-7. **Organization Domains** — Add org-verified email domains (auto-assign role to new signups)
-8. **SLA Status** — Uptime dashboard link + support contact
-
-#### F. Org Verified Domains (Auto-Provisioning)
-
-**Use case:** Any user signing up with `@acme.com` email is auto-assigned to Acme's org with a default role.
+**Use case:** Any user signing up with `@acme.com` auto-joins Acme org.
 
 ```prisma
 model OrgEmailDomain {
-  id            String   @id @default(cuid())
-  orgId         String
-  emailDomain   String   // e.g. "acme.com"
-  defaultRole   String   @default("viewer")
-  autoJoin      Boolean  @default(false)
-  createdAt     DateTime @default(now())
+  id          String   @id @default(cuid())
+  orgId       String
+  emailDomain String
+  defaultRole String   @default("viewer")
+  autoJoin    Boolean  @default(false)
+  createdAt   DateTime @default(now())
 
   organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
 
@@ -1003,294 +1083,243 @@ model OrgEmailDomain {
 
 **Auto-join flow:**
 1. New user signs up with `john@acme.com`
-2. On profile creation: lookup `OrgEmailDomain` where `emailDomain = "acme.com"` and `autoJoin = true`
-3. If found: automatically create `Member` record with `defaultRole`
-4. Notify org owner: "New member john@acme.com joined automatically via email domain policy"
+2. On Profile creation: lookup `OrgEmailDomain` where `emailDomain = "acme.com"` and `autoJoin = true`
+3. Found: auto-create `Member` with `defaultRole`
+4. Notify org owner: "New member joined via email domain policy"
 
 ---
 
 ### 3.4 Phase 12 Database Schema Additions
 
-**Add to `prisma/schema.prisma`:**
-
 ```prisma
+// Payment
+model CustomerVirtualAccount   (Section 3.1B)
+model UnmatchedPayment          (Section 3.1B)
+model BillingInvoice            (Section 3.1F)
+
+// Subscription enhancements (add fields to Subscription):
+// pausedAt, pausedUntil, pauseReason
+// billingGateway (always "razorpay")
+
+// Invoice enhancements (add fields to Invoice):
+// razorpayPaymentLinkId, razorpayPaymentLinkUrl, paymentLinkExpiresAt
+
 // API Platform
-model ApiKey                  (see Section 3.2A above)
-model ApiWebhookEndpoint      (see Section 3.2C above)
-model ApiWebhookDelivery      (see Section 3.2C above)
-model ApiRequestLog           (see Section 3.2A above)
+model ApiKey                    (Section 3.2A)
+model ApiWebhookEndpoint        (Section 3.2A)
+model ApiWebhookDelivery        (Section 3.2A)
+model ApiRequestLog             (Section 3.2A)
 
 // Enterprise
-model SsoConfig               (see Section 3.3A above)
-model UserOrgPreference       (see Section 3.3B above)
-model OrgDomain               (see Section 3.3C above)
-model OrgWhiteLabel           (see Section 3.3D above)
-model OrgEmailDomain          (see Section 3.3F above)
+model SsoConfig                 (Section 3.3A)
+model UserOrgPreference         (Section 3.3B)
+model OrgDomain                 (Section 3.3C)
+model OrgWhiteLabel             (Section 3.3D)
+model OrgEmailDomain            (Section 3.3E)
 
-// Stripe
-model StripeEvent {
-  id          String   @id   // Stripe event ID (evt_xxx)
-  type        String
-  payload     Json
-  processedAt DateTime @default(now())
-
-  @@index([type])
-  @@map("stripe_event")
-}
-```
-
-**Subscription model update:**
-```prisma
-// Add fields to existing Subscription model:
-billingGateway      String    @default("razorpay") // "razorpay" | "stripe"
-stripeCustomerId    String?   @unique
-stripeSubId         String?   @unique
-currency            String    @default("INR")
-countryCode         String?   // ISO 3166-1 alpha-2
-```
-
-**Organization model update:**
-```prisma
-// Add to Organization:
-slug          String   @unique  // URL-safe identifier
-countryCode   String?
-timezone      String   @default("Asia/Kolkata")
-ssoConfig     SsoConfig?
-emailDomains  OrgEmailDomain[]
-domain        OrgDomain?
-whiteLabel    OrgWhiteLabel?
-apiKeys       ApiKey[]
-webhookEndpoints ApiWebhookEndpoint[]
+// Organization model: add slug (unique), countryCode, timezone
+// Add relations: ssoConfig, emailDomains, domain, whiteLabel, apiKeys, webhookEndpoints
 ```
 
 ---
 
 ### 3.5 Phase 12 Route Map
 
-**API Platform:**
 ```
-GET  /api/v1/invoices
-POST /api/v1/invoices
-GET  /api/v1/invoices/:id
-PATCH /api/v1/invoices/:id
-DELETE /api/v1/invoices/:id
-POST /api/v1/invoices/:id/send
-POST /api/v1/invoices/:id/mark-paid
-GET  /api/v1/invoices/:id/pdf
+// Razorpay expanded billing:
+POST /api/billing/razorpay/create-payment-link
+POST /api/billing/razorpay/create-virtual-account
+POST /api/billing/razorpay/pause
+POST /api/billing/razorpay/resume
+POST /api/billing/razorpay/change-plan
+GET  /api/billing/exchange-rates
 
-GET  /api/v1/vouchers
-POST /api/v1/vouchers
-GET  /api/v1/vouchers/:id
-PATCH /api/v1/vouchers/:id
-DELETE /api/v1/vouchers/:id
+// Public API v1:
+GET/POST/PATCH/DELETE /api/v1/invoices/*
+GET/POST/PATCH/DELETE /api/v1/vouchers/*
+GET/POST/PATCH/DELETE /api/v1/salary-slips/*
+GET/POST/PATCH        /api/v1/customers/*
+GET/POST/PATCH        /api/v1/employees/*
+GET/POST/PATCH        /api/v1/vendors/*
+GET                   /api/v1/reports/*
+GET                   /api/v1/openapi.json
 
-GET  /api/v1/salary-slips
-POST /api/v1/salary-slips
-GET  /api/v1/salary-slips/:id
-GET  /api/v1/salary-slips/:id/pdf
-
-GET  /api/v1/customers
-POST /api/v1/customers
-GET  /api/v1/customers/:id
-PATCH /api/v1/customers/:id
-
-GET  /api/v1/employees
-POST /api/v1/employees
-GET  /api/v1/employees/:id
-PATCH /api/v1/employees/:id
-
-GET  /api/v1/vendors
-POST /api/v1/vendors
-GET  /api/v1/vendors/:id
-PATCH /api/v1/vendors/:id
-
-GET  /api/v1/reports/summary
-GET  /api/v1/reports/outstanding
-
-GET  /api/v1/openapi.json
-```
-
-**Billing (Stripe):**
-```
-POST /api/billing/stripe/create-checkout-session
-POST /api/billing/stripe/webhook
-POST /api/billing/stripe/cancel
-POST /api/billing/stripe/portal
-```
-
-**Auth (SSO):**
-```
+// Auth SSO:
 GET  /api/auth/sso/[orgSlug]/initiate
 POST /api/auth/sso/[orgSlug]/callback
 GET  /api/auth/sso/[orgSlug]/metadata
-```
 
-**App Pages:**
-```
-/app/settings/api           (API key management)
-/app/settings/webhooks      (Webhook endpoints)
-/app/settings/security/sso  (SSO configuration)
-/app/settings/enterprise    (Enterprise admin)
-/(marketing)/developers     (Developer portal)
+// Org management:
+PUT  /api/org/switch
+
+// App settings pages:
+/app/settings/api
+/app/settings/webhooks
+/app/settings/security/sso
+/app/settings/enterprise
+
+// Marketing:
+/(marketing)/developers
 ```
 
 ---
 
 ### 3.6 Phase 12 Edge Cases & Acceptance Criteria
 
-#### Billing Edge Cases
+#### Razorpay Payment Links
 
 | Scenario | Expected Behavior |
 |---|---|
-| Stripe checkout session expires (30 min) | User redirected to cancel URL; no subscription created |
-| Razorpay subscription + user tries Stripe | Block; show "You are on INR billing. Contact support to switch" |
-| Stripe webhook received out of order | Idempotency check via StripeEvent model; skip if already processed |
-| User upgrades and immediately downgrades | Allow; proration applied on Stripe; cancellation at period end |
-| Trial expires while Stripe checkout pending | Show "Your trial has expired. Complete checkout to continue" |
-| Card declined during renewal | Set status `past_due`; email notification; 72hr grace period |
-| User cancels during trial | Immediately revert to free; no charge |
-| Org deleted with active Stripe subscription | Auto-cancel subscription via Stripe API before deletion |
-| Currency mismatch (INR org tries USD checkout) | Block with "Your billing is in INR. Use Razorpay." |
+| Payment link expires before customer pays | Invoice remains SENT; show "Link expired" badge; allow regeneration |
+| Customer pays partial amount via link | Create `InvoicePayment` for partial; keep status as SENT; show partial payment badge |
+| Duplicate `payment_link.paid` webhook | Idempotency check via `RazorpayEvent`; skip if already processed |
+| Payment link created for already-paid invoice | Block: "Invoice is already paid" error |
+| Razorpay Payment Link API unavailable | Return 503 "Payment link service unavailable. Try again later." |
+| Invoice deleted with active payment link | Cancel the Razorpay payment link via API before deletion |
 
-#### API Edge Cases
+#### Smart Collect / Virtual Accounts
+
+| Scenario | Expected Behavior |
+|---|---|
+| Payment received but amount doesn't match any invoice | Create `UnmatchedPayment`; notify admin; manual match UI |
+| Multiple invoices match the received amount | Create `UnmatchedPayment` for manual match |
+| Virtual account closed but payment received | Razorpay rejects; no action needed |
+| Customer has multiple open invoices | Auto-apply to oldest outstanding invoice |
+
+#### API Platform
 
 | Scenario | Expected Behavior |
 |---|---|
 | API key used after revocation | Immediate 401; `revokedAt` checked in middleware |
-| API key expiry to the second | Time-based check in middleware; 401 on expiry |
-| API request with missing required fields | 422 Unprocessable Entity with field-level error details |
-| API invoice creation hits plan limit | 402 with `{ code: "PLAN_LIMIT_REACHED", current: 100, limit: 100 }` |
-| Concurrent API requests exceed rate limit | 429 with `Retry-After` header |
-| Webhook endpoint URL unreachable | Retry 3 times; disable endpoint after 10 consecutive failures |
-| Webhook delivery times out (>30s) | Mark as failed; schedule retry |
-| Malicious webhook URL (SSRF) | Validate URL: reject localhost, RFC-1918 IPs, non-HTTPS |
-| API key used from different IP | Log `ip` in ApiRequestLog; alert if suspicious pattern |
-| OpenAPI spec request | Return spec without authentication |
+| API key expiry to the second | Time check in middleware; 401 on expiry |
+| Missing required fields in POST | 422 with field-level error details |
+| Invoice creation hits plan limit | 402 `{ code: "PLAN_LIMIT_REACHED", current: 100, limit: 100 }` |
+| Concurrent requests exceed rate limit | 429 with `Retry-After` header |
+| Webhook endpoint URL is localhost | 422 "Webhook URL must be a publicly accessible HTTPS URL" |
+| Webhook delivery times out (>30s) | Mark failed; retry with backoff |
+| After 10 consecutive failures | Auto-disable endpoint + notify admin |
+| Free/Starter plan tries to use API | 402 `{ code: "FEATURE_GATED", minimumPlan: "pro" }` |
 
-#### SSO Edge Cases
+#### SSO
 
 | Scenario | Expected Behavior |
 |---|---|
-| SAML assertion expired (>5 min) | Reject with "Authentication expired, please retry" |
-| SAML assertion signature invalid | Reject with 403 |
-| SSO user email not in org | Create new Member with default viewer role; notify admin |
-| SSO enforced but user tries password login | Redirect: "This organization requires SSO. Click here to login via {IdP}" |
-| SSO config deleted while users logged in | Sessions remain valid; new logins fall back to email/password |
-| IdP sends unrecognized attribute | Log warning; proceed with available attributes (email, name) |
-| Admin disables SSO enforcement | Notify all members via email that password login is re-enabled |
+| SAML assertion expired (>5 min) | Reject: "Authentication expired, please retry" |
+| SAML assertion signature invalid | 403 |
+| SSO user email not in org | Create Member with default viewer role; notify admin |
+| SSO enforced, user tries password login | "This org requires SSO. Click here to login via {IdP}" |
+| Admin disables SSO enforcement | Email all members: "Password login re-enabled for your account" |
 
 ---
 
 ### 3.7 Phase 12 Test Cases
 
-#### Billing Tests
+#### Payment Link Tests
 
 ```
-TC-12-01: Stripe checkout session creation
-  Given: Pro plan, monthly, USD, authenticated org owner
-  When:  POST /api/billing/stripe/create-checkout-session
-  Then:  Returns 200 with valid Stripe checkout URL
-         URL matches https://checkout.stripe.com/*
-         Stripe Customer created in DB
+TC-12-01: Payment link creation
+  Given: Sent invoice for ₹11,800, authenticated org owner
+  When:  POST /api/billing/razorpay/create-payment-link { invoiceId }
+  Then:  Returns 200 with shortUrl (https://rzp.io/l/xxxxx)
+         Invoice.razorpayPaymentLinkId set in DB
+         Returns QR code data URL
 
-TC-12-02: Stripe webhook subscription.activated
-  Given: Valid Stripe-Signature header, subscription.activated payload
-  When:  POST /api/billing/stripe/webhook
-  Then:  Subscription record updated: status=active
-         StripeEvent record created for idempotency
-         Returns 200
+TC-12-02: Payment link paid webhook
+  Given: Razorpay sends payment_link.paid event with reference_id = invoiceId
+  When:  POST /api/billing/razorpay/webhook
+  Then:  Invoice status = PAID
+         InvoicePayment record created
+         RazorpayEvent record created (idempotency)
+         Notification created for org admin
 
-TC-12-03: Duplicate Stripe webhook (idempotency)
-  Given: StripeEvent with same ID already processed
-  When:  Same event received again
-  Then:  Returns 200 without processing
-         DB state unchanged
+TC-12-03: Duplicate payment webhook (idempotency)
+  Given: RazorpayEvent with same ID already in DB
+  When:  Same webhook received
+  Then:  Returns 200; no duplicate InvoicePayment; invoice status unchanged
 
-TC-12-04: Stripe card declined
-  Given: invoice.payment_failed event from Stripe
-  When:  POST /api/billing/stripe/webhook
-  Then:  Subscription status = past_due
-         Email sent to org admin: "Payment failed"
-         Returns 200
+TC-12-04: Subscription pause
+  Given: Active Pro subscription
+  When:  POST /api/billing/razorpay/pause { resumeDate: "2026-07-01" }
+  Then:  Razorpay subscription paused
+         Subscription.pausedAt set, pausedUntil set
+         Status = "paused"
+         Banner shown in billing UI
 
-TC-12-05: Subscription downgrade scheduling
-  Given: Pro plan, user requests downgrade to Starter
-  When:  POST /api/billing/stripe/create-checkout-session { planId: "starter" }
-  Then:  Stripe schedules change at period end
-         DB: cancelAtPeriodEnd = true (until period ends)
-         Banner shown: "Downgrade to Starter on {date}"
+TC-12-05: Subscription resume
+  Given: Paused subscription
+  When:  POST /api/billing/razorpay/resume
+  Then:  Razorpay subscription resumed
+         Subscription.status = "active"
+         pausedAt, pausedUntil cleared
+
+TC-12-06: Unmatched virtual account payment
+  Given: Virtual account receives ₹50,000, no invoice for that amount
+  When:  virtual_account.credited webhook
+  Then:  UnmatchedPayment record created
+         Notification to org admin: "Unmatched payment of ₹50,000 received"
 ```
 
 #### API Tests
 
 ```
-TC-12-06: Valid API key authentication
+TC-12-07: Valid API key authentication
   Given: Active API key with read:invoices scope
-  When:  GET /api/v1/invoices with valid Bearer token
-  Then:  Returns 200 with invoice list
+  When:  GET /api/v1/invoices Authorization: Bearer {key}
+  Then:  Returns 200 with paginated invoice list
          ApiRequestLog entry created
-         lastUsedAt updated on ApiKey
+         ApiKey.lastUsedAt updated
 
-TC-12-07: Revoked API key rejection
-  Given: Revoked API key (revokedAt set)
-  When:  GET /api/v1/invoices with revoked token
+TC-12-08: Revoked API key
+  Given: API key with revokedAt set
+  When:  GET /api/v1/invoices with revoked key
   Then:  Returns 401 { error: { code: "UNAUTHORIZED" } }
 
-TC-12-08: Missing scope rejection
-  Given: API key with read:invoices only
+TC-12-09: Missing scope
+  Given: API key with only read:invoices
   When:  POST /api/v1/invoices (requires write:invoices)
   Then:  Returns 403 { error: { code: "FORBIDDEN" } }
 
-TC-12-09: Plan limit on invoice creation
-  Given: Starter plan at 100/100 invoices
+TC-12-10: Plan limit on API invoice creation
+  Given: Starter plan (no API access)
   When:  POST /api/v1/invoices
-  Then:  Returns 402 { error: { code: "PLAN_LIMIT_REACHED", current: 100, limit: 100 } }
+  Then:  Returns 402 { error: { code: "FEATURE_GATED", minimumPlan: "pro" } }
 
-TC-12-10: Webhook delivery and retry
-  Given: webhook endpoint registered for invoice.paid
-  When:  Invoice marked paid
-  Then:  Delivery attempted within 5 seconds
-         On 404 response from endpoint: retry after 5 min
-         After 3 failures: ApiWebhookDelivery.success = false
+TC-12-11: Webhook SSRF protection
+  Given: Webhook URL = "http://169.254.169.254/metadata"
+  When:  POST /app/settings/webhooks with that URL
+  Then:  Returns 422 "Webhook URL must be a publicly accessible HTTPS URL"
 
-TC-12-11: SSRF protection on webhook URL
-  Given: Webhook endpoint URL = "http://169.254.169.254/latest/meta-data/"
-  When:  POST /app/api/webhooks/create with that URL
-  Then:  Returns 422 "Webhook URL must be publicly accessible HTTPS URL"
-
-TC-12-12: API rate limiting
-  Given: Pro plan with 10,000 req/month limit
-  When:  10,001st request in current month
-  Then:  Returns 429 { error: { code: "RATE_LIMITED" } }
-
-TC-12-13: Pagination
+TC-12-12: API pagination
   Given: Org has 143 invoices
   When:  GET /api/v1/invoices?page=2&limit=20
-  Then:  Returns 20 invoices (items 21-40)
-         meta.total = 143, meta.page = 2, meta.hasMore = true
+  Then:  Returns 20 items (items 21-40)
+         meta.total=143, meta.page=2, meta.hasMore=true
+
+TC-12-13: PDF download via API
+  Given: Valid invoice ID, API key with read:invoices
+  When:  GET /api/v1/invoices/:id/pdf
+  Then:  Returns binary PDF
+         Content-Type: application/pdf
+         Content-Disposition: attachment; filename="invoice-{number}.pdf"
 ```
 
 #### SSO Tests
 
 ```
-TC-12-14: SAML SSO login initiation
-  Given: Org has SSO configured with Okta
+TC-12-14: SSO login initiation
+  Given: Org with Okta SSO configured
   When:  GET /api/auth/sso/acme-corp/initiate
-  Then:  Returns 302 redirect to Okta login URL
-         SAMLRequest encoded in redirect
+  Then:  Returns 302 redirect to Okta with SAMLRequest
 
-TC-12-15: Valid SAML assertion callback
-  Given: Valid SAML response from Okta with email=john@acme.com
+TC-12-15: Valid SAML assertion
+  Given: Valid signed SAML response, email=john@acme.com is org member
   When:  POST /api/auth/sso/acme-corp/callback
-  Then:  Profile found by email
-         Supabase session created
-         Redirect to /app/home
+  Then:  Supabase session created; redirect to /app/home
 
 TC-12-16: SSO enforcement blocks password login
-  Given: Org has ssoEnforced = true
-  When:  User tries POST /api/auth/login with email/password
-  Then:  Returns 403 "This organization enforces SSO"
-         Includes redirectUrl to SSO login
+  Given: Org with ssoEnforced = true
+  When:  Standard auth login attempt for john@acme.com
+  Then:  Blocked with message + redirect URL to SSO
 ```
 
 ---
@@ -1299,14 +1328,14 @@ TC-12-16: SSO enforcement blocks password login
 
 ### Objective
 
-Migrate Slipwise One from Vercel + Supabase to AWS infrastructure for cost control, compliance, and global scale. Introduce AI-powered document intelligence, connect with third-party accounting tools, and deliver a mobile-optimized Progressive Web App.
+Migrate Slipwise One from Vercel + Supabase to AWS for cost control, compliance, and scale. Introduce AI-powered document intelligence, connect with major Indian accounting tools, deliver a mobile Progressive Web App, and complete the GST compliance toolkit.
 
 ---
 
 ### 4.1 Sprint 13.1 — AWS Infrastructure Migration
 
 **Duration:** 1 sprint (must complete before other Phase 13 sprints)
-**Goal:** Zero-downtime migration from Vercel → AWS ECS Fargate. All existing functionality must work identically after migration.
+**Goal:** Zero-downtime migration. All existing features work identically post-migration.
 
 #### A. Target AWS Architecture
 
@@ -1314,45 +1343,52 @@ Migrate Slipwise One from Vercel + Supabase to AWS infrastructure for cost contr
 Internet
     │
     ▼
-CloudFront (CDN + WAF)
+CloudFront (CDN + WAF + HTTPS)
     │
-    ├── Static assets (S3 + CloudFront)
+    ├── Static assets → S3 (slipwise-assets)
     │
     └── Application Load Balancer (ALB)
             │
-            ├── ECS Fargate Cluster
-            │     ├── Task: next-app (2 replicas min, auto-scale to 10)
-            │     └── Task: worker (background jobs — 1 replica)
+            ├── ECS Fargate (next-app service)
+            │     ├── Task A — t3.small (min 2 replicas)
+            │     ├── Task B — t3.small
+            │     └── Task C... (auto-scale to 10)
             │
-            ├── RDS PostgreSQL (Multi-AZ, db.t4g.medium)
-            │
-            ├── ElastiCache Redis (cache.t4g.small, cluster mode off)
-            │
-            └── S3 Buckets
-                  ├── slipwise-assets (logos, public)
-                  ├── slipwise-private (attachments, proofs — private, signed URLs)
-                  └── slipwise-exports (generated PDFs — 24hr presigned URLs)
+            └── ECS Fargate (worker service)
+                  └── Task — background jobs (1 replica)
+
+Supporting:
+- RDS PostgreSQL 15 (Multi-AZ, db.t4g.medium, ap-south-1)
+- ElastiCache Redis 7 (cache.t4g.small)
+- S3: slipwise-assets (public) + slipwise-private (signed) + slipwise-exports (temp)
+- Secrets Manager (all credentials)
+- CloudWatch (dashboards + alarms)
+- ECR (Docker image registry)
+- WAF (OWASP rule set on CloudFront)
 ```
 
-#### B. Infrastructure as Code
+#### B. Infrastructure as Code (CDK v2 TypeScript)
 
-**Tool:** AWS CDK v2 (TypeScript)
 **Location:** `infra/` directory at repo root
 
-Stacks:
-1. `NetworkStack` — VPC, subnets (public + private), NAT gateway, security groups
-2. `DatabaseStack` — RDS PostgreSQL 15, parameter group, subnet group, backup config
+**Stacks:**
+1. `NetworkStack` — VPC, subnets (public/private), NAT gateway, security groups
+2. `DatabaseStack` — RDS PostgreSQL 15, Multi-AZ, automated backups (7 days), parameter group
 3. `CacheStack` — ElastiCache Redis 7, subnet group, auth token
-4. `StorageStack` — S3 buckets, bucket policies, CORS config
-5. `EcrStack` — ECR repositories for app + worker Docker images
-6. `AppStack` — ECS cluster, task definitions, service, ALB, target groups, auto-scaling
-7. `CdnStack` — CloudFront distribution, S3 origin, custom domain cert (ACM)
-8. `SecretsStack` — Secrets Manager secrets (DB password, Redis token, app secrets)
-9. `MonitoringStack` — CloudWatch dashboards, alarms (CPU > 80%, DB connections > 80%, error rate > 1%)
+4. `StorageStack` — 3 S3 buckets, bucket policies, CORS config
+5. `EcrStack` — ECR repos for app + worker Docker images
+6. `AppStack` — ECS cluster, task definitions, service, ALB, target groups, auto-scaling policies
+7. `CdnStack` — CloudFront distribution, S3 origin, custom domain cert (ACM), WAF
+8. `SecretsStack` — Secrets Manager secrets (DB password, Redis token, Razorpay keys, etc.)
+9. `MonitoringStack` — CloudWatch dashboards, alarms → SNS → email/Slack
 
-#### C. Containerization
+**Auto-scaling policy:**
+- Scale out: CPU > 70% for 2 consecutive minutes → add 2 tasks
+- Scale in: CPU < 30% for 10 consecutive minutes → remove 1 task
+- Min: 2 tasks; Max: 10 tasks
 
-**Dockerfile** at repo root:
+#### C. Dockerfile (Next.js Standalone)
+
 ```dockerfile
 FROM node:20-alpine AS builder
 WORKDIR /app
@@ -1370,167 +1406,148 @@ COPY --from=builder /app/.next/static ./.next/static
 COPY --from=builder /app/public ./public
 COPY --from=builder /app/src/generated ./src/generated
 EXPOSE 3000
+HEALTHCHECK --interval=30s --timeout=10s CMD wget -qO- http://localhost:3000/api/health || exit 1
 CMD ["node", "server.js"]
 ```
 
-**next.config.ts update:**
-```typescript
-output: "standalone",
+**`next.config.ts` change:** Add `output: "standalone"`
+
+**Health check endpoint:** `GET /api/health`
+```json
+{ "status": "ok", "db": "connected", "cache": "connected", "timestamp": "..." }
 ```
 
-**Worker Dockerfile** (for background jobs):
-```dockerfile
-FROM node:20-alpine
-WORKDIR /app
-COPY package*.json ./
-RUN npm ci --production
-COPY src/lib/ ./src/lib/
-COPY src/workers/ ./src/workers/
-COPY src/generated/ ./src/generated/
-CMD ["node", "src/workers/index.js"]
-```
+#### D. GitHub Actions CI/CD Pipeline
 
-#### D. CI/CD Pipeline
-
-**GitHub Actions:** `.github/workflows/deploy.yml`
+**File:** `.github/workflows/deploy.yml`
 
 Stages:
-1. **Lint + Type-check** — `npm run lint && npx tsc --noEmit`
-2. **Unit tests** — `npm run test`
-3. **Build Docker image** — `docker build -t slipwise-app:{SHA}`
-4. **Push to ECR** — `docker push {ECR_URI}:{SHA}`
-5. **Run Prisma migrations** — `npx prisma migrate deploy`
-6. **Update ECS service** — `aws ecs update-service --force-new-deployment`
-7. **Wait for stable** — `aws ecs wait services-stable`
-8. **Smoke tests** — curl health check endpoints
-9. **Notify Slack** — deployment success/failure notification
+1. `lint-typecheck` — `npm run lint && npx tsc --noEmit`
+2. `test` — `npm test`
+3. `build-push` — Docker build → tag with git SHA → push to ECR
+4. `migrate` — `npx prisma migrate deploy` against RDS
+5. `deploy` — `aws ecs update-service --force-new-deployment`
+6. `wait-stable` — `aws ecs wait services-stable` (timeout 10 min)
+7. `smoke-test` — `curl https://app.slipwise.com/api/health` (must return 200)
+8. `notify` — Slack notification with deploy status
+
+**Rollback:** If ECS deployment fails health checks → automatic rollback to previous task definition
 
 **Environments:**
-- `staging` — deploys on every PR merge to `develop`
-- `production` — deploys on every PR merge to `main`
-
-**Rollback:**
-- If ECS deployment fails → automatic rollback to previous task definition
-- Manual rollback: re-run pipeline with previous commit SHA
+- `staging` → triggered on merge to `develop` branch
+- `production` → triggered on merge to `main` branch
 
 #### E. Database Migration (Supabase → RDS)
 
-**Migration steps (executed once, not code):**
-1. Export Supabase database: `pg_dump {SUPABASE_URL} > backup.sql`
-2. Create RDS instance with same schema
-3. Import: `psql {RDS_URL} < backup.sql`
-4. Verify row counts on all tables
-5. Update `DATABASE_URL` in Secrets Manager
-6. Run smoke tests against RDS
-7. Maintenance window: update DNS, cutover
-8. Keep Supabase read-only for 24hr as fallback
+**One-time migration procedure (not code — documented for ops team):**
+1. `pg_dump {SUPABASE_DB_URL} > slipwise_backup_{date}.sql`
+2. Create RDS PostgreSQL 15 instance
+3. `psql {RDS_URL} < slipwise_backup_{date}.sql`
+4. Verify: compare row counts on all 40+ tables
+5. Run `npx prisma migrate deploy` for any pending migrations
+6. Update `DATABASE_URL` in Secrets Manager
+7. Deploy app pointing to RDS — smoke test
+8. DNS cutover
+9. Keep Supabase DB read-only for 24hr (emergency fallback)
 
-**App changes for RDS:**
-- Keep same Prisma adapter pattern (`@prisma/adapter-pg`)
-- Update `DATABASE_URL` format: `postgresql://user:pass@rds.endpoint:5432/slipwise?sslmode=require`
-- Connection pooling: use `pgBouncer` via RDS Proxy (add `?pgbouncer=true` to URL)
-- Connection limit: `pool_size: 20` per ECS task (2 tasks × 20 = 40 max connections)
+**Connection config:**
+- `DATABASE_URL=postgresql://user:pass@{rds-endpoint}:5432/slipwise?sslmode=require`
+- RDS Proxy for connection pooling: `?pgbouncer=true` suffix
+- Pool size per task: 20 connections (2 tasks × 20 = 40 max)
 
-#### F. File Storage Migration (Supabase → S3)
+#### F. S3 Storage Migration
 
-Update `src/lib/storage-adapter.ts` S3 implementation (currently a stub):
+**Complete the S3 stub in `src/lib/storage-adapter.ts`:**
 
 ```typescript
+import { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand } from "@aws-sdk/client-s3";
+import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
+
 export class S3StorageAdapter implements StorageAdapter {
-  private s3: S3Client;
-  
-  constructor() {
-    this.s3 = new S3Client({
-      region: process.env.AWS_REGION ?? "ap-south-1",
-      credentials: fromEnv(), // uses AWS_ACCESS_KEY_ID + AWS_SECRET_ACCESS_KEY
-    });
-  }
-  
+  private s3 = new S3Client({ region: process.env.AWS_REGION ?? "ap-south-1" });
+
   async upload(bucket, key, buffer, contentType) {
     await this.s3.send(new PutObjectCommand({ Bucket: bucket, Key: key, Body: buffer, ContentType: contentType }));
     return { key };
   }
-  
+
   async getSignedUrl(bucket, key, expiresIn = 3600) {
     return getSignedUrl(this.s3, new GetObjectCommand({ Bucket: bucket, Key: key }), { expiresIn });
   }
-  
+
   async delete(bucket, key) {
     await this.s3.send(new DeleteObjectCommand({ Bucket: bucket, Key: key }));
   }
-  
+
   getPublicUrl(bucket, key) {
     return `https://${process.env.CLOUDFRONT_URL}/${key}`;
   }
 }
 ```
 
-**Install:** `npm install @aws-sdk/client-s3 @aws-sdk/s3-request-presigner @aws-sdk/credential-providers`
+**Install:** `npm install @aws-sdk/client-s3 @aws-sdk/s3-request-presigner`
 
 **Bucket mapping:**
-| Old Supabase Bucket | New S3 Bucket | Access |
+| Supabase Bucket | AWS S3 Bucket | Access |
 |---|---|---|
 | `logos` | `slipwise-assets/logos/` | Public via CloudFront |
-| `attachments` | `slipwise-private/attachments/` | Private, signed URLs |
-| `proofs` | `slipwise-private/proofs/` | Private, signed URLs |
-| (new) exports | `slipwise-exports/` | Private, 24hr presigned URLs |
+| `attachments` | `slipwise-private/attachments/` | Signed URLs (1hr) |
+| `proofs` | `slipwise-private/proofs/` | Signed URLs (1hr) |
+| (new) PDF exports | `slipwise-exports/` | Signed URLs (24hr) |
 
 #### G. Redis Migration (Upstash → ElastiCache)
 
-Update `src/lib/rate-limit.ts` to support both Upstash and native Redis:
-- If `REDIS_URL` (ElastiCache format) set → use `ioredis` client
-- If `UPSTASH_REDIS_REST_URL` set → use Upstash client
-- Fail-open behavior retained
+Update `src/lib/rate-limit.ts` to support ElastiCache (ioredis) alongside Upstash:
+- If `REDIS_URL` set → use `ioredis` client (ElastiCache format)
+- If `UPSTASH_REDIS_REST_URL` set → use Upstash (local dev / staging)
+- Fail-open behavior retained in both cases
 
 **Install:** `npm install ioredis`
 
-#### H. Monitoring & Observability
+#### H. Full Sentry + PostHog Integration
 
-**CloudWatch Dashboards:**
-- Application: request rate, error rate, response time (p50/p95/p99)
-- Database: connections, query time, CPU, IOPS
-- Cache: hit rate, memory usage
-- ECS: CPU utilization, memory utilization, task count
+**Sentry (`@sentry/nextjs` — full integration now with real DSN):**
+- `sentry.client.config.ts` — `Sentry.init({ dsn, integrations: [BrowserTracing, Replay] })`
+- `sentry.server.config.ts` — `Sentry.init({ dsn })`
+- `sentry.edge.config.ts` — `Sentry.init({ dsn })`
+- Set user context on auth: `Sentry.setUser({ id: userId, email, extra: { orgId } })`
+- Source maps upload in CI/CD: `npx sentry-cli sourcemaps inject + upload`
 
-**CloudWatch Alarms → SNS → Email/Slack:**
-- ECS CPU > 80% for 5 min → scale out
-- RDS CPU > 80% for 5 min → alert
-- HTTP 5xx rate > 1% → alert
-- RDS storage < 10GB → alert
-- ElastiCache memory > 80% → alert
-
-**Integrate Sentry (now with DSN):**
-- Install `@sentry/nextjs` fully
-- Set `SENTRY_DSN` from Sentry dashboard
-- Configure `sentry.client.config.ts` and `sentry.server.config.ts`
-- Add user context: `Sentry.setUser({ id: userId, orgId })`
-- Capture all unhandled errors with stack traces + request context
-
-**PostHog Analytics:**
-- Install `posthog-js` for client-side, `posthog-node` for server-side
-- Track events: `document_created`, `document_exported`, `subscription_started`, `feature_gated`
-- Create funnel: anonymous_visit → signup → first_document → export → subscribe
-- Set up dashboard for: DAU, MAU, conversion rate, trial→paid rate
+**PostHog analytics:**
+- Install: `npm install posthog-js posthog-node`
+- Client: `PostHogProvider` wraps `RootLayout`
+- Track key events:
+  - `document_created` — type, templateId
+  - `document_exported` — type, format (pdf/png)
+  - `subscription_started` — planId, billingInterval
+  - `trial_started` — planId
+  - `feature_gated` — featureName, planId
+  - `api_key_created` — scopes
+  - `payment_link_created` — invoiceAmount
+  - `invoice_paid_via_link` — amount, method
+- Funnels: anonymous_visit → signup → first_document → export → subscribe → pay
 
 ---
 
 ### 4.2 Sprint 13.2 — AI-Powered Features
 
 **Duration:** 1 sprint (parallel with 13.3)
-**Goal:** Add AI intelligence to document creation and business insights. Reduce manual data entry, surface patterns, automate smart suggestions.
+**Goal:** Reduce manual data entry, surface business insights, automate GST calculations.
 
-#### A. Smart OCR — Invoice/Receipt Extraction
+#### A. Smart OCR — Receipt/Invoice Extraction
 
-**Use case:** Upload a photo or PDF of a receipt/purchase order → auto-populate invoice/voucher fields.
+**Use case:** Upload photo/PDF of receipt → fields auto-filled in invoice/voucher form.
 
-**Implementation:**
-- Use AWS Textract (via `@aws-sdk/client-textract`) for document analysis
-- Or use OpenAI GPT-4o vision API for higher accuracy on handwritten/non-standard docs
-- Process: image upload → Textract AnalyzeDocument → extract key-value pairs → populate form
+**Implementation:** AWS Textract `AnalyzeDocument` API (or OpenAI GPT-4o vision for handwritten).
 
 **API route:** `POST /api/ai/extract-document`
-Request: `FormData` with `file` (image or PDF, max 5MB)
-Response:
+- Request: `FormData` with `file` (image/PDF, max 5MB)
+- Validate: MIME type must be `image/*` or `application/pdf`
+- Upload to S3 `slipwise-private/ocr-input/{orgId}/{uuid}`
+- Call Textract `AnalyzeDocument` with `FeatureTypes: ["FORMS", "TABLES"]`
+- Parse key-value pairs + tables
+- Map extracted fields to invoice schema
+- Return:
 ```json
 {
   "type": "invoice",
@@ -1549,19 +1566,13 @@ Response:
 }
 ```
 
-**UI integration:**
-- On Invoice/Voucher creation form: "Upload receipt to auto-fill" button
-- Upload → spinner → fields populated → user reviews + submits
-- Confidence score shown: "90% confident — please verify highlighted fields"
-- Fields below 70% confidence highlighted in yellow
-
 **Database model:**
 ```prisma
 model OcrJob {
   id            String   @id @default(cuid())
   orgId         String
-  status        String   @default("pending") // pending, processing, completed, failed
-  inputKey      String   // S3 key of uploaded file
+  status        String   @default("pending")  // pending|processing|completed|failed
+  inputS3Key    String
   extractedData Json?
   confidence    Float?
   errorMessage  String?
@@ -1573,129 +1584,170 @@ model OcrJob {
 }
 ```
 
-**Plan access:** Starter+ (Free plan: 5 OCR scans/month; Starter: 50/month; Pro+: 200/month)
+**UI:** Invoice/Voucher creation form:
+- "📷 Upload receipt to auto-fill" button
+- Upload → spinner → form fields populated
+- Confidence shown: "92% confident — yellow highlight = low confidence fields"
+- User reviews, edits, then submits
+
+**Monthly limits by plan:**
+- Free: 5 OCR scans/month
+- Starter: 50/month
+- Pro: 200/month
+- Enterprise: Unlimited
 
 #### B. AI Expense Categorization
 
-**Use case:** When creating a voucher from an OCR-extracted receipt, auto-suggest the accounting category (GL account).
+**Use case:** When creating voucher from OCR receipt, auto-suggest accounting category.
 
-**Implementation:**
-- Fine-tuned prompt to OpenAI GPT-4o-mini: "Given vendor name '{vendor}' and description '{description}', suggest accounting category from: [Office Supplies, Travel, Software, Marketing, Utilities, Professional Services, Rent, Salary, Other]"
-- Cache results by (vendor, description) hash in Redis (1 week TTL)
+**Implementation:** OpenAI GPT-4o-mini prompt:
+```
+Given vendor: "{vendorName}" and description: "{description}", 
+suggest one accounting category from:
+[Office Supplies, Travel & Transport, Software & Subscriptions, Marketing,
+Utilities, Professional Services, Rent, Salary & Wages, Equipment, Other]
+Respond with just the category name.
+```
 
-**UI:** Dropdown with AI-suggested category pre-selected + ability to override.
+**Caching:** Redis key = SHA-256(`${vendor}:${description}`) → category, TTL 7 days
 
-#### C. Smart Salary Insights
+**UI:** Voucher category dropdown with AI chip: "✨ Suggested: Software & Subscriptions"
 
-**Use case:** HR manager can ask: "Which employees had salary increases > 10% this year?" or see anomalies.
+#### C. GST Smart Calculator
 
-**Features:**
-1. **Salary trend chart** — per employee, 12-month bar chart
-2. **Anomaly detection** — flag if employee salary differs > 20% from month-to-month (likely error)
-3. **Department totals** — total salary cost by department over time
-4. **CTC breakdown** — automatic gross-to-net calculation with Indian tax slabs
+**Use case:** Line items get auto-filled GST based on HSN code and party states.
 
-**Implementation:**
-- Aggregate from `SalarySlip` + `SalaryComponent` models
-- Client-side charting with Recharts (already installed)
-- Anomaly: if `|currentMonth - avgLast3Months| / avgLast3Months > 0.2` → flag
+**Implementation files:**
+- `src/lib/gst-calculator.ts`
+- `src/data/hsn-gst-rates.json` — static lookup (HSN code → GST rate %)
 
-**Route:** `GET /api/ai/salary-insights?orgId=&period=2026-Q1`
+**Function:**
+```typescript
+export function calculateGST(params: {
+  hsnCode: string;
+  amount: number;    // in rupees
+  fromState: string; // ISO state code e.g. "27" (Maharashtra)
+  toState: string;
+}): { cgst: number; sgst: number; igst: number; totalGst: number; totalAmount: number }
+```
 
-#### D. AI Invoice Drafting
-
-**Use case:** "Create an invoice for Acme Corp for 10 hours of consulting at ₹5,000/hr"
-
-**Implementation:**
-- Natural language input field on invoice creation page
-- Send to OpenAI: "Parse this into structured invoice data: {userInput}"
-- Return structured data, pre-populate form
-- User reviews and confirms
-
-**UI:** Small text area at top of invoice form with "Describe invoice" placeholder + "Auto-fill" button.
-
-#### E. Smart Late-Payment Predictor
-
-**Use case:** Before sending an invoice, warn "This customer has paid late 3 out of 5 times. Consider adding a late payment clause."
-
-**Implementation:**
-- Query `InvoicePayment` history for customer
-- Calculate: `latePayments = invoices where (paidAt - dueDate) > 0`
-- `lateRate = latePayments / totalPaidInvoices`
-- If `lateRate > 0.5` → show yellow warning on invoice send
-
-**No ML required** — pure SQL aggregation.
-
-#### F. GST Smart Calculator
-
-**Use case:** When adding line items to an invoice, automatically compute correct GST (CGST+SGST for intra-state, IGST for inter-state) based on HSN code and parties' states.
-
-**Implementation:**
-- HSN code → GST rate lookup (static JSON database, ~12,000 HSN codes)
-- Customer state (from `Customer.address.state`) vs Org state (from `OrgDefaults.state`)
-- If same state → CGST (half rate) + SGST (half rate)
-- If different state → IGST (full rate)
-
-**Files:**
-- `src/lib/gst-calculator.ts` — `calculateGST(hsnCode, amount, fromState, toState)`
-- `src/data/hsn-rates.json` — static lookup table
+**Logic:**
+- Look up `hsnCode` in `hsn-gst-rates.json` → get `gstRate` (e.g., 18)
+- If `fromState === toState` (intra-state) → CGST = gstRate/2, SGST = gstRate/2, IGST = 0
+- If `fromState !== toState` (inter-state) → IGST = gstRate, CGST = 0, SGST = 0
+- Handle exempted HSN codes (0% GST)
 
 **UI integration:**
-- Line item form: HSN code field with autocomplete
-- On HSN code entry: auto-fill tax rate
-- Show breakdown: `CGST: ₹X + SGST: ₹X` or `IGST: ₹X`
+- Line item HSN code field: autocomplete with top-200 common HSN codes
+- On HSN entry: auto-fill tax rate + show CGST/SGST/IGST breakdown
+- Invoice totals: show tax breakdown table (CGST, SGST, IGST subtotals)
+
+#### D. GSTR-1 Report Generator
+
+**Use case:** One-click GSTR-1 JSON report for monthly GST filing on the government portal.
+
+**API route:** `GET /api/export/gstr1?period=2026-03`
+
+**Logic:**
+1. Fetch all invoices for org in given month where status = PAID or SENT
+2. For each invoice: get customer GSTIN, amount, tax breakdown
+3. Group:
+   - **B2B** (customer has GSTIN): group by GSTIN
+   - **B2C Small** (< ₹2.5 lakh, no GSTIN): aggregate
+   - **B2C Large** (≥ ₹2.5 lakh, no GSTIN): individual entries
+   - **Export** (country ≠ India)
+4. Output: JSON per government GSTR-1 schema + Excel summary
+
+**GSTR-1 JSON schema (simplified):**
+```json
+{
+  "gstin": "27AADCB2230M1Z3",
+  "fp": "032026",
+  "b2b": [{ "ctin": "...", "inv": [...] }],
+  "b2cs": [{ "typ": "OE", "pos": "29", "txval": 100000, "iamt": 18000 }]
+}
+```
+
+#### E. Smart Salary Insights
+
+**Features:**
+1. **Salary trend chart** — per employee, 12-month Recharts bar chart
+2. **Anomaly detection** — flag if `|currentMonth - avgLast3Months| / avg > 0.2`
+3. **Department cost totals** — total salary cost by department, by month
+4. **Year-over-year comparison** — current vs previous year
+5. **Net pay calculator** — gross → deductions → net (TDS auto-calculated for Indian tax slabs 2026)
+
+**API:** `GET /api/ai/salary-insights?orgId=&period=2026-Q1`
+
+**TDS slabs (FY 2026-27, New Regime):**
+- Up to ₹3 lakh: 0%
+- ₹3–7 lakh: 5%
+- ₹7–10 lakh: 10%
+- ₹10–12 lakh: 15%
+- ₹12–15 lakh: 20%
+- Above ₹15 lakh: 30%
+
+#### F. Late Payment Predictor
+
+**Use case:** Before sending invoice, warn "This customer has paid late 3/5 times."
+
+**Logic (pure SQL — no ML):**
+```sql
+SELECT 
+  COUNT(*) FILTER (WHERE paid_date > due_date) as late_count,
+  COUNT(*) as total_paid
+FROM invoices
+WHERE customer_id = $1 AND status = 'PAID'
+```
+
+**UI:** Orange warning chip on invoice send dialog: "⚠️ This customer has a 60% late payment history. Consider adding a late fee clause."
 
 ---
 
 ### 4.3 Sprint 13.3 — Third-Party Integrations + Mobile PWA
 
 **Duration:** 1 sprint (parallel with 13.2)
-**Goal:** Connect Slipwise One with major Indian accounting software and optimize for mobile use as a Progressive Web App.
 
-#### A. Tally Integration
+#### A. Tally Prime XML Export
 
-**Use case:** Export invoices and vouchers in Tally-compatible XML format for import into Tally Prime/ERP 9.
+**Use case:** Export invoices/vouchers as Tally-compatible XML for import into Tally Prime / ERP 9.
 
-**Tally XML Format:**
-- ENVELOPE/BODY/IMPORTDATA structure
-- `<LEDGER>` entries for parties
-- `<VOUCHER>` entries with type (Sales, Purchase, Receipt, Payment)
-- HSN/GST data in `<ALLINVENTORYENTRIES.LIST>`
+**Implementation:** `src/lib/integrations/tally.ts`
 
-**Implementation:**
-- `src/lib/integrations/tally.ts` — `invoiceToTallyXML(invoice)`, `voucherToTallyXML(voucher)`
-- Tally date format: `YYYYMMDD`
-- Currency handling: always INR for Tally
-- GST in Tally: separate ledgers for CGST, SGST, IGST
+```typescript
+export function invoiceToTallyXML(invoice: InvoiceWithItems): string {
+  // ENVELOPE → BODY → IMPORTDATA → REQUESTDATA → TALLYMESSAGE
+  // LEDGER entries for parties + VOUCHER entries with GST data
+}
+```
 
-**API Route:** `POST /api/export/tally`
-Body: `{ type: "invoice" | "voucher", ids: string[], format: "xml" }`
-Response: XML file download
+**Tally XML specifics:**
+- Date format: `YYYYMMDD`
+- Currency: always INR (Tally doesn't support multi-currency in basic mode)
+- GST ledgers: separate CGST, SGST, IGST ledger entries
+- Voucher type: `Sales` for invoices, `Receipt` for payment vouchers
 
-**UI:** In invoice/voucher list page — "Export to Tally" button (multi-select + export)
+**API route:** `POST /api/export/tally`
+Body: `{ type: "invoice" | "voucher", ids: string[] }`
+Response: XML file download (`Content-Type: application/xml`)
+
+**UI:** Invoice list + Voucher list → multi-select checkboxes → "Export to Tally" button (Starter+)
 
 #### B. QuickBooks Online Integration
 
-**Use case:** Sync invoices bidirectionally with QuickBooks Online India.
-
-**Implementation:**
-- OAuth 2.0 flow with QuickBooks (Intuit) API
-- Store tokens in `OrgIntegration` model
-- Map Slipwise Customer → QBO Customer
-- Map Slipwise Invoice → QBO Invoice
-- Sync: manual ("Sync Now") or automatic (on save)
+**OAuth 2.0 flow with QuickBooks Intuit API:**
 
 **Database:**
 ```prisma
 model OrgIntegration {
   id             String    @id @default(cuid())
   orgId          String
-  provider       String    // "quickbooks" | "zoho" | "tally_cloud"
-  accessToken    String
-  refreshToken   String
+  provider       String    // "quickbooks" | "zoho"
+  accessToken    String    // encrypted at rest
+  refreshToken   String    // encrypted at rest
   tokenExpiresAt DateTime
-  externalOrgId  String?   // e.g. QBO RealmId
-  config         Json?     // provider-specific config
+  externalOrgId  String?   // QBO RealmId
+  config         Json?
   isActive       Boolean   @default(true)
   lastSyncAt     DateTime?
   createdAt      DateTime  @default(now())
@@ -1708,105 +1760,113 @@ model OrgIntegration {
 ```
 
 **Routes:**
-- `GET /api/integrations/quickbooks/connect` — OAuth initiate
-- `GET /api/integrations/quickbooks/callback` — OAuth callback
+- `GET /api/integrations/quickbooks/connect` — OAuth initiate (redirect to Intuit)
+- `GET /api/integrations/quickbooks/callback` — OAuth callback, store tokens
 - `POST /api/integrations/quickbooks/sync` — manual sync trigger
 - `DELETE /api/integrations/quickbooks/disconnect` — revoke
 
-**UI:** `src/app/app/settings/integrations/page.tsx`
-- Integration cards: QuickBooks, Zoho, Tally, more coming
-- Connected: show last sync time + "Sync Now" button
-- Disconnected: "Connect" button
+**Sync flow (invoices):**
+1. Fetch orgs' customers from QBO → merge with Slipwise customers
+2. For each Slipwise invoice: check if QBO equivalent exists by `invoiceNumber`
+3. If not: create in QBO via `POST /v3/company/{realmId}/invoice`
+4. If exists: update if Slipwise version is newer
+5. Log sync results in `OrgIntegration.lastSyncAt`
+
+**Token refresh:** If `tokenExpiresAt < now + 5min` → auto-refresh before API call
 
 #### C. Zoho Books Integration
 
-Identical pattern to QuickBooks but using Zoho Books API.
-OAuth 2.0, map to Zoho Contacts, Zoho Invoices.
-Support GST returns (GSTR-1 data export from Zoho).
+Same OAuth 2.0 pattern as QuickBooks:
+- Zoho Books API v3
+- Routes: `connect`, `callback`, `sync`, `disconnect`
+- Map Slipwise → Zoho: Customers, Invoices, Vouchers (as Expenses)
+- Support GSTR exports from Zoho (retrieve GSTR data to compare with Slipwise)
 
-#### D. GSTR-1 Report
+#### D. UPI Payment Link + QR in PDFs
 
-**Use case:** Generate GSTR-1 report ready for filing on GST portal.
+**`src/lib/upi-link.ts`:**
+```typescript
+export function generateUpiDeeplink(params: {
+  vpa: string;         // e.g. "acmecorp@paytm"
+  payeeName: string;
+  amount: number;      // in rupees
+  transactionNote: string; // invoice number
+}): string {
+  return `upi://pay?pa=${vpa}&pn=${encodeURIComponent(payeeName)}&am=${amount}&tn=${encodeURIComponent(transactionNote)}&cu=INR`;
+}
 
-**Implementation:**
-- `src/lib/gst-reports.ts` — `generateGSTR1(orgId, period: "YYYY-MM")` 
-- Aggregate all invoices for the period
-- Group by: B2B (business customers with GSTIN), B2C (consumers), exports
-- Format as per GST portal JSON schema
-- Support both JSON export (for API filing) and Excel export
+export async function generateUpiQrCode(deeplink: string): Promise<string> {
+  // Returns base64 PNG data URL
+  const qrDataUrl = await QRCode.toDataURL(deeplink, { width: 150, margin: 1 });
+  return qrDataUrl;
+}
+```
 
-**Output:**
-- `B2B.json` — B2B invoices grouped by GSTIN
-- `B2CS.json` — B2C summary
-- `GSTR1_Summary.xlsx` — Human-readable
+**Install:** `npm install qrcode @types/qrcode`
 
-**Route:** `GET /api/export/gstr1?period=2026-03`
+**Org Settings:** Settings → Payment → "UPI ID" field (validate format: `xxx@bank`)
 
-#### E. UPI Payment Link Generation
+**PDF integration:**
+- Invoice PDF bottom-right: UPI QR code (150×150px)
+- Above QR: "Scan to pay via UPI"
+- Below QR: UPI ID text
 
-**Use case:** On invoice "Send" flow, auto-generate a UPI payment link so customer can pay in one tap.
+#### E. Progressive Web App (PWA)
 
-**Implementation:**
-- UPI deep link format: `upi://pay?pa={vpa}&pn={name}&am={amount}&tn={invoiceNo}&cu=INR`
-- Generate QR code from UPI deep link (use `qrcode` npm package)
-- Embed in invoice PDF (bottom right area)
-- Also show as clickable button in digital invoice share page
-
-**Install:** `npm install qrcode`
-
-**Files:**
-- `src/lib/upi-link.ts` — `generateUpiLink(vpa, amount, invoiceName)`, `generateUpiQr(link)`
-- Org settings: VPA/UPI ID field in `OrgDefaults`
-
-**UI:** Settings → Payment → "Add your UPI ID" field
-
-#### F. Progressive Web App (PWA)
-
-**Goal:** Allow mobile users to install Slipwise One as a native-like app on their phone.
-
-**Implementation:**
-- `public/manifest.json` — PWA manifest
+**`public/manifest.json`:**
 ```json
 {
   "name": "Slipwise One",
   "short_name": "Slipwise",
-  "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }, { "src": "/icon-512.png", "sizes": "512x512" }],
+  "description": "Document operations for Indian businesses",
+  "icons": [
+    { "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ],
   "start_url": "/app/home",
   "display": "standalone",
   "theme_color": "#dc2626",
-  "background_color": "#ffffff"
+  "background_color": "#ffffff",
+  "orientation": "portrait",
+  "categories": ["business", "finance", "productivity"]
 }
 ```
-- Service worker (`public/sw.js`) via `next-pwa` or manual:
-  - Cache strategy: Cache-First for static assets
-  - Network-First for API calls
-  - Offline fallback page
-- `next.config.ts`: add PWA plugin configuration
-- `<link rel="manifest">` in app layout
-- Add to Home Screen prompt: trigger on 3rd app visit
+
+**Service Worker** (`public/sw.js`):
+- Cache strategy: Cache-First for static assets (JS, CSS, images)
+- Network-First for API calls (fall through to cache on failure)
+- Offline fallback: serve `/offline` page when network unavailable
+- Background sync: queue failed form submissions for retry on reconnect
+
+**`next.config.ts`:** Add `next-pwa` plugin configuration.
+
+**Add to Home Screen prompt:** Trigger after 3rd visit with a toast: "Install Slipwise on your phone for quick access" + "Install" button.
 
 **Mobile UX optimizations:**
-- All forms: `inputMode` attributes (`numeric` for amounts, `email` for emails)
-- Touch targets: minimum 44×44px
-- Bottom navigation for mobile (hamburger → bottom tabs on small screens)
-- Invoice list: swipe-right to mark paid, swipe-left to delete
-- Camera integration: use device camera for OCR (Section 4.2A)
-- Pull-to-refresh on list pages
+- All amount inputs: `inputMode="decimal"` for numeric keyboard
+- Email inputs: `inputMode="email"` for email keyboard
+- Touch targets: minimum 44×44px for all buttons
+- Invoice list: swipe-right gesture = mark paid, swipe-left = more actions
+- Pull-to-refresh on all list pages
+- Bottom navigation bar on mobile (≤768px): Home, Documents, Create, Pay, Settings
+- Camera integration: tap camera icon on OCR upload → use device camera
+- Pinch-to-zoom on PDF preview
 
-**Push Notifications:**
-- Web Push API for: payment received, invoice overdue, trial ending, team invite
-- `POST /api/push/subscribe` — save `PushSubscription` to DB
-- `src/lib/push-notifications.ts` — `sendPushNotification(userId, { title, body, url })`
-- **Install:** `npm install web-push`
+#### F. Push Notifications
 
+**Install:** `npm install web-push`
+
+**VAPID setup:** Generate VAPID key pair, store public key in `NEXT_PUBLIC_VAPID_PUBLIC_KEY`
+
+**Database:**
 ```prisma
 model PushSubscription {
-  id           String   @id @default(cuid())
-  userId       String   @db.Uuid
-  endpoint     String   @unique
-  keys         Json     // { p256dh, auth }
-  userAgent    String?
-  createdAt    DateTime @default(now())
+  id        String   @id @default(cuid())
+  userId    String   @db.Uuid
+  endpoint  String   @unique
+  keys      Json     // { p256dh, auth }
+  userAgent String?
+  createdAt DateTime @default(now())
 
   user Profile @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -1814,24 +1874,39 @@ model PushSubscription {
 }
 ```
 
+**Routes:**
+- `POST /api/push/subscribe` — save subscription to DB
+- `DELETE /api/push/unsubscribe` — remove subscription
+- `POST /api/push/send` (internal) — send notification to user
+
+**Notification triggers:**
+| Event | Push content |
+|---|---|
+| Invoice paid (via payment link) | "✅ Invoice #{num} paid by {customer} — ₹{amount}" |
+| Invoice overdue | "⚠️ Invoice #{num} overdue — {customer} owes ₹{amount}" |
+| Trial ending in 3 days | "⏰ Your Pro trial ends in 3 days. Upgrade to keep access." |
+| Team member joined | "👋 {name} joined your organization" |
+| Unmatched payment received | "💸 ₹{amount} received — needs manual matching" |
+
 ---
 
 ### 4.4 Phase 13 Database Schema Additions
 
 ```prisma
 // AI
-model OcrJob         (see Section 4.2A)
+model OcrJob              (Section 4.2A)
 
 // Integrations
-model OrgIntegration (see Section 4.3B)
+model OrgIntegration      (Section 4.3B)
 
 // Mobile
-model PushSubscription (see Section 4.3F)
+model PushSubscription    (Section 4.3F)
 
-// Add to OrgDefaults:
-upiVpa          String?  // UPI VPA for payment links
-gstNumber       String?  // GSTIN for GST reports
-gstState        String?  // State code for GST calculations
+// OrgDefaults additions:
+upiVpa        String?  // UPI VPA e.g. "acmecorp@paytm"
+gstNumber     String?  // GSTIN
+gstStateCode  String?  // State code e.g. "27" for Maharashtra
+panNumber     String?  // PAN for TDS compliance
 ```
 
 ---
@@ -1839,190 +1914,185 @@ gstState        String?  // State code for GST calculations
 ### 4.5 Infrastructure Architecture
 
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│                         AWS ap-south-1                          │
-│                                                                 │
-│  Route 53 ──► CloudFront ──► ALB                                │
-│                   │           │                                 │
-│                   │           ├── ECS Fargate (Next.js App)     │
-│                   │           │     ├── Task A (2 replicas min) │
-│                   │           │     └── Task B (auto-scale)     │
-│                   │           │                                 │
-│                   │           └── ECS Fargate (Worker)          │
-│                   │                 └── 1 replica               │
-│                   │                                             │
-│                   S3                                            │
-│                   ├── slipwise-assets (public)                  │
-│                   ├── slipwise-private (signed)                 │
-│                   └── slipwise-exports (temp)                   │
-│                                                                 │
-│  RDS PostgreSQL 15 (Multi-AZ)                                   │
-│  ├── Primary: db.t4g.medium (ap-south-1a)                       │
-│  └── Standby: (ap-south-1b)                                     │
-│                                                                 │
-│  ElastiCache Redis 7 (cache.t4g.small)                          │
-│                                                                 │
-│  Secrets Manager (all credentials)                              │
-│  CloudWatch (logs + metrics + alarms)                           │
-│  ECR (Docker image registry)                                    │
-│  WAF (OWASP rule set on CloudFront)                             │
-└─────────────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────────┐
+│                          AWS ap-south-1                             │
+│                                                                     │
+│  Route 53 ──► CloudFront ──► WAF ──► ALB                            │
+│                    │                  │                             │
+│                    │                  ├── ECS next-app (2-10 tasks) │
+│                    │                  └── ECS worker (1 task)       │
+│                    │                                                │
+│                    └── S3                                           │
+│                         ├── slipwise-assets  (CloudFront, public)  │
+│                         ├── slipwise-private (signed URLs)         │
+│                         └── slipwise-exports (24hr presigned)      │
+│                                                                     │
+│  RDS PostgreSQL 15 Multi-AZ (db.t4g.medium)                        │
+│  ElastiCache Redis 7 (cache.t4g.small)                             │
+│  ECR (Docker image registry)                                       │
+│  Secrets Manager (all credentials)                                 │
+│  CloudWatch (logs + metrics + 5 alarms)                            │
+└─────────────────────────────────────────────────────────────────────┘
 ```
+
+**CloudWatch Alarms:**
+| Alarm | Threshold | Action |
+|---|---|---|
+| ECS CPU > 80% | 5 min | Scale out + SNS alert |
+| RDS CPU > 80% | 5 min | SNS alert |
+| HTTP 5xx rate > 1% | 1 min | SNS alert (P1) |
+| RDS storage < 10GB | Any | SNS alert |
+| ElastiCache memory > 80% | 5 min | SNS alert |
 
 ---
 
 ### 4.6 Phase 13 Edge Cases & Acceptance Criteria
 
-#### AWS Migration Edge Cases
+#### AWS Migration
 
 | Scenario | Expected Behavior |
 |---|---|
-| ECS task crashes mid-request | ALB health check detects; requests routed to healthy task; ECS restarts task |
-| RDS failover (Multi-AZ) | Automatic failover in ~60s; app retries with exponential backoff |
-| S3 upload timeout | Retry up to 3 times; fail-open (return error to user if all retry) |
-| CloudFront cache stale after deploy | Cache invalidation triggered in CI/CD pipeline on deploy |
-| Secrets Manager rotation | App uses cached credentials; refresh on next cold start |
-| ECS task count at max during traffic spike | ALB queues requests; p99 latency alert fires; manual scale-up decision |
+| ECS task crashes mid-request | ALB routes to healthy task; ECS restarts automatically |
+| RDS failover (Multi-AZ switchover) | Auto-failover ~60s; app retries with backoff |
+| S3 upload timeout | Retry 3 times; fail with user-visible error on all retries |
+| CloudFront cache stale after deploy | Cache invalidation triggered in CI/CD deploy step |
 | Docker image fails health check | ECS rolls back to previous task definition |
-| Database migration fails halfway | Prisma migrate deploy is transactional; rolls back on error |
-| ElastiCache connection refused | Rate limiting falls back to fail-open; performance degradation logged |
+| DB migration fails | Prisma migrate deploy is transactional; rolls back |
+| ElastiCache unreachable | Rate limiting fails open; warning logged |
+| ECS at max scale (10 tasks) | ALB queues; p99 latency alarm fires; manual intervention |
 
-#### AI Edge Cases
-
-| Scenario | Expected Behavior |
-|---|---|
-| OCR fails to extract any data | Show "Could not read document. Please enter details manually." |
-| OCR confidence < 40% | Show all fields as empty + warning "Low confidence extraction" |
-| AI expense categorization API down | Skip suggestion; show uncategorized dropdown |
-| HSN code not in lookup table | Allow manual entry; flag "Unknown HSN code" warning |
-| GST calculation with missing state | Use "Other" state; show "Please update your billing state for accurate GST" |
-| Large receipt image (>5MB) | Return 413 "File too large. Max 5MB." |
-| GSTR-1 with invoices missing GSTIN | Group in B2C bucket with warning count |
-| Duplicate OCR submission (same file) | Deduplicate by file hash; return cached result |
-
-#### Integration Edge Cases
+#### AI Features
 
 | Scenario | Expected Behavior |
 |---|---|
-| QuickBooks OAuth token expired | Auto-refresh; if refresh fails → mark integration inactive + notify admin |
-| Tally XML import fails | Show error message from Tally; provide corrected XML download |
-| UPI VPA not set | Hide UPI QR on invoice; show "Add UPI ID in Settings" to org admin |
-| QR code generation fails | Skip QR silently; invoice PDF still generated |
-| Push notification permission denied | Gracefully degrade; don't show push settings |
-| Offline access to cached data | Show stale data with "Last synced: {time}" badge |
-| PWA install prompt blocked | Log to analytics; don't show again for 7 days |
+| OCR: no data extracted | "Could not read document. Please enter manually." |
+| OCR: confidence < 40% | Show all fields empty with "Low confidence" warning |
+| OCR: file >5MB | 413 "File too large. Maximum 5MB." |
+| OCR: non-invoice document | "This doesn't appear to be an invoice. Fields may be inaccurate." |
+| AI categorization API down | Skip suggestion; show plain category dropdown |
+| HSN code not in lookup | Allow manual entry; show "Unrecognized HSN code" warning |
+| GST calculation: missing state | Use "Other Territory" state; prompt to update billing address |
+| GSTR-1: invoices missing GSTIN | Group in B2C; show count of invoices without GSTIN |
+| Duplicate OCR submission | Deduplicate by SHA-256 of file content; return cached result |
+
+#### Integrations
+
+| Scenario | Expected Behavior |
+|---|---|
+| QuickBooks token expired during sync | Auto-refresh; if refresh fails → mark inactive + notify admin |
+| QuickBooks API rate limit (500 req/min) | Queue sync; retry with backoff |
+| Tally XML import error in Tally | Show error message; provide corrected XML download |
+| UPI VPA not configured | Hide UPI QR on PDF; show "Add UPI ID in Settings" prompt to admin |
+| QR code generation fails | Skip QR silently; PDF still generated |
+| PWA install prompt dismissed | Don't show again for 7 days; track dismissal in localStorage |
+| Push notification permission denied | Gracefully degrade; hide push notification settings |
 
 ---
 
 ### 4.7 Phase 13 Test Cases
 
-#### AWS Infrastructure Tests
+#### AWS Tests
 
 ```
-TC-13-01: Docker image builds successfully
+TC-13-01: Docker build
   Given: Main branch code
   When:  docker build -t slipwise-app .
-  Then:  Build completes in < 3 minutes
-         Image size < 500MB
+  Then:  Build completes < 3 min; image size < 500MB
 
-TC-13-02: ECS health check
+TC-13-02: Health check endpoint
   Given: Running ECS task
-  When:  ALB performs health check GET /api/health
-  Then:  Returns 200 { status: "ok", db: "connected", cache: "connected" }
+  When:  GET /api/health
+  Then:  { status: "ok", db: "connected", cache: "connected" } in < 200ms
 
 TC-13-03: Zero-downtime deployment
   Given: Active users with in-flight requests
   When:  ECS deployment triggered
-  Then:  No 5xx errors during deployment
-         New tasks healthy before old tasks drained
+  Then:  No 5xx errors during deployment; rolling update verified
 
-TC-13-04: RDS connection pool
-  Given: 20 concurrent requests
-  When:  All hit database simultaneously
-  Then:  No "too many connections" error
-         All queries complete within 2s
+TC-13-04: RDS connection pooling
+  Given: 20 concurrent requests hitting DB
+  When:  All execute simultaneously
+  Then:  No "too many connections" error; all complete < 2s
 
 TC-13-05: S3 signed URL expiry
   Given: Signed URL generated with 1hr expiry
-  When:  URL accessed after 61 minutes
-  Then:  Returns 403 Forbidden from S3
+  When:  Accessed after 61 minutes
+  Then:  S3 returns 403 Forbidden
 
-TC-13-06: CI/CD pipeline
+TC-13-06: Full CI/CD pipeline
   Given: Code pushed to main branch
   When:  GitHub Actions runs
-  Then:  Lint → Test → Build → Deploy all pass
-         ECS deployment completes in < 10 minutes
-         Slack notification sent
+  Then:  Lint + test + build + deploy all pass < 10 min total
+         Slack notification: "Deployed slipwise-app sha:{commit}"
 ```
 
 #### AI Tests
 
 ```
-TC-13-07: OCR extraction accuracy
-  Given: Clear invoice image with vendor name, amount, date
+TC-13-07: OCR extraction (clear invoice)
+  Given: High-quality invoice image with vendor, amount, date visible
   When:  POST /api/ai/extract-document
   Then:  vendorName extracted (confidence > 0.8)
          amount extracted correctly
-         date in ISO format
+         date returned in ISO format
 
-TC-13-08: OCR file size limit
-  Given: Image file of 6MB
+TC-13-08: OCR file size rejection
+  Given: 6MB image file
   When:  POST /api/ai/extract-document
-  Then:  Returns 413 { error: "File too large" }
+  Then:  Returns 413 { error: "File too large. Maximum 5MB." }
 
-TC-13-09: GST calculator intra-state
-  Given: Org in Maharashtra (state code 27), Customer in Maharashtra
-         HSN code 9983 (IT services), amount ₹10,000, rate 18%
-  When:  calculateGST("9983", 10000, "27", "27")
-  Then:  Returns { cgst: 900, sgst: 900, igst: 0, total: 11800 }
+TC-13-09: GST intra-state calculation
+  Given: Org in Maharashtra (27), Customer in Maharashtra (27)
+         HSN 9983 (IT services, 18%), amount ₹10,000
+  When:  calculateGST({ hsnCode: "9983", amount: 10000, fromState: "27", toState: "27" })
+  Then:  { cgst: 900, sgst: 900, igst: 0, totalGst: 1800, totalAmount: 11800 }
 
-TC-13-10: GST calculator inter-state
-  Given: Org in Maharashtra, Customer in Karnataka
-         Same HSN and amount
-  When:  calculateGST("9983", 10000, "27", "29")
-  Then:  Returns { cgst: 0, sgst: 0, igst: 1800, total: 11800 }
+TC-13-10: GST inter-state calculation
+  Given: Org in Maharashtra (27), Customer in Karnataka (29)
+  When:  calculateGST({ hsnCode: "9983", amount: 10000, fromState: "27", toState: "29" })
+  Then:  { cgst: 0, sgst: 0, igst: 1800, totalGst: 1800, totalAmount: 11800 }
 
 TC-13-11: GSTR-1 generation
-  Given: 10 B2B invoices + 5 B2C invoices in March 2026
+  Given: 10 B2B + 5 B2C invoices in March 2026 with correct GST data
   When:  GET /api/export/gstr1?period=2026-03
-  Then:  JSON with correct B2B, B2CS sections
-         All GST amounts add up correctly
-         Returns 200 with download headers
+  Then:  Valid GSTR-1 JSON with b2b and b2cs sections
+         All tax amounts sum correctly
+         Content-Disposition: attachment; filename="GSTR1_2026-03.json"
 ```
 
 #### Integration Tests
 
 ```
 TC-13-12: Tally XML export
-  Given: 3 invoices selected for export
+  Given: 3 invoices selected
   When:  POST /api/export/tally { type: "invoice", ids: [...] }
-  Then:  Returns XML file with Content-Type: application/xml
-         XML validates against Tally schema
-         All 3 invoices present
+  Then:  Returns Content-Type: application/xml
+         XML contains 3 VOUCHER elements
+         All GST ledger entries present
 
 TC-13-13: UPI link generation
-  Given: Org with VPA "acme@paytm", invoice for ₹5,000
-  When:  generateUpiLink is called
-  Then:  Returns "upi://pay?pa=acme@paytm&pn=Acme&am=5000&cu=INR"
-         QR code generated as base64 PNG
+  Given: Org with VPA "acme@paytm", invoice ₹5,000
+  When:  generateUpiDeeplink({ vpa: "acme@paytm", amount: 5000, ... })
+  Then:  Returns "upi://pay?pa=acme@paytm&am=5000&cu=INR..."
+         QR code base64 PNG returned
 
-TC-13-14: PWA manifest availability
+TC-13-14: PWA manifest
   Given: App deployed
   When:  GET /manifest.json
-  Then:  Returns valid PWA manifest
-         All required fields present (name, icons, start_url, display)
+  Then:  Returns valid PWA manifest with all required fields
+         theme_color = "#dc2626"
+         start_url = "/app/home"
 
 TC-13-15: Push notification subscription
   Given: Browser push permission granted
   When:  POST /api/push/subscribe { endpoint, keys }
-  Then:  PushSubscription created in DB
-         Returns 200 success
+  Then:  PushSubscription created in DB; returns 200
 
 TC-13-16: Offline fallback
   Given: Service worker installed, device offline
   When:  User navigates to /app/home
-  Then:  Shows cached version or offline fallback page
-         No blank white screen
+  Then:  Offline fallback page shown (no blank white screen)
+         Cached data visible with "Offline" indicator
 ```
 
 ---
@@ -2030,90 +2100,53 @@ TC-13-16: Offline fallback
 ## 5. Shared Technical Standards
 
 ### Code Conventions
-- **TypeScript strict mode** (`"strict": true` in tsconfig)
-- **Server actions pattern:** `"use server"` directive, `ActionResult<T>` type defined per-file
-- **Server-only modules:** All `src/lib/` utilities that touch DB must have `import "server-only"` at top
+- **TypeScript strict mode** throughout
+- **Server-only modules:** All `src/lib/` utilities touching DB → `import "server-only"` at top
 - **Prisma 7 import:** `import { PrismaClient } from "@/generated/prisma/client"`
-- **Prisma 7 nullable JSON:** Use `Prisma.DbNull` for null JSON fields, cast with `as Prisma.InputJsonValue`
-- **RBAC enforcement:** Every protected server action must call `requirePermission(orgId, userId, module, action)`
-- **Error handling:** `try/catch` on all async operations; fire-and-forget utilities never throw
-- **Audit logging:** All destructive operations (delete, role change, export) must call `logAudit()`
-- **ActionResult<T> pattern:**
+- **Prisma 7 nullable JSON:** `Prisma.DbNull` for null, cast `as Prisma.InputJsonValue`
+- **RBAC:** Every protected action → `requirePermission(orgId, userId, module, action)`
+- **ActionResult<T> pattern** — defined per-file:
 ```typescript
 type ActionResult<T> = { success: true; data: T } | { success: false; error: string }
 ```
-
-### API Standards
-- All public REST API routes under `/api/v1/`
-- Versioning via URL path (not headers)
-- API responses always in JSON envelope (see Section 3.2B)
-- HTTP methods: GET (read), POST (create), PATCH (partial update), DELETE (delete)
-- No PUT (prefer PATCH for updates)
-- All write endpoints require authentication
-- Idempotency-Key header supported for POST endpoints
-
-### Database Standards
-- Prisma migrations: `npx prisma migrate dev --name {descriptive-name}`
-- All models have `createdAt DateTime @default(now())`
-- Soft delete: use `deletedAt DateTime?` (never hard-delete user data)
-- All foreign keys use `onDelete: Cascade` unless explicitly noted
-- Index all foreign key columns + frequently filtered columns
-- UUID columns: `@db.Uuid` + proper index
-- JSON fields: explicit `Json?` not `String` for structured data
+- **Audit logging:** All deletes, role changes, exports → `logAudit()`
+- **Usage metering:** All document creates → `incrementUsage()`
+- **Plan check:** All features → `checkFeature()` or `requirePlan()`
 
 ### Security Standards
 - No secrets in code — all via environment variables
-- API keys hashed (SHA-256) before storage — never store plaintext
-- Webhook secrets hashed before storage
+- API keys: SHA-256 hashed, never stored plaintext
+- Webhook secrets: SHA-256 hashed
 - SSRF protection on all user-provided URLs
-- File uploads: validate MIME type (server-side), max file size enforced
-- CORS: restrict `/api/v1/*` to known origins only
-- Rate limiting: all public endpoints (see `src/lib/rate-limit.ts`)
-- Content Security Policy headers on all pages
+- File uploads: server-side MIME validation + max size
+- Rate limiting on all public endpoints
+- Content Security Policy headers
+
+### Database Standards
+- All models: `createdAt DateTime @default(now())`
+- Soft delete: `deletedAt DateTime?` — never hard-delete user data
+- Foreign keys: `onDelete: Cascade` unless explicitly noted
+- Index: all FK columns + frequently filtered fields
 
 ---
 
 ## 6. Non-Functional Requirements
 
-### Performance
 | Metric | Target |
 |---|---|
-| Time to first byte (TTFB) | < 200ms (p95) |
-| Largest Contentful Paint (LCP) | < 2.5s |
-| PDF generation time | < 5s per document |
-| API response time (p95) | < 500ms for reads, < 1s for writes |
-| OCR processing time | < 30s per document |
-| Webhook delivery time | < 5s from event to first attempt |
-| Database query time (p95) | < 100ms |
-| ECS auto-scale trigger | CPU > 80% for 2 consecutive minutes |
-
-### Availability
-| Component | Target SLA |
-|---|---|
-| Application (ECS) | 99.9% (< 8.7 hr/year downtime) |
-| Database (RDS Multi-AZ) | 99.95% |
-| Storage (S3) | 99.99% |
-| CDN (CloudFront) | 99.99% |
-
-### Security
-- All data encrypted at rest (RDS: AWS KMS, S3: SSE-S3)
-- All data encrypted in transit (TLS 1.3 minimum)
-- GDPR-ready: right to erasure (delete org + all data), data portability (JSON export)
-- SOC 2 Type II readiness (audit logging, access controls, monitoring)
-- VAPT: conduct before production launch
-
-### Scalability
-- Application: 1 → 10 ECS tasks automatically
-- Database: read replicas on demand (beyond 1,000 orgs)
-- Storage: S3 (unlimited, auto-scaled)
-- API rate limiting: per-org quotas enforced at middleware level
-
-### Compliance (India)
-- Data residency: `ap-south-1` (Mumbai) region exclusively
-- GSTIN validation on customer/vendor forms
-- GSTR-1/2A report generation
-- TDS calculation assistance
-- PAN/Aadhaar data: minimal collection, encrypted at rest
+| Time to first byte | < 200ms (p95) |
+| PDF generation | < 5s per document |
+| API response (reads) | < 500ms (p95) |
+| API response (writes) | < 1s (p95) |
+| OCR processing | < 30s per document |
+| Webhook delivery | < 5s from event |
+| DB query time | < 100ms (p95) |
+| App uptime (ECS) | 99.9% |
+| Database uptime (RDS Multi-AZ) | 99.95% |
+| Storage uptime (S3) | 99.99% |
+| Data residency | ap-south-1 (Mumbai) exclusively |
+| Encryption at rest | AWS KMS (RDS), SSE-S3 (S3) |
+| Encryption in transit | TLS 1.3 minimum |
 
 ---
 
@@ -2121,17 +2154,18 @@ type ActionResult<T> = { success: true; data: T } | { success: false; error: str
 
 | Risk | Likelihood | Impact | Mitigation |
 |---|---|---|---|
-| Stripe India approval delays | Medium | High | Use Razorpay as primary; Stripe for global only (Phase 12.1B) |
-| AWS migration data loss | Low | Critical | Full pg_dump backup; 24hr parallel run; rollback plan |
-| Tally XML format changes | Low | Medium | Version-specific XML templates; user-selectable Tally version |
-| QuickBooks API quota (500 req/min) | Medium | Medium | Queue sync jobs; rate-limit with retry backoff |
-| OpenAI API cost overrun | Medium | High | Per-org monthly limit on AI calls; per-plan quotas; cost monitoring |
-| SAML assertion spoofing | Low | Critical | Always verify assertion signature; validate timestamp (< 5 min) |
-| API key database leak | Very Low | Critical | Only store SHA-256 hash; never log raw keys |
+| Razorpay Payment Link API downtime | Low | High | Show fallback: "Pay via bank transfer to account {VA}" |
+| AWS migration data loss | Low | Critical | Full pg_dump; 24hr parallel run; tested rollback plan |
+| Smart Collect mismatched payment | Medium | Medium | UnmatchedPayment model + manual match UI for admins |
+| Tally XML format changes across Tally versions | Low | Medium | Version-specific templates; user selects Tally version |
+| QuickBooks API quota (500 req/min) | Medium | Medium | Queue sync jobs; rate-limit with backoff |
+| OpenAI API cost overrun on OCR | Medium | High | Per-org monthly limit; per-plan quotas; cost alerts |
+| SAML assertion spoofing | Low | Critical | Always verify sig; validate timestamp (< 5 min); enforce HTTPS |
+| API key DB exposure | Very Low | Critical | SHA-256 hash only; never log raw keys |
 | ECS task memory leak | Low | Medium | Memory limit per task; CloudWatch alarm; auto-restart |
-| OCR accuracy for low-quality images | High | Low | Show confidence score; manual entry fallback always available |
-| Push notification permission rate | High | Low | Only prompt on user action; respect browser permission API |
-| Multi-org data isolation bug | Low | Critical | Row-level security on all DB queries; orgId filter on every query |
+| GSTR-1 schema changes (govt updates) | Medium | Medium | Versioned report templates; announcements monitored |
+| OCR poor accuracy for handwritten docs | High | Low | Confidence threshold; always allow manual override |
+| Multi-org data isolation bug | Low | Critical | orgId filter on EVERY query; row-level access checks |
 
 ---
 
@@ -2139,31 +2173,33 @@ type ActionResult<T> = { success: true; data: T } | { success: false; error: str
 
 ### Phase 12 Acceptance Gates
 
-**Before merging to master:**
 1. ✅ `npx tsc --noEmit` — zero TypeScript errors
 2. ✅ `npx eslint src/` — zero ESLint errors
-3. ✅ All test cases TC-12-01 through TC-12-16 pass
-4. ✅ Stripe test mode: full checkout flow completes
-5. ✅ API: all 20+ endpoints return correct response codes
-6. ✅ SAML SSO: tested with Okta developer account
-7. ✅ Multi-org: user can create 2 orgs and switch between them
-8. ✅ Webhook delivery: end-to-end test with Webhook.site
-9. ✅ API key: create/use/revoke cycle works correctly
-10. ✅ White-label: PDF exports correctly hide Slipwise branding when enabled
+3. ✅ Razorpay payment link: end-to-end test (create link → simulate webhook → invoice paid)
+4. ✅ Smart Collect: virtual account created via Razorpay test mode
+5. ✅ Subscription pause/resume: tested in Razorpay test mode
+6. ✅ API: all 22+ endpoints return correct responses
+7. ✅ API key: create → use → revoke → verify blocked
+8. ✅ Outbound webhook: delivery tested with Webhook.site
+9. ✅ SSO: tested with Okta developer account
+10. ✅ Multi-org: user creates 2 orgs, switches, data isolated correctly
+11. ✅ White-label: PDF export has no Slipwise branding when enabled
+12. ✅ All TC-12-01 through TC-12-16 pass
 
 ### Phase 13 Acceptance Gates
 
-**Before merging to master:**
-1. ✅ Docker image builds successfully
-2. ✅ All test cases TC-13-01 through TC-13-16 pass
-3. ✅ ECS deployment completes without downtime (blue-green verified)
-4. ✅ RDS migration: zero data loss verified (row count match)
-5. ✅ S3 migration: all existing files accessible via new adapter
-6. ✅ OCR: successfully extracts from 5 sample invoice images
-7. ✅ GSTR-1: report validates against government JSON schema
-8. ✅ Tally XML: import test in Tally Prime demo
-9. ✅ PWA: installable on Android Chrome + iOS Safari
-10. ✅ CloudWatch alarms: all 5 configured alarms trigger in test
+1. ✅ Docker image builds in < 3 min, health check returns 200
+2. ✅ ECS deployment: zero-downtime verified (no 5xx during deploy)
+3. ✅ RDS: migration verified, row counts match
+4. ✅ S3: all existing files accessible via new adapter
+5. ✅ CI/CD: full pipeline runs end-to-end in < 10 min
+6. ✅ OCR: extracts from 5 sample invoice images with > 70% confidence
+7. ✅ GST calculator: intra-state and inter-state calculations verified
+8. ✅ GSTR-1: JSON validates against government schema
+9. ✅ Tally XML: import test passes in Tally Prime demo
+10. ✅ PWA: installable on Android Chrome + iOS Safari
+11. ✅ Push notifications: received on Chrome + Firefox
+12. ✅ All TC-13-01 through TC-13-16 pass
 
 ---
 
@@ -2172,29 +2208,82 @@ type ActionResult<T> = { success: true; data: T } | { success: false; error: str
 ### Phase 12 Agent Split
 
 ```
-Phase 12, Sprint 12.1 (first — billing blocks API usage tracking):
-  └── Agent 12-A: BillingGateway interface + Stripe SDK + all Stripe API routes + billing UI updates
+Sprint 12.1 (FIRST — payment features needed by API):
+  └── Agent 12-A: Razorpay expansion
+      - Payment Links API route + webhook handler + UI
+      - Smart Collect (Virtual Accounts) API + UI
+      - Subscription pause/resume (SDK + API routes + UI)
+      - Plan change (upgrade/downgrade) enhanced flow
+      - International card UI updates + exchange rates endpoint
+      - BillingInvoice model + billing history UI
+      - DB schema: CustomerVirtualAccount, UnmatchedPayment, BillingInvoice
 
-Sprint 12.2 + 12.3 (parallel — after 12-A completes):
-  ├── Agent 12-B: Public REST API (API keys, all /api/v1/* endpoints, rate limiting)
-  ├── Agent 12-C: Outbound webhooks (endpoint CRUD, delivery engine, retry mechanism)
-  └── Agent 12-D: Enterprise features (SSO/SAML, multi-org switcher, custom domains, white-label)
+Sprint 12.2 + 12.3 (PARALLEL — after 12-A):
+  ├── Agent 12-B: Public REST API
+  │   - ApiKey, ApiWebhookEndpoint, ApiWebhookDelivery, ApiRequestLog models
+  │   - /api/v1/* all endpoints (invoices, vouchers, slips, customers, employees, vendors, reports)
+  │   - API key management UI at /app/settings/api
+  │   - OpenAPI spec route
+  │
+  ├── Agent 12-C: Outbound Webhooks + Developer Portal
+  │   - Webhook endpoint CRUD + delivery engine + retry
+  │   - SSRF protection
+  │   - Webhook management UI at /app/settings/webhooks
+  │   - Developer portal marketing page
+  │
+  └── Agent 12-D: Enterprise Features
+      - SSO/SAML (SsoConfig model + /api/auth/sso/* routes + settings UI)
+      - Multi-org switcher (UserOrgPreference model + /api/org/switch + header UI)
+      - Custom domain (OrgDomain model + settings UI)
+      - White-label (OrgWhiteLabel model + PDF check + settings UI)
+      - Org email domain auto-provisioning
 
 Final:
-  └── Agent 12-E: Verification (tsc, eslint, integration tests)
+  └── Agent 12-E: Verification (tsc, eslint, all test cases)
 ```
 
 ### Phase 13 Agent Split
 
 ```
-Phase 13, Sprint 13.1 (first — AWS infra blocks everything):
-  ├── Agent 13-A: Docker + CDK infra stacks (Dockerfile, CDK TypeScript, GitHub Actions CI/CD)
-  └── Agent 13-B: S3 adapter (complete implementation) + Redis migration + health check endpoint
+Sprint 13.1 (FIRST — infra needed by everything):
+  ├── Agent 13-A: AWS CDK + Docker + CI/CD
+  │   - infra/ directory with all 9 CDK stacks
+  │   - Dockerfile + next.config.ts output:standalone
+  │   - .github/workflows/deploy.yml
+  │   - /api/health endpoint
+  │
+  └── Agent 13-B: S3 + Redis + Sentry + PostHog
+      - Complete S3StorageAdapter implementation
+      - ioredis support in rate-limit.ts
+      - Full Sentry setup (sentry.*.config.ts)
+      - PostHog integration (PostHogProvider + key events)
 
-Sprint 13.2 + 13.3 (parallel — after 13.1 completes):
-  ├── Agent 13-C: AI features (OCR route, expense categorization, GST calculator, salary insights)
-  ├── Agent 13-D: Third-party integrations (Tally XML, QuickBooks OAuth, Zoho, GSTR-1)
-  └── Agent 13-E: Mobile PWA (manifest, service worker, push notifications, mobile UX)
+Sprint 13.2 + 13.3 (PARALLEL — after 13.1):
+  ├── Agent 13-C: AI Features
+  │   - /api/ai/extract-document (OCR via Textract)
+  │   - OcrJob model + src/lib/gst-calculator.ts
+  │   - src/data/hsn-gst-rates.json
+  │   - /api/export/gstr1
+  │   - /api/ai/salary-insights
+  │   - Late payment predictor
+  │   - AI expense categorization with Redis cache
+  │
+  ├── Agent 13-D: Third-Party Integrations
+  │   - src/lib/integrations/tally.ts + /api/export/tally
+  │   - QuickBooks OAuth + sync routes
+  │   - Zoho Books OAuth + sync routes
+  │   - OrgIntegration model
+  │   - /app/settings/integrations page
+  │   - UPI link + QR (src/lib/upi-link.ts + PDF integration)
+  │
+  └── Agent 13-E: Mobile PWA
+      - public/manifest.json + icons
+      - public/sw.js (service worker)
+      - Push notifications (web-push + /api/push/* routes)
+      - PushSubscription model
+      - Mobile UX: bottom nav, touch targets, swipe gestures
+      - PWA install prompt component
+      - Offline fallback page
 
 Final:
   └── Agent 13-F: Verification (tsc, eslint, Docker build, smoke tests)
@@ -2203,16 +2292,16 @@ Final:
 ### Agent Context Requirements
 
 Every agent MUST:
-1. Read `prisma/schema.prisma` before any DB schema changes
-2. Read `src/lib/` directory to avoid recreating existing utilities
-3. Use `ActionResult<T>` pattern (defined per-file, not shared import)
-4. Use `requirePermission(orgId, userId, module, action)` on all protected routes
-5. Use `import "server-only"` on all server-only modules
-6. Run `npx tsc --noEmit` after each file batch — fix all errors
-7. Follow Prisma 7: `import { PrismaClient } from "@/generated/prisma/client"`
-8. Never store secrets in code
-9. Never hard-delete user data (use soft delete `deletedAt`)
-10. Every feature behind plan check using `checkFeature()` or `requirePlan()`
+1. Read `prisma/schema.prisma` before DB changes
+2. Read `src/lib/` listing to avoid recreating existing utilities
+3. Use `import "server-only"` on all server-only modules
+4. Use `ActionResult<T>` pattern (per-file)
+5. Enforce RBAC with `requirePermission()`
+6. Call `incrementUsage()` on document creation
+7. Call `checkFeature()` or `requirePlan()` on gated features
+8. Run `npx tsc --noEmit` after each batch — fix all errors
+9. Never store secrets in code
+10. Never hard-delete user data (soft delete with `deletedAt`)
 
 ---
 
@@ -2221,41 +2310,31 @@ Every agent MUST:
 ### Phase 12 New Variables
 
 ```bash
-# Stripe (global billing)
-STRIPE_SECRET_KEY=sk_live_xxxxxxxxxxxx
-STRIPE_PUBLISHABLE_KEY=pk_live_xxxxxxxxxxxx
-STRIPE_WEBHOOK_SECRET=whsec_xxxxxxxxxxxx
+# Razorpay (existing + new for Phase 12)
+RAZORPAY_KEY_ID=rzp_live_xxxxxxxxxxxx          # Already set Phase 11
+RAZORPAY_KEY_SECRET=xxxxxxxxxxxxxxxxxxxxxxxx   # Already set Phase 11
+RAZORPAY_WEBHOOK_SECRET=xxxxxxxxxxxxxxxx       # Already set Phase 11
 
-# Stripe Price IDs — Starter
-STRIPE_STARTER_MONTHLY_USD_PRICE_ID=price_xxxx
-STRIPE_STARTER_ANNUAL_USD_PRICE_ID=price_xxxx
-STRIPE_STARTER_MONTHLY_EUR_PRICE_ID=price_xxxx
-STRIPE_STARTER_ANNUAL_EUR_PRICE_ID=price_xxxx
-STRIPE_STARTER_MONTHLY_GBP_PRICE_ID=price_xxxx
-STRIPE_STARTER_ANNUAL_GBP_PRICE_ID=price_xxxx
+# Razorpay Plan IDs (already set Phase 11):
+RAZORPAY_STARTER_MONTHLY_PLAN_ID=plan_xxxx
+RAZORPAY_STARTER_ANNUAL_PLAN_ID=plan_xxxx
+RAZORPAY_PRO_MONTHLY_PLAN_ID=plan_xxxx
+RAZORPAY_PRO_ANNUAL_PLAN_ID=plan_xxxx
+RAZORPAY_ENTERPRISE_MONTHLY_PLAN_ID=plan_xxxx
 
-# Stripe Price IDs — Pro
-STRIPE_PRO_MONTHLY_USD_PRICE_ID=price_xxxx
-STRIPE_PRO_ANNUAL_USD_PRICE_ID=price_xxxx
-STRIPE_PRO_MONTHLY_EUR_PRICE_ID=price_xxxx
-STRIPE_PRO_ANNUAL_EUR_PRICE_ID=price_xxxx
-
-# Billing gateway routing
-BILLING_GATEWAY=razorpay     # default; "stripe" for global deployments
+# Exchange rates (for display only)
+EXCHANGE_RATE_API_KEY=xxxx                     # exchangerate-api.com free tier
 
 # API Platform
-API_SIGNING_SECRET=xxxx      # HMAC secret for outbound webhook signatures
+API_WEBHOOK_SIGNING_SECRET=xxxx               # HMAC secret for outbound webhook signing
 
-# Enterprise / SSO
+# Enterprise SSO
 SAML_PRIVATE_KEY=-----BEGIN RSA PRIVATE KEY-----...
-SAML_CERT=-----BEGIN CERTIFICATE-----...
-
-# AI Features
-OPENAI_API_KEY=sk-xxxxxxxxxxxx
-AWS_TEXTRACT_REGION=ap-south-1    # for Textract OCR
+SAML_CERTIFICATE=-----BEGIN CERTIFICATE-----...
 
 # Feature flags
-FEATURE_STRIPE_ENABLED=true
+FEATURE_PAYMENT_LINKS_ENABLED=true
+FEATURE_SMART_COLLECT_ENABLED=true
 FEATURE_API_PLATFORM_ENABLED=true
 FEATURE_SSO_ENABLED=true
 FEATURE_MULTI_ORG_ENABLED=true
@@ -2264,7 +2343,7 @@ FEATURE_MULTI_ORG_ENABLED=true
 ### Phase 13 New Variables
 
 ```bash
-# AWS infrastructure
+# AWS
 AWS_REGION=ap-south-1
 AWS_ACCESS_KEY_ID=xxxx
 AWS_SECRET_ACCESS_KEY=xxxx
@@ -2273,28 +2352,33 @@ AWS_S3_BUCKET_PRIVATE=slipwise-private
 AWS_S3_BUCKET_EXPORTS=slipwise-exports
 CLOUDFRONT_URL=xxxx.cloudfront.net
 
-# Redis (ElastiCache — replaces Upstash in production)
+# Redis (ElastiCache — replaces Upstash in prod)
 REDIS_URL=redis://slipwise.cache.amazonaws.com:6379
-REDIS_TOKEN=xxxx    # ElastiCache auth token
+REDIS_AUTH_TOKEN=xxxx
 
-# Third-party integrations
+# AI
+OPENAI_API_KEY=sk-xxxxxxxxxxxx
+AWS_TEXTRACT_REGION=ap-south-1
+
+# Integrations
 QUICKBOOKS_CLIENT_ID=xxxx
 QUICKBOOKS_CLIENT_SECRET=xxxx
-QUICKBOOKS_ENVIRONMENT=production    # or "sandbox"
+QUICKBOOKS_ENVIRONMENT=production
 ZOHO_CLIENT_ID=xxxx
 ZOHO_CLIENT_SECRET=xxxx
 
-# Push notifications
+# Push Notifications
 VAPID_PUBLIC_KEY=xxxx
 VAPID_PRIVATE_KEY=xxxx
+NEXT_PUBLIC_VAPID_PUBLIC_KEY=xxxx
 VAPID_SUBJECT=mailto:support@slipwise.app
 
-# Sentry (now with real DSN)
+# Sentry (full integration)
 SENTRY_DSN=https://xxxx@sentry.io/xxxx
-SENTRY_AUTH_TOKEN=xxxx
 NEXT_PUBLIC_SENTRY_DSN=https://xxxx@sentry.io/xxxx
+SENTRY_AUTH_TOKEN=xxxx
 
-# PostHog analytics
+# PostHog
 NEXT_PUBLIC_POSTHOG_KEY=phc_xxxx
 NEXT_PUBLIC_POSTHOG_HOST=https://app.posthog.com
 ```
@@ -2303,178 +2387,172 @@ NEXT_PUBLIC_POSTHOG_HOST=https://app.posthog.com
 
 ## Appendix B — API Contract Reference
 
-### Full OpenAPI Summary
+### Endpoint Summary
 
-```yaml
-openapi: 3.1.0
-info:
-  title: Slipwise One API
-  version: "2026-04"
-  description: Public REST API for Slipwise One document operations
+| Method | Path | Scope | Plan |
+|---|---|---|---|
+| GET | /api/v1/invoices | read:invoices | Pro+ |
+| POST | /api/v1/invoices | write:invoices | Pro+ |
+| GET | /api/v1/invoices/:id | read:invoices | Pro+ |
+| PATCH | /api/v1/invoices/:id | write:invoices | Pro+ |
+| DELETE | /api/v1/invoices/:id | delete:invoices | Pro+ |
+| POST | /api/v1/invoices/:id/send | write:invoices | Pro+ |
+| POST | /api/v1/invoices/:id/mark-paid | write:invoices | Pro+ |
+| POST | /api/v1/invoices/:id/payment-link | write:invoices | Pro+ |
+| GET | /api/v1/invoices/:id/pdf | read:invoices | Pro+ |
+| GET | /api/v1/vouchers | read:vouchers | Pro+ |
+| POST | /api/v1/vouchers | write:vouchers | Pro+ |
+| GET | /api/v1/salary-slips | read:salary_slips | Pro+ |
+| POST | /api/v1/salary-slips | write:salary_slips | Pro+ |
+| GET | /api/v1/salary-slips/:id/pdf | read:salary_slips | Pro+ |
+| GET | /api/v1/customers | read:customers | Pro+ |
+| POST | /api/v1/customers | write:customers | Pro+ |
+| GET | /api/v1/employees | read:employees | Pro+ |
+| POST | /api/v1/employees | write:employees | Pro+ |
+| GET | /api/v1/vendors | read:vendors | Pro+ |
+| POST | /api/v1/vendors | write:vendors | Pro+ |
+| GET | /api/v1/reports/summary | read:reports | Pro+ |
+| GET | /api/v1/reports/outstanding | read:reports | Pro+ |
+| GET | /api/v1/openapi.json | none | Public |
 
-servers:
-  - url: https://app.slipwise.com/api/v1
-    description: Production
-
-security:
-  - BearerAuth: []
-
-components:
-  securitySchemes:
-    BearerAuth:
-      type: http
-      scheme: bearer
-      bearerFormat: APIKey
-
-  schemas:
-    Invoice:
-      type: object
-      properties:
-        id: { type: string }
-        invoiceNumber: { type: string }
-        status: { type: string, enum: [DRAFT, SENT, PAID, OVERDUE, CANCELLED] }
-        customerId: { type: string }
-        totalAmount: { type: number }
-        currency: { type: string }
-        dueDate: { type: string, format: date }
-        createdAt: { type: string, format: date-time }
-
-    Pagination:
-      type: object
-      properties:
-        page: { type: integer }
-        limit: { type: integer }
-        total: { type: integer }
-        hasMore: { type: boolean }
-
-    Error:
-      type: object
-      properties:
-        success: { type: boolean, example: false }
-        error:
-          type: object
-          properties:
-            code: { type: string }
-            message: { type: string }
-```
-
-### Rate Limits by Plan
+### Rate Limits
 
 | Plan | Requests/Month | Requests/Minute |
 |---|---|---|
-| Free | 0 (no access) | — |
-| Starter | 0 (no access) | — |
+| Free | ❌ No access | — |
+| Starter | ❌ No access | — |
 | Pro | 10,000 | 100 |
 | Enterprise | Unlimited | 1,000 |
 
 ---
 
-## Appendix C — Stripe Quick Reference
+## Appendix C — Razorpay Advanced Features Reference
 
-**Stripe Subscription States:**
+### Payment Link States
 | State | Meaning |
 |---|---|
-| `trialing` | Trial period active |
-| `active` | Paid and billing normally |
-| `past_due` | Payment failed, in grace period |
-| `canceled` | Subscription ended |
-| `unpaid` | Multiple payment failures, access suspended |
-| `paused` | Billing paused (Pro+ feature) |
+| `created` | Link created, not yet paid |
+| `paid` | Customer paid successfully |
+| `partially_paid` | Partial payment received |
+| `expired` | Expired without payment |
+| `cancelled` | Manually cancelled |
 
-**Key Stripe API calls:**
+### Subscription States (Razorpay)
+| State | Meaning |
+|---|---|
+| `created` | Subscription created |
+| `authenticated` | UPI mandate / card auth done |
+| `active` | Recurring payments running |
+| `paused` | Billing paused |
+| `halted` | Max retries exceeded |
+| `cancelled` | User cancelled |
+| `completed` | All cycles done |
+| `expired` | Never authenticated |
+
+### Virtual Account States
+| State | Meaning |
+|---|---|
+| `active` | Accepting payments |
+| `paid` | Fixed-amount VA fully paid |
+| `closed` | Manually closed |
+
+### Key Razorpay API Calls (Phase 12)
+
 ```javascript
-// Create checkout session
-stripe.checkout.sessions.create({
-  mode: "subscription",
-  customer: customerId,
-  line_items: [{ price: priceId, quantity: 1 }],
-  success_url: successUrl,
-  cancel_url: cancelUrl,
-  subscription_data: { trial_period_days: 14 }
+// Payment Link
+razorpay.paymentLink.create({
+  amount: 118000, currency: "INR",
+  description: "Invoice #INV-2026-0042",
+  reference_id: invoiceId,
+  customer: { name, email, contact },
+  expire_by: unixTimestamp,
+  notify: { sms: true, email: true }
 })
 
-// Create customer portal
-stripe.billingPortal.sessions.create({
-  customer: customerId,
-  return_url: returnUrl
+// Virtual Account
+razorpay.virtualAccount.create({
+  receivers: { types: ["bank_account"] },
+  description: "Slipwise - Acme Corp",
+  customer_id: razorpayCustomerId
 })
 
-// Cancel subscription at period end
-stripe.subscriptions.update(subId, { cancel_at_period_end: true })
+// Pause Subscription
+razorpay.subscriptions.update(subId, {
+  pause_collection: { behavior: "void", resumes_at: unixTimestamp }
+})
 
-// Upgrade/downgrade plan immediately
-stripe.subscriptions.update(subId, {
-  items: [{ id: currentItemId, price: newPriceId }],
-  proration_behavior: "create_prorations"
+// Resume Subscription
+razorpay.subscriptions.resume(subId)
+
+// Change Plan
+razorpay.subscriptions.update(subId, {
+  plan_id: newPlanId,
+  replace_immediately: 1  // or 0 for at period end
 })
 
 // Verify webhook
-stripe.webhooks.constructEvent(rawBody, signature, webhookSecret)
+Razorpay.validateWebhookSignature(rawBody, signature, webhookSecret)
 ```
-
-**Stripe Price ID naming convention:**
-`slipwise_starter_monthly_usd`, `slipwise_pro_annual_eur`, etc.
 
 ---
 
 ## Appendix D — AWS Architecture Diagram
 
 ```
-          Users (Global)
-               │
-               ▼
-    ┌─────────────────────┐
-    │   Route 53 DNS      │
-    │   app.slipwise.com  │
-    └──────────┬──────────┘
-               │
-    ┌──────────▼──────────┐
-    │  CloudFront CDN     │  ◄── WAF (OWASP rules)
-    │  ap-south-1 + Edge  │
-    └──────┬──────┬───────┘
-           │      │
-    Static │      │ Dynamic
-    Assets │      │ Requests
-           │      │
-    ┌──────▼──┐  ┌▼──────────────────────┐
-    │   S3    │  │   Application Load     │
-    │ Assets  │  │   Balancer (ALB)       │
-    └─────────┘  └──────────┬────────────┘
-                             │
-              ┌──────────────▼───────────────┐
-              │      ECS Fargate Cluster      │
-              │   (ap-south-1a + 1b + 1c)    │
-              │                               │
-              │  ┌─────────────────────────┐  │
-              │  │  next-app service       │  │
-              │  │  ├─ Task A (t3.small)   │  │
-              │  │  ├─ Task B (t3.small)   │  │
-              │  │  └─ Task C... (scaled)  │  │
-              │  └─────────────────────────┘  │
-              │                               │
-              │  ┌─────────────────────────┐  │
-              │  │  worker service         │  │
-              │  │  └─ Task (t3.small)     │  │
-              │  └─────────────────────────┘  │
-              └──────────────────────────────┘
-                             │
-               ┌─────────────┼──────────────┐
-               │             │              │
-    ┌──────────▼──┐  ┌───────▼──────┐  ┌───▼──────────┐
-    │    RDS      │  │ ElastiCache  │  │     S3        │
-    │ PostgreSQL  │  │   Redis 7    │  │ Private Bucket│
-    │  (Multi-AZ) │  │ (t4g.small)  │  │ (Attachments) │
-    └─────────────┘  └──────────────┘  └───────────────┘
+                        Users (India + Global)
+                               │
+                    ┌──────────▼──────────┐
+                    │    Route 53 DNS      │
+                    │  app.slipwise.com   │
+                    └──────────┬──────────┘
+                               │
+                    ┌──────────▼──────────┐
+                    │  CloudFront CDN     │◄── WAF (OWASP rules)
+                    │  ap-south-1 edges   │
+                    └──────┬──────┬───────┘
+                           │      │
+                   Static  │      │ Dynamic
+                   Assets  │      │ Requests
+                           │      │
+                    ┌──────▼──┐  ┌▼──────────────────────────┐
+                    │   S3    │  │  Application Load Balancer │
+                    │ Assets  │  │       (ALB, Multi-AZ)      │
+                    └─────────┘  └────────────┬───────────────┘
+                                              │
+                       ┌──────────────────────▼──────────────────────┐
+                       │           ECS Fargate Cluster                │
+                       │         (ap-south-1a + 1b + 1c)             │
+                       │                                              │
+                       │  ┌──────────────────────────────────────┐   │
+                       │  │  next-app service                    │   │
+                       │  │  ├─ Task A (t3.small, 512MB mem)     │   │
+                       │  │  ├─ Task B (t3.small, 512MB mem)     │   │
+                       │  │  └─ Task C... (auto-scaled, max 10)  │   │
+                       │  └──────────────────────────────────────┘   │
+                       │                                              │
+                       │  ┌──────────────────────────────────────┐   │
+                       │  │  worker service                      │   │
+                       │  │  └─ Task (t3.small) — background jobs│   │
+                       │  └──────────────────────────────────────┘   │
+                       └───────────────┬──────────────────────────────┘
+                                       │
+                    ┌──────────────────┼──────────────────────┐
+                    │                  │                       │
+         ┌──────────▼──────┐  ┌────────▼───────┐  ┌──────────▼──────┐
+         │  RDS PostgreSQL │  │  ElastiCache   │  │       S3        │
+         │  15 Multi-AZ    │  │  Redis 7       │  │  Private Bucket │
+         │  db.t4g.medium  │  │  cache.t4g.sm  │  │  (signed URLs)  │
+         └─────────────────┘  └────────────────┘  └─────────────────┘
 
-    ┌─────────────────────────────────────────────────┐
-    │              Supporting Services                │
-    │  Secrets Manager  │  CloudWatch  │  ECR         │
-    │  SNS (Alerts)     │  IAM Roles   │  SSM Params  │
-    └─────────────────────────────────────────────────┘
+         ┌─────────────────────────────────────────────────────────┐
+         │                 Supporting Services                     │
+         │  Secrets Manager  │  CloudWatch  │  ECR  │  IAM Roles  │
+         │  SNS (Alerts)     │  WAF         │  SSM  │  ACM (SSL)  │
+         └─────────────────────────────────────────────────────────┘
 ```
 
 ---
 
 *End of Phase 12 & 13 PRD — Slipwise One*
-*Version 1.0 | 2026-04-06 | Global Expansion + AWS + AI + Integrations*
+*Version 1.0 | 2026-04-06 | Razorpay-Only — India-First + Global Scale*
 *Prepared by: Copilot Engineering Assistant | Parent Company: Zenxvio*
