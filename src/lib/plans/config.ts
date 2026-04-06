@@ -91,7 +91,7 @@ export const PLAN_LIMITS: Record<PlanId, PlanLimits> = {
     customBranding: true,
     approvalWorkflows: true,
     proxyAccess: true,
-    apiAccess: false,
+    apiAccess: true,
     prioritySupport: true,
     auditLogRetentionDays: 90,
     pdfStudioTools: true,

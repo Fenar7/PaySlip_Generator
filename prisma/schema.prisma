@@ -22,6 +22,8 @@ model Profile {
   auditRepLogs         AuditLog[]            @relation("AuditRepresented")
   referrals            Referral[]
   onboardingProgress   OnboardingProgress?
+  pushSubscriptions    PushSubscription[]
+  orgPreferences       UserOrgPreference[]
 
   @@map("profiles")
 }
@@ -56,6 +58,19 @@ model Organization {
   storageUsage    StorageUsage[]
   sendLogs        SendLog[]
   sharedDocuments SharedDocument[]
+  virtualAccounts     CustomerVirtualAccount[]
+  unmatchedPayments   UnmatchedPayment[]
+  billingInvoices     BillingInvoice[]
+  apiKeys             ApiKey[]
+  webhookEndpoints    ApiWebhookEndpoint[]
+  apiRequestLogs      ApiRequestLog[]
+  ssoConfig           SsoConfig?
+  orgPreferences      UserOrgPreference[]
+  orgDomain           OrgDomain?
+  whiteLabel          OrgWhiteLabel?
+  emailDomains        OrgEmailDomain[]
+  ocrJobs             OcrJob[]
+  integrations        OrgIntegration[]
 
   @@map("organization")
 }
@@ -127,6 +142,10 @@ model OrgDefaults {
   defaultVoucherTemplate String @default("minimal-office")
   defaultSlipTemplate    String @default("modern-premium")
 
+  upiVpa         String?
+  gstStateCode   String?
+  panNumber      String?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -151,6 +170,7 @@ model Customer {
 
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   invoices     Invoice[]
+  virtualAccounts CustomerVirtualAccount[]
 
   @@index([organizationId])
   @@map("customer")
@@ -227,7 +247,10 @@ model Invoice {
   issuedAt       DateTime?
   paidAt         DateTime?
   overdueAt      DateTime?
-  reissueReason  String?
+  reissueReason           String?
+  razorpayPaymentLinkId   String?
+  razorpayPaymentLinkUrl  String?
+  paymentLinkExpiresAt    DateTime?
   createdAt      DateTime      @default(now())
   updatedAt      DateTime      @updatedAt
   archivedAt     DateTime?
@@ -796,6 +819,9 @@ model Subscription {
   currentPeriodEnd    DateTime?
   cancelAtPeriodEnd   Boolean   @default(false)
   cancelledAt         DateTime?
+  pausedAt            DateTime?
+  pausedUntil         DateTime?
+  pauseReason         String?
   createdAt           DateTime  @default(now())
   updatedAt           DateTime  @updatedAt
 
@@ -893,4 +919,273 @@ model OnboardingProgress {
   user Profile @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("onboarding_progress")
+}
+
+// ─── Phase 12: Razorpay Payment Links & Smart Collect ─────────────────────────
+
+model CustomerVirtualAccount {
+  id              String    @id @default(cuid())
+  orgId           String
+  customerId      String
+  razorpayVaId    String    @unique
+  accountNumber   String
+  ifsc            String
+  isActive        Boolean   @default(true)
+  createdAt       DateTime  @default(now())
+  closedAt        DateTime?
+
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  customer     Customer     @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  @@index([orgId, customerId])
+  @@map("customer_virtual_account")
+}
+
+model UnmatchedPayment {
+  id                String    @id @default(cuid())
+  orgId             String
+  virtualAccountId  String
+  amountPaise       BigInt
+  payerName         String?
+  payerAccount      String?
+  payerIfsc         String?
+  razorpayPaymentId String
+  status            String    @default("unmatched")
+  matchedInvoiceId  String?
+  receivedAt        DateTime  @default(now())
+  resolvedAt        DateTime?
+
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@index([orgId, status])
+  @@map("unmatched_payment")
+}
+
+model BillingInvoice {
+  id                  String   @id @default(cuid())
+  orgId               String
+  razorpayInvoiceId   String?  @unique
+  razorpayPaymentId   String?
+  planId              String
+  amountPaise         BigInt
+  currency            String   @default("INR")
+  periodStart         DateTime
+  periodEnd           DateTime
+  status              String   @default("paid")
+  pdfUrl              String?
+  createdAt           DateTime @default(now())
+
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@index([orgId, createdAt])
+  @@map("billing_invoice")
+}
+
+// ─── Phase 12: API Platform ──────────────────────────────────────────────────
+
+model ApiKey {
+  id          String    @id @default(cuid())
+  orgId       String
+  name        String
+  keyHash     String    @unique
+  keyPrefix   String
+  scopes      String[]
+  lastUsedAt  DateTime?
+  expiresAt   DateTime?
+  isActive    Boolean   @default(true)
+  createdBy   String    @db.Uuid
+  createdAt   DateTime  @default(now())
+  revokedAt   DateTime?
+
+  organization Organization    @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  requestLogs  ApiRequestLog[]
+
+  @@index([orgId, isActive])
+  @@index([keyHash])
+  @@map("api_key")
+}
+
+model ApiWebhookEndpoint {
+  id              String    @id @default(cuid())
+  orgId           String
+  url             String
+  events          String[]
+  secretHash      String
+  isActive        Boolean   @default(true)
+  description     String?
+  failureCount    Int       @default(0)
+  createdAt       DateTime  @default(now())
+  lastDeliveredAt DateTime?
+
+  organization Organization         @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  deliveries   ApiWebhookDelivery[]
+
+  @@index([orgId, isActive])
+  @@map("api_webhook_endpoint")
+}
+
+model ApiWebhookDelivery {
+  id              String   @id @default(cuid())
+  endpointId      String
+  eventType       String
+  payload         Json
+  responseStatus  Int?
+  responseBody    String?
+  durationMs      Int?
+  success         Boolean
+  attempt         Int      @default(1)
+  deliveredAt     DateTime @default(now())
+
+  endpoint ApiWebhookEndpoint @relation(fields: [endpointId], references: [id], onDelete: Cascade)
+
+  @@index([endpointId, deliveredAt])
+  @@map("api_webhook_delivery")
+}
+
+model ApiRequestLog {
+  id         String   @id @default(cuid())
+  orgId      String
+  apiKeyId   String?
+  method     String
+  path       String
+  statusCode Int
+  durationMs Int?
+  ip         String?
+  createdAt  DateTime @default(now())
+
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  apiKey       ApiKey?      @relation(fields: [apiKeyId], references: [id])
+
+  @@index([orgId, createdAt])
+  @@index([apiKeyId, createdAt])
+  @@map("api_request_log")
+}
+
+// ─── Phase 12: Enterprise Features ───────────────────────────────────────────
+
+model SsoConfig {
+  id              String    @id @default(cuid())
+  orgId           String    @unique
+  provider        String
+  metadataUrl     String?
+  metadataXml     String?   @db.Text
+  acsUrl          String
+  entityId        String
+  ssoEnforced     Boolean   @default(false)
+  isActive        Boolean   @default(true)
+  testedAt        DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@map("sso_config")
+}
+
+model UserOrgPreference {
+  userId      String   @id @db.Uuid
+  activeOrgId String
+  updatedAt   DateTime @updatedAt
+
+  user Profile      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  org  Organization @relation(fields: [activeOrgId], references: [id], onDelete: Cascade)
+
+  @@map("user_org_preference")
+}
+
+model OrgDomain {
+  id           String    @id @default(cuid())
+  orgId        String    @unique
+  domain       String    @unique
+  verified     Boolean   @default(false)
+  verifyToken  String
+  createdAt    DateTime  @default(now())
+  verifiedAt   DateTime?
+
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@map("org_domain")
+}
+
+model OrgWhiteLabel {
+  id              String   @id @default(cuid())
+  orgId           String   @unique
+  removeBranding  Boolean  @default(false)
+  emailFromName   String?
+  emailReplyTo    String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@map("org_white_label")
+}
+
+model OrgEmailDomain {
+  id          String   @id @default(cuid())
+  orgId       String
+  emailDomain String
+  defaultRole String   @default("viewer")
+  autoJoin    Boolean  @default(false)
+  createdAt   DateTime @default(now())
+
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@unique([orgId, emailDomain])
+  @@map("org_email_domain")
+}
+
+// ─── Phase 13: AI Features ───────────────────────────────────────────────────
+
+model OcrJob {
+  id            String    @id @default(cuid())
+  orgId         String
+  status        String    @default("pending")
+  inputS3Key    String
+  extractedData Json?
+  confidence    Float?
+  errorMessage  String?
+  createdAt     DateTime  @default(now())
+  completedAt   DateTime?
+
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@index([orgId, createdAt])
+  @@map("ocr_job")
+}
+
+// ─── Phase 13: Third-Party Integrations ──────────────────────────────────────
+
+model OrgIntegration {
+  id             String    @id @default(cuid())
+  orgId          String
+  provider       String
+  accessToken    String
+  refreshToken   String
+  tokenExpiresAt DateTime
+  externalOrgId  String?
+  config         Json?
+  isActive       Boolean   @default(true)
+  lastSyncAt     DateTime?
+  createdAt      DateTime  @default(now())
+
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@unique([orgId, provider])
+  @@map("org_integration")
+}
+
+// ─── Phase 13: Push Notifications ────────────────────────────────────────────
+
+model PushSubscription {
+  id        String   @id @default(cuid())
+  userId    String   @db.Uuid
+  endpoint  String   @unique
+  keys      Json
+  userAgent String?
+  createdAt DateTime @default(now())
+
+  user Profile @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("push_subscription")
 }

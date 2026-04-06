@@ -21,6 +21,24 @@ const envSchema = z.object({
   RAZORPAY_KEY_ID: z.string().optional(),
   RAZORPAY_KEY_SECRET: z.string().optional(),
   RAZORPAY_WEBHOOK_SECRET: z.string().optional(),
+  // Phase 12
+  EXCHANGE_RATE_API_KEY: z.string().optional(),
+  FEATURE_PAYMENT_LINKS_ENABLED: z.string().optional().default("true"),
+  FEATURE_SMART_COLLECT_ENABLED: z.string().optional().default("true"),
+  FEATURE_API_PLATFORM_ENABLED: z.string().optional().default("true"),
+  FEATURE_SSO_ENABLED: z.string().optional().default("true"),
+  // Phase 13
+  AWS_REGION: z.string().optional().default("ap-south-1"),
+  AWS_S3_BUCKET_ASSETS: z.string().optional(),
+  AWS_S3_BUCKET_PRIVATE: z.string().optional(),
+  CLOUDFRONT_URL: z.string().optional(),
+  REDIS_URL: z.string().optional(),
+  OPENAI_API_KEY: z.string().optional(),
+  NEXT_PUBLIC_POSTHOG_KEY: z.string().optional(),
+  NEXT_PUBLIC_POSTHOG_HOST: z.string().optional(),
+  VAPID_PUBLIC_KEY: z.string().optional(),
+  VAPID_PRIVATE_KEY: z.string().optional(),
+  NEXT_PUBLIC_VAPID_PUBLIC_KEY: z.string().optional(),
 });
 
 type Env = z.infer<typeof envSchema>;
