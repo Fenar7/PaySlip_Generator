@@ -2,7 +2,7 @@
 
 import { db } from "@/lib/db";
 import { requireOrgContext } from "@/lib/auth";
-import { requirePermission } from "@/lib/permissions";
+import { requirePermission } from "@/lib/permissions-server";
 import { sendEmail } from "@/lib/email";
 import { inviteEmailHtml } from "@/lib/email-templates/invite-email";
 import { revalidatePath } from "next/cache";
