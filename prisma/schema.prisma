@@ -17,9 +17,11 @@ model Profile {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  members          Member[]
-  auditActorLogs   AuditLog[] @relation("AuditActor")
-  auditRepLogs     AuditLog[] @relation("AuditRepresented")
+  members              Member[]
+  auditActorLogs       AuditLog[]            @relation("AuditActor")
+  auditRepLogs         AuditLog[]            @relation("AuditRepresented")
+  referrals            Referral[]
+  onboardingProgress   OnboardingProgress?
 
   @@map("profiles")
 }
@@ -49,6 +51,11 @@ model Organization {
   reportSnapshots ReportSnapshot[]
   proxyGrants     ProxyGrant[]
   auditLogs       AuditLog[]
+  subscription    Subscription?
+  usageRecords    UsageRecord[]
+  storageUsage    StorageUsage[]
+  sendLogs        SendLog[]
+  sharedDocuments SharedDocument[]
 
   @@map("organization")
 }
@@ -643,16 +650,24 @@ model RecurringInvoiceRule {
 // ─── Phase 5: SW Flow — Job Log ───────────────────────────────────────────────
 
 model JobLog {
-  id          String    @id @default(cuid())
-  jobName     String
-  jobId       String?
-  status      String    @default("pending")
-  invoiceId   String?
-  triggeredAt DateTime  @default(now())
-  completedAt DateTime?
-  error       String?
+  id           String    @id @default(cuid())
+  jobName      String
+  jobId        String?
+  orgId        String?
+  status       String    @default("pending")
+  invoiceId    String?
+  errorMessage String?
+  payload      Json?
+  retryCount   Int       @default(0)
+  maxRetries   Int       @default(3)
+  nextRetryAt  DateTime?
+  triggeredAt  DateTime  @default(now())
+  completedAt  DateTime?
+  error        String?
 
   @@index([jobName, status])
+  @@index([orgId, status])
+  @@index([nextRetryAt, status])
   @@map("job_log")
 }
 
@@ -725,4 +740,157 @@ model AuditLog {
   @@index([actorId])
   @@index([entityType, entityId])
   @@map("audit_log")
+}
+
+// ─── Phase 10: Storage Usage Tracking ─────────────────────────────────────────
+
+model StorageUsage {
+  id             String   @id @default(cuid())
+  orgId          String
+  category       String   // "export" | "proof" | "attachment" | "pixel"
+  sizeBytes      BigInt   @default(0)
+  fileCount      Int      @default(0)
+  lastUpdatedAt  DateTime @updatedAt
+
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@unique([orgId, category])
+  @@index([orgId])
+  @@map("storage_usage")
+}
+
+// ─── Phase 10: Send Log ───────────────────────────────────────────────────────
+
+model SendLog {
+  id           String   @id @default(cuid())
+  orgId        String
+  type         String   // "invoice_send" | "scheduled_send" | "reminder" | "notification"
+  recipientEmail String
+  subject      String?
+  status       String   @default("sent") // "sent" | "failed" | "bounced"
+  errorMessage String?
+  docType      String?  // "invoice" | "voucher" | "salary_slip"
+  docId        String?
+  sentAt       DateTime @default(now())
+
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@index([orgId, type])
+  @@index([orgId, sentAt])
+  @@map("send_log")
+}
+
+// ─── Phase 11: Subscription & Billing ─────────────────────────────────────────
+
+model Subscription {
+  id                  String    @id @default(cuid())
+  orgId               String    @unique
+  planId              String    @default("free")
+  status              String    @default("trialing")
+  billingInterval     String?
+  razorpayCustomerId  String?   @unique
+  razorpaySubId       String?   @unique
+  razorpayPlanId      String?
+  trialEndsAt         DateTime?
+  currentPeriodStart  DateTime?
+  currentPeriodEnd    DateTime?
+  cancelAtPeriodEnd   Boolean   @default(false)
+  cancelledAt         DateTime?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@map("subscription")
+}
+
+model UsageRecord {
+  id          String   @id @default(cuid())
+  orgId       String
+  resource    String
+  periodMonth String
+  periodDay   String?
+  count       Int      @default(0)
+  updatedAt   DateTime @updatedAt
+
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@unique([orgId, resource, periodMonth])
+  @@index([orgId, periodMonth])
+  @@map("usage_record")
+}
+
+model RazorpayEvent {
+  id          String   @id
+  type        String
+  payload     Json
+  processedAt DateTime @default(now())
+
+  @@index([type])
+  @@index([processedAt])
+  @@map("razorpay_event")
+}
+
+// ─── Phase 11: Referral System ────────────────────────────────────────────────
+
+model Referral {
+  id              String    @id @default(cuid())
+  referrerId      String    @db.Uuid
+  referredOrgId   String?
+  referralCode    String    @unique
+  status          String    @default("pending")
+  creditApplied   Boolean   @default(false)
+  referrerCredit  Boolean   @default(false)
+  createdAt       DateTime  @default(now())
+  convertedAt     DateTime?
+  creditedAt      DateTime?
+
+  referrer Profile @relation(fields: [referrerId], references: [id], onDelete: Cascade)
+
+  @@index([referrerId])
+  @@index([referralCode])
+  @@map("referral")
+}
+
+// ─── Phase 11: Document Sharing ───────────────────────────────────────────────
+
+model SharedDocument {
+  id            String    @id @default(cuid())
+  orgId         String
+  docType       String
+  docId         String
+  shareToken    String    @unique
+  expiresAt     DateTime?
+  viewCount     Int       @default(0)
+  downloadCount Int       @default(0)
+  createdBy     String    @db.Uuid
+  createdAt     DateTime  @default(now())
+
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@index([shareToken])
+  @@index([orgId, docType, docId])
+  @@map("shared_document")
+}
+
+// ─── Phase 11: Onboarding Progress ───────────────────────────────────────────
+
+model OnboardingProgress {
+  id                  String    @id @default(cuid())
+  userId              String    @unique @db.Uuid
+  accountCreated      Boolean   @default(true)
+  emailVerified       Boolean   @default(false)
+  orgSetup            Boolean   @default(false)
+  firstDocCreated     Boolean   @default(false)
+  firstDocExported    Boolean   @default(false)
+  teamMemberInvited   Boolean   @default(false)
+  recurringSetup      Boolean   @default(false)
+  completedAt         DateTime?
+  dismissedAt         DateTime?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  user Profile @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("onboarding_progress")
 }
