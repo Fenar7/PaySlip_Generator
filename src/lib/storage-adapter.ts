@@ -72,20 +72,86 @@ export class SupabaseStorageAdapter implements StorageAdapter {
 }
 
 export class S3StorageAdapter implements StorageAdapter {
-  async upload(): Promise<{ key: string; url?: string }> {
-    throw new Error("S3 not configured");
+  private async getS3Client() {
+    const {
+      S3Client,
+      PutObjectCommand,
+      DeleteObjectCommand,
+      GetObjectCommand,
+    } = await import("@aws-sdk/client-s3");
+    const { getSignedUrl } = await import("@aws-sdk/s3-request-presigner");
+
+    const client = new S3Client({
+      region: process.env.AWS_REGION ?? "ap-south-1",
+    });
+
+    return { client, PutObjectCommand, DeleteObjectCommand, GetObjectCommand, getSignedUrl };
   }
 
-  async getSignedUrl(): Promise<string> {
-    throw new Error("S3 not configured");
+  async upload(
+    bucket: string,
+    path: string,
+    data: Buffer,
+    contentType: string
+  ): Promise<{ key: string; url?: string }> {
+    try {
+      const { client, PutObjectCommand } = await this.getS3Client();
+      await client.send(
+        new PutObjectCommand({
+          Bucket: bucket,
+          Key: path,
+          Body: data,
+          ContentType: contentType,
+        })
+      );
+      return { key: path, url: this.getPublicUrl(bucket, path) };
+    } catch (error) {
+      throw new Error(
+        `S3 upload failed: ${error instanceof Error ? error.message : "Unknown error"}`
+      );
+    }
   }
 
-  async delete(): Promise<void> {
-    throw new Error("S3 not configured");
+  async getSignedUrl(
+    bucket: string,
+    key: string,
+    expiresIn = 3600
+  ): Promise<string> {
+    try {
+      const { client, GetObjectCommand, getSignedUrl } =
+        await this.getS3Client();
+      return await getSignedUrl(
+        client,
+        new GetObjectCommand({ Bucket: bucket, Key: key }),
+        { expiresIn }
+      );
+    } catch (error) {
+      throw new Error(
+        `S3 signed URL failed: ${error instanceof Error ? error.message : "Unknown error"}`
+      );
+    }
   }
 
-  getPublicUrl(): string {
-    throw new Error("S3 not configured");
+  async delete(bucket: string, key: string): Promise<void> {
+    try {
+      const { client, DeleteObjectCommand } = await this.getS3Client();
+      await client.send(
+        new DeleteObjectCommand({ Bucket: bucket, Key: key })
+      );
+    } catch (error) {
+      throw new Error(
+        `S3 delete failed: ${error instanceof Error ? error.message : "Unknown error"}`
+      );
+    }
+  }
+
+  getPublicUrl(bucket: string, key: string): string {
+    const cloudfrontUrl = process.env.CLOUDFRONT_URL;
+    if (cloudfrontUrl) {
+      return `${cloudfrontUrl}/${key}`;
+    }
+    const region = process.env.AWS_REGION ?? "ap-south-1";
+    return `https://${bucket}.s3.${region}.amazonaws.com/${key}`;
   }
 }
 

@@ -7,15 +7,21 @@ const PUBLIC_PREFIXES = [
   "/auth",
   "/api/auth",
   "/api/billing",
+  "/api/v1",
+  "/api/health",
   "/app/docs",
   "/invoice",
   "/salary-slip",
   "/voucher",
   "/pdf-studio",
   "/share",
+  "/developers",
   "/_next",
   "/favicon",
   "/public",
+  "/manifest.json",
+  "/sw.js",
+  "/offline",
 ];
 
 export async function middleware(request: NextRequest) {

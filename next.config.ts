@@ -1,6 +1,7 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  output: "standalone",
   serverExternalPackages: ["@sparticuz/chromium", "playwright-core"],
   async redirects() {
     return [

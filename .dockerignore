@@ -1,0 +1,10 @@
+node_modules
+.next
+.git
+*.md
+test-results
+tests
+tmp-foundation
+docs
+.env*
+!.env.example
