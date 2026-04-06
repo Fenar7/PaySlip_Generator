@@ -28,11 +28,13 @@ import { SalarySlipPreview } from "@/features/docs/salary-slip/components/salary
 import { SalarySlipDocumentFrame } from "@/features/docs/salary-slip/components/salary-slip-document-frame";
 import { salarySlipFormSchema } from "@/features/docs/salary-slip/schema";
 import type { SalarySlipDocument, SalarySlipFormValues } from "@/features/docs/salary-slip/types";
-import { buildSalarySlipFilename } from "@/features/docs/salary-slip/utils/build-salary-slip-filename";
 import { normalizeSalarySlip } from "@/features/docs/salary-slip/utils/normalize-salary-slip";
 import { salarySlipTemplateRegistry } from "@/features/docs/salary-slip/templates";
 import { DocumentPreviewSurface } from "@/components/document/document-preview-surface";
-import { downloadBinaryExport } from "@/lib/browser/download-binary-export";
+import {
+  prepareDocumentExportDownload,
+  startDocumentExportDownload,
+} from "@/lib/browser/document-export-handoff";
 import { cn } from "@/lib/utils";
 
 interface WorkspaceEmployee {
@@ -152,7 +154,7 @@ function PresetApplyButton({ presets }: { presets: WorkspacePreset[] }) {
 type SalarySlipActionState =
   | { status: "idle" }
   | { status: "pending"; action: "print" | "pdf" | "png" }
-  | { status: "success"; action: "pdf" | "png" }
+  | { status: "success"; action: "pdf" | "png"; downloadUrl: string }
   | { status: "error"; action?: "pdf" | "png"; message: string };
 
 const salaryWorkspaceSections: WorkspaceSectionMeta[] = [
@@ -375,17 +377,14 @@ function SalarySlipPanel({ employees = [], presets = [], initialTemplateId }: Wo
     setActionState({ status: "pending", action: format });
 
     try {
-      const endpoint =
-        format === "pdf"
-          ? "/api/export/salary-slip/pdf"
-          : "/api/export/salary-slip/png";
       const payload = JSON.stringify({ document });
-      await downloadBinaryExport({
-        endpoint,
+      const downloadUrl = await prepareDocumentExportDownload({
+        sessionEndpoint: "/api/export/salary-slip/session",
         payload,
-        fallbackFilename: buildSalarySlipFilename(document, format),
+        format,
+        fallbackErrorMessage: `Unable to prepare the salary slip ${format.toUpperCase()} export.`,
       });
-      setActionState({ status: "success", action: format });
+      setActionState({ status: "success", action: format, downloadUrl });
     } catch (error) {
       setActionState({
         status: "error",
@@ -507,9 +506,7 @@ function SalarySlipPanel({ employees = [], presets = [], initialTemplateId }: Wo
                 format: actionState.action,
                 onClose: () => setActionState({ status: "idle" }),
                 onRetry: () => {
-                  if (actionState.action) {
-                    void handleDownload(actionState.action);
-                  }
+                  startDocumentExportDownload(actionState.downloadUrl);
                 },
               } satisfies WorkspaceExportDialog)
             : actionState.status === "error" && actionState.action

@@ -27,9 +27,11 @@ import { invoiceDefaultValues, invoiceTemplateOptions } from "@/features/docs/in
 import { invoiceFormSchema } from "@/features/docs/invoice/schema";
 import type { InvoiceFormValues } from "@/features/docs/invoice/types";
 import type { InvoiceDocument, InvoiceTemplateId } from "@/features/docs/invoice/types";
-import { buildInvoiceFilename } from "@/features/docs/invoice/utils/build-invoice-filename";
 import { normalizeInvoice } from "@/features/docs/invoice/utils/normalize-invoice";
-import { downloadBinaryExport } from "@/lib/browser/download-binary-export";
+import {
+  prepareDocumentExportDownload,
+  startDocumentExportDownload,
+} from "@/lib/browser/document-export-handoff";
 import { cn } from "@/lib/utils";
 import { CustomerPicker } from "./customer-picker";
 import { InvoiceSaveBar } from "./invoice-save-bar";
@@ -42,7 +44,7 @@ import {
 type InvoiceActionState =
   | { status: "idle" }
   | { status: "pending"; action: "print" | "pdf" | "png" }
-  | { status: "success"; action: "pdf" | "png" }
+  | { status: "success"; action: "pdf" | "png"; downloadUrl: string }
   | { status: "error"; action?: "pdf" | "png"; message: string };
 
 const invoiceWorkspaceSections: WorkspaceSectionMeta[] = [
@@ -219,15 +221,14 @@ function InvoicePanel({ customers = [] }: InvoicePanelProps) {
     setActionState({ status: "pending", action: format });
 
     try {
-      const endpoint =
-        format === "pdf" ? "/api/export/invoice/pdf" : "/api/export/invoice/png";
       const payload = JSON.stringify({ document });
-      await downloadBinaryExport({
-        endpoint,
+      const downloadUrl = await prepareDocumentExportDownload({
+        sessionEndpoint: "/api/export/invoice/session",
         payload,
-        fallbackFilename: buildInvoiceFilename(document, format),
+        format,
+        fallbackErrorMessage: `Unable to prepare the invoice ${format.toUpperCase()} export.`,
       });
-      setActionState({ status: "success", action: format });
+      setActionState({ status: "success", action: format, downloadUrl });
     } catch (error) {
       setActionState({
         status: "error",
@@ -348,9 +349,7 @@ function InvoicePanel({ customers = [] }: InvoicePanelProps) {
                 format: actionState.action,
                 onClose: () => setActionState({ status: "idle" }),
                 onRetry: () => {
-                  if (actionState.action) {
-                    void handleDownload(actionState.action);
-                  }
+                  startDocumentExportDownload(actionState.downloadUrl);
                 },
               } satisfies WorkspaceExportDialog)
             : actionState.status === "error" && actionState.action
