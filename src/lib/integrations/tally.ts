@@ -50,11 +50,9 @@ function buildVoucherXml(invoice: InvoiceWithItems): string {
   let totalCgst = 0;
   let totalSgst = 0;
   let totalIgst = 0;
-  let subtotal = 0;
 
   const itemEntries = invoice.lineItems.map((item) => {
     const lineAmount = item.quantity * item.unitPrice - item.discount;
-    subtotal += lineAmount;
 
     const taxAmount = lineAmount * (item.taxRate / 100);
     // Assume intra-state (CGST+SGST split) by default

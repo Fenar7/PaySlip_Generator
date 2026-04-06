@@ -43,7 +43,7 @@ export async function POST(
     }
 
     // Find or create profile
-    let profile = await db.profile.findUnique({ where: { email } });
+    const profile = await db.profile.findUnique({ where: { email } });
     if (!profile) {
       // In a full implementation, we'd create a Supabase auth user first.
       // For now, if the profile doesn't exist, redirect to sign-up with SSO context.

@@ -1,3 +1,5 @@
+"use client";
+
 export default function OfflinePage() {
   return (
     <div className="flex min-h-screen flex-col items-center justify-center bg-white px-4">
@@ -17,7 +19,7 @@ export default function OfflinePage() {
             />
           </svg>
         </div>
-        <h1 className="text-2xl font-bold text-[#1a1a1a]">You're offline</h1>
+        <h1 className="text-2xl font-bold text-[#1a1a1a]">You&apos;re offline</h1>
         <p className="mt-2 text-[#666]">
           Please check your internet connection and try again.
         </p>

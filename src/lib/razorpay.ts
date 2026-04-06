@@ -5,6 +5,64 @@ import crypto from "crypto";
 
 let razorpayInstance: Razorpay | null = null;
 
+type PaymentLinkCreateParams = {
+  amount: number;
+  currency: string;
+  description: string;
+  reference_id: string;
+  customer?: { name?: string; email?: string; contact?: string };
+  expire_by?: number;
+  notify: {
+    sms: boolean;
+    email: boolean;
+  };
+  reminder_enable: boolean;
+};
+
+type PaymentLinkResponse = {
+  id: string;
+  short_url: string;
+};
+
+type VirtualAccountCreateParams = {
+  receivers: { types: string[] };
+  description: string;
+  customer_id?: string;
+  close_by?: number;
+  notes?: Record<string, string>;
+};
+
+type VirtualAccountResponse = {
+  id: string;
+  receivers: { account_number: string; ifsc: string }[];
+};
+
+type RazorpaySubscriptionsWithExtras = Razorpay["subscriptions"] & {
+  update(
+    subscriptionId: string,
+    payload: Record<string, string>,
+  ): Promise<Subscriptions.RazorpaySubscription>;
+  resume(
+    subscriptionId: string,
+    payload: { resume_at: "now" },
+  ): Promise<Subscriptions.RazorpaySubscription>;
+};
+
+type RazorpayWithExtras = Razorpay & {
+  paymentLink: {
+    create(payload: PaymentLinkCreateParams): Promise<PaymentLinkResponse>;
+  };
+  virtualAccounts: {
+    create(payload: VirtualAccountCreateParams): Promise<VirtualAccountResponse>;
+  };
+  subscriptions: RazorpaySubscriptionsWithExtras;
+};
+
+function getRazorpayWithExtras(): RazorpayWithExtras | null {
+  const rp = getRazorpay();
+  return rp as RazorpayWithExtras | null;
+}
+
 export function getRazorpay(): Razorpay | null {
   if (razorpayInstance) return razorpayInstance;
 
@@ -108,10 +166,10 @@ export async function createPaymentLink(params: {
   notifyEmail?: boolean;
   reminderEnable?: boolean;
 }): Promise<{ id: string; short_url: string } | null> {
-  const rp = getRazorpay();
+  const rp = getRazorpayWithExtras();
   if (!rp) return null;
 
-  return (rp as any).paymentLink.create({
+  return rp.paymentLink.create({
     amount: params.amount,
     currency: params.currency ?? "INR",
     description: params.description,
@@ -139,8 +197,8 @@ export async function createVirtualAccount(params: {
   const rp = getRazorpay();
   if (!rp) return null;
 
-  // Virtual Accounts API may not have SDK types — use any-cast
-  return (rp as any).virtualAccounts.create({
+  const client = rp as RazorpayWithExtras;
+  return client.virtualAccounts.create({
     receivers: { types: params.receiverTypes },
     description: params.description,
     customer_id: params.customerId,
@@ -156,25 +214,25 @@ export async function pauseRazorpaySubscription(
   subscriptionId: string,
   pauseAt?: "now",
 ): Promise<Subscriptions.RazorpaySubscription | null> {
-  const rp = getRazorpay();
+  const rp = getRazorpayWithExtras();
   if (!rp) return null;
 
-  return (rp as any).subscriptions.update(subscriptionId, {
+  return rp.subscriptions.update(subscriptionId, {
     pause_initiated_by: "customer",
     ...(pauseAt && { pause_at: pauseAt }),
-  }) as Promise<Subscriptions.RazorpaySubscription>;
+  });
 }
 
 export async function resumeRazorpaySubscription(
   subscriptionId: string,
 ): Promise<Subscriptions.RazorpaySubscription | null> {
-  const rp = getRazorpay();
+  const rp = getRazorpayWithExtras();
   if (!rp) return null;
 
-  return (rp as any).subscriptions.resume(
+  return rp.subscriptions.resume(
     subscriptionId,
     { resume_at: "now" },
-  ) as Promise<Subscriptions.RazorpaySubscription>;
+  );
 }
 
 export async function changeSubscriptionPlan(

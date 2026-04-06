@@ -8,8 +8,6 @@ import { Badge } from "@/components/ui/badge";
 import { UpgradeGate } from "@/components/plan/upgrade-gate";
 import {
   Globe,
-  CheckCircle,
-  XCircle,
   Plus,
   Trash2,
   Mail,

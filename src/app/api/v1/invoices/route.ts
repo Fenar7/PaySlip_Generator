@@ -1,13 +1,12 @@
 import { NextRequest } from "next/server";
 import { db } from "@/lib/db";
-import { incrementUsage, getMonthlyUsage } from "@/lib/plans/usage";
+import { incrementUsage } from "@/lib/plans/usage";
 import { checkLimit } from "@/lib/plans/enforcement";
 import { dispatchEvent } from "@/lib/api-webhooks";
 import {
   authenticateApiRequest,
   requireScope,
   apiResponse,
-  apiError,
   handleApiError,
   logApiRequest,
   parsePagination,

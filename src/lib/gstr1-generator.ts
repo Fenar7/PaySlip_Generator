@@ -1,7 +1,6 @@
 import "server-only";
 
 import { db } from "@/lib/db";
-import { calculateGST } from "@/lib/gst-calculator";
 
 export interface GSTR1Report {
   gstin: string;
@@ -161,13 +160,6 @@ export async function generateGSTR1(
       const item = items[i];
       const taxableValue = item.amount ?? item.quantity * item.unitPrice;
       const rate = item.taxRate ?? 18;
-
-      const gst = calculateGST({
-        hsnCode: "9983", // default IT services
-        amount: taxableValue,
-        fromState: orgStateCode,
-        toState: customerState,
-      });
 
       // Override rate to match actual line-item rate
       const actualCgst = round((taxableValue * rate) / 100 / 2);
