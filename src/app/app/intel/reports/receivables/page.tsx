@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useState, useTransition } from "react";
+import { useCallback, useEffect, useState, useTransition } from "react";
 import Link from "next/link";
 import {
   getReceivablesAging,
@@ -55,9 +55,10 @@ export default function ReceivablesAgingPage() {
     });
   };
 
-  if (!loaded && !isPending) {
-    fetchData(customerId);
-  }
+  useEffect(() => {
+    if (loaded) return;
+    fetchData("");
+  }, [fetchData, loaded]);
 
   return (
     <div className="min-h-screen">

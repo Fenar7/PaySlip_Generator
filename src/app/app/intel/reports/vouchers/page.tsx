@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useState, useTransition } from "react";
+import { useCallback, useEffect, useState, useTransition } from "react";
 import Link from "next/link";
 import {
   getVoucherReport,
@@ -147,9 +147,10 @@ export default function VoucherReportPage() {
     });
   };
 
-  if (!loaded && !isPending) {
-    fetchData(filters, 1);
-  }
+  useEffect(() => {
+    if (loaded) return;
+    fetchData({}, 1);
+  }, [fetchData, loaded]);
 
   const net = summary.receipts - summary.payments;
 

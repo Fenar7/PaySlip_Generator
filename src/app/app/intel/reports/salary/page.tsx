@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useState, useTransition } from "react";
+import { useCallback, useEffect, useState, useTransition } from "react";
 import Link from "next/link";
 import {
   getSalaryReport,
@@ -181,9 +181,10 @@ export default function SalaryReportPage() {
     });
   };
 
-  if (!loaded && !isPending) {
-    fetchData(filters, 1);
-  }
+  useEffect(() => {
+    if (loaded) return;
+    fetchData({}, 1);
+  }, [fetchData, loaded]);
 
   return (
     <div className="min-h-screen">
