@@ -10,6 +10,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:e2e": "playwright test",
+    "db:migrate": "prisma migrate dev",
+    "db:status": "prisma migrate status",
     "postinstall": "prisma generate",
     "supabase:start": "bash scripts/supabase-start.sh",
     "supabase:stop": "bash scripts/supabase-stop.sh",

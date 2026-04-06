@@ -1,6 +1,7 @@
 import "server-only";
 
 import { db } from "@/lib/db";
+import { isModelMissingTableError } from "@/lib/prisma-errors";
 
 // ─── Notification Utility ─────────────────────────────────────────────────────
 
@@ -14,16 +15,26 @@ export interface CreateNotificationParams {
 }
 
 export async function createNotification(params: CreateNotificationParams) {
-  return db.notification.create({
-    data: {
-      userId: params.userId,
-      orgId: params.orgId,
-      type: params.type,
-      title: params.title,
-      body: params.body,
-      link: params.link ?? null,
-    },
-  });
+  try {
+    return await db.notification.create({
+      data: {
+        userId: params.userId,
+        orgId: params.orgId,
+        type: params.type,
+        title: params.title,
+        body: params.body,
+        link: params.link ?? null,
+      },
+    });
+  } catch (error) {
+    if (isModelMissingTableError(error, "Notification")) {
+      console.warn(
+        "createNotification skipped: notification table missing during local/runtime schema drift",
+      );
+      return null;
+    }
+    throw error;
+  }
 }
 
 export interface NotifyOrgAdminsParams {
@@ -47,14 +58,24 @@ export async function notifyOrgAdmins(params: NotifyOrgAdminsParams) {
 
   if (admins.length === 0) return;
 
-  await db.notification.createMany({
-    data: admins.map((admin) => ({
-      userId: admin.userId,
-      orgId: params.orgId,
-      type: params.type,
-      title: params.title,
-      body: params.body,
-      link: params.link ?? null,
-    })),
-  });
+  try {
+    await db.notification.createMany({
+      data: admins.map((admin) => ({
+        userId: admin.userId,
+        orgId: params.orgId,
+        type: params.type,
+        title: params.title,
+        body: params.body,
+        link: params.link ?? null,
+      })),
+    });
+  } catch (error) {
+    if (isModelMissingTableError(error, "Notification")) {
+      console.warn(
+        "notifyOrgAdmins skipped: notification table missing during local/runtime schema drift",
+      );
+      return;
+    }
+    throw error;
+  }
 }

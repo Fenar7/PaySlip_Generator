@@ -49,8 +49,15 @@ npm run build
 
 3. **Set up the database**
    ```bash
+   npm run supabase:start # if you use the local Supabase stack in this repo
    npx prisma generate    # generate the Prisma client
    npx prisma migrate dev # run migrations (requires running PostgreSQL)
+   ```
+   App workflows such as invoice save/export, approvals, and notifications depend on the migrated schema.
+   If those features fail with `P2021` or "table does not exist" errors, run the Prisma migrations before debugging the UI.
+   If your local database has drifted from the committed migration history, reset it with:
+   ```bash
+   ./node_modules/.bin/prisma migrate reset --force
    ```
 
 4. **Run the dev server**
@@ -61,7 +68,7 @@ npm run build
 
 ### Development without a database
 
-PDF Studio and the marketing homepage work without any database. For full auth + document persistence features, you need a running PostgreSQL instance.
+PDF Studio and the marketing homepage work without any database. For authenticated app features such as saved invoices, approvals, notifications, and workflow pages, you need a running PostgreSQL instance with the committed Prisma migrations applied.
 
 ## Phase 1 Scope
 

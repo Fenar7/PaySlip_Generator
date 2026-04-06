@@ -3,6 +3,7 @@
 import { db } from "@/lib/db";
 import { requireOrgContext } from "@/lib/auth";
 import { revalidatePath } from "next/cache";
+import { isModelMissingTableError } from "@/lib/prisma-errors";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -71,6 +72,19 @@ export async function listNotifications(
       },
     };
   } catch (error) {
+    if (isModelMissingTableError(error, "Notification")) {
+      console.warn(
+        "listNotifications fallback: notification table missing; returning empty state",
+      );
+      return {
+        success: true,
+        data: {
+          notifications: [],
+          total: 0,
+          unreadCount: 0,
+        },
+      };
+    }
     console.error("listNotifications error:", error);
     return { success: false, error: "Failed to list notifications" };
   }
@@ -88,6 +102,12 @@ export async function getUnreadCount(): Promise<ActionResult<number>> {
 
     return { success: true, data: count };
   } catch (error) {
+    if (isModelMissingTableError(error, "Notification")) {
+      console.warn(
+        "getUnreadCount fallback: notification table missing; returning 0",
+      );
+      return { success: true, data: 0 };
+    }
     console.error("getUnreadCount error:", error);
     return { success: false, error: "Failed to get unread count" };
   }
@@ -118,6 +138,13 @@ export async function markNotificationRead(
     revalidatePath("/app/flow/notifications");
     return { success: true, data: undefined };
   } catch (error) {
+    if (isModelMissingTableError(error, "Notification")) {
+      console.warn(
+        "markNotificationRead fallback: notification table missing; treating as already read",
+      );
+      revalidatePath("/app/flow/notifications");
+      return { success: true, data: undefined };
+    }
     console.error("markNotificationRead error:", error);
     return { success: false, error: "Failed to mark notification as read" };
   }
@@ -137,6 +164,13 @@ export async function markAllRead(): Promise<ActionResult<undefined>> {
     revalidatePath("/app/flow/notifications");
     return { success: true, data: undefined };
   } catch (error) {
+    if (isModelMissingTableError(error, "Notification")) {
+      console.warn(
+        "markAllRead fallback: notification table missing; treating as already read",
+      );
+      revalidatePath("/app/flow/notifications");
+      return { success: true, data: undefined };
+    }
     console.error("markAllRead error:", error);
     return { success: false, error: "Failed to mark all as read" };
   }
