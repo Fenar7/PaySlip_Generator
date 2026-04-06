@@ -61,14 +61,27 @@ export default function OnboardingPage() {
     setError("");
     setLoading(true);
     try {
-      const org = await createOrg({ name: orgName.trim(), slug, userId: user.id });
+      const org = await createOrg({
+        name: orgName.trim(),
+        slug,
+        userId: user.id,
+        userEmail: user.email ?? "",
+        userName: user.user_metadata?.full_name || user.user_metadata?.name || undefined,
+      });
       setOrgId(org.id);
       if (typeof window !== "undefined") {
         localStorage.setItem("slipwise_active_org_id", org.id);
       }
       setStep(2);
-    } catch {
-      setError("Could not create organization. Try a different name.");
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      // Unique slug constraint = name already taken
+      if (msg.includes("Unique") || msg.includes("unique") || msg.includes("slug")) {
+        setError("An organization with that name already exists. Try a different name.");
+      } else {
+        setError("Could not create organization. Please try again.");
+      }
+      console.error("[createOrg error]", err);
     } finally {
       setLoading(false);
     }
