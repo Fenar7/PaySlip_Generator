@@ -8,7 +8,7 @@ import type { InvoiceDocument } from "@/features/docs/invoice/types";
 
 type InvoiceDocumentFrameProps = {
   document: InvoiceDocument;
-  mode?: "preview" | "print" | "pdf" | "png";
+  mode?: "preview" | "print" | "pdf" | "png" | "edit";
 };
 
 export function InvoiceDocumentFrame({
@@ -20,7 +20,7 @@ export function InvoiceDocumentFrame({
 
   return (
     <article
-      data-testid={mode === "preview" ? undefined : "invoice-render-ready"}
+      data-testid={mode !== "preview" && mode !== "edit" ? "invoice-render-ready" : undefined}
       className="w-full bg-white p-8 text-[var(--voucher-ink)]"
       style={
         {

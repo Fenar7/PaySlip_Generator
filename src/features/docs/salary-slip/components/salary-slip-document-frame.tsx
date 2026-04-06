@@ -8,7 +8,7 @@ import type { SalarySlipDocument } from "@/features/docs/salary-slip/types";
 
 type SalarySlipDocumentFrameProps = {
   document: SalarySlipDocument;
-  mode?: "preview" | "print" | "pdf" | "png";
+  mode?: "preview" | "print" | "pdf" | "png" | "edit";
 };
 
 export function SalarySlipDocumentFrame({
@@ -20,7 +20,7 @@ export function SalarySlipDocumentFrame({
 
   return (
     <article
-      data-testid={mode === "preview" ? undefined : "salary-slip-render-ready"}
+      data-testid={mode !== "print" && mode !== "pdf" && mode !== "png" ? undefined : "salary-slip-render-ready"}
       className="w-full bg-white p-8 text-[var(--voucher-ink)]"
       style={
         {

@@ -14,7 +14,7 @@ export const invoiceTemplateRegistry: Record<
       mode,
     }: {
       document: InvoiceDocument;
-      mode?: "preview" | "print" | "pdf" | "png";
+      mode?: "preview" | "print" | "pdf" | "png" | "edit";
     }) => React.JSX.Element;
   }
 > = {

@@ -18,7 +18,7 @@ export const salarySlipTemplateRegistry: Record<
       mode,
     }: {
       document: SalarySlipDocument;
-      mode?: "preview" | "print" | "pdf" | "png";
+      mode?: "preview" | "print" | "pdf" | "png" | "edit";
     }) => JSX.Element;
   }
 > = {

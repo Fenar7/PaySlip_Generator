@@ -1,16 +1,30 @@
+"use client";
+
+import { useFormContext, useWatch } from "react-hook-form";
 import { DocumentBrandMark } from "@/components/document/document-brand-mark";
+import {
+  InlineDateField,
+  InlineNumberField,
+  InlineTextArea,
+  InlineTextField,
+} from "@/components/document/inline-edit-fields";
 import { cn } from "@/lib/utils";
-import type { VoucherDocument } from "@/features/docs/voucher/types";
+import type { VoucherDocument, VoucherFormValues } from "@/features/docs/voucher/types";
+import { normalizeVoucher } from "@/features/docs/voucher/utils/normalize-voucher";
 
 type VoucherTemplateProps = {
   document: VoucherDocument;
-  mode?: "preview" | "print" | "pdf" | "png";
+  mode?: "preview" | "print" | "pdf" | "png" | "edit";
 };
 
 export function FormalBorderedVoucherTemplate({
   document,
   mode = "preview",
 }: VoucherTemplateProps) {
+  if (mode === "edit") {
+    return <FormalBorderedEditor />;
+  }
+
   const printLikeMode = mode !== "preview";
 
   const rows: { label: string; value: string }[] = [
@@ -127,6 +141,130 @@ export function FormalBorderedVoucherTemplate({
                       ? `Received by: ${document.receivedBy}`
                       : "Received by"}
                   </p>
+                </div>
+              ) : null}
+            </div>
+          ) : null}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function FormalBorderedEditor() {
+  const { control } = useFormContext<VoucherFormValues>();
+  const watchedValues = useWatch({ control }) as VoucherFormValues;
+  const doc = normalizeVoucher(watchedValues);
+
+  const rowClass = (i: number) =>
+    cn(
+      "grid grid-cols-[9rem_1fr] gap-2 border-b border-[rgba(29,23,16,0.12)] px-6 py-3 text-sm last:border-b-0",
+      i % 2 === 0 ? "bg-[rgba(29,23,16,0.03)]" : "bg-transparent",
+    );
+
+  const labelClass = "font-semibold uppercase tracking-[0.1em] text-[rgba(29,23,16,0.52)]";
+
+  return (
+    <div className="space-y-0 text-[var(--voucher-ink)]">
+      <div className="document-break-inside-avoid border-2 border-[var(--voucher-ink)] p-1">
+        <div className="border border-[rgba(29,23,16,0.35)]">
+          {/* Top banner */}
+          <div className="flex items-center justify-between border-b border-[rgba(29,23,16,0.35)] px-6 py-4">
+            <div className="flex items-center gap-3">
+              <DocumentBrandMark
+                branding={doc.branding}
+                className="flex h-10 w-10 shrink-0 items-center justify-center border border-[rgba(29,23,16,0.15)] bg-[rgba(255,255,255,0.9)] p-1.5"
+                initialsClassName="text-xs font-bold text-[var(--voucher-accent)]"
+                imageClassName="h-full w-full object-cover"
+              />
+              <InlineTextField
+                name="branding.companyName"
+                placeholder="Company Name"
+                className="text-lg font-semibold"
+              />
+            </div>
+            <h1 className="shrink-0 text-xl font-bold uppercase tracking-[0.16em]">
+              {doc.title}
+            </h1>
+          </div>
+
+          {/* Company details row */}
+          <div className="flex flex-wrap items-center gap-x-6 gap-y-1 border-b border-[rgba(29,23,16,0.2)] px-6 py-2 text-xs text-[rgba(29,23,16,0.6)]">
+            {doc.visibility.showAddress ? (
+              <InlineTextArea name="branding.address" placeholder="Company address" className="text-xs" />
+            ) : null}
+            {doc.visibility.showEmail ? (
+              <InlineTextField name="branding.email" placeholder="Email" className="text-xs" />
+            ) : null}
+            {doc.visibility.showPhone ? (
+              <InlineTextField name="branding.phone" placeholder="Phone" className="text-xs" />
+            ) : null}
+          </div>
+
+          {/* Structured form rows */}
+          <div>
+            <div className={rowClass(0)}>
+              <span className={labelClass}>Voucher No.</span>
+              <InlineTextField name="voucherNumber" placeholder="VCH-001" className="text-sm text-[rgba(29,23,16,0.85)]" />
+            </div>
+            <div className={rowClass(1)}>
+              <span className={labelClass}>Date</span>
+              <InlineDateField name="date" className="text-sm text-[rgba(29,23,16,0.85)]" />
+            </div>
+            <div className={rowClass(2)}>
+              <span className={labelClass}>{doc.counterpartyLabel}</span>
+              <InlineTextField name="counterpartyName" placeholder="Name" className="text-sm text-[rgba(29,23,16,0.85)]" />
+            </div>
+            <div className={rowClass(3)}>
+              <span className={labelClass}>Amount</span>
+              <div className="flex items-center gap-2">
+                <InlineNumberField name="amount" placeholder="0.00" className="text-sm text-[rgba(29,23,16,0.85)]" />
+                <span className="shrink-0 text-xs text-[rgba(29,23,16,0.55)]">{doc.amountInWords}</span>
+              </div>
+            </div>
+            {doc.visibility.showPaymentMode ? (
+              <div className={rowClass(4)}>
+                <span className={labelClass}>Payment Mode</span>
+                <InlineTextField name="paymentMode" placeholder="Cash / Cheque" className="text-sm text-[rgba(29,23,16,0.85)]" />
+              </div>
+            ) : null}
+            {doc.visibility.showReferenceNumber ? (
+              <div className={rowClass(5)}>
+                <span className={labelClass}>Reference No.</span>
+                <InlineTextField name="referenceNumber" placeholder="Reference number" className="text-sm text-[rgba(29,23,16,0.85)]" />
+              </div>
+            ) : null}
+            <div className={rowClass(6)}>
+              <span className={labelClass}>Purpose</span>
+              <InlineTextArea name="purpose" placeholder="Purpose of payment…" className="text-sm text-[rgba(29,23,16,0.85)]" />
+            </div>
+            {doc.visibility.showNotes ? (
+              <div className={rowClass(7)}>
+                <span className={labelClass}>Notes</span>
+                <InlineTextArea name="notes" placeholder="Additional notes…" className="text-sm text-[rgba(29,23,16,0.85)]" />
+              </div>
+            ) : null}
+          </div>
+
+          {/* Signature section */}
+          {doc.visibility.showSignatureArea ? (
+            <div className="document-break-inside-avoid grid border-t border-[rgba(29,23,16,0.35)] md:grid-cols-2">
+              {doc.visibility.showApprovedBy ? (
+                <div className="px-6 py-5 md:border-r md:border-[rgba(29,23,16,0.2)]">
+                  <div className="mt-8 border-b border-dotted border-[rgba(29,23,16,0.4)]" />
+                  <div className="mt-2 flex items-center gap-1 text-xs font-semibold uppercase tracking-[0.14em] text-[rgba(29,23,16,0.5)]">
+                    <span className="shrink-0">Approved by:</span>
+                    <InlineTextField name="approvedBy" placeholder="Name" className="text-xs font-semibold uppercase tracking-[0.14em]" />
+                  </div>
+                </div>
+              ) : null}
+              {doc.visibility.showReceivedBy ? (
+                <div className="px-6 py-5">
+                  <div className="mt-8 border-b border-dotted border-[rgba(29,23,16,0.4)]" />
+                  <div className="mt-2 flex items-center gap-1 text-xs font-semibold uppercase tracking-[0.14em] text-[rgba(29,23,16,0.5)]">
+                    <span className="shrink-0">Received by:</span>
+                    <InlineTextField name="receivedBy" placeholder="Name" className="text-xs font-semibold uppercase tracking-[0.14em]" />
+                  </div>
                 </div>
               ) : null}
             </div>
