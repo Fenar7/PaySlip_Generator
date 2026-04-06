@@ -1,1 +1,1 @@
-// SW Pixel — Phase 9
+export { PixelHub } from "./components/pixel-hub";
