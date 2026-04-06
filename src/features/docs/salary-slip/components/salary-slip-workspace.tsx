@@ -24,7 +24,6 @@ import {
 } from "@/components/forms/input-primitives";
 import { RepeaterSection } from "@/components/forms/repeater-section";
 import { salarySlipDefaultValues, salarySlipTemplateOptions } from "@/features/docs/salary-slip/constants";
-import { SalarySlipDocumentEditor } from "@/features/docs/salary-slip/components/salary-slip-document-editor";
 import { SalarySlipPreview } from "@/features/docs/salary-slip/components/salary-slip-preview";
 import { salarySlipFormSchema } from "@/features/docs/salary-slip/schema";
 import type { SalarySlipFormValues } from "@/features/docs/salary-slip/types";
@@ -241,8 +240,8 @@ function SalaryLineItemsEditor({
 function SalarySlipPanel({ employees = [], presets = [], initialTemplateId }: WorkspaceProps) {
   const { control, getValues, setValue, trigger, reset } = useFormContextSafe();
   const values = useWatch({ control }) as SalarySlipFormValues;
-  const [selectedTemplateId, setSelectedTemplateId] = useState(
-    initialTemplateId ? (initialTemplateId as SalarySlipFormValues["templateId"]) : values.templateId
+  const [selectedTemplateId, setSelectedTemplateId] = useState<SalarySlipFormValues["templateId"]>(
+    initialTemplateId ? (initialTemplateId as SalarySlipFormValues["templateId"]) : (getValues("templateId") ?? "corporate-clean")
   );
   const previewDocumentWithTemplate = normalizeSalarySlip({
     ...values,
@@ -871,7 +870,7 @@ function SalarySlipPanel({ employees = [], presets = [], initialTemplateId }: Wo
         </>
       }
       previewContent={<SalarySlipPreview document={previewDocumentWithTemplate} />}
-      documentEditorContent={<SalarySlipDocumentEditor />}
+      documentEditorContent={<SalarySlipPreview document={previewDocumentWithTemplate} />}
     />
     <SalarySlipSaveBar
       onSaveDraft={handleSaveDraft}

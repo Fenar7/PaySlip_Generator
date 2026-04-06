@@ -19,7 +19,6 @@ import {
   TextField,
   ToggleField,
 } from "@/components/forms/input-primitives";
-import { InvoiceDocumentEditor } from "@/features/docs/invoice/components/invoice-document-editor";
 import { InvoicePreview } from "@/features/docs/invoice/components/invoice-preview";
 import { invoiceDefaultValues, invoiceTemplateOptions } from "@/features/docs/invoice/constants";
 import { invoiceFormSchema } from "@/features/docs/invoice/schema";
@@ -171,7 +170,7 @@ interface InvoicePanelProps {
 function InvoicePanel({ customers = [] }: InvoicePanelProps) {
   const { control, getValues, setValue, trigger } = useFormContextSafe();
   const values = useWatch({ control }) as InvoiceFormValues;
-  const [selectedTemplateId, setSelectedTemplateId] = useState(values.templateId);
+  const [selectedTemplateId, setSelectedTemplateId] = useState<InvoiceFormValues["templateId"]>(() => getValues("templateId") ?? "professional");
   const previewDocument = normalizeInvoice({
     ...values,
     templateId: selectedTemplateId,
@@ -691,7 +690,7 @@ function InvoicePanel({ customers = [] }: InvoicePanelProps) {
         </>
       }
       previewContent={<InvoicePreview document={previewDocument} />}
-      documentEditorContent={<InvoiceDocumentEditor />}
+      documentEditorContent={<InvoicePreview document={previewDocument} />}
     />
   );
 }

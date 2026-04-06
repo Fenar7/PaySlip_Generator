@@ -29,7 +29,6 @@ import {
   voucherDefaultValues,
   voucherTemplateOptions,
 } from "@/features/docs/voucher/constants";
-import { VoucherDocumentEditor } from "@/features/docs/voucher/components/voucher-document-editor";
 import { VoucherPreview } from "@/features/docs/voucher/components/voucher-preview";
 import { VendorPicker } from "@/features/docs/voucher/components/vendor-picker";
 import { MultiLineVoucherEditor } from "@/features/docs/voucher/components/multi-line-voucher-editor";
@@ -95,8 +94,8 @@ function VoucherPanel({
   const values = useWatch({ control }) as VoucherFormValues;
   const isPayment = values.voucherType === "payment";
   const isMultiLine = values.isMultiLine ?? false;
-  const [selectedTemplateId, setSelectedTemplateId] = useState(
-    initialTemplateId ? (initialTemplateId as VoucherFormValues["templateId"]) : values.templateId
+  const [selectedTemplateId, setSelectedTemplateId] = useState<VoucherFormValues["templateId"]>(
+    initialTemplateId ? (initialTemplateId as VoucherFormValues["templateId"]) : (getValues("templateId") ?? "minimal-office")
   );
   const visibility = values.visibility;
   const previewDocument = normalizeVoucher({
@@ -710,7 +709,7 @@ function VoucherPanel({
           </>
         }
         previewContent={<VoucherPreview document={previewDocument} />}
-        documentEditorContent={<VoucherDocumentEditor />}
+        documentEditorContent={<VoucherPreview document={previewDocument} />}
       />
       <VoucherSaveBar
         onSaveDraft={handleSaveDraft}
