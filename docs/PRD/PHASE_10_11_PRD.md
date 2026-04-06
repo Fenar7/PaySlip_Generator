@@ -1,6 +1,24 @@
 # Slipwise One — Phase 10 & Phase 11
 ## Product Requirements Document (PRD)
-### Version 1.0 | Engineering Handover Document
+### Version 1.1 | India-First Billing (Razorpay) | Engineering Handover Document
+
+---
+
+## 🇮🇳 Critical Update: Payment Gateway Selection
+
+**Decision (2026-04-06):** 
+- **Primary gateway: Razorpay** (India-first, 1–2 week approval, UPI support, 0% UPI fees, GST-ready)
+- **Deprecated: Stripe** (too slow for India launch: 1–3 month approval)
+- **Future: Stripe can be added as secondary in Phase 12+ for global expansion via gateway adapter pattern**
+
+**Why Razorpay for India:**
+1. **Speed:** Approval in 1–2 weeks vs. Stripe's 1–3 months
+2. **UPI dominance:** 60%+ Indian users prefer UPI; Razorpay optimized for UPI mandates (0% fee)
+3. **Lower fees:** 1.96–2.45% on cards, 0% on UPI vs. Stripe 2.9–3.5%
+4. **Compliance:** GST invoicing integrated, NPCI-approved for UPI recurring
+5. **Recurring:** Best-in-class for subscription mandates (Pro trial auto-upgrade)
+
+All code below uses Razorpay. Gateway can be abstracted in Phase 12.
 
 ---
 
@@ -17,6 +35,7 @@
 | **Sprint Model** | 2 sprints (Phase 10) + 3 sprints (Phase 11) |
 | **Total Sprints** | 5 sprints across both phases |
 | **Engineering Model** | Multi-agent parallel execution recommended |
+| **Payment Gateway** | Razorpay (India) · Future: Stripe (Phase 12+) |
 
 ---
 
@@ -33,7 +52,7 @@
 4. [Phase 11 — Subscription Billing, Commercial Launch & Growth](#4-phase-11--subscription-billing-commercial-launch--growth)
    - 4.1 Objective
    - 4.2 Sprint 11.1 — Pricing Model & Plan Infrastructure
-   - 4.3 Sprint 11.2 — Billing Integration (Stripe)
+   - 4.3 Sprint 11.2 — Billing Integration (Razorpay)
    - 4.4 Sprint 11.3 — Growth, Onboarding Conversion & Analytics
    - 4.5 Pricing Tiers (Full Specification)
    - 4.6 Feature Gating Matrix
@@ -495,14 +514,14 @@ model SendLog {
 
 ### 4.1 Objective
 
-Launch Slipwise One as a paid product. Implement Stripe subscription billing, enforce plan-based feature limits, convert free utility users to paid workspace subscribers, and activate growth loops.
+Launch Slipwise One as a paid product. Implement Razorpay subscription billing (India-first, faster approval), enforce plan-based feature limits, convert free utility users to paid workspace subscribers, and activate growth loops.
 
 **Phase 11 delivers:**
 1. **Pricing infrastructure** — Plan model, usage metering, limit enforcement
-2. **Stripe billing** — Subscription creation, webhook handling, invoice management, seat billing
+2. **Razorpay billing** — Subscription creation, webhook handling, invoice management, UPI support, recurring payments
 3. **Growth mechanisms** — Landing pages, SEO-optimized utility pages, referral system, invite flows
 4. **Onboarding optimization** — Conversion funnel from free → paid, trial management, upgrade prompts
-5. **Customer portal** — Stripe billing portal integration, subscription management UI
+5. **Customer portal** — Razorpay subscription management UI, payment method updates
 
 ---
 
@@ -677,64 +696,116 @@ export async function createInvoice(data: InvoiceFormValues): Promise<ActionResu
 
 ---
 
-### 4.3 Sprint 11.2 — Stripe Billing Integration
+### 4.3 Sprint 11.2 — Razorpay Billing Integration
 
 **Duration:** 1 sprint  
-**Goal:** Full Stripe subscription lifecycle. Trial, subscribe, upgrade, downgrade, cancel, reactivate.
+**Goal:** Full Razorpay subscription lifecycle. Trial, subscribe, upgrade, downgrade, cancel, reactivate. Support UPI, card, and netbanking payments.
 
-#### A. Stripe Setup
+#### A. Razorpay Setup
 
-**Stripe products to create:**
+**Why Razorpay for India:**
+- ✅ Faster approval (1–2 weeks vs. Stripe's 1–3 months)
+- ✅ UPI support (60%+ of Indian users prefer UPI, 0% fee on Razorpay)
+- ✅ Lower fees: 1.96–2.45% on cards, 0% on UPI
+- ✅ Native GST compliance, recurring billing optimized
+- ✅ Webhooks, settlements (weekly/daily), full API coverage
+
+**Razorpay products to create:**
 - `product/starter-monthly` → price ₹999/month
-- `product/starter-annual` → price ₹9,990/year
+- `product/starter-annual` → price ₹9,990/year (11% discount)
 - `product/pro-monthly` → price ₹2,999/month
-- `product/pro-annual` → price ₹29,990/year
+- `product/pro-annual` → price ₹29,990/year (17% discount)
 
 **Env vars:**
 ```
-STRIPE_SECRET_KEY=
-STRIPE_PUBLISHABLE_KEY=
-STRIPE_WEBHOOK_SECRET=
-STRIPE_STARTER_MONTHLY_PRICE_ID=
-STRIPE_STARTER_ANNUAL_PRICE_ID=
-STRIPE_PRO_MONTHLY_PRICE_ID=
-STRIPE_PRO_ANNUAL_PRICE_ID=
+RAZORPAY_KEY_ID=
+RAZORPAY_KEY_SECRET=
+RAZORPAY_WEBHOOK_SECRET=
+RAZORPAY_STARTER_MONTHLY_PLAN_ID=
+RAZORPAY_STARTER_ANNUAL_PLAN_ID=
+RAZORPAY_PRO_MONTHLY_PLAN_ID=
+RAZORPAY_PRO_ANNUAL_PLAN_ID=
 ```
 
-#### B. Stripe Integration Routes
+**Setup steps:**
+1. Create Razorpay merchant account (KYC: PAN, GST, bank account)
+2. Create plans in Razorpay dashboard (plans recur automatically)
+3. Generate API keys
+4. Set webhook URL: `https://yourdomain.com/api/billing/razorpay/webhook`
+
+#### B. Razorpay Integration Routes
 
 **`src/app/api/billing/`** directory:
 
 ```
 src/app/api/billing/
-├── create-checkout/route.ts      — POST, creates Stripe Checkout session
-├── create-portal/route.ts        — POST, creates Stripe Customer Portal session
-├── webhook/route.ts              — POST, handles all Stripe webhooks
-└── usage-report/route.ts         — POST, reports metered usage (future)
+├── razorpay/
+│   ├── create-subscription/route.ts  — POST, creates Razorpay subscription
+│   ├── webhook/route.ts              — POST, handles all Razorpay webhooks
+│   └── customer-details/route.ts     — GET, retrieves customer + subscription info
+├── cancel-subscription/route.ts      — POST, cancels subscription
+└── update-payment-method/route.ts    — POST, adds/updates card or UPI
 ```
 
-**Checkout session creation (`create-checkout/route.ts`):**
+**Subscription creation (`create-subscription/route.ts`):**
 ```typescript
-// POST /api/billing/create-checkout
-// Body: { priceId: string, orgId: string }
-// Returns: { url: string } — redirect to Stripe Checkout
-// After payment: redirect to /app/billing/success?session_id=...
+// POST /api/billing/razorpay/create-subscription
+// Body: { planId: string, orgId: string, customerId?: string }
+// Returns: { subscriptionId: string, authLink: string }
+// User clicks authLink → authenticates payment method → subscription starts
+// Webhook: subscription.authenticated → activate subscription
 ```
+
+**Payment method options:**
+- **UPI:** Razorpay UPI recurring (mandate)
+- **Cards:** Saved card recurring
+- **Netbanking:** Available in India
+- User selects payment method in checkout; Razorpay handles recurring authorization
 
 **Webhook handler (`webhook/route.ts`):**
 Events to handle:
-- `checkout.session.completed` → activate subscription, update `Subscription.status = "active"`
-- `customer.subscription.updated` → update plan, status, current period
-- `customer.subscription.deleted` → downgrade to free, set `status = "cancelled"`
-- `invoice.payment_succeeded` → log payment, extend subscription
-- `invoice.payment_failed` → mark `status = "past_due"`, send alert email
-- `invoice.upcoming` → send renewal reminder email (7 days before)
-- `customer.subscription.trial_will_end` → send trial ending email
+- `subscription.authenticated` → subscription approved, update status = "active"
+- `subscription.paused` → user paused, update status = "paused"
+- `subscription.resumed` → subscription resumed, update status = "active"
+- `subscription.completed` → all payments done, mark status = "completed"
+- `subscription.halted` → max retries exceeded, update status = "failed"
+- `invoice.paid` → payment succeeded, extend subscription period, log to audit
+- `invoice.partially_paid` → partial payment, send alert to customer
+- `invoice.issued` → invoice generated, send to customer email
+- `payment.failed` → payment failed, mark status = "payment_failed", send alert
+- `payment.authorized` → payment authorized (for UI status), update status
 
 **All webhook events must be:**
-1. Signature-verified (`stripe.webhooks.constructEvent`)
-2. Idempotent (check if already processed by `stripeEventId`)
-3. Logged to `AuditLog` with type `"billing_event"`
+1. Signature-verified via `razorpay.utils.verifyWebhookSignature()`
+2. Idempotent (check if already processed by `razorpayEventId`)
+3. Logged to `AuditLog` with type `"billing_event"` and `"razorpay"`
+
+**Razorpay API patterns:**
+```typescript
+// Create customer
+const customer = await razorpay.customers.create({
+  email: user.email,
+  contact: user.phone, // Indian phone with country code
+  name: user.name,
+  GST_number: org.gstNumber, // optional, for invoicing
+});
+
+// Create subscription with UPI mandate
+const subscription = await razorpay.subscriptions.create({
+  plan_id: planId,
+  customer_notify: 1, // send auth link via email
+  quantity: 1,
+  total_count: 0, // 0 = infinite
+  addons: [], // add seats/extra storage if needed
+});
+
+// Handle webhook
+const isAuthentic = razorpay.utils.verifyWebhookSignature(
+  body,
+  signature,
+  webhookSecret
+);
+```
 
 #### C. Billing UI
 
@@ -743,47 +814,68 @@ Events to handle:
 ```
 src/app/app/billing/
 ├── page.tsx              — Billing overview (current plan, usage, next billing date)
-├── upgrade/page.tsx      — Pricing table + upgrade flow
-├── success/page.tsx      — Post-checkout success page
+├── upgrade/page.tsx      — Pricing table + subscription flow
+├── payment-method/page.tsx — Manage UPI mandate, cards, netbanking
+├── success/page.tsx      — Post-subscription success page
 ├── cancel/page.tsx       — Cancellation confirmation flow
 └── actions.ts            — Server actions for billing operations
 ```
 
 **Pricing page (`upgrade/page.tsx`) components:**
 - `PricingTable` — plan cards with feature comparison grid
-- `PlanCard` — individual plan with price, feature list, CTA button
+- `PlanCard` — individual plan with price, billing cycle, UPI badge, CTA button
 - `BillingToggle` — monthly / annual toggle (shows savings %)
 - `CurrentPlanBadge` — highlights current plan
-- `UpgradeButton` — calls `/api/billing/create-checkout`
-- `ManageSubscriptionButton` — calls `/api/billing/create-portal`
+- `SubscribeButton` — calls `/api/billing/razorpay/create-subscription`, shows Razorpay auth link
+- `ManagePaymentButton` — manage payment method, view subscription status
+
+**Payment method page (`payment-method/page.tsx`) components:**
+- `UPIMandate` — add UPI ID for recurring authorization
+- `CardManager` — add/remove saved cards
+- `NetbankingOption` — show available banks
+- `MandateStatus` — shows if UPI mandate is active/pending/failed
+- `RazorpayCustomerLink` — direct link to Razorpay customer dashboard
 
 **Billing overview (`page.tsx`) components:**
-- `CurrentPlanCard` — shows plan name, price, renewal date
+- `CurrentPlanCard` — shows plan name, price, renewal date, billing cycle (UPI/Card/Netbanking)
 - `UsageMeter` — shows usage vs limit for each resource
 - `StorageUsageBar` — visual storage consumption
-- `BillingHistory` — past invoices table (from Stripe)
-- `PaymentMethodCard` — card on file (masked)
+- `BillingHistory` — past invoices table (from Razorpay API)
+- `SubscriptionStatus` — active/paused/failed with action buttons
+- `NextRenewalDate` — shows exact next billing date (factoring in Razorpay cycle)
 
 **Upgrade prompts (inline in product):**
 - `src/components/plan/upgrade-prompt.tsx` — compact inline prompt with "Upgrade" CTA
 - Appears when:
-  - User hits monthly doc limit: "You've used 10/10 invoices this month."
+  - User hits monthly doc limit: "You've used 10/10 invoices this month. Upgrade to Starter for 100/month."
   - User tries to access gated feature (recurring invoices, proxy, CSV export)
-  - Storage usage > 80%: "You're using 430/500 MB"
+  - Storage usage > 80%: "You're using 430/500 MB. Upgrade for more storage."
 
 #### D. Trial System
 
 **Trial details:**
 - All new orgs get 14-day Pro trial automatically on signup
-- No credit card required for trial
+- No credit card or UPI authorization required for trial
 - Trial tracked via `Subscription.trialEndsAt`
-- Trial reminder emails: 7 days remaining, 3 days remaining, trial ended
-- After trial: auto-downgrade to Free if no card on file
+- Trial reminder emails: 7 days remaining, 3 days remaining, 1 day remaining, trial ended
+- After trial: auto-downgrade to Free if no payment method on file
+- User can upgrade anytime during trial (skips remaining trial period)
 
 **Implementation:**
 - On org creation (`createOrg` action): create `Subscription` record with `planId: "pro"`, `status: "trialing"`, `trialEndsAt: now + 14 days`
-- Trigger.dev job: `check-trial-expiry` — runs daily, downgrades expired trials
-- Trial banner: `src/components/plan/trial-banner.tsx` — shows in app header when on trial
+- Trigger.dev job: `check-trial-expiry` — runs daily, downgrades expired trials to Free, sends reminder emails
+- Trial banner: `src/components/plan/trial-banner.tsx` — shows in app header when on trial, shows countdown, "Upgrade Now" button
+- Trial page: `/app/billing/trial` — shows remaining days, feature preview of Pro plan, upgrade CTA
+
+**Conversion flow during trial:**
+1. User clicks "Upgrade Now" → `/app/billing/upgrade`
+2. Selects plan + billing cycle (monthly/annual)
+3. Clicks "Subscribe" → `/api/billing/razorpay/create-subscription`
+4. Gets auth link → redirected to Razorpay
+5. Authenticates UPI/card/netbanking
+6. Webhook: `subscription.authenticated` → subscription activated
+7. Redirects to `/app/billing/success`
+8. Trial ends immediately, Pro subscription starts (no prorating, no charge for trial period)
 
 ---
 
@@ -947,11 +1039,11 @@ model Subscription {
   id                String    @id @default(cuid())
   orgId             String    @unique
   planId            String    @default("free")  // "free" | "starter" | "pro" | "enterprise"
-  status            String    @default("active") // "active" | "trialing" | "past_due" | "cancelled" | "paused"
-  stripeCustomerId  String?   @unique
-  stripeSubId       String?   @unique
-  stripePriceId     String?
-  billingInterval   String?   // "monthly" | "annual"
+  status            String    @default("active") // "active" | "trialing" | "past_due" | "cancelled" | "paused" | "payment_failed"
+  razorpayCustomerId String?  @unique          // Razorpay customer ID
+  razorpaySubId     String?   @unique          // Razorpay subscription ID
+  razorpayPlanId    String?                    // Razorpay plan ID
+  billingInterval   String?                    // "monthly" | "annual"
   trialEndsAt       DateTime?
   currentPeriodStart DateTime?
   currentPeriodEnd  DateTime?
@@ -978,14 +1070,17 @@ model UsageRecord {
   @@map("usage_record")
 }
 
-model StripeEvent {
-  id              String   @id  // Stripe event ID (for idempotency)
+model RazorpayEvent {
+  id              String   @id  // Razorpay event ID (for idempotency)
   type            String
   processedAt     DateTime @default(now())
   payload         Json
+  provider        String   @default("razorpay")  // for future gateway support
 
-  @@map("stripe_event")
+  @@index([type, processedAt])
+  @@map("razorpay_event")
 }
+
 
 model Referral {
   id              String   @id @default(cuid())
@@ -1109,12 +1204,12 @@ src/components/
 
 ### Type Safety
 - Zero `any` types in new code
-- All Stripe event payloads typed with `stripe` SDK types
+- All Razorpay event payloads typed with `razorpay-sdk` types
 - Plan limits typed with `PlanLimits` interface (not raw strings)
 
 ### Testing Requirements
 - `checkLimit()` must have unit tests for all 5 resources × 4 plans = 20 test cases
-- Stripe webhook handler must have integration tests for all 6 critical events
+- Razorpay webhook handler must have integration tests for all 8 critical events
 - Rate limit middleware must have unit tests for allow/deny/Redis-down scenarios
 - StorageAdapter: unit tests for both Supabase and S3 implementations
 
@@ -1179,13 +1274,13 @@ src/components/
 - Rate limiting: sliding window algorithm (not fixed window) to prevent burst-at-boundary abuse
 
 ### Security
-- All Stripe calls use server-side only (no Stripe secret key in client)
+- All Razorpay calls use server-side only (no Razorpay API secret in client)
 - Share tokens expire after 30 days (configurable)
 - Rate limit keys include org ID to prevent cross-org enumeration
 - Billing webhooks: raw body preserved for signature verification (don't parse JSON before verifying)
 
 ### Observability
-- Every Stripe event logged to `StripeEvent` table with full payload
+- Every Razorpay event logged to `RazorpayEvent` table with full payload
 - Every rate limit hit logged to structured log with `{ orgId, endpoint, limit, current }`
 - Every plan upgrade/downgrade creates `AuditLog` entry
 - PostHog events for: `plan_upgraded`, `plan_cancelled`, `trial_started`, `trial_expired`, `limit_reached`, `checkout_started`, `checkout_completed`
@@ -1276,8 +1371,8 @@ Files: `src/lib/storage/*`, `src/lib/queue/*`, `docs/architecture/AWS_MIGRATION_
 **Agent 11-A: Plan Infrastructure + Feature Gating**
 Files: `src/lib/plans/*`, Prisma schema (`Subscription`, `UsageRecord`), `src/hooks/use-plan.ts`, `src/components/plan/*`
 
-**Agent 11-B: Stripe Billing Integration**
-Files: `src/app/api/billing/*`, `src/app/app/billing/*`, `src/lib/stripe.ts`, Prisma schema (`StripeEvent`)
+**Agent 11-B: Razorpay Billing Integration**
+Files: `src/app/api/billing/*`, `src/app/app/billing/*`, `src/lib/razorpay.ts`, Prisma schema (`RazorpayEvent`)
 
 **Agent 11-C: Public Marketing Pages + SEO**
 Files: `src/app/(marketing)/*`, `src/app/sitemap.ts`, `src/app/share/*`, `src/app/api/share/*`
