@@ -37,9 +37,11 @@ import { VoucherSaveBar } from "@/features/docs/voucher/components/voucher-save-
 import { voucherFormSchema } from "@/features/docs/voucher/schema";
 import type { VoucherDocument, VoucherFormValues } from "@/features/docs/voucher/types";
 import { voucherTemplateRegistry } from "@/features/docs/voucher/templates";
-import { buildVoucherFilename } from "@/features/docs/voucher/utils/build-voucher-filename";
 import { normalizeVoucher } from "@/features/docs/voucher/utils/normalize-voucher";
-import { downloadBinaryExport } from "@/lib/browser/download-binary-export";
+import {
+  prepareDocumentExportDownload,
+  startDocumentExportDownload,
+} from "@/lib/browser/document-export-handoff";
 import { cn } from "@/lib/utils";
 import { DocumentPreviewSurface } from "@/components/document/document-preview-surface";
 import {
@@ -60,7 +62,7 @@ interface Vendor {
 type VoucherActionState =
   | { status: "idle" }
   | { status: "pending"; action: "print" | "pdf" | "png" }
-  | { status: "success"; action: "pdf" | "png" }
+  | { status: "success"; action: "pdf" | "png"; downloadUrl: string }
   | { status: "error"; action?: "pdf" | "png"; message: string };
 
 const voucherWorkspaceSections: WorkspaceSectionMeta[] = [
@@ -230,14 +232,14 @@ function VoucherPanel({
     setActionState({ status: "pending", action: format });
 
     try {
-      const endpoint = format === "pdf" ? "/api/export/pdf" : "/api/export/png";
       const payload = JSON.stringify({ document });
-      await downloadBinaryExport({
-        endpoint,
+      const downloadUrl = await prepareDocumentExportDownload({
+        sessionEndpoint: "/api/export/session",
         payload,
-        fallbackFilename: buildVoucherFilename(document, format),
+        format,
+        fallbackErrorMessage: `Unable to prepare the voucher ${format.toUpperCase()} export.`,
       });
-      setActionState({ status: "success", action: format });
+      setActionState({ status: "success", action: format, downloadUrl });
     } catch (error) {
       setActionState({
         status: "error",
@@ -368,9 +370,7 @@ function VoucherPanel({
                   format: actionState.action,
                   onClose: () => setActionState({ status: "idle" }),
                   onRetry: () => {
-                    if (actionState.action) {
-                      void handleDownload(actionState.action);
-                    }
+                    startDocumentExportDownload(actionState.downloadUrl);
                   },
                 } satisfies WorkspaceExportDialog)
               : actionState.status === "error" && actionState.action
