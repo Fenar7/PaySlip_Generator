@@ -40,3 +40,14 @@ fi
 echo ""
 echo "▶ Starting Supabase (self-hosted)..."
 supabase start --ignore-health-check
+
+if [ -z "${DATABASE_URL:-}" ]; then
+  echo ""
+  echo "⚠ DATABASE_URL is not set — skipping Prisma migration apply"
+  exit 0
+fi
+
+echo ""
+echo "▶ Applying Prisma migrations..."
+npx prisma migrate deploy
+echo "✓ Prisma migrations applied"

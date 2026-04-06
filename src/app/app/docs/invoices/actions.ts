@@ -3,6 +3,7 @@
 import { db } from "@/lib/db";
 import { requireOrgContext } from "@/lib/auth";
 import { nextDocumentNumber } from "@/lib/docs";
+import { getSchemaDriftActionMessage, isModelMissingTableError } from "@/lib/prisma-errors";
 import { revalidatePath } from "next/cache";
 import type { Prisma } from "@/generated/prisma/client";
 
@@ -89,6 +90,15 @@ export async function saveInvoice(
     revalidatePath("/app/docs/invoices");
     return { success: true, data: { id: invoice.id, invoiceNumber } };
   } catch (error) {
+    if (isModelMissingTableError(error, "Invoice")) {
+      console.warn(
+        "saveInvoice failed because the invoice table is missing; the local database is behind the Prisma schema.",
+      );
+      return {
+        success: false,
+        error: getSchemaDriftActionMessage("save the invoice"),
+      };
+    }
     console.error("saveInvoice error:", error);
     return { success: false, error: "Failed to save invoice" };
   }
@@ -152,6 +162,15 @@ export async function updateInvoice(
     revalidatePath(`/app/docs/invoices/${id}`);
     return { success: true, data: { id } };
   } catch (error) {
+    if (isModelMissingTableError(error, "Invoice")) {
+      console.warn(
+        "updateInvoice failed because the invoice table is missing; the local database is behind the Prisma schema.",
+      );
+      return {
+        success: false,
+        error: getSchemaDriftActionMessage("update the invoice"),
+      };
+    }
     console.error("updateInvoice error:", error);
     return { success: false, error: "Failed to update invoice" };
   }

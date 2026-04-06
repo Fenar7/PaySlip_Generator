@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useState, useTransition } from "react";
+import { useCallback, useEffect, useState, useTransition } from "react";
 import Link from "next/link";
 import {
   getInvoiceReport,
@@ -183,10 +183,10 @@ export default function InvoiceReportPage() {
     });
   };
 
-  // Load data on first render
-  if (!loaded && !isPending) {
-    fetchData(filters, 1);
-  }
+  useEffect(() => {
+    if (loaded) return;
+    fetchData({}, 1);
+  }, [fetchData, loaded]);
 
   const totalAmount = rows.reduce((s, r) => s + r.totalAmount, 0);
 

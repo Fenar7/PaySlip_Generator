@@ -1,7 +1,3 @@
-"use server";
-
-import { db } from "@/lib/db";
-
 export type Role =
   | "owner"
   | "admin"
@@ -203,28 +199,6 @@ export function getPermittedActions(role: string, module: Module): Action[] {
   const perms = PERMISSIONS[role as Role];
   if (!perms) return [];
   return perms[module] ?? [];
-}
-
-export async function requirePermission(
-  orgId: string,
-  userId: string,
-  module: Module,
-  action: Action
-): Promise<void> {
-  const member = await db.member.findUnique({
-    where: { organizationId_userId: { organizationId: orgId, userId } },
-    select: { role: true },
-  });
-
-  if (!member) {
-    throw new Error("Not a member of this organization");
-  }
-
-  if (!hasPermission(member.role, module, action)) {
-    throw new Error(
-      `Permission denied: ${action} on ${module} requires a higher role`
-    );
-  }
 }
 
 export const ROLE_LABELS: Record<Role, string> = {

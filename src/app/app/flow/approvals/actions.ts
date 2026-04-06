@@ -31,6 +31,15 @@ function docTypeToLabel(docType: string): string {
   }
 }
 
+interface ApprovalDocumentSummary {
+  number: string;
+  entityName: string | null;
+  amount: number;
+  date: string;
+  month?: number;
+  year?: number;
+}
+
 async function getDocNumber(docType: string, docId: string): Promise<string> {
   switch (docType) {
     case "invoice": {
@@ -57,6 +66,93 @@ async function getDocNumber(docType: string, docId: string): Promise<string> {
     default:
       return docId;
   }
+}
+
+async function getApprovalDocumentSummaries(
+  approvals: Array<{ docType: string; docId: string }>
+): Promise<Map<string, ApprovalDocumentSummary>> {
+  const invoiceIds = approvals
+    .filter((approval) => approval.docType === "invoice")
+    .map((approval) => approval.docId);
+  const voucherIds = approvals
+    .filter((approval) => approval.docType === "voucher")
+    .map((approval) => approval.docId);
+  const salarySlipIds = approvals
+    .filter((approval) => approval.docType === "salary-slip")
+    .map((approval) => approval.docId);
+
+  const [invoices, vouchers, salarySlips] = await Promise.all([
+    invoiceIds.length > 0
+      ? db.invoice.findMany({
+          where: { id: { in: invoiceIds } },
+          select: {
+            id: true,
+            invoiceNumber: true,
+            totalAmount: true,
+            invoiceDate: true,
+            customer: { select: { name: true } },
+          },
+        })
+      : Promise.resolve([]),
+    voucherIds.length > 0
+      ? db.voucher.findMany({
+          where: { id: { in: voucherIds } },
+          select: {
+            id: true,
+            voucherNumber: true,
+            totalAmount: true,
+            voucherDate: true,
+            vendor: { select: { name: true } },
+          },
+        })
+      : Promise.resolve([]),
+    salarySlipIds.length > 0
+      ? db.salarySlip.findMany({
+          where: { id: { in: salarySlipIds } },
+          select: {
+            id: true,
+            slipNumber: true,
+            netPay: true,
+            month: true,
+            year: true,
+            employee: { select: { name: true } },
+          },
+        })
+      : Promise.resolve([]),
+  ]);
+
+  const documents = new Map<string, ApprovalDocumentSummary>();
+
+  for (const invoice of invoices) {
+    documents.set(`invoice:${invoice.id}`, {
+      number: invoice.invoiceNumber,
+      entityName: invoice.customer?.name ?? null,
+      amount: invoice.totalAmount,
+      date: invoice.invoiceDate,
+    });
+  }
+
+  for (const voucher of vouchers) {
+    documents.set(`voucher:${voucher.id}`, {
+      number: voucher.voucherNumber,
+      entityName: voucher.vendor?.name ?? null,
+      amount: voucher.totalAmount,
+      date: voucher.voucherDate,
+    });
+  }
+
+  for (const salarySlip of salarySlips) {
+    documents.set(`salary-slip:${salarySlip.id}`, {
+      number: salarySlip.slipNumber,
+      entityName: salarySlip.employee?.name ?? null,
+      amount: salarySlip.netPay,
+      date: `${salarySlip.month}/${salarySlip.year}`,
+      month: salarySlip.month,
+      year: salarySlip.year,
+    });
+  }
+
+  return documents;
 }
 
 // ─── Request Approval ─────────────────────────────────────────────────────────
@@ -172,11 +268,6 @@ export async function listApprovals(
     const [approvals, total, pending, approved, rejected] = await Promise.all([
       db.approvalRequest.findMany({
         where,
-        include: {
-          invoice: { select: { invoiceNumber: true } },
-          voucher: { select: { voucherNumber: true } },
-          salarySlip: { select: { slipNumber: true } },
-        },
         orderBy: { createdAt: "desc" },
         skip: page * PAGE_SIZE,
         take: PAGE_SIZE,
@@ -187,15 +278,11 @@ export async function listApprovals(
       db.approvalRequest.count({ where: { orgId, status: "REJECTED" } }),
     ]);
 
+    const documents = await getApprovalDocumentSummaries(approvals);
+
     const mapped = approvals.map((a) => {
-      let docNumber = a.docId.slice(0, 8);
-      if (a.docType === "invoice" && a.invoice) {
-        docNumber = a.invoice.invoiceNumber;
-      } else if (a.docType === "voucher" && a.voucher) {
-        docNumber = a.voucher.voucherNumber;
-      } else if (a.docType === "salary-slip" && a.salarySlip) {
-        docNumber = a.salarySlip.slipNumber;
-      }
+      const document = documents.get(`${a.docType}:${a.docId}`);
+      const docNumber = document?.number ?? a.docId.slice(0, 8);
 
       return {
         id: a.id,
@@ -262,65 +349,14 @@ export async function getApprovalDetail(
 
     const approval = await db.approvalRequest.findFirst({
       where: { id: requestId, orgId },
-      include: {
-        invoice: {
-          select: {
-            invoiceNumber: true,
-            totalAmount: true,
-            invoiceDate: true,
-            customer: { select: { name: true } },
-          },
-        },
-        voucher: {
-          select: {
-            voucherNumber: true,
-            totalAmount: true,
-            voucherDate: true,
-            vendor: { select: { name: true } },
-          },
-        },
-        salarySlip: {
-          select: {
-            slipNumber: true,
-            netPay: true,
-            month: true,
-            year: true,
-            employee: { select: { name: true } },
-          },
-        },
-      },
     });
 
     if (!approval) {
       return { success: false, error: "Approval request not found" };
     }
 
-    let document: ApprovalDetail["document"] = null;
-
-    if (approval.docType === "invoice" && approval.invoice) {
-      document = {
-        number: approval.invoice.invoiceNumber,
-        entityName: approval.invoice.customer?.name ?? null,
-        amount: approval.invoice.totalAmount,
-        date: approval.invoice.invoiceDate,
-      };
-    } else if (approval.docType === "voucher" && approval.voucher) {
-      document = {
-        number: approval.voucher.voucherNumber,
-        entityName: approval.voucher.vendor?.name ?? null,
-        amount: approval.voucher.totalAmount,
-        date: approval.voucher.voucherDate,
-      };
-    } else if (approval.docType === "salary-slip" && approval.salarySlip) {
-      document = {
-        number: approval.salarySlip.slipNumber,
-        entityName: approval.salarySlip.employee?.name ?? null,
-        amount: approval.salarySlip.netPay,
-        date: `${approval.salarySlip.month}/${approval.salarySlip.year}`,
-        month: approval.salarySlip.month,
-        year: approval.salarySlip.year,
-      };
-    }
+    const documents = await getApprovalDocumentSummaries([approval]);
+    const document = documents.get(`${approval.docType}:${approval.docId}`) ?? null;
 
     return {
       success: true,
