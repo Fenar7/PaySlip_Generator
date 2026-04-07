@@ -1,12 +1,22 @@
+import { redirect } from "next/navigation";
 import { AppShell } from "@/components/layout/app-shell";
+import { getAuthRoutingContext } from "@/lib/auth";
 
-export default function AppLayout({
+export default async function AppLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  // Session will be wired in Slice 1.1.2
-  // For now render the shell without user data (Phase 1 adds auth)
+  const context = await getAuthRoutingContext();
+
+  if (!context.isAuthenticated) {
+    redirect("/auth/login");
+  }
+
+  if (!context.hasOrg) {
+    redirect("/onboarding");
+  }
+
   return (
     <AppShell>
       {children}

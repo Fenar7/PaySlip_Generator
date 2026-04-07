@@ -2,7 +2,7 @@
 import { Button } from "@/components/ui/button";
 import { createSupabaseBrowser } from "@/lib/supabase/client";
 
-export function GoogleButton({ callbackURL = "/app/home" }: { callbackURL?: string }) {
+export function GoogleButton({ callbackURL = "/onboarding" }: { callbackURL?: string }) {
   const handleGoogleSignIn = () => {
     const supabase = createSupabaseBrowser();
     supabase.auth.signInWithOAuth({

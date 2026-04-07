@@ -34,7 +34,7 @@ export default function LoginPage() {
         setError(signInError.message ?? "Invalid email or password");
       } else {
         console.log("[login] signed in successfully");
-        router.push("/app/home");
+        router.push("/onboarding");
         router.refresh();
       }
     } catch (err) {
