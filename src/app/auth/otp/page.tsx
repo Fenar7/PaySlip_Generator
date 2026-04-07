@@ -59,7 +59,7 @@ export default function OTPPage() {
         setError("Invalid or expired code. Please request a new one.");
       } else {
         console.log("[otp] verified successfully");
-        router.push("/app/home");
+        router.push("/onboarding");
         router.refresh();
       }
     } catch (err) {

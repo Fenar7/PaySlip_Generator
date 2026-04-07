@@ -10,6 +10,49 @@ export interface OrgContext {
   role: string;
 }
 
+export type AuthRoutingContext =
+  | { isAuthenticated: false }
+  | { isAuthenticated: true; userId: string; hasOrg: false }
+  | { isAuthenticated: true; userId: string; hasOrg: true; orgId: string; role: string };
+
+export async function getAuthRoutingContext(): Promise<AuthRoutingContext> {
+  const supabase = await createSupabaseServer();
+
+  const {
+    data: { user },
+    error,
+  } = await supabase.auth.getUser();
+
+  if (error || !user) {
+    return { isAuthenticated: false };
+  }
+
+  const member = await db.member.findFirst({
+    where: { userId: user.id },
+    select: {
+      organizationId: true,
+      role: true,
+    },
+    orderBy: { createdAt: "desc" },
+  });
+
+  if (!member) {
+    return {
+      isAuthenticated: true,
+      userId: user.id,
+      hasOrg: false,
+    };
+  }
+
+  return {
+    isAuthenticated: true,
+    userId: user.id,
+    hasOrg: true,
+    orgId: member.organizationId,
+    role: member.role,
+  };
+}
+
 /**
  * Get the current user's organization context.
  * Throws if user is not authenticated or not a member of any organization.
@@ -20,34 +63,20 @@ export interface OrgContext {
  * ```
  */
 export async function requireOrgContext(): Promise<OrgContext> {
-  const supabase = await createSupabaseServer();
-  
-  const { data: { user }, error: authError } = await supabase.auth.getUser();
-  
-  if (authError || !user) {
-    console.error("Auth error in requireOrgContext:", authError);
+  const context = await getAuthRoutingContext();
+
+  if (!context.isAuthenticated) {
     redirect("/auth/login");
   }
 
-  // Find user's membership
-  const member = await db.member.findFirst({
-    where: { userId: user.id },
-    select: { 
-      organizationId: true, 
-      role: true 
-    },
-    orderBy: { createdAt: "desc" }, // Most recent org if multiple
-  });
-
-  if (!member) {
-    // User exists but has no org - send to onboarding
+  if (!context.hasOrg) {
     redirect("/onboarding");
   }
 
   return {
-    userId: user.id,
-    orgId: member.organizationId,
-    role: member.role,
+    userId: context.userId,
+    orgId: context.orgId,
+    role: context.role,
   };
 }
 
@@ -57,31 +86,16 @@ export async function requireOrgContext(): Promise<OrgContext> {
  */
 export async function getOrgContext(): Promise<OrgContext | null> {
   try {
-    const supabase = await createSupabaseServer();
-    
-    const { data: { user }, error } = await supabase.auth.getUser();
-    
-    if (error || !user) {
-      return null;
-    }
+    const context = await getAuthRoutingContext();
 
-    const member = await db.member.findFirst({
-      where: { userId: user.id },
-      select: { 
-        organizationId: true, 
-        role: true 
-      },
-      orderBy: { createdAt: "desc" },
-    });
-
-    if (!member) {
+    if (!context.isAuthenticated || !context.hasOrg) {
       return null;
     }
 
     return {
-      userId: user.id,
-      orgId: member.organizationId,
-      role: member.role,
+      userId: context.userId,
+      orgId: context.orgId,
+      role: context.role,
     };
   } catch (e) {
     console.error("Error in getOrgContext:", e);
