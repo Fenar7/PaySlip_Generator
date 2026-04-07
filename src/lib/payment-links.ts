@@ -1,6 +1,8 @@
 import "server-only";
 import { db } from "@/lib/db";
 import { createPaymentLink, getRazorpay } from "@/lib/razorpay";
+import { reconcileInvoicePayment } from "@/lib/invoice-reconciliation";
+import type { Prisma } from "@/generated/prisma/client";
 
 type ActionResult<T> =
   | { success: true; data: T }
@@ -31,7 +33,8 @@ export async function createInvoicePaymentLink(
     return { success: false, error: "Payment link already exists for this invoice" };
   }
 
-  const amountPaise = Math.round(invoice.totalAmount * 100);
+  // Use remainingAmount so returning customers pay only the outstanding balance
+  const amountPaise = Math.round(invoice.remainingAmount * 100);
   if (amountPaise <= 0) {
     return { success: false, error: "Invoice amount must be greater than zero" };
   }
@@ -66,6 +69,7 @@ export async function createInvoicePaymentLink(
         razorpayPaymentLinkId: link.id,
         razorpayPaymentLinkUrl: link.short_url,
         paymentLinkExpiresAt: expireBy ? new Date(expireBy * 1000) : null,
+        paymentLinkStatus: "created",
       },
     });
 
@@ -89,6 +93,48 @@ export async function handlePaymentLinkPaid(
     return { success: false, error: "No invoice found for this payment link" };
   }
 
+  // Idempotency: skip if this Razorpay payment was already recorded
+  const existing = await db.invoicePayment.findFirst({
+    where: { externalPaymentId: paymentId },
+  });
+  if (existing) {
+    return { success: true, data: { invoiceId: invoice.id } };
+  }
+
+  // Always update payment link tracking fields
+  await db.invoice.update({
+    where: { id: invoice.id },
+    data: {
+      paymentLinkStatus: "paid",
+      paymentLinkLastEventAt: new Date(),
+    },
+  });
+
+  // If invoice is already fully paid, record an OVERPAID_REVIEW ledger row — do NOT reconcile
+  if (invoice.amountPaid >= invoice.totalAmount) {
+    console.warn(
+      `[PaymentLinks] Received payment ${paymentId} for already-PAID invoice ${invoice.id} — recording as OVERPAID_REVIEW`
+    );
+    await db.invoicePayment.create({
+      data: {
+        invoiceId: invoice.id,
+        orgId: invoice.organizationId,
+        amount: amount / 100,
+        currency: "INR",
+        method: "razorpay_payment_link",
+        source: "razorpay_payment_link",
+        status: "OVERPAID_REVIEW",
+        externalPaymentId: paymentId,
+        externalReferenceId: paymentLinkId,
+        externalPayload: { paymentLinkId, paymentId, amount } as Prisma.InputJsonValue,
+        paymentMethodDisplay: "Razorpay Payment Link",
+        paidAt: new Date(),
+      },
+    });
+    return { success: true, data: { invoiceId: invoice.id } };
+  }
+
+  // Normal flow: create a SETTLED ledger row and reconcile
   await db.invoicePayment.create({
     data: {
       invoiceId: invoice.id,
@@ -96,18 +142,17 @@ export async function handlePaymentLinkPaid(
       amount: amount / 100,
       currency: "INR",
       method: "razorpay_payment_link",
-      note: `Razorpay payment ${paymentId}`,
+      source: "razorpay_payment_link",
+      status: "SETTLED",
+      externalPaymentId: paymentId,
+      externalReferenceId: paymentLinkId,
+      externalPayload: { paymentLinkId, paymentId, amount } as Prisma.InputJsonValue,
+      paymentMethodDisplay: "Razorpay Payment Link",
       paidAt: new Date(),
     },
   });
 
-  await db.invoice.update({
-    where: { id: invoice.id },
-    data: {
-      status: "PAID",
-      paidAt: new Date(),
-    },
-  });
+  await reconcileInvoicePayment(invoice.id);
 
   return { success: true, data: { invoiceId: invoice.id } };
 }

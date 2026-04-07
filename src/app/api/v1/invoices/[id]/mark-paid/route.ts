@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { db } from "@/lib/db";
 import { dispatchEvent } from "@/lib/api-webhooks";
+import { validatePaymentAmount, reconcileInvoicePayment } from "@/lib/invoice-reconciliation";
 import {
   authenticateApiRequest,
   requireScope,
@@ -38,14 +39,27 @@ export async function POST(request: NextRequest, context: RouteContext) {
       method?: string;
       note?: string;
       currency?: string;
+      paidAt?: string;
+      plannedNextPaymentDate?: string;
     };
 
-    const paymentAmount = body.amount ?? invoice.totalAmount;
-    const existingPayments = await db.invoicePayment.findMany({
-      where: { invoiceId: id },
-    });
-    const totalPaid = existingPayments.reduce((sum, p) => sum + p.amount, 0) + paymentAmount;
-    const isPartial = totalPaid < invoice.totalAmount;
+    const paymentAmount = body.amount ?? invoice.remainingAmount;
+
+    const validation = await validatePaymentAmount(id, paymentAmount);
+    if (!validation.valid) {
+      throw new ApiError(ErrorCode.VALIDATION_ERROR, validation.error!, 422);
+    }
+
+    const isPartial = paymentAmount < invoice.remainingAmount - 0.01;
+
+    if (isPartial && body.plannedNextPaymentDate) {
+      const promiseDate = new Date(body.plannedNextPaymentDate);
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      if (promiseDate < today) {
+        throw new ApiError(ErrorCode.VALIDATION_ERROR, "plannedNextPaymentDate must be today or a future date.", 422);
+      }
+    }
 
     const payment = await db.invoicePayment.create({
       data: {
@@ -55,34 +69,34 @@ export async function POST(request: NextRequest, context: RouteContext) {
         currency: body.currency ?? "INR",
         method: body.method ?? null,
         note: body.note ?? null,
+        source: "api",
+        status: "SETTLED",
         isPartial,
+        paidAt: body.paidAt ? new Date(body.paidAt) : new Date(),
+        plannedNextPaymentDate: isPartial ? (body.plannedNextPaymentDate ?? null) : null,
+        recordedByUserId: null,
       },
     });
 
-    const newStatus = isPartial ? "PARTIALLY_PAID" : "PAID";
-    await db.invoice.update({
-      where: { id },
-      data: {
-        status: newStatus,
-        ...(newStatus === "PAID" ? { paidAt: new Date() } : {}),
-      },
-    });
+    const reconciled = await reconcileInvoicePayment(id);
 
     dispatchEvent(auth.orgId, "invoice.payment_received", {
       invoiceId: id,
       invoiceNumber: invoice.invoiceNumber,
       paymentId: payment.id,
       amount: paymentAmount,
-      status: newStatus,
+      status: reconciled.derivedStatus,
+      amountPaid: reconciled.amountPaid,
+      remainingAmount: reconciled.remainingAmount,
     }).catch(() => {});
 
     const resp = apiResponse({
       paymentId: payment.id,
       invoiceId: id,
-      amount: paymentAmount,
-      status: newStatus,
-      totalPaid,
-      remaining: Math.max(0, invoice.totalAmount - totalPaid),
+      status: reconciled.derivedStatus,
+      amountPaid: reconciled.amountPaid,
+      remainingAmount: reconciled.remainingAmount,
+      isPartial: reconciled.remainingAmount > 0,
     });
     logApiRequest(auth.orgId, auth.apiKeyId, "POST", `/api/v1/invoices/${id}/mark-paid`, 200, Date.now() - start, getClientIp(request));
     return resp;

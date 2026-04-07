@@ -251,6 +251,14 @@ model Invoice {
   razorpayPaymentLinkId   String?
   razorpayPaymentLinkUrl  String?
   paymentLinkExpiresAt    DateTime?
+  // Payment reconciliation snapshot fields (derived, maintained by reconciliation service)
+  amountPaid              Float     @default(0)
+  remainingAmount         Float     @default(0)
+  lastPaymentAt           DateTime?
+  lastPaymentMethod       String?
+  paymentPromiseDate      String?
+  paymentLinkStatus       String?
+  paymentLinkLastEventAt  DateTime?
   createdAt      DateTime      @default(now())
   updatedAt      DateTime      @updatedAt
   archivedAt     DateTime?
@@ -437,11 +445,26 @@ model InvoicePayment {
   method     String?
   note       String?
   isPartial  Boolean  @default(false)
+  // Reconciliation fields
+  source                String  @default("admin_manual")
+  status                String  @default("SETTLED")
+  externalPaymentId     String?
+  externalReferenceId   String?
+  externalPayload       Json?
+  paymentMethodDisplay  String?
+  paymentChannel        String?
+  plannedNextPaymentDate String?
+  recordedByUserId      String? @db.Uuid
+  reviewedByUserId      String? @db.Uuid
+  reviewedAt            DateTime?
+  rejectionReason       String?
   createdAt  DateTime @default(now())
 
-  invoice Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  invoice Invoice      @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  proof   InvoiceProof? @relation("PaymentProof")
 
   @@index([invoiceId])
+  @@index([externalPaymentId])
   @@map("invoice_payment")
 }
 
@@ -454,11 +477,13 @@ enum ProofReviewStatus {
 model InvoiceProof {
   id               String            @id @default(cuid())
   invoiceId        String
+  invoicePaymentId String?           @unique
   fileUrl          String
   fileName         String
   amount           Float             @default(0)
   paymentDate      String?
   paymentMethod    String?
+  plannedNextPaymentDate String?
   uploadedByToken  String?
   uploadedByUserId String?           @db.Uuid
   reviewStatus     ProofReviewStatus @default(PENDING)
@@ -467,7 +492,8 @@ model InvoiceProof {
   reviewedAt       DateTime?
   createdAt        DateTime          @default(now())
 
-  invoice Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  invoice        Invoice         @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  invoicePayment InvoicePayment? @relation("PaymentProof", fields: [invoicePaymentId], references: [id])
 
   @@index([invoiceId])
   @@map("invoice_proof")

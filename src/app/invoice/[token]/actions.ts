@@ -48,6 +48,8 @@ export async function getPublicInvoice(token: string) {
           totalAmount: invoice.totalAmount,
           notes: invoice.notes,
           paidAt: invoice.paidAt?.toISOString() ?? null,
+          amountPaid: invoice.amountPaid,
+          remainingAmount: invoice.remainingAmount,
           formData,
           lineItems: invoice.lineItems.map((li) => ({
             id: li.id,
@@ -136,13 +138,22 @@ export async function uploadPaymentProof(
     note?: string;
     fileUrl: string;
     fileName: string;
+    plannedNextPaymentDate?: string;
   }
 ): Promise<ActionResult<{ proofId: string }>> {
   try {
     const tokenRecord = await db.publicInvoiceToken.findUnique({
       where: { token },
       include: {
-        invoice: { select: { id: true, totalAmount: true, status: true, organizationId: true } },
+        invoice: {
+          select: {
+            id: true,
+            totalAmount: true,
+            remainingAmount: true,
+            status: true,
+            organizationId: true,
+          },
+        },
       },
     });
 
@@ -151,9 +162,52 @@ export async function uploadPaymentProof(
     }
 
     const invoice = tokenRecord.invoice;
-    const isPartial = data.amount < invoice.totalAmount;
+
+    if (invoice.status === "CANCELLED" || invoice.status === "DISPUTED") {
+      return { success: false, error: `Cannot upload proof for a ${invoice.status.toLowerCase()} invoice` };
+    }
+
+    if (data.amount <= 0) {
+      return { success: false, error: "Amount must be greater than zero" };
+    }
+
+    if (data.amount > invoice.remainingAmount + 0.01) {
+      return {
+        success: false,
+        error: `Amount exceeds remaining balance of ${invoice.remainingAmount.toFixed(2)}`,
+      };
+    }
+
+    const isPartial = data.amount < invoice.remainingAmount - 0.01;
+
+    if (isPartial) {
+      if (!data.plannedNextPaymentDate) {
+        return { success: false, error: "A planned next payment date is required for partial payments" };
+      }
+      const promiseDate = new Date(data.plannedNextPaymentDate);
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      if (promiseDate < today) {
+        return { success: false, error: "Planned next payment date must be today or a future date" };
+      }
+    }
 
     const result = await db.$transaction(async (tx) => {
+      const payment = await tx.invoicePayment.create({
+        data: {
+          invoiceId: invoice.id,
+          orgId: invoice.organizationId,
+          amount: data.amount,
+          method: data.paymentMethod,
+          note: data.note || null,
+          paidAt: new Date(data.paymentDate),
+          isPartial,
+          source: "public_proof",
+          status: "PENDING_REVIEW",
+          plannedNextPaymentDate: isPartial ? (data.plannedNextPaymentDate ?? null) : null,
+        },
+      });
+
       const proof = await tx.invoiceProof.create({
         data: {
           invoiceId: invoice.id,
@@ -164,42 +218,18 @@ export async function uploadPaymentProof(
           paymentMethod: data.paymentMethod,
           uploadedByToken: tokenRecord.id,
           reviewStatus: "PENDING",
+          invoicePaymentId: payment.id,
+          plannedNextPaymentDate: isPartial ? (data.plannedNextPaymentDate ?? null) : null,
         },
       });
-
-      await tx.invoicePayment.create({
-        data: {
-          invoiceId: invoice.id,
-          orgId: invoice.organizationId,
-          amount: data.amount,
-          method: data.paymentMethod,
-          note: data.note || null,
-          paidAt: new Date(data.paymentDate),
-          isPartial,
-        },
-      });
-
-      const prevStatus = invoice.status;
-      if (prevStatus !== "PARTIALLY_PAID" && prevStatus !== "PAID") {
-        await tx.invoice.update({
-          where: { id: invoice.id },
-          data: { status: "PARTIALLY_PAID" },
-        });
-
-        await tx.invoiceStateEvent.create({
-          data: {
-            invoiceId: invoice.id,
-            fromStatus: prevStatus,
-            toStatus: "PARTIALLY_PAID",
-            reason: "Payment proof uploaded (pending review)",
-          },
-        });
-      }
 
       return proof;
     });
 
-    return { success: true, data: { proofId: result.id } };
+    return {
+      success: true,
+      data: { proofId: result.id },
+    };
   } catch (error) {
     console.error("uploadPaymentProof error:", error);
     return { success: false, error: "Failed to upload payment proof" };
