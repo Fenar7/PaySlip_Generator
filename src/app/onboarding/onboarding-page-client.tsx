@@ -3,7 +3,6 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { useSupabaseSession } from "@/hooks/use-supabase-session";
 import { createOrg } from "@/app/app/actions/org-actions";
 import {
   saveOnboardingBranding,
@@ -20,7 +19,6 @@ function slugify(str: string) {
 
 export function OnboardingPageClient() {
   const router = useRouter();
-  const { user } = useSupabaseSession();
   const [step, setStep] = useState(1);
   const [orgId, setOrgId] = useState("");
   const [loading, setLoading] = useState(false);
@@ -54,19 +52,12 @@ export function OnboardingPageClient() {
       setError("Organization name is required");
       return;
     }
-    if (!user?.id) {
-      setError("You must be signed in to create an organization");
-      return;
-    }
     setError("");
     setLoading(true);
     try {
       const org = await createOrg({
         name: orgName.trim(),
         slug,
-        userId: user.id,
-        userEmail: user.email ?? "",
-        userName: user.user_metadata?.full_name || user.user_metadata?.name || undefined,
       });
       setOrgId(org.id);
       if (typeof window !== "undefined") {
@@ -75,7 +66,9 @@ export function OnboardingPageClient() {
       setStep(2);
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      if (msg.includes("Unique") || msg.includes("unique") || msg.includes("slug")) {
+      if (msg.toLowerCase().includes("session expired") || msg.toLowerCase().includes("sign in")) {
+        setError("Your session expired. Please sign in again.");
+      } else if (msg.includes("Unique") || msg.includes("unique") || msg.includes("slug")) {
         setError("An organization with that name already exists. Try a different name.");
       } else {
         setError("Could not create organization. Please try again.");
