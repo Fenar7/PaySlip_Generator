@@ -90,6 +90,7 @@ export function OnboardingPageClient() {
   }
 
   async function handleStep3() {
+    setError("");
     setLoading(true);
     try {
       if (orgId)
@@ -103,9 +104,18 @@ export function OnboardingPageClient() {
           businessAddress,
         });
       setStep(4);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      setError(msg || "Could not save financial details. Please try again.");
+      console.error("[saveOnboardingFinancials error]", err);
     } finally {
       setLoading(false);
     }
+  }
+
+  function handleSkipStep3() {
+    setError("");
+    setStep(4);
   }
 
   async function handleStep4() {
@@ -274,6 +284,7 @@ export function OnboardingPageClient() {
                 placeholder="123 Main St, Mumbai 400001"
               />
             </div>
+            {error && <p className="text-sm text-red-600">{error}</p>}
             <div className="flex gap-3">
               <Button variant="secondary" className="flex-1" onClick={() => setStep(2)}>
                 ← Back
@@ -284,7 +295,7 @@ export function OnboardingPageClient() {
             </div>
             <button
               type="button"
-              onClick={handleStep3}
+              onClick={handleSkipStep3}
               className="w-full text-sm text-[#999] hover:text-[#666]"
             >
               Skip for now
