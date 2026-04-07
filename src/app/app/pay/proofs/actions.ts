@@ -3,6 +3,7 @@
 import { db } from "@/lib/db";
 import { requireOrgContext } from "@/lib/auth";
 import { revalidatePath } from "next/cache";
+import { reconcileInvoicePayment } from "@/lib/invoice-reconciliation";
 
 export type ActionResult<T> =
   | { success: true; data: T }
@@ -91,6 +92,7 @@ export async function getProofDetail(proofId: string): Promise<
     amount: number;
     paymentDate: string | null;
     paymentMethod: string | null;
+    plannedNextPaymentDate: string | null;
     reviewStatus: string;
     reviewNote: string | null;
     createdAt: string;
@@ -99,9 +101,12 @@ export async function getProofDetail(proofId: string): Promise<
       id: string;
       invoiceNumber: string;
       totalAmount: number;
+      amountPaid: number;
+      remainingAmount: number;
       status: string;
       customerName: string;
     };
+    resultingStatus: "PAID" | "PARTIALLY_PAID";
   }>
 > {
   try {
@@ -115,6 +120,8 @@ export async function getProofDetail(proofId: string): Promise<
             id: true,
             invoiceNumber: true,
             totalAmount: true,
+            amountPaid: true,
+            remainingAmount: true,
             status: true,
             customer: { select: { name: true } },
           },
@@ -126,6 +133,15 @@ export async function getProofDetail(proofId: string): Promise<
       return { success: false, error: "Proof not found" };
     }
 
+    // Effective remaining: for legacy invoices where remainingAmount hasn't been
+    // reconciled yet, fall back to totalAmount - amountPaid.
+    const effectiveRemaining = proof.invoice.remainingAmount > 0
+      ? proof.invoice.remainingAmount
+      : Math.max(proof.invoice.totalAmount - proof.invoice.amountPaid, 0);
+
+    const resultingStatus: "PAID" | "PARTIALLY_PAID" =
+      proof.amount >= effectiveRemaining ? "PAID" : "PARTIALLY_PAID";
+
     return {
       success: true,
       data: {
@@ -135,6 +151,7 @@ export async function getProofDetail(proofId: string): Promise<
         amount: proof.amount,
         paymentDate: proof.paymentDate,
         paymentMethod: proof.paymentMethod,
+        plannedNextPaymentDate: proof.plannedNextPaymentDate ?? null,
         reviewStatus: proof.reviewStatus,
         reviewNote: proof.reviewNote,
         createdAt: proof.createdAt.toISOString(),
@@ -143,9 +160,12 @@ export async function getProofDetail(proofId: string): Promise<
           id: proof.invoice.id,
           invoiceNumber: proof.invoice.invoiceNumber,
           totalAmount: proof.invoice.totalAmount,
+          amountPaid: proof.invoice.amountPaid,
+          remainingAmount: proof.invoice.remainingAmount,
           status: proof.invoice.status,
           customerName: proof.invoice.customer?.name || "—",
         },
+        resultingStatus,
       },
     };
   } catch (error) {
@@ -160,36 +180,58 @@ export async function acceptProof(proofId: string): Promise<ActionResult<void>> 
 
     const proof = await db.invoiceProof.findFirst({
       where: { id: proofId, invoice: { organizationId: orgId } },
-      include: { invoice: { select: { id: true, status: true } } },
+      include: {
+        invoice: { select: { id: true, status: true } },
+        invoicePayment: true,
+      },
     });
 
     if (!proof) {
       return { success: false, error: "Proof not found" };
     }
 
-    await db.$transaction([
-      db.invoiceProof.update({
-        where: { id: proofId },
-        data: {
-          reviewStatus: "ACCEPTED",
-          reviewedById: userId,
-          reviewedAt: new Date(),
-        },
-      }),
-      db.invoice.update({
-        where: { id: proof.invoice.id },
-        data: { status: "PAID", paidAt: new Date() },
-      }),
-      db.invoiceStateEvent.create({
-        data: {
-          invoiceId: proof.invoice.id,
-          fromStatus: proof.invoice.status,
-          toStatus: "PAID",
-          actorId: userId,
-          reason: "Payment proof accepted",
-        },
-      }),
-    ]);
+    const invoiceId = proof.invoice.id;
+
+    if (!proof.invoicePayment) {
+      // Legacy proof: create a SETTLED payment and link it to the proof in one transaction
+      await db.$transaction(async (tx) => {
+        const newPayment = await tx.invoicePayment.create({
+          data: {
+            invoiceId,
+            orgId,
+            amount: proof.amount,
+            method: proof.paymentMethod ?? null,
+            paidAt: proof.paymentDate ? new Date(proof.paymentDate) : new Date(),
+            source: "public_proof",
+            status: "SETTLED",
+            reviewedByUserId: userId,
+            reviewedAt: new Date(),
+          },
+        });
+        await tx.invoiceProof.update({
+          where: { id: proofId },
+          data: {
+            invoicePaymentId: newPayment.id,
+            reviewStatus: "ACCEPTED",
+            reviewedById: userId,
+            reviewedAt: new Date(),
+          },
+        });
+      });
+    } else {
+      await db.$transaction([
+        db.invoicePayment.update({
+          where: { id: proof.invoicePayment.id },
+          data: { status: "SETTLED", reviewedByUserId: userId, reviewedAt: new Date() },
+        }),
+        db.invoiceProof.update({
+          where: { id: proofId },
+          data: { reviewStatus: "ACCEPTED", reviewedById: userId, reviewedAt: new Date() },
+        }),
+      ]);
+    }
+
+    await reconcileInvoicePayment(invoiceId, userId);
 
     revalidatePath("/app/pay/proofs");
     revalidatePath("/app/pay/receivables");
@@ -209,15 +251,29 @@ export async function rejectProof(
 
     const proof = await db.invoiceProof.findFirst({
       where: { id: proofId, invoice: { organizationId: orgId } },
-      include: { invoice: { select: { id: true, status: true } } },
+      include: {
+        invoice: { select: { id: true, status: true } },
+        invoicePayment: { select: { id: true } },
+      },
     });
 
     if (!proof) {
       return { success: false, error: "Proof not found" };
     }
 
-    await db.$transaction([
-      db.invoiceProof.update({
+    await db.$transaction(async (tx) => {
+      if (proof.invoicePayment) {
+        await tx.invoicePayment.update({
+          where: { id: proof.invoicePayment.id },
+          data: {
+            status: "REJECTED",
+            rejectionReason: reason,
+            reviewedByUserId: userId,
+            reviewedAt: new Date(),
+          },
+        });
+      }
+      await tx.invoiceProof.update({
         where: { id: proofId },
         data: {
           reviewStatus: "REJECTED",
@@ -225,21 +281,12 @@ export async function rejectProof(
           reviewedById: userId,
           reviewedAt: new Date(),
         },
-      }),
-      db.invoice.update({
-        where: { id: proof.invoice.id },
-        data: { status: "ISSUED" },
-      }),
-      db.invoiceStateEvent.create({
-        data: {
-          invoiceId: proof.invoice.id,
-          fromStatus: proof.invoice.status,
-          toStatus: "ISSUED",
-          actorId: userId,
-          reason: `Payment proof rejected: ${reason}`,
-        },
-      }),
-    ]);
+      });
+    });
+
+    // Reconcile to derive the correct status (PARTIALLY_PAID, OVERDUE, etc.)
+    // rather than blindly resetting to ISSUED.
+    await reconcileInvoicePayment(proof.invoice.id, userId);
 
     revalidatePath("/app/pay/proofs");
     revalidatePath("/app/pay/receivables");

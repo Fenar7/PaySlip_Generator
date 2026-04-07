@@ -169,6 +169,51 @@ export default async function ProofDetailPage({
               )}
             </div>
 
+            {/* Reconciliation Preview */}
+            {isPending && (
+              <div className="mt-5 rounded-lg border border-slate-200 bg-slate-50 p-4">
+                <h3 className="text-sm font-semibold text-slate-800 mb-3">Payment Reconciliation Preview</h3>
+                <dl className="space-y-2 text-sm">
+                  <div className="flex justify-between">
+                    <dt className="text-slate-500">Invoice Total</dt>
+                    <dd className="font-medium text-slate-900">{formatCurrency(proof.invoice.totalAmount)}</dd>
+                  </div>
+                  <div className="flex justify-between">
+                    <dt className="text-slate-500">Already Settled</dt>
+                    <dd className="font-medium text-slate-900">{formatCurrency(proof.invoice.amountPaid)}</dd>
+                  </div>
+                  <div className="flex justify-between">
+                    <dt className="text-slate-500">This Payment Amount</dt>
+                    <dd className="font-medium text-slate-900">{formatCurrency(proof.amount)}</dd>
+                  </div>
+                  <div className="flex justify-between border-t border-slate-200 pt-2">
+                    <dt className="text-slate-500">Remaining After</dt>
+                    <dd className="font-medium text-slate-900">
+                      {formatCurrency(Math.max(0, proof.invoice.totalAmount - proof.invoice.amountPaid - proof.amount))}
+                    </dd>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <dt className="text-slate-500">Result if Accepted</dt>
+                    <dd>
+                      <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${
+                        proof.resultingStatus === "PAID"
+                          ? "bg-green-100 text-green-700"
+                          : "bg-orange-100 text-orange-700"
+                      }`}>
+                        {proof.resultingStatus.replace("_", " ")}
+                      </span>
+                    </dd>
+                  </div>
+                  {proof.plannedNextPaymentDate && (
+                    <div className="flex justify-between">
+                      <dt className="text-slate-500">Customer&apos;s Next Date</dt>
+                      <dd className="font-medium text-slate-900">{proof.plannedNextPaymentDate}</dd>
+                    </div>
+                  )}
+                </dl>
+              </div>
+            )}
+
             {/* Actions */}
             {isPending && (
               <div className="mt-6 space-y-4">

@@ -6,6 +6,7 @@ import { nextDocumentNumber } from "@/lib/docs";
 import { getSchemaDriftActionMessage, isModelMissingTableError } from "@/lib/prisma-errors";
 import { revalidatePath } from "next/cache";
 import type { Prisma } from "@/generated/prisma/client";
+import { reconcileInvoicePayment, validatePaymentAmount } from "@/lib/invoice-reconciliation";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -406,30 +407,46 @@ export async function markInvoicePaid(id: string): Promise<ActionResult<void>> {
 
     const existing = await db.invoice.findFirst({
       where: { id, organizationId: orgId },
+      select: { id: true, status: true, totalAmount: true, amountPaid: true },
     });
 
     if (!existing) {
       return { success: false, error: "Invoice not found" };
     }
 
-    if (!canTransition(existing.status, "PAID")) {
-      return { success: false, error: `Cannot mark invoice as paid from ${existing.status} status` };
+    if (existing.status === "PAID") {
+      return { success: false, error: "Invoice is already paid" };
     }
 
-    await db.$transaction([
-      db.invoice.update({
-        where: { id },
-        data: { status: "PAID", paidAt: new Date() },
-      }),
-      db.invoiceStateEvent.create({
-        data: {
-          invoiceId: id,
-          fromStatus: existing.status,
-          toStatus: "PAID",
-          actorId: userId,
-        },
-      }),
-    ]);
+    if (existing.status === "CANCELLED") {
+      return { success: false, error: "Cannot mark a cancelled invoice as paid" };
+    }
+
+    if (existing.status === "DRAFT") {
+      return { success: false, error: "Cannot mark a draft invoice as paid" };
+    }
+
+    // Backwards-compat: compute remaining from totalAmount - amountPaid so that
+    // legacy records (where remainingAmount column still holds the default 0) work correctly.
+    const remaining = Math.max(existing.totalAmount - existing.amountPaid, 0);
+
+    if (remaining <= 0) {
+      return { success: false, error: "Invoice has no remaining balance" };
+    }
+
+    await db.invoicePayment.create({
+      data: {
+        invoiceId: id,
+        orgId,
+        amount: remaining,
+        method: "manual",
+        source: "admin_manual",
+        status: "SETTLED",
+        recordedByUserId: userId,
+      },
+    });
+
+    await reconcileInvoicePayment(id, userId);
 
     revalidatePath("/app/docs/invoices");
     revalidatePath(`/app/docs/invoices/${id}`);
@@ -440,55 +457,67 @@ export async function markInvoicePaid(id: string): Promise<ActionResult<void>> {
   }
 }
 
+interface RecordPaymentInput {
+  amount: number;
+  method?: string;
+  paidAt?: Date;
+  note?: string;
+  plannedNextPaymentDate?: string; // ISO date string, only valid if amount < remaining
+}
+
 export async function recordPayment(
   invoiceId: string,
-  input: { amount: number; isPartial: boolean; method?: string; note?: string }
+  input: RecordPaymentInput
 ): Promise<ActionResult<void>> {
   try {
     const { orgId, userId } = await requireOrgContext();
 
     const existing = await db.invoice.findFirst({
       where: { id: invoiceId, organizationId: orgId },
+      select: { id: true, status: true },
     });
 
     if (!existing) {
       return { success: false, error: "Invoice not found" };
     }
 
-    const toStatus = input.isPartial ? "PARTIALLY_PAID" : "PAID";
-
-    if (!canTransition(existing.status, toStatus)) {
+    if (existing.status === "DRAFT" || existing.status === "REISSUED") {
       return { success: false, error: `Cannot record payment for invoice in ${existing.status} status` };
     }
 
-    await db.$transaction([
-      db.invoicePayment.create({
-        data: {
-          invoiceId,
-          orgId,
-          amount: input.amount,
-          method: input.method ?? null,
-          note: input.note ?? null,
-          isPartial: input.isPartial,
-        },
-      }),
-      db.invoice.update({
-        where: { id: invoiceId },
-        data: {
-          status: toStatus,
-          ...(toStatus === "PAID" ? { paidAt: new Date() } : {}),
-        },
-      }),
-      db.invoiceStateEvent.create({
-        data: {
-          invoiceId,
-          fromStatus: existing.status,
-          toStatus,
-          actorId: userId,
-          metadata: { amount: input.amount, method: input.method } as Prisma.InputJsonValue,
-        },
-      }),
-    ]);
+    const validation = await validatePaymentAmount(invoiceId, input.amount);
+    if (!validation.valid) {
+      return { success: false, error: validation.error! };
+    }
+
+    const remaining = validation.remaining;
+
+    if (input.plannedNextPaymentDate && input.amount < remaining) {
+      const promiseDate = new Date(input.plannedNextPaymentDate);
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      if (promiseDate < today) {
+        return { success: false, error: "Planned next payment date must be today or in the future" };
+      }
+    }
+
+    await db.invoicePayment.create({
+      data: {
+        invoiceId,
+        orgId,
+        amount: input.amount,
+        method: input.method ?? null,
+        paidAt: input.paidAt ?? new Date(),
+        note: input.note ?? null,
+        source: "admin_manual",
+        status: "SETTLED",
+        recordedByUserId: userId,
+        plannedNextPaymentDate:
+          input.amount < remaining ? (input.plannedNextPaymentDate ?? null) : null,
+      },
+    });
+
+    await reconcileInvoicePayment(invoiceId, userId);
 
     revalidatePath("/app/docs/invoices");
     revalidatePath(`/app/docs/invoices/${invoiceId}`);
@@ -702,6 +731,14 @@ export async function reissueInvoice(
     console.error("reissueInvoice error:", error);
     return { success: false, error: "Failed to reissue invoice" };
   }
+}
+
+export async function getInvoicePayments(invoiceId: string) {
+  const { orgId } = await requireOrgContext();
+  return db.invoicePayment.findMany({
+    where: { invoiceId, invoice: { organizationId: orgId } },
+    orderBy: { paidAt: "desc" },
+  });
 }
 
 // ─── Timeline & Tokens ───────────────────────────────────────────────────────

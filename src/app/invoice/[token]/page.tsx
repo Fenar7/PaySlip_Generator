@@ -60,6 +60,8 @@ export default async function PublicInvoicePage({
   const extraCharges = Number(rawFormData?.extraCharges) || 0;
   const invoiceLevelDiscount = Number(rawFormData?.invoiceLevelDiscount) || 0;
   const isPaid = PAID_STATUSES.includes(invoice.status);
+  const isPartiallyPaid = invoice.status === "PARTIALLY_PAID";
+  const hasPendingProof = invoice.proofs.some((p) => p.reviewStatus === "PENDING");
 
   // Mark as viewed on first render
   await markAsViewed(token);
@@ -80,6 +82,39 @@ export default async function PublicInvoicePage({
               Paid on {new Date(invoice.paidAt).toLocaleDateString("en-IN")}
             </p>
           )}
+        </div>
+      )}
+
+      {/* PARTIALLY_PAID Banner */}
+      {isPartiallyPaid && (
+        <div className="rounded-lg border border-orange-200 bg-orange-50 px-6 py-4">
+          <div className="flex items-start gap-3">
+            <span className="text-xl">⚠</span>
+            <div>
+              <p className="font-semibold text-orange-800">
+                Partial payment received.{" "}
+                {invoice.amountPaid > 0 && <>{formatCurrency(invoice.amountPaid)} has been paid. </>}
+                {invoice.remainingAmount > 0 && <>{formatCurrency(invoice.remainingAmount)} remains outstanding.</>}
+              </p>
+              {invoice.paymentPromiseDate && (
+                <p className="mt-1 text-sm text-orange-700">
+                  Next payment expected: {invoice.paymentPromiseDate}
+                </p>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* PENDING_PROOF Banner */}
+      {hasPendingProof && (
+        <div className="rounded-lg border border-yellow-200 bg-yellow-50 px-6 py-4">
+          <div className="flex items-center gap-3">
+            <span className="text-xl">⏳</span>
+            <p className="text-sm font-medium text-yellow-800">
+              Your payment proof has been submitted and is awaiting review.
+            </p>
+          </div>
         </div>
       )}
 
@@ -215,6 +250,36 @@ export default async function PublicInvoicePage({
           </div>
         </div>
 
+        {/* Payment Status Summary */}
+        {(invoice.amountPaid > 0 || invoice.status === "PARTIALLY_PAID" || isPaid) && (
+          <div className="border-t border-slate-100 px-8 py-5">
+            <h3 className="text-xs font-medium uppercase tracking-wider text-slate-400 mb-3">Payment Status</h3>
+            <div className="flex items-start justify-between gap-6">
+              <div className="space-y-1.5 text-sm">
+                <div className="flex gap-4">
+                  <span className="text-slate-500 w-32">Total Amount</span>
+                  <span className="font-medium text-slate-900">{formatCurrency(invoice.totalAmount)}</span>
+                </div>
+                {invoice.amountPaid > 0 && (
+                  <div className="flex gap-4">
+                    <span className="text-slate-500 w-32">Amount Paid</span>
+                    <span className="font-medium text-green-700">{formatCurrency(invoice.amountPaid)}</span>
+                  </div>
+                )}
+                {invoice.remainingAmount > 0 && (
+                  <div className="flex gap-4">
+                    <span className="text-slate-500 w-32">Remaining</span>
+                    <span className="font-medium text-orange-700">{formatCurrency(invoice.remainingAmount)}</span>
+                  </div>
+                )}
+              </div>
+              <span className={`inline-flex items-center rounded-full px-3 py-1 text-sm font-medium ${STATUS_COLORS[invoice.status] || "bg-slate-100 text-slate-700"}`}>
+                {invoice.status.replace("_", " ")}
+              </span>
+            </div>
+          </div>
+        )}
+
         {/* Notes & Terms */}
         {((notes && visibility?.showNotes !== false) || (terms && visibility?.showTerms !== false)) && (
           <div className="border-t border-slate-100 px-8 py-6 grid grid-cols-2 gap-8">
@@ -263,7 +328,7 @@ export default async function PublicInvoicePage({
           <p className="text-sm text-slate-500 mb-6">
             Already made a payment? Upload your proof of payment for quick verification.
           </p>
-          <ProofUploadForm token={token} invoiceTotal={invoice.totalAmount} />
+          <ProofUploadForm token={token} invoiceTotal={invoice.totalAmount} remainingAmount={invoice.remainingAmount} />
         </div>
       )}
 

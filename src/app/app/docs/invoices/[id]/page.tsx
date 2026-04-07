@@ -1,5 +1,5 @@
 import { notFound } from "next/navigation";
-import { getInvoice, getInvoiceTimeline } from "../actions";
+import { getInvoice, getInvoiceTimeline, getInvoicePayments } from "../actions";
 import { InvoiceBrandingWrapper } from "../new/branding-wrapper";
 import { listCustomers } from "@/app/app/data/actions";
 import { InvoiceDetailClient } from "./invoice-detail-client";
@@ -14,10 +14,11 @@ export default async function EditInvoicePage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const [invoice, customersResult, events] = await Promise.all([
+  const [invoice, customersResult, events, payments] = await Promise.all([
     getInvoice(id),
     listCustomers({ limit: 200 }).catch(() => ({ customers: [] })),
     getInvoiceTimeline(id),
+    getInvoicePayments(id),
   ]);
 
   if (!invoice) {
@@ -38,6 +39,30 @@ export default async function EditInvoicePage({
             invoiceId={invoice.id}
             status={invoice.status}
             events={events}
+            invoiceSummary={{
+              totalAmount: invoice.totalAmount,
+              amountPaid: invoice.amountPaid,
+              remainingAmount: invoice.remainingAmount,
+              lastPaymentAt: invoice.lastPaymentAt?.toISOString() ?? null,
+              lastPaymentMethod: invoice.lastPaymentMethod,
+              paymentPromiseDate: invoice.paymentPromiseDate ?? null,
+              razorpayPaymentLinkUrl: invoice.razorpayPaymentLinkUrl,
+              paymentLinkStatus: invoice.paymentLinkStatus,
+              paymentLinkExpiresAt: invoice.paymentLinkExpiresAt?.toISOString() ?? null,
+              paymentLinkLastEventAt: invoice.paymentLinkLastEventAt?.toISOString() ?? null,
+            }}
+            payments={payments.map((p) => ({
+              id: p.id,
+              amount: p.amount,
+              paidAt: p.paidAt.toISOString(),
+              method: p.method,
+              note: p.note,
+              source: p.source,
+              status: p.status,
+              externalPaymentId: p.externalPaymentId,
+              paymentMethodDisplay: p.paymentMethodDisplay,
+              plannedNextPaymentDate: p.plannedNextPaymentDate,
+            }))}
           />
         </div>
       </aside>

@@ -176,6 +176,10 @@ async function ReceivablesTable({
             <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">Invoice #</th>
             <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">Customer</th>
             <th className="px-4 py-3 text-right text-xs font-medium uppercase tracking-wider text-slate-500">Amount</th>
+            <th className="px-4 py-3 text-right text-xs font-medium uppercase tracking-wider text-slate-500">Paid</th>
+            <th className="px-4 py-3 text-right text-xs font-medium uppercase tracking-wider text-slate-500">Remaining</th>
+            <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">Last Method</th>
+            <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">Next Date</th>
             <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">Due Date</th>
             <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">Status</th>
             <th className="px-4 py-3 text-right text-xs font-medium uppercase tracking-wider text-slate-500">Actions</th>
@@ -191,6 +195,28 @@ async function ReceivablesTable({
               </td>
               <td className="px-4 py-3 text-sm text-slate-700">{inv.customerName}</td>
               <td className="px-4 py-3 text-right text-sm font-medium text-slate-900">{formatCurrency(inv.totalAmount)}</td>
+              <td className="px-4 py-3 text-right text-sm text-slate-700">
+                {inv.amountPaid > 0 ? formatCurrency(inv.amountPaid) : "—"}
+              </td>
+              <td className="px-4 py-3 text-right text-sm font-medium">
+                {inv.remainingAmount > 0 ? (
+                  <span className={inv.status === "OVERDUE" ? "text-red-600" : "text-slate-900"}>
+                    {formatCurrency(inv.remainingAmount)}
+                  </span>
+                ) : (
+                  <span className="text-slate-400">—</span>
+                )}
+              </td>
+              <td className="px-4 py-3">
+                {inv.lastPaymentMethod ? (
+                  <span className="inline-flex items-center rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-700">
+                    {inv.lastPaymentMethod.replace(/_/g, " ")}
+                  </span>
+                ) : (
+                  <span className="text-xs text-slate-400">—</span>
+                )}
+              </td>
+              <td className="px-4 py-3 text-sm text-slate-500">{inv.nextPaymentDate || "—"}</td>
               <td className="px-4 py-3 text-sm text-slate-500">{inv.dueDate || "—"}</td>
               <td className="px-4 py-3">
                 <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${STATUS_COLORS[inv.status] || "bg-slate-100 text-slate-700"}`}>
