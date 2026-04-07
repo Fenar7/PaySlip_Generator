@@ -16,21 +16,27 @@ const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
 export function ProofUploadForm({
   token,
   invoiceTotal,
+  remainingAmount,
 }: {
   token: string;
   invoiceTotal: number;
+  remainingAmount?: number;
 }) {
+  const effectiveMax = remainingAmount !== undefined && remainingAmount > 0 ? remainingAmount : invoiceTotal;
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [amountEntered, setAmountEntered] = useState<number>(effectiveMax);
   const fileRef = useRef<HTMLInputElement>(null);
+
+  const showNextDateField = amountEntered > 0 && amountEntered < effectiveMax;
 
   function validate(form: FormData): Record<string, string> {
     const errs: Record<string, string> = {};
     const amount = Number(form.get("amount"));
     if (!amount || amount <= 0) errs.amount = "Enter a valid amount";
-    if (amount > invoiceTotal * 2) errs.amount = "Amount seems too high";
+    if (amount > effectiveMax) errs.amount = `Amount cannot exceed the remaining balance (${new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", minimumFractionDigits: 0 }).format(effectiveMax)})`;
     if (!form.get("paymentDate")) errs.paymentDate = "Select a payment date";
     if (!form.get("paymentMethod")) errs.paymentMethod = "Select a payment method";
     if (!selectedFile) errs.file = "Upload a proof file";
@@ -64,6 +70,7 @@ export function ProofUploadForm({
         note: (form.get("note") as string) || undefined,
         fileUrl,
         fileName: selectedFile!.name,
+        plannedNextPaymentDate: (form.get("plannedNextPaymentDate") as string) || undefined,
       });
 
       if (result.success) {
@@ -126,8 +133,10 @@ export function ProofUploadForm({
             id="amount"
             name="amount"
             step="0.01"
-            min="0"
-            defaultValue={invoiceTotal}
+            min="0.01"
+            max={effectiveMax}
+            defaultValue={effectiveMax}
+            onChange={(e) => setAmountEntered(Number(e.target.value))}
             className={`w-full rounded-lg border px-3 py-2 text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 ${
               errors.amount ? "border-red-300" : "border-slate-200"
             }`}
@@ -175,6 +184,22 @@ export function ProofUploadForm({
         </select>
         {errors.paymentMethod && <p className="mt-1 text-xs text-red-600">{errors.paymentMethod}</p>}
       </div>
+
+      {/* Next Payment Date — shown only for partial payments */}
+      {showNextDateField && (
+        <div>
+          <label htmlFor="plannedNextPaymentDate" className="block text-sm font-medium text-slate-700 mb-1">
+            Next Payment Date <span className="text-slate-400 font-normal">(when will you pay the rest?)</span>
+          </label>
+          <input
+            type="date"
+            id="plannedNextPaymentDate"
+            name="plannedNextPaymentDate"
+            min={new Date().toISOString().split("T")[0]}
+            className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+        </div>
+      )}
 
       {/* Note */}
       <div>

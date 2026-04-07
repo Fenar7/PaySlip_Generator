@@ -46,10 +46,11 @@ export async function getPublicInvoice(token: string) {
           dueDate: invoice.dueDate,
           status: invoice.status,
           totalAmount: invoice.totalAmount,
-          notes: invoice.notes,
-          paidAt: invoice.paidAt?.toISOString() ?? null,
           amountPaid: invoice.amountPaid,
           remainingAmount: invoice.remainingAmount,
+          paymentPromiseDate: invoice.paymentPromiseDate ?? null,
+          notes: invoice.notes,
+          paidAt: invoice.paidAt?.toISOString() ?? null,
           formData,
           lineItems: invoice.lineItems.map((li) => ({
             id: li.id,

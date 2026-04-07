@@ -733,6 +733,14 @@ export async function reissueInvoice(
   }
 }
 
+export async function getInvoicePayments(invoiceId: string) {
+  const { orgId } = await requireOrgContext();
+  return db.invoicePayment.findMany({
+    where: { invoiceId, invoice: { organizationId: orgId } },
+    orderBy: { paidAt: "desc" },
+  });
+}
+
 // ─── Timeline & Tokens ───────────────────────────────────────────────────────
 
 export async function getInvoiceTimeline(invoiceId: string) {

@@ -93,6 +93,11 @@ export async function listReceivables(params?: {
       dueDate: string | null;
       status: string;
       publicToken: string | null;
+      amountPaid: number;
+      remainingAmount: number;
+      lastPaymentMethod: string | null;
+      nextPaymentDate: string | null;
+      paymentLinkStatus: string | null;
     }>;
     total: number;
     totalPages: number;
@@ -150,6 +155,11 @@ export async function listReceivables(params?: {
           dueDate: inv.dueDate,
           status: inv.status,
           publicToken: inv.publicTokens[0]?.token ?? null,
+          amountPaid: inv.amountPaid,
+          remainingAmount: inv.remainingAmount,
+          lastPaymentMethod: inv.lastPaymentMethod,
+          nextPaymentDate: inv.paymentPromiseDate ?? null,
+          paymentLinkStatus: inv.paymentLinkStatus,
         })),
         total,
         totalPages: Math.ceil(total / limit),

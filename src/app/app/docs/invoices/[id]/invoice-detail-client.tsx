@@ -10,6 +10,14 @@ import {
   recordPayment,
 } from "../actions";
 
+function formatCurrency(amount: number) {
+  return new Intl.NumberFormat("en-IN", {
+    style: "currency",
+    currency: "INR",
+    minimumFractionDigits: 0,
+  }).format(amount);
+}
+
 interface TimelineEvent {
   id: string;
   invoiceId: string;
@@ -22,11 +30,54 @@ interface TimelineEvent {
   createdAt: Date | string;
 }
 
+interface PaymentEntry {
+  id: string;
+  amount: number;
+  paidAt: string;
+  method: string | null;
+  note: string | null;
+  source: string;
+  status: string;
+  externalPaymentId: string | null;
+  paymentMethodDisplay: string | null;
+  plannedNextPaymentDate: string | null;
+}
+
+interface InvoiceSummary {
+  totalAmount: number;
+  amountPaid: number;
+  remainingAmount: number;
+  lastPaymentAt: string | null;
+  lastPaymentMethod: string | null;
+  paymentPromiseDate: string | null;
+  razorpayPaymentLinkUrl: string | null;
+  paymentLinkStatus: string | null;
+  paymentLinkExpiresAt: string | null;
+  paymentLinkLastEventAt: string | null;
+}
+
 interface InvoiceDetailClientProps {
   invoiceId: string;
   status: string;
   events: TimelineEvent[];
+  invoiceSummary?: InvoiceSummary;
+  payments?: PaymentEntry[];
 }
+
+const SOURCE_LABELS: Record<string, string> = {
+  admin_manual: "Manual",
+  public_proof: "Proof Upload",
+  razorpay_payment_link: "Payment Link",
+  smart_collect: "Smart Collect",
+  api: "API",
+};
+
+const PAYMENT_STATUS_COLORS: Record<string, string> = {
+  SETTLED: "bg-green-100 text-green-700",
+  PENDING_REVIEW: "bg-yellow-100 text-yellow-700",
+  REJECTED: "bg-red-100 text-red-700",
+  OVERPAID_REVIEW: "bg-orange-100 text-orange-700",
+};
 
 const ACTION_CONFIG: Record<string, { label: string; allowedFrom: string[]; color: string }> = {
   ISSUE: {
@@ -60,6 +111,8 @@ export function InvoiceDetailClient({
   invoiceId,
   status,
   events,
+  invoiceSummary,
+  payments = [],
 }: InvoiceDetailClientProps) {
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -68,7 +121,6 @@ export function InvoiceDetailClient({
   const [reason, setReason] = useState("");
   const [paymentAmount, setPaymentAmount] = useState("");
   const [paymentMethod, setPaymentMethod] = useState("");
-  const [isPartial, setIsPartial] = useState(false);
 
   const handleAction = (action: string) => {
     setError(null);
@@ -119,7 +171,6 @@ export function InvoiceDetailClient({
     startTransition(async () => {
       const result = await recordPayment(invoiceId, {
         amount,
-        isPartial,
         method: paymentMethod || undefined,
       });
       if (!result.success) {
@@ -128,7 +179,6 @@ export function InvoiceDetailClient({
       setShowPaymentInput(false);
       setPaymentAmount("");
       setPaymentMethod("");
-      setIsPartial(false);
     });
   };
 
@@ -225,15 +275,6 @@ export function InvoiceDetailClient({
               />
             </div>
           </div>
-          <label className="mb-2 flex items-center gap-2 text-sm text-slate-700">
-            <input
-              type="checkbox"
-              checked={isPartial}
-              onChange={(e) => setIsPartial(e.target.checked)}
-              className="rounded border-slate-300"
-            />
-            Partial payment
-          </label>
           <div className="flex gap-2">
             <button
               onClick={submitPayment}
@@ -247,12 +288,123 @@ export function InvoiceDetailClient({
                 setShowPaymentInput(false);
                 setPaymentAmount("");
                 setPaymentMethod("");
-                setIsPartial(false);
               }}
               className="rounded-lg bg-slate-100 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-200"
             >
               Cancel
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* Payment Summary */}
+      {invoiceSummary && (
+        <div>
+          <h3 className="mb-2 text-sm font-medium text-slate-700">Payment Summary</h3>
+          <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 space-y-1.5 text-sm">
+            <div className="flex justify-between">
+              <span className="text-slate-500">Total</span>
+              <span className="font-medium text-slate-900">{formatCurrency(invoiceSummary.totalAmount)}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-slate-500">Paid</span>
+              <span className="font-medium text-green-700">{formatCurrency(invoiceSummary.amountPaid)}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-slate-500">Remaining</span>
+              <span className={`font-medium ${invoiceSummary.remainingAmount > 0 ? "text-orange-700" : "text-slate-500"}`}>
+                {invoiceSummary.remainingAmount > 0 ? formatCurrency(invoiceSummary.remainingAmount) : "—"}
+              </span>
+            </div>
+            {invoiceSummary.lastPaymentAt && (
+              <div className="flex justify-between pt-1 border-t border-slate-200">
+                <span className="text-slate-500">Last payment</span>
+                <span className="text-slate-700 text-xs">
+                  {new Date(invoiceSummary.lastPaymentAt).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}
+                  {invoiceSummary.lastPaymentMethod && ` via ${invoiceSummary.lastPaymentMethod}`}
+                </span>
+              </div>
+            )}
+            {invoiceSummary.paymentPromiseDate && (
+              <div className="flex justify-between">
+                <span className="text-slate-500">Next promised</span>
+                <span className="text-slate-700">{invoiceSummary.paymentPromiseDate}</span>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Payment Ledger */}
+      {payments.length > 0 && (
+        <div>
+          <h3 className="mb-2 text-sm font-medium text-slate-700">Payment Ledger</h3>
+          <div className="rounded-lg border border-slate-200 overflow-hidden">
+            <table className="w-full text-xs">
+              <thead>
+                <tr className="border-b border-slate-200 bg-slate-50">
+                  <th className="px-2 py-2 text-left font-medium text-slate-500">Date</th>
+                  <th className="px-2 py-2 text-right font-medium text-slate-500">Amount</th>
+                  <th className="px-2 py-2 text-left font-medium text-slate-500">Source</th>
+                  <th className="px-2 py-2 text-left font-medium text-slate-500">Status</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {payments.map((p) => (
+                  <tr key={p.id} className="hover:bg-slate-50">
+                    <td className="px-2 py-2 text-slate-600">
+                      {new Date(p.paidAt).toLocaleDateString("en-IN", { day: "numeric", month: "short" })}
+                    </td>
+                    <td className="px-2 py-2 text-right font-medium text-slate-900">{formatCurrency(p.amount)}</td>
+                    <td className="px-2 py-2 text-slate-600">{SOURCE_LABELS[p.source] ?? p.source}</td>
+                    <td className="px-2 py-2">
+                      <span className={`inline-flex items-center rounded-full px-1.5 py-0.5 text-xs font-medium ${PAYMENT_STATUS_COLORS[p.status] ?? "bg-slate-100 text-slate-700"}`}>
+                        {p.status.replace("_", " ")}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* Payment Link Card */}
+      {invoiceSummary?.razorpayPaymentLinkUrl && (
+        <div>
+          <h3 className="mb-2 text-sm font-medium text-slate-700">Payment Link</h3>
+          <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 space-y-2 text-sm">
+            {invoiceSummary.paymentLinkStatus && (
+              <div className="flex justify-between items-center">
+                <span className="text-slate-500">Status</span>
+                <span className="inline-flex items-center rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-700">
+                  {invoiceSummary.paymentLinkStatus}
+                </span>
+              </div>
+            )}
+            {invoiceSummary.paymentLinkExpiresAt && (
+              <div className="flex justify-between">
+                <span className="text-slate-500">Expires</span>
+                <span className="text-slate-700">{new Date(invoiceSummary.paymentLinkExpiresAt).toLocaleDateString("en-IN")}</span>
+              </div>
+            )}
+            {invoiceSummary.paymentLinkLastEventAt && (
+              <div className="flex justify-between">
+                <span className="text-slate-500">Last event</span>
+                <span className="text-slate-700">{new Date(invoiceSummary.paymentLinkLastEventAt).toLocaleDateString("en-IN")}</span>
+              </div>
+            )}
+            <div className="pt-1 border-t border-slate-200">
+              <p className="text-xs text-slate-500 mb-1 truncate">{invoiceSummary.razorpayPaymentLinkUrl}</p>
+              <button
+                type="button"
+                onClick={() => navigator.clipboard.writeText(invoiceSummary.razorpayPaymentLinkUrl!)}
+                className="text-xs text-blue-600 hover:text-blue-800 font-medium"
+              >
+                Copy Link
+              </button>
+            </div>
           </div>
         </div>
       )}
