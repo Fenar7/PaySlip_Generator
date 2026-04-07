@@ -1,6 +1,7 @@
 "use server";
 
 import { db } from "@/lib/db";
+import { createSupabaseServer } from "@/lib/supabase/server";
 
 export interface OrgWithRole {
   id: string;
@@ -27,22 +28,32 @@ export async function getOrgsForUser(userId: string): Promise<OrgWithRole[]> {
 export async function createOrg({
   name,
   slug,
-  userId,
-  userEmail,
-  userName,
 }: {
   name: string;
   slug: string;
-  userId: string;
-  userEmail: string;
-  userName?: string;
 }) {
+  const supabase = await createSupabaseServer();
+  const {
+    data: { user },
+    error,
+  } = await supabase.auth.getUser();
+
+  if (error || !user) {
+    throw new Error("Your session expired. Please sign in again.");
+  }
+
+  const userEmail = user.email ?? "";
+  const userName = user.user_metadata?.full_name || user.user_metadata?.name || undefined;
+
   // Ensure a Profile row exists for this user before creating member FK
   await db.profile.upsert({
-    where: { id: userId },
-    update: {},
+    where: { id: user.id },
+    update: {
+      email: userEmail,
+      name: userName || userEmail.split("@")[0],
+    },
     create: {
-      id: userId,
+      id: user.id,
       email: userEmail,
       name: userName || userEmail.split("@")[0],
     },
@@ -54,7 +65,7 @@ export async function createOrg({
   await db.member.create({
     data: {
       organizationId: org.id,
-      userId,
+      userId: user.id,
       role: "owner",
     },
   });
