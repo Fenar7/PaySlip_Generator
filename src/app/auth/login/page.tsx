@@ -7,12 +7,13 @@ import { GoogleButton } from "@/features/auth/components/google-button";
 import { AuthDivider } from "@/features/auth/components/auth-divider";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { createSupabaseBrowser } from "@/lib/supabase/client";
+import { clearSupabaseBrowserSessionStorage, createSupabaseBrowser } from "@/lib/supabase/client";
 
 export default function LoginPage() {
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [rememberMe, setRememberMe] = useState(true);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -21,7 +22,8 @@ export default function LoginPage() {
     setError("");
     setLoading(true);
     try {
-      const supabase = createSupabaseBrowser();
+      clearSupabaseBrowserSessionStorage();
+      const supabase = createSupabaseBrowser({ rememberSession: rememberMe });
       const { error: signInError } = await supabase.auth.signInWithPassword({ email, password });
       if (signInError) {
         console.error("[login] signIn error:", signInError.message, signInError.code);
@@ -73,6 +75,15 @@ export default function LoginPage() {
             </Link>
           </div>
         </div>
+        <label className="flex items-center gap-2 text-sm text-[#666]">
+          <input
+            type="checkbox"
+            checked={rememberMe}
+            onChange={(e) => setRememberMe(e.target.checked)}
+            className="h-4 w-4 rounded border-[var(--border-strong)] text-[#dc2626] focus:ring-[#dc2626]"
+          />
+          <span>Remember me</span>
+        </label>
         {error && <p className="text-sm text-red-600">{error}</p>}
         <Button type="submit" className="w-full" disabled={loading}>
           {loading ? "Signing in…" : "Sign in"}
