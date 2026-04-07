@@ -12,8 +12,15 @@ function createWebStorageAdapter(storage: Storage): BrowserStorage {
   };
 }
 
-function getAuthStorage(rememberSession: boolean): BrowserStorage | undefined {
-  if (typeof window === "undefined") return undefined;
+function getAuthStorage(rememberSession: boolean): BrowserStorage {
+  if (typeof window === "undefined") {
+    // Fallback for SSR - return a no-op storage (required for auth to work)
+    return {
+      getItem: () => null,
+      setItem: () => {},
+      removeItem: () => {},
+    };
+  }
   return createWebStorageAdapter(rememberSession ? window.localStorage : window.sessionStorage);
 }
 
