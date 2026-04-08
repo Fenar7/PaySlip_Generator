@@ -24,6 +24,8 @@ model Profile {
   onboardingProgress   OnboardingProgress?
   pushSubscriptions    PushSubscription[]
   orgPreferences       UserOrgPreference[]
+  quotes               Quote[]
+  arrangements         PaymentArrangement[]
 
   @@map("profiles")
 }
@@ -71,6 +73,14 @@ model Organization {
   emailDomains        OrgEmailDomain[]
   ocrJobs             OcrJob[]
   integrations        OrgIntegration[]
+  dunningSequences    DunningSequence[]
+  dunningLogs         DunningLog[]
+  dunningOptOuts      DunningOptOut[]
+  portalTokens        CustomerPortalToken[]
+  portalAccessLogs    CustomerPortalAccessLog[]
+  statements          CustomerStatement[]
+  quotes              Quote[]
+  arrangements        PaymentArrangement[]
 
   @@map("organization")
 }
@@ -146,6 +156,19 @@ model OrgDefaults {
   gstStateCode   String?
   panNumber      String?
 
+  // Phase 14: Portal
+  portalEnabled         Boolean @default(false)
+  portalHeaderMessage   String?
+  portalSupportEmail    String?
+  portalSupportPhone    String?
+  // Phase 14: Quotes
+  quotePrefix           String  @default("QTE")
+  quoteCounter          Int     @default(1)
+  quoteValidityDays     Int     @default(14)
+  quoteHeaderLabel      String  @default("QUOTE")
+  // Phase 14: Dunning
+  defaultDunningSeqId   String?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -168,9 +191,17 @@ model Customer {
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
+  paymentHealthScore   Int       @default(100)
+
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   invoices     Invoice[]
   virtualAccounts CustomerVirtualAccount[]
+  dunningOptOuts       DunningOptOut[]
+  portalTokens         CustomerPortalToken[]
+  portalAccessLogs     CustomerPortalAccessLog[]
+  statements           CustomerStatement[]
+  quotes               Quote[]
+  arrangements         PaymentArrangement[]
 
   @@index([organizationId])
   @@map("customer")
@@ -230,6 +261,7 @@ enum InvoiceStatus {
   DISPUTED
   CANCELLED
   REISSUED
+  ARRANGEMENT_MADE
 }
 
 model Invoice {
@@ -259,6 +291,10 @@ model Invoice {
   paymentPromiseDate      String?
   paymentLinkStatus       String?
   paymentLinkLastEventAt  DateTime?
+  // Phase 14: Dunning
+  dunningEnabled       Boolean   @default(true)
+  dunningPausedUntil   DateTime?
+  dunningSequenceId    String?
   createdAt      DateTime      @default(now())
   updatedAt      DateTime      @updatedAt
   archivedAt     DateTime?
@@ -279,6 +315,8 @@ model Invoice {
   generatedFrom  RecurringInvoiceRule? @relation("RecurringGenerated", fields: [generatedFromRuleId], references: [id])
   generatedFromRuleId String?
   approvalRequests ApprovalRequest[]   @relation("InvoiceApprovals")
+  dunningLogs    DunningLog[]
+  arrangement    PaymentArrangement?
 
   @@unique([organizationId, invoiceNumber])
   @@index([organizationId, status])
@@ -462,6 +500,7 @@ model InvoicePayment {
 
   invoice Invoice      @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
   proof   InvoiceProof? @relation("PaymentProof")
+  installment         PaymentInstallment?
 
   @@index([invoiceId])
   @@index([externalPaymentId])
@@ -1214,4 +1253,270 @@ model PushSubscription {
   user Profile @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("push_subscription")
+}
+
+// ─── Phase 14: AR Automation — Enums ─────────────────────────────────────────
+
+enum DunningTone {
+  FRIENDLY
+  POLITE
+  FIRM
+  URGENT
+  ESCALATE
+}
+
+enum DunningLogStatus {
+  SENT
+  FAILED
+  SKIPPED
+}
+
+enum QuoteStatus {
+  DRAFT
+  SENT
+  ACCEPTED
+  DECLINED
+  EXPIRED
+  CONVERTED
+}
+
+enum ArrangementStatus {
+  ACTIVE
+  COMPLETED
+  DEFAULTED
+  CANCELLED
+}
+
+enum InstallmentStatus {
+  PENDING
+  PAID
+  OVERDUE
+  WAIVED
+}
+
+// ─── Phase 14: AR Automation — Dunning Engine ────────────────────────────────
+
+model DunningSequence {
+  id        String   @id @default(cuid())
+  orgId     String
+  name      String
+  isDefault Boolean  @default(false)
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  org   Organization  @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  steps DunningStep[]
+  logs  DunningLog[]
+
+  @@index([orgId, isDefault])
+  @@map("dunning_sequence")
+}
+
+model DunningStep {
+  id            String      @id @default(cuid())
+  sequenceId    String
+  stepNumber    Int
+  daysOffset    Int
+  channels      String[]
+  emailSubject  String
+  emailBody     String      @db.Text
+  smsBody       String?
+  smsTemplateId String?
+  tone          DunningTone
+  createTicket  Boolean     @default(false)
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  sequence DunningSequence @relation(fields: [sequenceId], references: [id], onDelete: Cascade)
+
+  @@unique([sequenceId, stepNumber])
+  @@map("dunning_step")
+}
+
+model DunningLog {
+  id           String           @id @default(cuid())
+  orgId        String
+  invoiceId    String
+  sequenceId   String
+  stepNumber   Int
+  channel      String
+  status       DunningLogStatus
+  errorMessage String?
+  sentAt       DateTime?
+  createdAt    DateTime         @default(now())
+
+  org      Organization    @relation(fields: [orgId], references: [id])
+  invoice  Invoice         @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  sequence DunningSequence @relation(fields: [sequenceId], references: [id])
+
+  @@index([invoiceId, stepNumber])
+  @@index([orgId, createdAt])
+  @@map("dunning_log")
+}
+
+model DunningOptOut {
+  id         String   @id @default(cuid())
+  orgId      String
+  customerId String
+  token      String   @unique
+  optedOutAt DateTime @default(now())
+
+  org      Organization @relation(fields: [orgId], references: [id])
+  customer Customer     @relation(fields: [customerId], references: [id])
+
+  @@unique([orgId, customerId])
+  @@map("dunning_opt_out")
+}
+
+// ─── Phase 14: AR Automation — Customer Portal ───────────────────────────────
+
+model CustomerPortalToken {
+  id          String    @id @default(cuid())
+  orgId       String
+  customerId  String
+  tokenHash   String    @unique
+  expiresAt   DateTime
+  lastUsedAt  DateTime?
+  isRevoked   Boolean   @default(false)
+  createdAt   DateTime  @default(now())
+
+  org      Organization @relation(fields: [orgId], references: [id])
+  customer Customer     @relation(fields: [customerId], references: [id])
+
+  @@index([customerId, orgId])
+  @@map("customer_portal_token")
+}
+
+model CustomerPortalAccessLog {
+  id         String   @id @default(cuid())
+  orgId      String
+  customerId String
+  path       String
+  ip         String?
+  userAgent  String?
+  accessedAt DateTime @default(now())
+
+  org      Organization @relation(fields: [orgId], references: [id])
+  customer Customer     @relation(fields: [customerId], references: [id])
+
+  @@index([customerId, orgId])
+  @@map("customer_portal_access_log")
+}
+
+model CustomerStatement {
+  id             String   @id @default(cuid())
+  orgId          String
+  customerId     String
+  fromDate       DateTime
+  toDate         DateTime
+  openingBalance Float    @default(0)
+  closingBalance Float    @default(0)
+  totalInvoiced  Float    @default(0)
+  totalReceived  Float    @default(0)
+  fileUrl        String?
+  generatedAt    DateTime @default(now())
+
+  org      Organization @relation(fields: [orgId], references: [id])
+  customer Customer     @relation(fields: [customerId], references: [id])
+
+  @@index([customerId, fromDate, toDate])
+  @@map("customer_statement")
+}
+
+// ─── Phase 14: AR Automation — Quotes ────────────────────────────────────────
+
+model Quote {
+  id                 String      @id @default(cuid())
+  orgId              String
+  customerId         String
+  quoteNumber        String
+  title              String
+  status             QuoteStatus @default(DRAFT)
+  issueDate          DateTime
+  validUntil         DateTime
+  subtotal           Float       @default(0)
+  taxAmount          Float       @default(0)
+  discountAmount     Float       @default(0)
+  totalAmount        Float       @default(0)
+  currency           String      @default("INR")
+  notes              String?     @db.Text
+  termsAndConditions String?     @db.Text
+  templateId         String?
+  publicToken        String?     @unique
+  convertedInvoiceId String?
+  acceptedAt         DateTime?
+  declinedAt         DateTime?
+  declineReason      String?
+  createdBy          String      @db.Uuid
+  createdAt          DateTime    @default(now())
+  updatedAt          DateTime    @updatedAt
+  archivedAt         DateTime?
+
+  org       Organization    @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  customer  Customer        @relation(fields: [customerId], references: [id])
+  creator   Profile         @relation(fields: [createdBy], references: [id])
+  lineItems QuoteLineItem[]
+
+  @@unique([orgId, quoteNumber])
+  @@index([orgId, status])
+  @@map("quote")
+}
+
+model QuoteLineItem {
+  id          String  @id @default(cuid())
+  quoteId     String
+  description String
+  quantity    Float   @default(1)
+  unitPrice   Float   @default(0)
+  taxRate     Float   @default(0)
+  amount      Float   @default(0)
+  sortOrder   Int
+
+  quote Quote @relation(fields: [quoteId], references: [id], onDelete: Cascade)
+
+  @@map("quote_line_item")
+}
+
+// ─── Phase 14: AR Automation — Payment Arrangements ──────────────────────────
+
+model PaymentArrangement {
+  id               String            @id @default(cuid())
+  orgId            String
+  invoiceId        String            @unique
+  customerId       String
+  totalArranged    Float
+  installmentCount Int
+  status           ArrangementStatus @default(ACTIVE)
+  notes            String?
+  createdBy        String            @db.Uuid
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+
+  org          Organization        @relation(fields: [orgId], references: [id])
+  invoice      Invoice             @relation(fields: [invoiceId], references: [id])
+  customer     Customer            @relation(fields: [customerId], references: [id])
+  creator      Profile             @relation(fields: [createdBy], references: [id])
+  installments PaymentInstallment[]
+
+  @@index([orgId, status])
+  @@map("payment_arrangement")
+}
+
+model PaymentInstallment {
+  id                String            @id @default(cuid())
+  arrangementId     String
+  installmentNumber Int
+  dueDate           DateTime
+  amount            Float
+  status            InstallmentStatus @default(PENDING)
+  invoicePaymentId  String?           @unique
+  paidAt            DateTime?
+  createdAt         DateTime          @default(now())
+
+  arrangement    PaymentArrangement @relation(fields: [arrangementId], references: [id], onDelete: Cascade)
+  invoicePayment InvoicePayment?    @relation(fields: [invoicePaymentId], references: [id])
+
+  @@unique([arrangementId, installmentNumber])
+  @@map("payment_installment")
 }

@@ -65,6 +65,12 @@ export const AUDIT_ACTION_LABELS: Record<string, string> = {
   "send.scheduled": "Scheduled send",
   "send.completed": "Send completed",
   "recurring.generated": "Generated recurring invoice",
+  "quote_created": "Created quote",
+  "quote_updated": "Updated quote",
+  "quote_sent": "Sent quote",
+  "quote_accepted": "Quote accepted",
+  "quote_declined": "Quote declined",
+  "quote_converted": "Converted quote to invoice",
 };
 
 export function getAuditCategory(action: string): string {
@@ -74,7 +80,8 @@ export function getAuditCategory(action: string): string {
     action.startsWith("invoice.") ||
     action.startsWith("proof.") ||
     action.startsWith("salary.") ||
-    action.startsWith("approval.")
+    action.startsWith("approval.") ||
+    action.startsWith("quote_")
   )
     return "Documents";
   if (action.startsWith("org.")) return "Settings";
