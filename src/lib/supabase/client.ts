@@ -29,9 +29,11 @@ export function createSupabaseBrowser(_options: { rememberSession?: boolean } = 
         setAll(cookiesToSet) {
           cookiesToSet.forEach(({ name, value, options }) => {
             const cookieOptions =
-              rememberSession || value === ""
+              value === ""
                 ? options
-                : { ...options, maxAge: undefined };
+                : rememberSession
+                  ? options
+                  : { ...options, maxAge: undefined };
 
             document.cookie = serialize(name, value, cookieOptions);
           });
