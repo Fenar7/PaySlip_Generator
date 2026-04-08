@@ -51,3 +51,13 @@ echo ""
 echo "▶ Applying Prisma migrations..."
 npx prisma migrate deploy
 echo "✓ Prisma migrations applied"
+
+echo ""
+echo "▶ Verifying migration state..."
+STATUS=$(npx prisma migrate status 2>&1)
+if echo "$STATUS" | grep -q "Database schema is up to date"; then
+  echo "✓ All migrations confirmed applied — schema is in sync"
+else
+  echo "⚠ Migration status check returned unexpected output:"
+  echo "$STATUS"
+fi

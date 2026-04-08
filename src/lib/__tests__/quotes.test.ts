@@ -5,7 +5,7 @@ import { describe, it, expect, beforeEach, vi } from "vitest";
 vi.mock("@/lib/db", () => ({
   db: {
     $transaction: vi.fn(),
-    orgDefaults: { findUnique: vi.fn(), create: vi.fn(), update: vi.fn() },
+    orgDefaults: { findUnique: vi.fn(), create: vi.fn(), update: vi.fn(), updateMany: vi.fn() },
     customer: { findFirst: vi.fn() },
     quote: {
       create: vi.fn(),
@@ -72,7 +72,7 @@ describe("quotes service", () => {
         quotePrefix: "QT",
         quoteCounter: 42,
       } as any);
-      vi.mocked(db.orgDefaults.update).mockResolvedValue({} as any);
+      vi.mocked(db.orgDefaults.updateMany).mockResolvedValue({ count: 1 } as any);
 
       const num = await generateQuoteNumber(ORG);
 
@@ -85,11 +85,11 @@ describe("quotes service", () => {
         quotePrefix: "QT",
         quoteCounter: 7,
       } as any);
-      vi.mocked(db.orgDefaults.update).mockResolvedValue({} as any);
+      vi.mocked(db.orgDefaults.updateMany).mockResolvedValue({ count: 1 } as any);
 
       await generateQuoteNumber(ORG);
 
-      expect(vi.mocked(db.orgDefaults.update)).toHaveBeenCalledWith(
+      expect(vi.mocked(db.orgDefaults.updateMany)).toHaveBeenCalledWith(
         expect.objectContaining({
           data: { quoteCounter: 8 },
         }),
@@ -116,7 +116,7 @@ describe("quotes service", () => {
         quoteCounter: 1,
         quoteValidityDays: 14,
       } as any);
-      vi.mocked(db.orgDefaults.update).mockResolvedValue({} as any);
+      vi.mocked(db.orgDefaults.updateMany).mockResolvedValue({ count: 1 } as any);
       vi.mocked(db.quote.create).mockResolvedValue({
         id: "q-1",
         quoteNumber: "QT-00001",
