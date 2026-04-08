@@ -21,6 +21,21 @@ export interface PlanLimits {
   auditLogRetentionDays: number;
   pdfStudioTools: boolean;
   pixelPassportPhotos: boolean;
+  // Phase 14: Dunning
+  dunningSequences: number;        // max sequences per org
+  dunningStepsPerSequence: number; // max steps per sequence
+  smsReminders: boolean;           // SMS channel in dunning
+  // Phase 14: Portal
+  customerPortal: boolean;
+  portalCustomDomain: boolean;
+  accountStatements: boolean;
+  // Phase 14: Quotes
+  quotesPerMonth: number;
+  // Phase 14: Cash Flow Intelligence
+  cashFlowForecast: boolean;
+  customerHealthScores: boolean;
+  // Phase 14: Payment Arrangements
+  paymentArrangements: boolean;
 }
 
 export interface PlanConfig {
@@ -56,6 +71,16 @@ export const PLAN_LIMITS: Record<PlanId, PlanLimits> = {
     auditLogRetentionDays: 7,
     pdfStudioTools: false,
     pixelPassportPhotos: false,
+    dunningSequences: 1,
+    dunningStepsPerSequence: 3,
+    smsReminders: false,
+    customerPortal: false,
+    portalCustomDomain: false,
+    accountStatements: false,
+    quotesPerMonth: 10,
+    cashFlowForecast: false,
+    customerHealthScores: false,
+    paymentArrangements: false,
   },
   starter: {
     invoicesPerMonth: 100,
@@ -76,6 +101,16 @@ export const PLAN_LIMITS: Record<PlanId, PlanLimits> = {
     auditLogRetentionDays: 30,
     pdfStudioTools: true,
     pixelPassportPhotos: true,
+    dunningSequences: 3,
+    dunningStepsPerSequence: 5,
+    smsReminders: false,
+    customerPortal: true,
+    portalCustomDomain: false,
+    accountStatements: false,
+    quotesPerMonth: 50,
+    cashFlowForecast: false,
+    customerHealthScores: false,
+    paymentArrangements: true,
   },
   pro: {
     invoicesPerMonth: 1000,
@@ -96,6 +131,16 @@ export const PLAN_LIMITS: Record<PlanId, PlanLimits> = {
     auditLogRetentionDays: 90,
     pdfStudioTools: true,
     pixelPassportPhotos: true,
+    dunningSequences: 10,
+    dunningStepsPerSequence: 7,
+    smsReminders: true,
+    customerPortal: true,
+    portalCustomDomain: false,
+    accountStatements: true,
+    quotesPerMonth: 500,
+    cashFlowForecast: true,
+    customerHealthScores: true,
+    paymentArrangements: true,
   },
   enterprise: {
     invoicesPerMonth: -1, // unlimited
@@ -116,6 +161,16 @@ export const PLAN_LIMITS: Record<PlanId, PlanLimits> = {
     auditLogRetentionDays: 365,
     pdfStudioTools: true,
     pixelPassportPhotos: true,
+    dunningSequences: Infinity,
+    dunningStepsPerSequence: 10,
+    smsReminders: true,
+    customerPortal: true,
+    portalCustomDomain: true,
+    accountStatements: true,
+    quotesPerMonth: Infinity,
+    cashFlowForecast: true,
+    customerHealthScores: true,
+    paymentArrangements: true,
   },
 };
 

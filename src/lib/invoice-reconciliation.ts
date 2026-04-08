@@ -36,6 +36,7 @@ const LIFECYCLE_STATUSES = new Set([
   "DISPUTED",
   "CANCELLED",
   "REISSUED",
+  "ARRANGEMENT_MADE",
 ]);
 
 export async function reconcileInvoicePayment(
