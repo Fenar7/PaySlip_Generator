@@ -3,11 +3,11 @@
 import { db } from "@/lib/db";
 import { Prisma } from "@/generated/prisma/client";
 
-export type DocumentType = "invoice" | "voucher" | "salarySlip";
+export type DocumentType = "invoice" | "voucher" | "salarySlip" | "quote";
 
 interface NumberingConfig {
-  prefixField: "invoicePrefix" | "voucherPrefix" | "salarySlipPrefix";
-  counterField: "invoiceCounter" | "voucherCounter" | "salarySlipCounter";
+  prefixField: "invoicePrefix" | "voucherPrefix" | "salarySlipPrefix" | "quotePrefix";
+  counterField: "invoiceCounter" | "voucherCounter" | "salarySlipCounter" | "quoteCounter";
 }
 
 const CONFIG: Record<DocumentType, NumberingConfig> = {
@@ -22,6 +22,10 @@ const CONFIG: Record<DocumentType, NumberingConfig> = {
   salarySlip: {
     prefixField: "salarySlipPrefix",
     counterField: "salarySlipCounter",
+  },
+  quote: {
+    prefixField: "quotePrefix",
+    counterField: "quoteCounter",
   },
 };
 
@@ -94,6 +98,7 @@ export async function previewNextNumber(
       invoice: "INV",
       voucher: "VCH",
       salarySlip: "SAL",
+      quote: "QTE",
     };
     return `${defaultPrefixes[docType]}-001`;
   }
