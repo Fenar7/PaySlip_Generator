@@ -1,44 +1,43 @@
 import { createBrowserClient } from "@supabase/ssr";
+import { parse, serialize } from "cookie";
 
 const AUTH_STORAGE_KEY = "slipwise-auth-token";
 
-type BrowserStorage = Pick<Storage, "getItem" | "setItem" | "removeItem">;
-
-function createWebStorageAdapter(storage: Storage): BrowserStorage {
-  return {
-    getItem: (key) => storage.getItem(key),
-    setItem: (key, value) => storage.setItem(key, value),
-    removeItem: (key) => storage.removeItem(key),
-  };
-}
-
-function getAuthStorage(rememberSession: boolean): BrowserStorage {
-  if (typeof window === "undefined") {
-    // Fallback for SSR - return a no-op storage (required for auth to work)
-    return {
-      getItem: () => null,
-      setItem: () => {},
-      removeItem: () => {},
-    };
-  }
-  return createWebStorageAdapter(rememberSession ? window.localStorage : window.sessionStorage);
-}
-
-export function clearSupabaseBrowserSessionStorage() {
+export async function clearSupabaseBrowserSessionStorage() {
   if (typeof window === "undefined") return;
   window.localStorage.removeItem(AUTH_STORAGE_KEY);
   window.sessionStorage.removeItem(AUTH_STORAGE_KEY);
+
+  const supabase = createSupabaseBrowser();
+  await supabase.auth.signOut({ scope: "local" });
 }
 
-export function createSupabaseBrowser({ rememberSession = true }: { rememberSession?: boolean } = {}) {
+export function createSupabaseBrowser(_options: { rememberSession?: boolean } = {}) {
+  const rememberSession = _options.rememberSession ?? true;
+
   return createBrowserClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
-      auth: {
-        persistSession: true,
-        storageKey: AUTH_STORAGE_KEY,
-        storage: getAuthStorage(rememberSession),
+      cookies: {
+        getAll() {
+          return Object.entries(parse(document.cookie)).map(([name, value]) => ({
+            name,
+            value: value ?? "",
+          }));
+        },
+        setAll(cookiesToSet) {
+          cookiesToSet.forEach(({ name, value, options }) => {
+            const cookieOptions =
+              value === ""
+                ? options
+                : rememberSession
+                  ? options
+                  : { ...options, maxAge: undefined };
+
+            document.cookie = serialize(name, value, cookieOptions);
+          });
+        },
       },
     }
   );
