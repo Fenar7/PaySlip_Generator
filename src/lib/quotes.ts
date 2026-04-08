@@ -72,18 +72,20 @@ export async function generateQuoteNumber(orgId: string): Promise<string> {
   const result = await db.$transaction(async (tx: Prisma.TransactionClient) => {
     let defaults = await tx.orgDefaults.findUnique({
       where: { organizationId: orgId },
+      select: { quotePrefix: true, quoteCounter: true },
     });
 
     if (!defaults) {
       defaults = await tx.orgDefaults.create({
         data: { organizationId: orgId },
+        select: { quotePrefix: true, quoteCounter: true },
       });
     }
 
     const prefix = defaults.quotePrefix;
     const counter = defaults.quoteCounter;
 
-    await tx.orgDefaults.update({
+    await tx.orgDefaults.updateMany({
       where: { organizationId: orgId },
       data: { quoteCounter: counter + 1 },
     });
@@ -122,6 +124,7 @@ export async function createQuote(params: CreateQuoteParams) {
   // Get org defaults for validity days
   const orgDefaults = await db.orgDefaults.findUnique({
     where: { organizationId: orgId },
+    select: { quoteValidityDays: true },
   });
   const validityDays = orgDefaults?.quoteValidityDays ?? 14;
 
