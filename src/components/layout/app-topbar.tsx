@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useSupabaseSession } from "@/hooks/use-supabase-session";
-import { createSupabaseBrowser } from "@/lib/supabase/client";
+import { signOutSupabaseBrowser } from "@/lib/supabase/client";
 import { Avatar } from "@/components/ui/avatar";
 
 import { NotificationBell } from "@/features/flow/components/notification-bell";
@@ -18,8 +18,7 @@ export function AppTopbar({ orgName }: AppTopbarProps) {
   const router = useRouter();
 
   const handleSignOut = async () => {
-    const supabase = createSupabaseBrowser();
-    await supabase.auth.signOut();
+    await signOutSupabaseBrowser();
     router.push("/");
   };
 

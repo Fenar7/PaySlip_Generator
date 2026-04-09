@@ -1,7 +1,7 @@
 "use client";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { createSupabaseBrowser } from "@/lib/supabase/client";
+import { createSupabaseBrowser, signOutSupabaseBrowser } from "@/lib/supabase/client";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -45,8 +45,7 @@ export default function SecuritySettingsPage() {
   }
 
   async function handleSignOutAll() {
-    const supabase = createSupabaseBrowser();
-    await supabase.auth.signOut();
+    await signOutSupabaseBrowser();
     router.push("/");
   }
 

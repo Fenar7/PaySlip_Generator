@@ -1,8 +1,15 @@
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
+import {
+  applySessionPersistenceToCookieOptions,
+  getSessionPersistenceModeFromCookies,
+} from "@/lib/supabase/session-persistence";
 
 export async function createSupabaseServer() {
   const cookieStore = await cookies();
+  const persistenceMode = getSessionPersistenceModeFromCookies(
+    cookieStore.getAll(),
+  );
 
   return createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -15,7 +22,16 @@ export async function createSupabaseServer() {
         setAll(cookiesToSet) {
           try {
             cookiesToSet.forEach(({ name, value, options }) =>
-              cookieStore.set(name, value, options)
+              cookieStore.set(
+                name,
+                value,
+                value === ""
+                  ? options
+                  : applySessionPersistenceToCookieOptions(
+                      persistenceMode,
+                      options,
+                    ),
+              )
             );
           } catch {
             // Called from a Server Component — ignore.
