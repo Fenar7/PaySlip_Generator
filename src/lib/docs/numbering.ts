@@ -10,6 +10,9 @@ interface NumberingConfig {
   counterField: "invoiceCounter" | "voucherCounter" | "salarySlipCounter" | "quoteCounter";
 }
 
+type PrefixField = NumberingConfig["prefixField"];
+type CounterField = NumberingConfig["counterField"];
+
 type NumberingFields = {
   invoicePrefix: string;
   invoiceCounter: number;
@@ -55,6 +58,19 @@ function numberingSelect(config: NumberingConfig) {
   return { [config.prefixField]: true, [config.counterField]: true } as const;
 }
 
+function getNumberingFieldValue<T extends PrefixField | CounterField>(
+  fields: Partial<NumberingFields>,
+  key: T,
+): NumberingFields[T] {
+  const value = fields[key];
+
+  if (value === undefined) {
+    throw new Error(`Missing numbering field: ${key}`);
+  }
+
+  return value as NumberingFields[T];
+}
+
 /**
  * Get the next document number for an organization.
  * Atomically increments the counter and returns the formatted number.
@@ -87,8 +103,8 @@ export async function nextDocumentNumber(
       });
     }
 
-    const prefix = (defaults as any)[config.prefixField] as string;
-    const currentCounter = (defaults as any)[config.counterField] as number;
+    const prefix = getNumberingFieldValue(defaults, config.prefixField);
+    const currentCounter = getNumberingFieldValue(defaults, config.counterField);
 
     // Increment the counter — updateMany avoids a full-row read on return
     await tx.orgDefaults.updateMany({
@@ -126,8 +142,8 @@ export async function previewNextNumber(
     return `${DEFAULT_NUMBERING[config.prefixField]}-001`;
   }
 
-  const prefix = (defaults as any)[config.prefixField] as string;
-  const counter = (defaults as any)[config.counterField] as number;
+  const prefix = getNumberingFieldValue(defaults, config.prefixField);
+  const counter = getNumberingFieldValue(defaults, config.counterField);
   const paddedCounter = counter.toString().padStart(3, "0");
 
   return `${prefix}-${paddedCounter}`;
