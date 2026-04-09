@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createArrangementAction, listEligibleInvoicesAction } from "../actions";
 
@@ -16,6 +16,24 @@ interface EligibleInvoice {
 interface InstallmentRow {
   dueDate: string;
   amount: number;
+}
+
+function buildEqualInstallmentSchedule(total: number, count: number): InstallmentRow[] {
+  const perInstallment = Math.floor((total / count) * 100) / 100;
+  const remainder = Math.round((total - perInstallment * count) * 100) / 100;
+
+  const rows: InstallmentRow[] = [];
+  const now = new Date();
+
+  for (let i = 0; i < count; i++) {
+    const dueDate = new Date(now.getFullYear(), now.getMonth() + i + 1, 1);
+    rows.push({
+      dueDate: dueDate.toISOString().split("T")[0],
+      amount: i === count - 1 ? perInstallment + remainder : perInstallment,
+    });
+  }
+
+  return rows;
 }
 
 function formatCurrency(amount: number) {
@@ -41,6 +59,10 @@ export default function ArrangementForm() {
 
   const selectedInvoice = invoices.find((i) => i.id === selectedInvoiceId);
 
+  const generateSchedule = useCallback((total: number, count: number) => {
+    setInstallments(buildEqualInstallmentSchedule(total, count));
+  }, []);
+
   useEffect(() => {
     listEligibleInvoicesAction().then((result) => {
       if (result.success) {
@@ -50,41 +72,39 @@ export default function ArrangementForm() {
     });
   }, []);
 
-  // When invoice or count changes, auto-generate schedule
-  useEffect(() => {
-    if (!selectedInvoice) {
-      setInstallments([]);
-      setTotalArranged(0);
-      return;
-    }
-
-    const max = selectedInvoice.remainingAmount;
-    setTotalArranged(max);
-    generateSchedule(max, installmentCount);
-  }, [selectedInvoiceId, installmentCount]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  function generateSchedule(total: number, count: number) {
-    const perInstallment = Math.floor((total / count) * 100) / 100;
-    const remainder = Math.round((total - perInstallment * count) * 100) / 100;
-
-    const rows: InstallmentRow[] = [];
-    const now = new Date();
-
-    for (let i = 0; i < count; i++) {
-      const dueDate = new Date(now.getFullYear(), now.getMonth() + i + 1, 1);
-      rows.push({
-        dueDate: dueDate.toISOString().split("T")[0],
-        amount: i === count - 1 ? perInstallment + remainder : perInstallment,
-      });
-    }
-
-    setInstallments(rows);
-  }
-
   function updateInstallment(index: number, field: keyof InstallmentRow, value: string | number) {
     setInstallments((prev) =>
       prev.map((row, i) => (i === index ? { ...row, [field]: value } : row)),
     );
+  }
+
+  function handleInvoiceChange(invoiceId: string) {
+    setSelectedInvoiceId(invoiceId);
+
+    if (!invoiceId) {
+      setTotalArranged(0);
+      setInstallments([]);
+      return;
+    }
+
+    const invoice = invoices.find((item) => item.id === invoiceId);
+    if (!invoice) {
+      return;
+    }
+
+    const max = invoice.remainingAmount;
+    setTotalArranged(max);
+    generateSchedule(max, installmentCount);
+  }
+
+  function handleInstallmentCountChange(nextCount: number) {
+    setInstallmentCount(nextCount);
+
+    if (!selectedInvoice) {
+      return;
+    }
+
+    generateSchedule(totalArranged, nextCount);
   }
 
   const installmentSum = installments.reduce((sum, i) => sum + i.amount, 0);
@@ -141,7 +161,7 @@ export default function ArrangementForm() {
         <h2 className="text-sm font-medium uppercase tracking-wider text-slate-500 mb-3">Select Invoice</h2>
         <select
           value={selectedInvoiceId}
-          onChange={(e) => setSelectedInvoiceId(e.target.value)}
+          onChange={(e) => handleInvoiceChange(e.target.value)}
           className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-red-400 focus:outline-none focus:ring-1 focus:ring-red-400"
           required
         >
@@ -205,8 +225,7 @@ export default function ArrangementForm() {
               value={installmentCount}
               onChange={(e) => {
                 const val = parseInt(e.target.value) || 3;
-                setInstallmentCount(val);
-                generateSchedule(totalArranged, val);
+                handleInstallmentCountChange(val);
               }}
               className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-red-400 focus:outline-none focus:ring-1 focus:ring-red-400"
               required

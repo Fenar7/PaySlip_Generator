@@ -1,8 +1,19 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextRequest, NextResponse } from "next/server";
+import {
+  applySessionPersistenceToCookieOptions,
+  getClearedSessionPersistenceCookie,
+  getRememberedSupabaseCookieRefreshes,
+  getSessionPersistenceCookie,
+  getSessionPersistenceModeFromCookies,
+  isTerminalSupabaseAuthError,
+} from "@/lib/supabase/session-persistence";
 
 export async function updateSession(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request });
+  const persistenceMode = getSessionPersistenceModeFromCookies(
+    request.cookies.getAll(),
+  );
 
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -18,7 +29,16 @@ export async function updateSession(request: NextRequest) {
           );
           supabaseResponse = NextResponse.next({ request });
           cookiesToSet.forEach(({ name, value, options }) =>
-            supabaseResponse.cookies.set(name, value, options)
+            supabaseResponse.cookies.set(
+              name,
+              value,
+              value === ""
+                ? options
+                : applySessionPersistenceToCookieOptions(
+                    persistenceMode,
+                    options,
+                  ),
+            )
           );
         },
       },
@@ -34,8 +54,35 @@ export async function updateSession(request: NextRequest) {
   // Clear stale/invalid sessions (e.g. old Better Auth JWTs or deleted users).
   // Without this, the client loops on 403 user_not_found on every request.
   if (authError && !user) {
-    console.warn("[middleware] Clearing invalid session:", authError.message);
-    await supabase.auth.signOut({ scope: "local" });
+    if (isTerminalSupabaseAuthError(authError)) {
+      console.warn("[middleware] Clearing invalid session:", authError.message);
+      await supabase.auth.signOut({ scope: "local" });
+      const clearedCookie = getClearedSessionPersistenceCookie();
+      request.cookies.set(clearedCookie.name, clearedCookie.value);
+      supabaseResponse.cookies.set(
+        clearedCookie.name,
+        clearedCookie.value,
+        clearedCookie.options,
+      );
+    } else {
+      console.warn("[middleware] Transient auth refresh failure:", authError.message);
+    }
+  }
+
+  if (user && persistenceMode === "remembered") {
+    const persistenceCookie = getSessionPersistenceCookie("remembered");
+    request.cookies.set(persistenceCookie.name, persistenceCookie.value);
+    supabaseResponse.cookies.set(
+      persistenceCookie.name,
+      persistenceCookie.value,
+      persistenceCookie.options,
+    );
+
+    getRememberedSupabaseCookieRefreshes(request.cookies.getAll()).forEach(
+      ({ name, value, options }) => {
+        supabaseResponse.cookies.set(name, value, options);
+      },
+    );
   }
 
   return { user: authError ? null : user, supabaseResponse };

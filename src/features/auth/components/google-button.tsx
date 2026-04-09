@@ -1,9 +1,15 @@
 "use client";
 import { Button } from "@/components/ui/button";
-import { createSupabaseBrowser } from "@/lib/supabase/client";
+import {
+  clearSupabaseBrowserSessionStorage,
+  createSupabaseBrowser,
+  setBrowserSessionPersistence,
+} from "@/lib/supabase/client";
 
 export function GoogleButton({ callbackURL = "/onboarding" }: { callbackURL?: string }) {
-  const handleGoogleSignIn = () => {
+  const handleGoogleSignIn = async () => {
+    await clearSupabaseBrowserSessionStorage();
+    setBrowserSessionPersistence("remembered");
     const supabase = createSupabaseBrowser();
     supabase.auth.signInWithOAuth({
       provider: "google",
@@ -17,7 +23,9 @@ export function GoogleButton({ callbackURL = "/onboarding" }: { callbackURL?: st
     <Button
       variant="secondary"
       className="w-full"
-      onClick={handleGoogleSignIn}
+      onClick={() => {
+        void handleGoogleSignIn();
+      }}
     >
       <svg className="w-4 h-4 mr-2" viewBox="0 0 24 24">
         <path

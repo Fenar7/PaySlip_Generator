@@ -8,7 +8,11 @@ import { GoogleButton } from "@/features/auth/components/google-button";
 import { AuthDivider } from "@/features/auth/components/auth-divider";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { clearSupabaseBrowserSessionStorage, createSupabaseBrowser } from "@/lib/supabase/client";
+import {
+  clearSupabaseBrowserSessionStorage,
+  createSupabaseBrowser,
+  setBrowserSessionPersistence,
+} from "@/lib/supabase/client";
 
 export function LoginForm() {
   const router = useRouter();
@@ -27,6 +31,7 @@ export function LoginForm() {
     setLoading(true);
     try {
       await clearSupabaseBrowserSessionStorage();
+      setBrowserSessionPersistence(rememberMe ? "remembered" : "session");
       const supabase = createSupabaseBrowser({ rememberSession: rememberMe });
       const { error: signInError } = await supabase.auth.signInWithPassword({ email, password });
       if (signInError) {
