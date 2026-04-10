@@ -6,6 +6,14 @@ import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { getPartnerDashboard } from "./actions";
 
+interface PartnerProfile {
+  companyName: string;
+  status: string;
+  type: string;
+  revenueShare: number;
+  partnerCode: string;
+}
+
 const statusColors: Record<string, string> = {
   PENDING: "bg-yellow-100 text-yellow-800",
   APPROVED: "bg-green-100 text-green-800",
@@ -15,7 +23,7 @@ const statusColors: Record<string, string> = {
 export default function PartnerPage() {
   const [loading, setLoading] = useState(true);
   const [dashboard, setDashboard] = useState<{
-    profile: Record<string, unknown>;
+    profile: PartnerProfile;
     managedOrgCount: number;
     managedOrgs: Record<string, unknown>[];
   } | null>(null);
@@ -24,7 +32,7 @@ export default function PartnerPage() {
     async function load() {
       const result = await getPartnerDashboard();
       if (result.success) {
-        setDashboard(result.data);
+        setDashboard(result.data as unknown as { profile: PartnerProfile; managedOrgCount: number; managedOrgs: Record<string, unknown>[] });
       }
       setLoading(false);
     }

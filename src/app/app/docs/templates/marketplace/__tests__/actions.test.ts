@@ -77,11 +77,11 @@ function mockTemplate(overrides = {}) {
     tags: ["professional"],
     price: 0,
     status: "PUBLISHED",
-    publisherId: "org-pub-1",
-    publisherUserId: "user-pub-1",
+    publisherOrgId: "org-pub-1",
+    publisherName: "Test Publisher",
     downloadCount: 10,
     rating: 4.5,
-    reviewCount: 3,
+    ratingCount: 3,
     previewImageUrl: "https://example.com/img.png",
     templateData: {},
     createdAt: new Date(),
@@ -124,7 +124,7 @@ describe("TC-15-026: Free template installs immediately", () => {
     expect(db.marketplacePurchase.create).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({
-          organizationId: "org-1",
+          orgId: "org-1",
           templateId: "tpl-1",
           amount: 0,
           status: "COMPLETED",
@@ -232,8 +232,8 @@ describe("TC-15-029: Publisher submits template", () => {
         data: expect.objectContaining({
           name: "My Template",
           status: "PENDING_REVIEW",
-          publisherId: "org-1",
-          publisherUserId: "user-1",
+          publisherOrgId: "org-1",
+          publisherName: "Publisher",
         }),
       })
     );
@@ -380,10 +380,10 @@ describe("TC-15-031: Revenue split 70/30", () => {
     expect(mockTx.marketplaceRevenue.create).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({
-          amount: 1000,
+          totalAmount: 1000,
           publisherShare: 700,
           platformShare: 300,
-          publisherId: "org-pub-1",
+          publisherOrgId: "org-pub-1",
         }),
       })
     );

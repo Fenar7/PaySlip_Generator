@@ -27,7 +27,7 @@ export default function PartnerClientsPage() {
     async function load() {
       const result = await getPartnerDashboard();
       if (result.success) {
-        setClients(result.data.managedOrgs);
+        setClients(result.data.managedOrgs as unknown as ManagedClient[]);
       }
       setLoading(false);
     }
@@ -46,7 +46,7 @@ export default function PartnerClientsPage() {
       setSuccess("Client added successfully");
       setNewOrgId("");
       const refreshed = await getPartnerDashboard();
-      if (refreshed.success) setClients(refreshed.data.managedOrgs);
+      if (refreshed.success) setClients(refreshed.data.managedOrgs as unknown as ManagedClient[]);
     } else {
       setError(result.error);
     }

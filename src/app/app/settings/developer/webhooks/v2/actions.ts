@@ -52,10 +52,10 @@ export async function createWebhookEndpoint(input: {
 
     const endpoint = await db.apiWebhookEndpoint.create({
       data: {
-        organizationId: ctx.orgId,
+        orgId: ctx.orgId,
         url: input.url.trim(),
         events: input.events,
-        isEnabled: true,
+        secretHash: "",
         apiVersion: "v2",
         signingSecret,
         maxRetries: 5,
@@ -91,7 +91,7 @@ export async function listWebhookEndpoints(): Promise<
     const ctx = await requireWebhookFeature();
 
     const endpoints = await db.apiWebhookEndpoint.findMany({
-      where: { organizationId: ctx.orgId, apiVersion: "v2" },
+      where: { orgId: ctx.orgId, apiVersion: "v2" },
       select: {
         id: true,
         url: true,
@@ -132,7 +132,7 @@ export async function getWebhookEndpoint(
     const ctx = await requireWebhookFeature();
 
     const endpoint = await db.apiWebhookEndpoint.findFirst({
-      where: { id: endpointId, organizationId: ctx.orgId, apiVersion: "v2" },
+      where: { id: endpointId, orgId: ctx.orgId, apiVersion: "v2" },
       include: { _count: { select: { deliveries: true } } },
     });
 
@@ -169,7 +169,7 @@ export async function updateWebhookEndpoint(
     const ctx = await requireWebhookFeature();
 
     const endpoint = await db.apiWebhookEndpoint.findFirst({
-      where: { id: endpointId, organizationId: ctx.orgId, apiVersion: "v2" },
+      where: { id: endpointId, orgId: ctx.orgId, apiVersion: "v2" },
     });
     if (!endpoint) {
       return { success: false, error: "Webhook endpoint not found." };
@@ -201,7 +201,7 @@ export async function rotateSigningSecret(
     const ctx = await requireWebhookFeature();
 
     const endpoint = await db.apiWebhookEndpoint.findFirst({
-      where: { id: endpointId, organizationId: ctx.orgId, apiVersion: "v2" },
+      where: { id: endpointId, orgId: ctx.orgId, apiVersion: "v2" },
     });
     if (!endpoint) {
       return { success: false, error: "Webhook endpoint not found." };
@@ -225,7 +225,7 @@ export async function deleteWebhookEndpoint(endpointId: string): Promise<ActionR
     const ctx = await requireWebhookFeature();
 
     const endpoint = await db.apiWebhookEndpoint.findFirst({
-      where: { id: endpointId, organizationId: ctx.orgId, apiVersion: "v2" },
+      where: { id: endpointId, orgId: ctx.orgId, apiVersion: "v2" },
     });
     if (!endpoint) {
       return { success: false, error: "Webhook endpoint not found." };
@@ -248,12 +248,11 @@ export async function getDeliveryLog(
   ActionResult<{
     deliveries: Array<{
       id: string;
-      event: string;
-      status: string;
-      attempt: number | null;
+      eventType: string;
+      success: boolean;
+      attempt: number;
       responseStatus: number | null;
       durationMs: number | null;
-      createdAt: Date;
       deliveredAt: Date | null;
       requestBody: unknown;
       responseBody: string | null;
@@ -267,7 +266,7 @@ export async function getDeliveryLog(
     const ctx = await requireWebhookFeature();
 
     const endpoint = await db.apiWebhookEndpoint.findFirst({
-      where: { id: endpointId, organizationId: ctx.orgId },
+      where: { id: endpointId, orgId: ctx.orgId },
     });
     if (!endpoint) {
       return { success: false, error: "Webhook endpoint not found." };
@@ -279,17 +278,16 @@ export async function getDeliveryLog(
     const [deliveries, total] = await Promise.all([
       db.apiWebhookDelivery.findMany({
         where: { endpointId },
-        orderBy: { createdAt: "desc" },
+        orderBy: { deliveredAt: "desc" },
         skip,
         take: pageSize,
         select: {
           id: true,
-          event: true,
-          status: true,
+          eventType: true,
+          success: true,
           attempt: true,
           responseStatus: true,
           durationMs: true,
-          createdAt: true,
           deliveredAt: true,
           requestBody: true,
           responseBody: true,
@@ -313,11 +311,11 @@ export async function replayDelivery(deliveryId: string): Promise<ActionResult<n
       include: { endpoint: true },
     });
 
-    if (!delivery || delivery.endpoint.organizationId !== ctx.orgId) {
+    if (!delivery || delivery.endpoint.orgId !== ctx.orgId) {
       return { success: false, error: "Delivery not found." };
     }
 
-    await deliverWebhook(delivery.endpointId, delivery.event, delivery.requestBody ?? delivery.payload);
+    await deliverWebhook(delivery.endpointId, delivery.eventType, delivery.requestBody ?? delivery.payload);
 
     revalidatePath(`/app/settings/developer/webhooks/${delivery.endpointId}/deliveries`);
     return { success: true, data: null };

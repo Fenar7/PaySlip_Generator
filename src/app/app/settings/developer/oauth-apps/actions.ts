@@ -54,8 +54,8 @@ export async function createOAuthApp(input: {
       data: {
         orgId: ctx.orgId,
         name: input.name.trim(),
-        description: input.description?.trim() || null,
-        websiteUrl: input.websiteUrl?.trim() || null,
+        description: input.description?.trim() || "",
+        websiteUrl: input.websiteUrl?.trim() || "",
         redirectUris: input.redirectUris.filter(Boolean),
         scopes: input.scopes,
         clientId,
@@ -104,8 +104,8 @@ export async function getOAuthApp(
   ActionResult<{
     id: string;
     name: string;
-    description: string | null;
-    websiteUrl: string | null;
+    description: string;
+    websiteUrl: string;
     clientId: string;
     redirectUris: string[];
     scopes: string[];

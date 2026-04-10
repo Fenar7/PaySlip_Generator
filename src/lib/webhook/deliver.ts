@@ -16,10 +16,10 @@ export async function deliverWebhook(endpointId: string, event: string, payload:
     data: {
       id: deliveryId,
       endpointId,
-      event,
-      status: 'pending',
+      eventType: event,
+      success: false,
       payload: body,
-      requestBody: payload as Record<string, unknown>,
+      requestBody: JSON.parse(JSON.stringify(payload)),
       attempt: 1,
     },
   });
@@ -39,7 +39,7 @@ export async function deliverWebhook(endpointId: string, event: string, payload:
     await db.apiWebhookDelivery.update({
       where: { id: deliveryId },
       data: {
-        status: response.ok ? 'delivered' : 'failed',
+        success: response.ok,
         responseStatus: response.status,
         responseBody,
         durationMs,
@@ -61,7 +61,7 @@ export async function deliverWebhook(endpointId: string, event: string, payload:
     await db.apiWebhookDelivery.update({
       where: { id: deliveryId },
       data: {
-        status: 'failed',
+        success: false,
         responseBody: error instanceof Error ? error.message : 'Unknown error',
         durationMs,
         nextRetryAt: getNextRetryTime(1),

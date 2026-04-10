@@ -1722,9 +1722,13 @@ model MarketplacePurchase {
   id                String   @id @default(cuid())
   orgId             String
   templateId        String
+  userId            String
   amount            Decimal  @db.Decimal(8, 2)
   razorpayPaymentId String?
+  razorpayOrderId   String?
+  status            String   @default("PENDING")
   installedAt       DateTime @default(now())
+  createdAt         DateTime @default(now())
 
   org      Organization        @relation(fields: [orgId], references: [id])
   template MarketplaceTemplate @relation(fields: [templateId], references: [id])
@@ -1738,6 +1742,7 @@ model MarketplaceReview {
   id         String   @id @default(cuid())
   orgId      String
   templateId String
+  userId     String
   rating     Int
   review     String?
   createdAt  DateTime @default(now())

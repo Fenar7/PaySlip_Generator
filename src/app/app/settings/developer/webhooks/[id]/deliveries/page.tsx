@@ -7,29 +7,21 @@ import { getDeliveryLog, replayDelivery } from "../../v2/actions";
 
 interface Delivery {
   id: string;
-  event: string;
-  status: string;
-  attempt: number | null;
+  eventType: string;
+  success: boolean;
+  attempt: number;
   responseStatus: number | null;
   durationMs: number | null;
-  createdAt: Date;
   deliveredAt: Date | null;
   requestBody: unknown;
   responseBody: string | null;
 }
 
-function StatusBadge({ status, httpStatus }: { status: string; httpStatus: number | null }) {
-  if (status === "delivered") {
+function StatusBadge({ success, httpStatus }: { success: boolean; httpStatus: number | null }) {
+  if (success) {
     return (
       <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800">
         {httpStatus ?? 200}
-      </span>
-    );
-  }
-  if (status === "pending") {
-    return (
-      <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-yellow-100 text-yellow-800">
-        Pending
       </span>
     );
   }
@@ -133,15 +125,15 @@ export default function DeliveriesPage() {
                   onClick={() => setExpandedId(expandedId === d.id ? null : d.id)}
                 >
                   <div className="flex items-center gap-3">
-                    <StatusBadge status={d.status} httpStatus={d.responseStatus} />
-                    <span className="text-sm font-medium text-slate-800">{d.event}</span>
+                    <StatusBadge success={d.success} httpStatus={d.responseStatus} />
+                    <span className="text-sm font-medium text-slate-800">{d.eventType}</span>
                     {d.attempt && d.attempt > 1 && (
                       <span className="text-xs text-slate-400">Attempt #{d.attempt}</span>
                     )}
                   </div>
                   <div className="flex items-center gap-4 text-xs text-slate-400">
                     {d.durationMs != null && <span>{d.durationMs}ms</span>}
-                    <span>{new Date(d.createdAt).toLocaleString()}</span>
+                    <span>{d.deliveredAt ? new Date(d.deliveredAt).toLocaleString() : "—"}</span>
                     <span>{expandedId === d.id ? "▲" : "▼"}</span>
                   </div>
                 </button>
@@ -166,7 +158,7 @@ export default function DeliveriesPage() {
                         </pre>
                       </div>
                     )}
-                    {d.status === "failed" && (
+                    {!d.success && (
                       <Button
                         onClick={() => handleReplay(d.id)}
                         disabled={replaying === d.id}

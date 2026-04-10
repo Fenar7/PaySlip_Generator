@@ -26,7 +26,7 @@ export default function MyTemplatesPage() {
     async function load() {
       const result = await getInstalledTemplates();
       if (result.success) {
-        setInstalled(result.data);
+        setInstalled(result.data as unknown as InstalledTemplate[]);
       }
     }
 

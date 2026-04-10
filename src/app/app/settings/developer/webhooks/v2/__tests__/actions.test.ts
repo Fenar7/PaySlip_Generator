@@ -159,10 +159,10 @@ describe("Webhook v2 actions", () => {
       vi.mocked(db.apiWebhookDelivery.findUnique).mockResolvedValue({
         id: "del-1",
         endpointId: "ep-1",
-        event: "invoice.created",
+        eventType: "invoice.created",
         payload: '{"id":"inv-1"}',
         requestBody: { id: "inv-1" },
-        endpoint: { organizationId: ORG_ID },
+        endpoint: { orgId: ORG_ID },
       } as any);
 
       vi.mocked(deliverWebhook).mockResolvedValue(undefined);
@@ -222,7 +222,7 @@ describe("Webhook v2 actions", () => {
 
       vi.mocked(db.apiWebhookEndpoint.findFirst).mockResolvedValue({
         id: "ep-1",
-        organizationId: ORG_ID,
+        orgId: ORG_ID,
         apiVersion: "v2",
       } as any);
       vi.mocked(db.apiWebhookEndpoint.update).mockResolvedValue({} as any);
@@ -242,7 +242,7 @@ describe("Webhook v2 actions", () => {
 
       vi.mocked(db.apiWebhookEndpoint.findFirst).mockResolvedValue({
         id: "ep-1",
-        organizationId: ORG_ID,
+        orgId: ORG_ID,
         apiVersion: "v2",
       } as any);
       vi.mocked(db.apiWebhookDelivery.deleteMany).mockResolvedValue({ count: 5 } as any);

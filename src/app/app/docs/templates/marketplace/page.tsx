@@ -51,7 +51,7 @@ export default function MarketplacePage() {
 
       const result = await browseTemplates(filters);
       if (result.success) {
-        setTemplates(result.data.templates);
+        setTemplates(result.data.templates as unknown as TemplateItem[]);
         setTotal(result.data.total);
       }
     }

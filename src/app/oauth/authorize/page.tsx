@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import {
@@ -23,7 +23,7 @@ interface AppInfo {
   state: string;
 }
 
-export default function OAuthAuthorizePage() {
+function OAuthAuthorizeContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const [appInfo, setAppInfo] = useState<AppInfo | null>(null);
@@ -151,5 +151,19 @@ export default function OAuthAuthorizePage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function OAuthAuthorizePage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen flex items-center justify-center bg-slate-50">
+          <div className="text-slate-500">Loading…</div>
+        </div>
+      }
+    >
+      <OAuthAuthorizeContent />
+    </Suspense>
   );
 }

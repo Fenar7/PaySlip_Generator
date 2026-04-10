@@ -5,6 +5,7 @@ import { db } from "@/lib/db";
 import { requireOrgContext, requireRole } from "@/lib/auth";
 import { checkFeature } from "@/lib/plans/enforcement";
 import { revalidatePath } from "next/cache";
+import { Prisma } from "@/generated/prisma/client";
 import Razorpay from "razorpay";
 
 type ActionResult<T> =
@@ -122,17 +123,13 @@ export async function installFreeTemplate(
       return { success: false, error: "Template is not available for installation" };
     }
 
-    if (template.price !== 0) {
+    if (Number(template.price) !== 0) {
       return { success: false, error: "This template requires payment" };
     }
 
-    // Idempotent: return existing purchase if already installed
     const existing = await db.marketplacePurchase.findUnique({
       where: {
-        organizationId_templateId: {
-          organizationId: orgId,
-          templateId,
-        },
+        orgId_templateId: { orgId, templateId },
       },
     });
 
@@ -142,7 +139,7 @@ export async function installFreeTemplate(
 
     const purchase = await db.marketplacePurchase.create({
       data: {
-        organizationId: orgId,
+        orgId,
         templateId,
         userId,
         amount: 0,
@@ -188,17 +185,13 @@ export async function createTemplatePurchaseOrder(
       return { success: false, error: "Template is not available for purchase" };
     }
 
-    if (template.price === 0) {
+    if (Number(template.price) === 0) {
       return { success: false, error: "This template is free — use install instead" };
     }
 
-    // Idempotent: return existing purchase if already installed
     const existing = await db.marketplacePurchase.findUnique({
       where: {
-        organizationId_templateId: {
-          organizationId: orgId,
-          templateId,
-        },
+        orgId_templateId: { orgId, templateId },
       },
     });
 
@@ -206,7 +199,7 @@ export async function createTemplatePurchaseOrder(
       return { success: false, error: "Template already purchased" };
     }
 
-    const priceInPaise = Math.round(template.price * 100);
+    const priceInPaise = Math.round(Number(template.price) * 100);
 
     const razorpay = new Razorpay({
       key_id: process.env.RAZORPAY_KEY_ID!,
@@ -247,7 +240,6 @@ export async function verifyTemplatePurchase(data: {
   try {
     const { orgId, userId } = await requireOrgContext();
 
-    // Verify Razorpay signature
     const expectedSignature = crypto
       .createHmac("sha256", process.env.RAZORPAY_KEY_SECRET!)
       .update(`${data.razorpayOrderId}|${data.razorpayPaymentId}`)
@@ -269,13 +261,9 @@ export async function verifyTemplatePurchase(data: {
       return { success: false, error: "Template is not available" };
     }
 
-    // Idempotent: return existing purchase if already installed
     const existing = await db.marketplacePurchase.findUnique({
       where: {
-        organizationId_templateId: {
-          organizationId: orgId,
-          templateId: data.templateId,
-        },
+        orgId_templateId: { orgId, templateId: data.templateId },
       },
     });
 
@@ -283,14 +271,14 @@ export async function verifyTemplatePurchase(data: {
       return { success: true, data: { purchaseId: existing.id } };
     }
 
-    const amount = template.price;
+    const amount = Number(template.price);
     const publisherShare = Math.round(amount * 70) / 100;
     const platformShare = Math.round(amount * 30) / 100;
 
     const purchase = await db.$transaction(async (tx) => {
       const p = await tx.marketplacePurchase.create({
         data: {
-          organizationId: orgId,
+          orgId,
           templateId: data.templateId,
           userId,
           amount,
@@ -303,9 +291,8 @@ export async function verifyTemplatePurchase(data: {
       await tx.marketplaceRevenue.create({
         data: {
           purchaseId: p.id,
-          templateId: data.templateId,
-          publisherId: template.publisherId,
-          amount,
+          publisherOrgId: template.publisherOrgId ?? orgId,
+          totalAmount: amount,
           publisherShare,
           platformShare,
         },
@@ -342,13 +329,9 @@ export async function submitReview(
   try {
     const { orgId, userId } = await requireOrgContext();
 
-    // Verify the org has purchased this template
     const purchase = await db.marketplacePurchase.findUnique({
       where: {
-        organizationId_templateId: {
-          organizationId: orgId,
-          templateId,
-        },
+        orgId_templateId: { orgId, templateId },
       },
     });
 
@@ -367,13 +350,12 @@ export async function submitReview(
       data: {
         templateId,
         userId,
-        organizationId: orgId,
+        orgId,
         rating,
         review: review ?? null,
       },
     });
 
-    // Update average rating on the template
     const aggregate = await db.marketplaceReview.aggregate({
       where: { templateId },
       _avg: { rating: true },
@@ -384,7 +366,7 @@ export async function submitReview(
       where: { id: templateId },
       data: {
         rating: aggregate._avg.rating ?? 0,
-        reviewCount: aggregate._count.rating,
+        ratingCount: aggregate._count.rating,
       },
     });
 
@@ -407,7 +389,7 @@ export async function getInstalledTemplates(): Promise<ActionResult<Record<strin
     const { orgId } = await requireOrgContext();
 
     const purchases = await db.marketplacePurchase.findMany({
-      where: { organizationId: orgId, status: "COMPLETED" },
+      where: { orgId, status: "COMPLETED" },
       include: { template: true },
       orderBy: { createdAt: "desc" },
     });
@@ -435,9 +417,9 @@ export async function publishTemplate(data: {
   previewImageUrl: string;
 }): Promise<ActionResult<{ templateId: string }>> {
   try {
-    const { orgId, userId } = await requireRole("admin");
+    const { orgId } = await requireRole("admin");
 
-    const hasFeature = await checkFeature(orgId, "templateMarketplace");
+    const hasFeature = await checkFeature(orgId, "templatePublish");
     if (!hasFeature) {
       return {
         success: false,
@@ -453,14 +435,14 @@ export async function publishTemplate(data: {
         category: data.category,
         tags: data.tags,
         price: data.price,
-        templateData: data.templateData,
+        templateData: data.templateData as Prisma.InputJsonValue,
         previewImageUrl: data.previewImageUrl,
-        publisherId: orgId,
-        publisherUserId: userId,
+        publisherOrgId: orgId,
+        publisherName: "Publisher",
         status: "PENDING_REVIEW",
         downloadCount: 0,
         rating: 0,
-        reviewCount: 0,
+        ratingCount: 0,
       },
     });
 
