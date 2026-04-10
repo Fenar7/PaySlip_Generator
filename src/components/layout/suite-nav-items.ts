@@ -23,6 +23,7 @@ export const suiteNavItems: NavItem[] = [
       { href: "/app/docs/invoices", label: "Invoice Vault" },
       { href: "/app/docs/vouchers", label: "Voucher Vault" },
       { href: "/app/docs/templates", label: "✨ Templates" },
+      { href: "/app/docs/templates/marketplace", label: "Template Marketplace" },
       { href: "/app/docs/pdf-studio", label: "PDF Studio" },
     ],
   },
@@ -89,6 +90,16 @@ export const suiteNavItems: NavItem[] = [
     children: [
       { href: "/app/billing", label: "Plan & Usage" },
       { href: "/app/billing/invoices", label: "Billing Invoices" },
+    ],
+  },
+  {
+    href: "/app/partner",
+    label: "Partner",
+    suite: "partner",
+    children: [
+      { href: "/app/partner", label: "Dashboard" },
+      { href: "/app/partner/clients", label: "Managed Clients" },
+      { href: "/app/partner/apply", label: "Apply" },
     ],
   },
 ];
