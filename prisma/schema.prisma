@@ -26,6 +26,7 @@ model Profile {
   orgPreferences       UserOrgPreference[]
   quotes               Quote[]
   arrangements         PaymentArrangement[]
+  oauthAuthorizations  OAuthAuthorization[]
 
   @@map("profiles")
 }
@@ -82,6 +83,14 @@ model Organization {
   quotes              Quote[]
   arrangements        PaymentArrangement[]
   tdsRecords          TdsRecord[]
+  marketplaceTemplates MarketplaceTemplate[]
+  marketplacePurchases MarketplacePurchase[]
+  marketplaceReviews   MarketplaceReview[]
+  marketplaceRevenue   MarketplaceRevenue[]
+  oauthApps            OAuthApp[]
+  oauthAuthorizations  OAuthAuthorization[]
+  partnerProfile       PartnerProfile?
+  partnerManagedOrgs   PartnerManagedOrg[]
 
   @@map("organization")
 }
@@ -1158,9 +1167,17 @@ model ApiWebhookEndpoint {
   secretHash      String
   isActive        Boolean   @default(true)
   description     String?
-  failureCount    Int       @default(0)
-  createdAt       DateTime  @default(now())
-  lastDeliveredAt DateTime?
+  failureCount      Int       @default(0)
+  createdAt         DateTime  @default(now())
+  lastDeliveredAt   DateTime?
+  apiVersion        String    @default("v2")
+  signingSecret     String?
+  maxRetries        Int       @default(5)
+  retryBackoff      String    @default("exponential")
+  consecutiveFails  Int       @default(0)
+  autoDisableAt     Int       @default(10)
+  lastDeliveryAt    DateTime?
+  lastSuccessAt     DateTime?
 
   organization Organization         @relation(fields: [orgId], references: [id], onDelete: Cascade)
   deliveries   ApiWebhookDelivery[]
@@ -1175,11 +1192,13 @@ model ApiWebhookDelivery {
   eventType       String
   payload         Json
   responseStatus  Int?
-  responseBody    String?
+  responseBody    String?   @db.Text
   durationMs      Int?
   success         Boolean
-  attempt         Int      @default(1)
-  deliveredAt     DateTime @default(now())
+  attempt         Int       @default(1)
+  nextRetryAt     DateTime?
+  requestBody     Json?
+  deliveredAt     DateTime?
 
   endpoint ApiWebhookEndpoint @relation(fields: [endpointId], references: [id], onDelete: Cascade)
 
@@ -1656,4 +1675,186 @@ model TdsRecord {
   @@index([organizationId, financialYear])
   @@index([invoiceId])
   @@map("tds_record")
+}
+
+// ─── Sprint 15.3: Marketplace ────────────────────────────────────────────────
+
+enum MarketplaceTemplateStatus {
+  DRAFT
+  PENDING_REVIEW
+  PUBLISHED
+  REJECTED
+  ARCHIVED
+}
+
+model MarketplaceTemplate {
+  id              String                     @id @default(cuid())
+  templateType    String
+  name            String
+  description     String
+  previewImageUrl String
+  previewPdfUrl   String?
+  category        String[]
+  tags            String[]
+  price           Decimal                    @db.Decimal(8, 2)
+  currency        String                     @default("INR")
+  publisherOrgId  String?
+  publisherName   String
+  isOfficial      Boolean                    @default(false)
+  isApproved      Boolean                    @default(false)
+  status          MarketplaceTemplateStatus  @default(DRAFT)
+  downloadCount   Int                        @default(0)
+  rating          Decimal?                   @db.Decimal(3, 2)
+  ratingCount     Int                        @default(0)
+  templateData    Json
+  version         String                     @default("1.0.0")
+  createdAt       DateTime                   @default(now())
+  updatedAt       DateTime                   @updatedAt
+
+  publisherOrg Organization?         @relation(fields: [publisherOrgId], references: [id])
+  purchases    MarketplacePurchase[]
+  reviews      MarketplaceReview[]
+
+  @@map("marketplace_templates")
+}
+
+model MarketplacePurchase {
+  id                String   @id @default(cuid())
+  orgId             String
+  templateId        String
+  amount            Decimal  @db.Decimal(8, 2)
+  razorpayPaymentId String?
+  installedAt       DateTime @default(now())
+
+  org      Organization        @relation(fields: [orgId], references: [id])
+  template MarketplaceTemplate @relation(fields: [templateId], references: [id])
+  revenue  MarketplaceRevenue?
+
+  @@unique([orgId, templateId])
+  @@map("marketplace_purchases")
+}
+
+model MarketplaceReview {
+  id         String   @id @default(cuid())
+  orgId      String
+  templateId String
+  rating     Int
+  review     String?
+  createdAt  DateTime @default(now())
+
+  org      Organization        @relation(fields: [orgId], references: [id])
+  template MarketplaceTemplate @relation(fields: [templateId], references: [id])
+
+  @@unique([orgId, templateId])
+  @@map("marketplace_reviews")
+}
+
+model MarketplaceRevenue {
+  id             String   @id @default(cuid())
+  purchaseId     String   @unique
+  publisherOrgId String
+  totalAmount    Decimal  @db.Decimal(8, 2)
+  publisherShare Decimal  @db.Decimal(8, 2)
+  platformShare  Decimal  @db.Decimal(8, 2)
+  status         String   @default("PENDING_PAYOUT")
+  paidOutAt      DateTime?
+  createdAt      DateTime @default(now())
+
+  purchase     MarketplacePurchase @relation(fields: [purchaseId], references: [id])
+  publisherOrg Organization       @relation(fields: [publisherOrgId], references: [id])
+
+  @@map("marketplace_revenue")
+}
+
+// ─── Sprint 15.3: OAuth ─────────────────────────────────────────────────────
+
+model OAuthApp {
+  id           String   @id @default(cuid())
+  orgId        String
+  name         String
+  description  String
+  websiteUrl   String
+  redirectUris String[]
+  logoUrl      String?
+  clientId     String   @unique
+  clientSecret String
+  scopes       String[]
+  isPublic     Boolean  @default(false)
+  isApproved   Boolean  @default(false)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  org            Organization         @relation(fields: [orgId], references: [id])
+  authorizations OAuthAuthorization[]
+
+  @@map("oauth_apps")
+}
+
+model OAuthAuthorization {
+  id               String   @id @default(cuid())
+  appId            String
+  orgId            String
+  grantedBy        String   @db.Uuid
+  scopes           String[]
+  authCode         String?  @unique
+  accessToken      String   @unique
+  refreshToken     String   @unique
+  accessExpiresAt  DateTime
+  refreshExpiresAt DateTime
+  isRevoked        Boolean  @default(false)
+  createdAt        DateTime @default(now())
+
+  app            OAuthApp     @relation(fields: [appId], references: [id])
+  org            Organization @relation(fields: [orgId], references: [id])
+  grantedByUser  Profile      @relation(fields: [grantedBy], references: [id])
+
+  @@map("oauth_authorizations")
+}
+
+// ─── Sprint 15.3: Partner ────────────────────────────────────────────────────
+
+enum PartnerType {
+  ACCOUNTANT
+  TECHNOLOGY
+  RESELLER
+}
+
+enum PartnerStatus {
+  PENDING
+  APPROVED
+  SUSPENDED
+}
+
+model PartnerProfile {
+  id              String        @id @default(cuid())
+  orgId           String        @unique
+  type            PartnerType
+  companyName     String
+  website         String?
+  description     String?
+  logoUrl         String?
+  status          PartnerStatus @default(PENDING)
+  partnerCode     String        @unique
+  revenueShare    Decimal       @db.Decimal(5, 2)
+  managedOrgCount Int           @default(0)
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  org         Organization        @relation(fields: [orgId], references: [id])
+  managedOrgs PartnerManagedOrg[]
+
+  @@map("partner_profiles")
+}
+
+model PartnerManagedOrg {
+  id        String   @id @default(cuid())
+  partnerId String
+  orgId     String
+  addedAt   DateTime @default(now())
+
+  partner PartnerProfile @relation(fields: [partnerId], references: [id])
+  org     Organization   @relation(fields: [orgId], references: [id])
+
+  @@unique([partnerId, orgId])
+  @@map("partner_managed_orgs")
 }
