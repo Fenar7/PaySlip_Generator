@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -40,24 +40,26 @@ export default function I18nSettingsPage() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const loadSettings = useCallback(async () => {
-    const result = await getOrgI18nSettings();
-    if (result.success) {
-      setDefaultLanguage(result.data.defaultLanguage);
-      setDefaultDocLanguage(result.data.defaultDocLanguage);
-      setCountry(result.data.country);
-      setBaseCurrency(result.data.baseCurrency as SupportedCurrency);
-      setTimezone(result.data.timezone);
-      setVatRegNumber(result.data.vatRegNumber ?? "");
-      setVatRate(result.data.vatRate != null ? String(result.data.vatRate) : "");
-      setFiscalYearStart(String(result.data.fiscalYearStart));
-    }
-    setLoading(false);
-  }, []);
-
   useEffect(() => {
-    loadSettings();
-  }, [loadSettings]);
+    let cancelled = false;
+    async function load() {
+      const result = await getOrgI18nSettings();
+      if (cancelled) return;
+      if (result.success) {
+        setDefaultLanguage(result.data.defaultLanguage);
+        setDefaultDocLanguage(result.data.defaultDocLanguage);
+        setCountry(result.data.country);
+        setBaseCurrency(result.data.baseCurrency as SupportedCurrency);
+        setTimezone(result.data.timezone);
+        setVatRegNumber(result.data.vatRegNumber ?? "");
+        setVatRate(result.data.vatRate != null ? String(result.data.vatRate) : "");
+        setFiscalYearStart(String(result.data.fiscalYearStart));
+      }
+      setLoading(false);
+    }
+    load();
+    return () => { cancelled = true; };
+  }, []);
 
   function handleCountryChange(code: string) {
     setCountry(code);
