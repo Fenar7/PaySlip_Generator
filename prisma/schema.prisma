@@ -81,6 +81,7 @@ model Organization {
   statements          CustomerStatement[]
   quotes              Quote[]
   arrangements        PaymentArrangement[]
+  tdsRecords          TdsRecord[]
 
   @@map("organization")
 }
@@ -248,6 +249,30 @@ model Employee {
   @@map("employee")
 }
 
+// ─── Phase 15: GST & e-Invoicing Enums ──────────────────────────────────────
+
+enum TdsSection {
+  SECTION_194A
+  SECTION_194C
+  SECTION_194J
+  SECTION_194H
+  SECTION_194I
+  SECTION_194Q
+  OTHER
+}
+
+enum TdsCertStatus {
+  PENDING_CERT
+  CERT_RECEIVED
+  FILED
+}
+
+enum GstType {
+  INTRASTATE
+  INTERSTATE
+  EXEMPT
+}
+
 // ─── Document Models ────────────────────────────────────────────────────────────
 
 enum InvoiceStatus {
@@ -295,6 +320,30 @@ model Invoice {
   dunningEnabled       Boolean   @default(true)
   dunningPausedUntil   DateTime?
   dunningSequenceId    String?
+  // Phase 15: GST & e-Invoicing
+  supplierGstin       String?
+  customerGstin       String?
+  placeOfSupply       String?
+  reverseCharge       Boolean   @default(false)
+  exportType          String?
+  gstTotalCgst        Float     @default(0)
+  gstTotalSgst        Float     @default(0)
+  gstTotalIgst        Float     @default(0)
+  gstTotalCess        Float     @default(0)
+  irnNumber           String?
+  irnAckNumber        String?
+  irnAckDate          DateTime?
+  irnQrCode           String?   @db.Text
+  eWayBillNumber      String?
+  eWayBillDate        DateTime?
+  eWayBillExpiry      DateTime?
+  ewbTransportMode    String?
+  ewbVehicleNumber    String?
+  ewbTransporterGstin String?
+  ewbTransportDocNo   String?
+  ewbDistanceKm       Int?
+  ewbFromPincode      String?
+  ewbToPincode        String?
   createdAt      DateTime      @default(now())
   updatedAt      DateTime      @updatedAt
   archivedAt     DateTime?
@@ -317,6 +366,7 @@ model Invoice {
   approvalRequests ApprovalRequest[]   @relation("InvoiceApprovals")
   dunningLogs    DunningLog[]
   arrangement    PaymentArrangement?
+  tdsRecords     TdsRecord[]
 
   @@unique([organizationId, invoiceNumber])
   @@index([organizationId, status])
@@ -333,6 +383,15 @@ model InvoiceLineItem {
   discount    Float  @default(0)
   amount      Float  @default(0)
   sortOrder   Int    @default(0)
+  // Phase 15: GST
+  hsnCode        String?
+  sacCode        String?
+  gstRate        Float    @default(0)
+  gstType        GstType  @default(INTRASTATE)
+  cgstAmount     Float    @default(0)
+  sgstAmount     Float    @default(0)
+  igstAmount     Float    @default(0)
+  cessAmount     Float    @default(0)
 
   invoice Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
 
@@ -1519,4 +1578,46 @@ model PaymentInstallment {
 
   @@unique([arrangementId, installmentNumber])
   @@map("payment_installment")
+}
+
+// ─── Phase 15: GST Master Data & TDS ─────────────────────────────────────────
+
+model HsnSacCode {
+  id          String  @id @default(cuid())
+  code        String  @unique
+  description String
+  gstRate     Float
+  isService   Boolean @default(false)
+  chapter     String?
+  section     String?
+
+  @@index([code])
+  @@index([description])
+  @@map("hsn_sac_code")
+}
+
+model TdsRecord {
+  id             String        @id @default(cuid())
+  organizationId String
+  invoiceId      String
+  tdsSection     TdsSection
+  tdsRate        Float
+  tdsAmount      Float
+  certStatus     TdsCertStatus @default(PENDING_CERT)
+  certNumber     String?
+  certDate       DateTime?
+  certFilePath   String?
+  deductorTan    String?
+  financialYear  String
+  quarter        String
+  notes          String?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  invoice      Invoice      @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, financialYear])
+  @@index([invoiceId])
+  @@map("tds_record")
 }
