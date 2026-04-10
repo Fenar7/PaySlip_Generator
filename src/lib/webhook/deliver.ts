@@ -12,14 +12,14 @@ export async function deliverWebhook(endpointId: string, event: string, payload:
     ? generateSignatureHeaders(endpoint.signingSecret, body, deliveryId, event)
     : { 'X-Slipwise-Delivery': deliveryId, 'X-Slipwise-Event': event };
 
-  const delivery = await db.apiWebhookDelivery.create({
+  await db.apiWebhookDelivery.create({
     data: {
       id: deliveryId,
       endpointId,
       event,
       status: 'pending',
       payload: body,
-      requestBody: payload as any,
+      requestBody: payload as Record<string, unknown>,
       attempt: 1,
     },
   });

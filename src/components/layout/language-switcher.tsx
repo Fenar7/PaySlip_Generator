@@ -12,6 +12,11 @@ const LANGUAGES = [
   { code: "de", label: "German", flag: "🇩🇪" },
 ];
 
+function persistLocaleAndReload(code: string) {
+  document.cookie = `locale=${code};path=/;max-age=31536000`;
+  window.location.reload();
+}
+
 interface LanguageSwitcherProps {
   currentLocale?: string;
   onLocaleChange?: (locale: string) => void;
@@ -26,9 +31,8 @@ export function LanguageSwitcher({
 
   function handleSelect(code: string) {
     setOpen(false);
-    document.cookie = `locale=${code};path=/;max-age=31536000`;
     onLocaleChange?.(code);
-    window.location.reload();
+    persistLocaleAndReload(code);
   }
 
   return (

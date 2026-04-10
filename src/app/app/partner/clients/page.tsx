@@ -7,9 +7,16 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { getPartnerDashboard, inviteClientOrg, removeClientOrg } from "../actions";
 
+interface ManagedClient {
+  id: string;
+  orgId: string;
+  addedAt: string;
+  org?: { id: string; name: string; slug: string };
+}
+
 export default function PartnerClientsPage() {
   const [loading, setLoading] = useState(true);
-  const [clients, setClients] = useState<any[]>([]);
+  const [clients, setClients] = useState<ManagedClient[]>([]);
   const [newOrgId, setNewOrgId] = useState("");
   const [adding, setAdding] = useState(false);
   const [removing, setRemoving] = useState<string | null>(null);

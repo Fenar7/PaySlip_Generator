@@ -21,7 +21,7 @@ export async function browseTemplates(filters?: {
   sort?: "popular" | "newest" | "top-rated";
   page?: number;
   pageSize?: number;
-}): Promise<ActionResult<{ templates: any[]; total: number }>> {
+}): Promise<ActionResult<{ templates: Record<string, unknown>[]; total: number }>> {
   try {
     const page = filters?.page ?? 1;
     const pageSize = filters?.pageSize ?? 12;
@@ -81,7 +81,7 @@ export async function browseTemplates(filters?: {
 
 export async function getTemplateDetail(
   templateId: string
-): Promise<ActionResult<any>> {
+): Promise<ActionResult<Record<string, unknown>>> {
   try {
     const template = await db.marketplaceTemplate.findUnique({
       where: { id: templateId },
@@ -287,7 +287,7 @@ export async function verifyTemplatePurchase(data: {
     const publisherShare = Math.round(amount * 70) / 100;
     const platformShare = Math.round(amount * 30) / 100;
 
-    const purchase = await db.$transaction(async (tx: any) => {
+    const purchase = await db.$transaction(async (tx) => {
       const p = await tx.marketplacePurchase.create({
         data: {
           organizationId: orgId,
@@ -402,7 +402,7 @@ export async function submitReview(
 
 // ─── Get installed templates for current org ──────────────────────────────────
 
-export async function getInstalledTemplates(): Promise<ActionResult<any[]>> {
+export async function getInstalledTemplates(): Promise<ActionResult<Record<string, unknown>[]>> {
   try {
     const { orgId } = await requireOrgContext();
 
@@ -431,7 +431,7 @@ export async function publishTemplate(data: {
   category: string[];
   tags: string[];
   price: number;
-  templateData: any;
+  templateData: Record<string, unknown>;
   previewImageUrl: string;
 }): Promise<ActionResult<{ templateId: string }>> {
   try {

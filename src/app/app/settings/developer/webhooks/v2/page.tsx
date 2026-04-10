@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
   createWebhookEndpoint,
@@ -47,18 +47,30 @@ export default function WebhooksV2Page() {
   const [formAutoDisable, setFormAutoDisable] = useState("10");
   const [submitting, setSubmitting] = useState(false);
 
-  const loadEndpoints = useCallback(async () => {
+  async function loadEndpoints() {
     setLoading(true);
     const result = await listWebhookEndpoints();
     if (result.success) {
       setEndpoints(result.data);
     }
     setLoading(false);
-  }, []);
+  }
 
   useEffect(() => {
-    loadEndpoints();
-  }, [loadEndpoints]);
+    let cancelled = false;
+    async function load() {
+      setLoading(true);
+      const result = await listWebhookEndpoints();
+      if (cancelled) return;
+      if (result.success) {
+        setEndpoints(result.data);
+      }
+      setLoading(false);
+    }
+    load();
+    return () => { cancelled = true; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   async function handleCreate() {
     setSubmitting(true);

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
   createOAuthApp,
@@ -40,18 +40,30 @@ export default function OAuthAppsPage() {
   const [formScopes, setFormScopes] = useState<string[]>([]);
   const [submitting, setSubmitting] = useState(false);
 
-  const loadApps = useCallback(async () => {
+  async function loadApps() {
     setLoading(true);
     const result = await listOAuthApps();
     if (result.success) {
       setApps(result.data);
     }
     setLoading(false);
-  }, []);
+  }
 
   useEffect(() => {
-    loadApps();
-  }, [loadApps]);
+    let cancelled = false;
+    async function load() {
+      setLoading(true);
+      const result = await listOAuthApps();
+      if (cancelled) return;
+      if (result.success) {
+        setApps(result.data);
+      }
+      setLoading(false);
+    }
+    load();
+    return () => { cancelled = true; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   async function handleCreate() {
     setSubmitting(true);

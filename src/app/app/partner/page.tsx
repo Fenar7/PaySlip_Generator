@@ -15,9 +15,9 @@ const statusColors: Record<string, string> = {
 export default function PartnerPage() {
   const [loading, setLoading] = useState(true);
   const [dashboard, setDashboard] = useState<{
-    profile: any;
+    profile: Record<string, unknown>;
     managedOrgCount: number;
-    managedOrgs: any[];
+    managedOrgs: Record<string, unknown>[];
   } | null>(null);
 
   useEffect(() => {

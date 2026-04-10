@@ -40,9 +40,9 @@ export async function applyForPartner(data: {
 
 export async function getPartnerDashboard(): Promise<
   ActionResult<{
-    profile: any;
+    profile: Record<string, unknown>;
     managedOrgCount: number;
-    managedOrgs: any[];
+    managedOrgs: Record<string, unknown>[];
   }>
 > {
   const { orgId } = await requireOrgContext();
@@ -124,7 +124,7 @@ export async function removeClientOrg(
 
 export async function getManagedClientInvoices(
   clientOrgId: string
-): Promise<ActionResult<any[]>> {
+): Promise<ActionResult<Record<string, unknown>[]>> {
   const { orgId } = await requireOrgContext();
 
   const profile = await db.partnerProfile.findUnique({ where: { orgId } });
@@ -148,7 +148,7 @@ export async function getManagedClientInvoices(
   return { success: true, data: invoices };
 }
 
-export async function getPartnerProfile(): Promise<ActionResult<any | null>> {
+export async function getPartnerProfile(): Promise<ActionResult<Record<string, unknown> | null>> {
   const { orgId } = await requireOrgContext();
   const profile = await db.partnerProfile.findUnique({ where: { orgId } });
   return { success: true, data: profile };

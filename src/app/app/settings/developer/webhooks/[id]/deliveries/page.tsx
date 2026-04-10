@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { getDeliveryLog, replayDelivery } from "../../v2/actions";
@@ -53,10 +53,24 @@ export default function DeliveriesPage() {
   const [replaying, setReplaying] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const loadDeliveries = useCallback(
-    async (p: number) => {
+  async function loadDeliveries(p: number) {
+    setLoading(true);
+    const result = await getDeliveryLog(endpointId, p);
+    if (result.success) {
+      setDeliveries(result.data.deliveries);
+      setTotal(result.data.total);
+      setPage(result.data.page);
+      setPageSize(result.data.pageSize);
+    }
+    setLoading(false);
+  }
+
+  useEffect(() => {
+    let cancelled = false;
+    async function load() {
       setLoading(true);
-      const result = await getDeliveryLog(endpointId, p);
+      const result = await getDeliveryLog(endpointId, 1);
+      if (cancelled) return;
       if (result.success) {
         setDeliveries(result.data.deliveries);
         setTotal(result.data.total);
@@ -64,13 +78,11 @@ export default function DeliveriesPage() {
         setPageSize(result.data.pageSize);
       }
       setLoading(false);
-    },
-    [endpointId],
-  );
-
-  useEffect(() => {
-    loadDeliveries(1);
-  }, [loadDeliveries]);
+    }
+    load();
+    return () => { cancelled = true; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [endpointId]);
 
   async function handleReplay(deliveryId: string) {
     setReplaying(deliveryId);
