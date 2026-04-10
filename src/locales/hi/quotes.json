@@ -1,0 +1,27 @@
+{
+  "title": "कोटेशन",
+  "fields": {
+    "quoteNumber": "कोटेशन संख्या",
+    "issueDate": "जारी करने की तिथि",
+    "validUntil": "वैध तिथि",
+    "to": "प्राप्तकर्ता",
+    "from": "प्रेषक",
+    "description": "विवरण",
+    "quantity": "मात्रा",
+    "unitPrice": "इकाई मूल्य",
+    "amount": "राशि",
+    "subtotal": "उप-कुल",
+    "tax": "कर",
+    "total": "कुल",
+    "notes": "टिप्पणियाँ",
+    "terms": "नियम और शर्तें"
+  },
+  "status": {
+    "draft": "ड्राफ्ट",
+    "sent": "भेजा गया",
+    "accepted": "स्वीकृत",
+    "declined": "अस्वीकृत",
+    "expired": "समाप्त",
+    "converted": "रूपांतरित"
+  }
+}

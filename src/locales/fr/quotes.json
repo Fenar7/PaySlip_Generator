@@ -1,0 +1,27 @@
+{
+  "title": "Devis",
+  "fields": {
+    "quoteNumber": "Numéro de Devis",
+    "issueDate": "Date d'Émission",
+    "validUntil": "Valide Jusqu'au",
+    "to": "À",
+    "from": "De",
+    "description": "Description",
+    "quantity": "Quantité",
+    "unitPrice": "Prix Unitaire",
+    "amount": "Montant",
+    "subtotal": "Sous-total",
+    "tax": "Taxe",
+    "total": "Total",
+    "notes": "Notes",
+    "terms": "Conditions Générales"
+  },
+  "status": {
+    "draft": "Brouillon",
+    "sent": "Envoyé",
+    "accepted": "Accepté",
+    "declined": "Refusé",
+    "expired": "Expiré",
+    "converted": "Converti"
+  }
+}

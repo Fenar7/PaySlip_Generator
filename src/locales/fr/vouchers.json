@@ -1,0 +1,20 @@
+{
+  "title": "Bon de Paiement",
+  "fields": {
+    "voucherNumber": "Numéro de Bon",
+    "voucherDate": "Date du Bon",
+    "paidTo": "Payé à",
+    "amount": "Montant",
+    "paymentMethod": "Mode de Paiement",
+    "purpose": "Objet",
+    "approvedBy": "Approuvé par",
+    "receivedBy": "Reçu par",
+    "description": "Description",
+    "category": "Catégorie"
+  },
+  "types": {
+    "payment": "Paiement",
+    "receipt": "Reçu",
+    "journal": "Journal"
+  }
+}

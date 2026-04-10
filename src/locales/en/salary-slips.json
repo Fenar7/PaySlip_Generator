@@ -1,0 +1,28 @@
+{
+  "title": "Salary Slip",
+  "fields": {
+    "employeeName": "Employee Name",
+    "employeeId": "Employee ID",
+    "designation": "Designation",
+    "department": "Department",
+    "month": "Month",
+    "year": "Year",
+    "grossPay": "Gross Pay",
+    "netPay": "Net Pay",
+    "deductions": "Deductions",
+    "earnings": "Earnings",
+    "bankAccount": "Bank Account",
+    "panNumber": "PAN Number",
+    "uanNumber": "UAN Number"
+  },
+  "components": {
+    "basic": "Basic Salary",
+    "hra": "House Rent Allowance",
+    "da": "Dearness Allowance",
+    "ta": "Travel Allowance",
+    "pf": "Provident Fund",
+    "esi": "Employee State Insurance",
+    "tax": "Professional Tax",
+    "other": "Other"
+  }
+}

@@ -1,0 +1,20 @@
+{
+  "title": "भुगतान वाउचर",
+  "fields": {
+    "voucherNumber": "वाउचर संख्या",
+    "voucherDate": "वाउचर दिनांक",
+    "paidTo": "भुगतान प्राप्तकर्ता",
+    "amount": "राशि",
+    "paymentMethod": "भुगतान विधि",
+    "purpose": "उद्देश्य",
+    "approvedBy": "स्वीकृतकर्ता",
+    "receivedBy": "प्राप्तकर्ता",
+    "description": "विवरण",
+    "category": "श्रेणी"
+  },
+  "types": {
+    "payment": "भुगतान",
+    "receipt": "रसीद",
+    "journal": "जर्नल"
+  }
+}

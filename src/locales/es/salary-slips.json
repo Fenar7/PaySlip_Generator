@@ -1,0 +1,28 @@
+{
+  "title": "Recibo de Nómina",
+  "fields": {
+    "employeeName": "Nombre del Empleado",
+    "employeeId": "ID del Empleado",
+    "designation": "Cargo",
+    "department": "Departamento",
+    "month": "Mes",
+    "year": "Año",
+    "grossPay": "Salario Bruto",
+    "netPay": "Salario Neto",
+    "deductions": "Deducciones",
+    "earnings": "Percepciones",
+    "bankAccount": "Cuenta Bancaria",
+    "panNumber": "Número PAN",
+    "uanNumber": "Número UAN"
+  },
+  "components": {
+    "basic": "Salario Base",
+    "hra": "Subsidio de Vivienda",
+    "da": "Subsidio por Carestía",
+    "ta": "Subsidio de Transporte",
+    "pf": "Fondo de Previsión",
+    "esi": "Seguro Social del Empleado",
+    "tax": "Impuesto Profesional",
+    "other": "Otros"
+  }
+}

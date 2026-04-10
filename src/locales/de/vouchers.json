@@ -1,0 +1,20 @@
+{
+  "title": "Zahlungsbeleg",
+  "fields": {
+    "voucherNumber": "Belegnummer",
+    "voucherDate": "Belegdatum",
+    "paidTo": "Bezahlt an",
+    "amount": "Betrag",
+    "paymentMethod": "Zahlungsmethode",
+    "purpose": "Verwendungszweck",
+    "approvedBy": "Genehmigt von",
+    "receivedBy": "Empfangen von",
+    "description": "Beschreibung",
+    "category": "Kategorie"
+  },
+  "types": {
+    "payment": "Zahlung",
+    "receipt": "Quittung",
+    "journal": "Journalbuchung"
+  }
+}
