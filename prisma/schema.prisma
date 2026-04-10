@@ -170,6 +170,16 @@ model OrgDefaults {
   // Phase 14: Dunning
   defaultDunningSeqId   String?
 
+  // Phase 15.2: i18n + Country
+  defaultLanguage     String  @default("en")
+  defaultDocLanguage  String  @default("en")
+  country             String  @default("IN")
+  baseCurrency        String  @default("INR")
+  timezone            String  @default("Asia/Kolkata")
+  vatRegNumber        String?
+  vatRate             Decimal?  @db.Decimal(5, 2)
+  fiscalYearStart     Int     @default(4)
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -193,6 +203,7 @@ model Customer {
   updatedAt      DateTime @updatedAt
 
   paymentHealthScore   Int       @default(100)
+  preferredLanguage   String?
 
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   invoices     Invoice[]
@@ -344,6 +355,14 @@ model Invoice {
   ewbDistanceKm       Int?
   ewbFromPincode      String?
   ewbToPincode        String?
+
+  // Phase 15.2: Multi-currency + i18n
+  displayCurrency     String?
+  exchangeRate        Float?
+  displayTotalAmount  Float?
+  exchangeRateDate    DateTime?
+  documentLanguage    String    @default("en")
+
   createdAt      DateTime      @default(now())
   updatedAt      DateTime      @updatedAt
   archivedAt     DateTime?
@@ -409,6 +428,7 @@ model Voucher {
   formData       Json
   totalAmount    Float     @default(0)
   isMultiLine    Boolean   @default(false)
+  documentLanguage    String    @default("en")
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
   archivedAt     DateTime?
@@ -450,6 +470,7 @@ model SalarySlip {
   formData       Json
   grossPay       Float     @default(0)
   netPay         Float     @default(0)
+  documentLanguage    String    @default("en")
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
   archivedAt     DateTime?
@@ -1502,6 +1523,7 @@ model Quote {
   notes              String?     @db.Text
   termsAndConditions String?     @db.Text
   templateId         String?
+  documentLanguage    String    @default("en")
   publicToken        String?     @unique
   convertedInvoiceId String?
   acceptedAt         DateTime?
@@ -1594,6 +1616,20 @@ model HsnSacCode {
   @@index([code])
   @@index([description])
   @@map("hsn_sac_code")
+}
+
+// ─── Phase 15.2: Exchange Rates ────────────────────────────────────────────────
+
+model ExchangeRate {
+  id           String   @id @default(cuid())
+  fromCurrency String
+  toCurrency   String
+  rate         Float
+  fetchedAt    DateTime @default(now())
+
+  @@unique([fromCurrency, toCurrency, fetchedAt])
+  @@index([fromCurrency, toCurrency])
+  @@map("exchange_rates")
 }
 
 model TdsRecord {
