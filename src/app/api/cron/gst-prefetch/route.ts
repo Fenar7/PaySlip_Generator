@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { validateCronSecret } from "@/lib/cron";
 import { db } from "@/lib/db";
+import { InvoiceStatus } from "@/generated/prisma/client";
 
 export const dynamic = "force-dynamic";
 
@@ -38,7 +39,7 @@ export async function GET(request: Request) {
             gte: startDate.toISOString().split("T")[0],
             lte: endDate.toISOString().split("T")[0],
           },
-          status: { in: ["ISSUED", "PAID", "PARTIALLY_PAID"] as const },
+          status: { in: [InvoiceStatus.ISSUED, InvoiceStatus.PAID, InvoiceStatus.PARTIALLY_PAID] },
         };
 
         const invoiceCount = await db.invoice.count({ where: invoiceWhere });

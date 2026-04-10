@@ -40,9 +40,8 @@ import {
   deleteTdsRecord,
   getTdsRecords,
   exportTdsCsv,
-  getCurrentFY,
-  getCurrentQuarter,
 } from "../actions";
+import { getCurrentFY, getCurrentQuarter } from "../utils";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 

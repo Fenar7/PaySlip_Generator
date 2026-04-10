@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect } from "react";
 import { useParams } from "next/navigation";
 import {
   generateInvoiceIrn,
@@ -34,20 +34,22 @@ export default function IrnPage() {
   // Generate confirmation
   const [showGenerateConfirm, setShowGenerateConfirm] = useState(false);
 
-  const loadIrnStatus = useCallback(async () => {
-    setLoading(true);
-    const result = await getInvoiceIrnStatus(invoiceId);
-    if (result.success) {
-      setIrnData(result.data);
-    } else {
-      setError(result.error);
-    }
-    setLoading(false);
-  }, [invoiceId]);
-
   useEffect(() => {
-    loadIrnStatus();
-  }, [loadIrnStatus]);
+    let cancelled = false;
+    async function load() {
+      setLoading(true);
+      const result = await getInvoiceIrnStatus(invoiceId);
+      if (cancelled) return;
+      if (result.success) {
+        setIrnData(result.data);
+      } else {
+        setError(result.error);
+      }
+      setLoading(false);
+    }
+    load();
+    return () => { cancelled = true; };
+  }, [invoiceId]);
 
   const handleGenerate = async () => {
     setShowGenerateConfirm(false);

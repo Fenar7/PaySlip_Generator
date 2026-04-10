@@ -435,7 +435,7 @@ export default function GstReportsPage() {
   const loadGstr1 = useCallback(async () => {
     setLoading(true);
     setError("");
-    const { startDate, endDate } = getMonthRange(startYear, startMonth);
+    const { startDate } = getMonthRange(startYear, startMonth);
     const endRange = getMonthRange(endYear, endMonth);
     const result = await getGstr1Data({ startDate, endDate: endRange.endDate });
     if (result.success) {

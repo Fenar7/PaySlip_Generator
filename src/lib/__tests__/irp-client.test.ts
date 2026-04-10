@@ -52,7 +52,6 @@ function mockIrnGenerateResponse() {
 }
 
 function sampleIrnRequest() {
-  const { IrnGenerateRequest } = {} as { IrnGenerateRequest: never }; // type-only
   return {
     invoiceNumber: "INV-2025-001",
     invoiceDate: "01/01/2025",

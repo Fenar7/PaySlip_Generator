@@ -8,10 +8,8 @@ import {
   updateTdsCert,
   markTdsFiled,
   deleteTdsRecord,
-  getCurrentFY,
-  getCurrentQuarter,
-  TDS_SECTIONS,
 } from "./actions";
+import { getCurrentFY, TDS_SECTIONS } from "./utils";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect } from "react";
 import { useParams } from "next/navigation";
 import {
   generateEwayBill,
@@ -33,6 +33,7 @@ export default function EwayBillPage() {
     toPincode: string | null;
     expired: boolean;
   } | null>(null);
+  const [expiryWarning, setExpiryWarning] = useState(false);
 
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
@@ -48,20 +49,26 @@ export default function EwayBillPage() {
   const [fromPincode, setFromPincode] = useState("");
   const [toPincode, setToPincode] = useState("");
 
-  const loadStatus = useCallback(async () => {
-    setLoading(true);
-    const result = await getEwayBillStatus(invoiceId);
-    if (result.success) {
-      setEwbData(result.data);
-    } else {
-      setError(result.error);
-    }
-    setLoading(false);
-  }, [invoiceId]);
-
   useEffect(() => {
+    let cancelled = false;
+    async function loadStatus() {
+      setLoading(true);
+      const result = await getEwayBillStatus(invoiceId);
+      if (cancelled) return;
+      if (result.success) {
+        setEwbData(result.data);
+        if (result.data.eWayBillExpiry && !result.data.expired) {
+          const expiresAt = new Date(result.data.eWayBillExpiry).getTime();
+          setExpiryWarning(expiresAt - Date.now() < 12 * 60 * 60 * 1000);
+        }
+      } else {
+        setError(result.error);
+      }
+      setLoading(false);
+    }
     loadStatus();
-  }, [loadStatus]);
+    return () => { cancelled = true; };
+  }, [invoiceId]);
 
   const handleGenerate = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -130,12 +137,6 @@ export default function EwayBillPage() {
   }
 
   const hasEwb = ewbData?.eWayBillNumber;
-
-  // Check expiry warning (within 12 hours)
-  const expiryWarning =
-    ewbData?.eWayBillExpiry && !ewbData.expired
-      ? new Date(ewbData.eWayBillExpiry).getTime() - Date.now() < 12 * 60 * 60 * 1000
-      : false;
 
   return (
     <div className="mx-auto max-w-2xl space-y-6 p-6">
