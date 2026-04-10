@@ -14,6 +14,7 @@ const navItems = [
   { label: "API Keys", href: "/app/settings/api" },
   { label: "Webhooks", href: "/app/settings/webhooks" },
   { label: "Customer Portal", href: "/app/settings/portal" },
+  { label: "Language & Currency", href: "/app/settings/i18n" },
   { label: "Enterprise", href: "/app/settings/enterprise" },
   { label: "Audit Log", href: "/app/settings/audit" },
 ];
