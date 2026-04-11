@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { requireOrgContext } from "@/lib/auth";
 import { revalidatePath } from "next/cache";
 import { reconcileInvoicePayment } from "@/lib/invoice-reconciliation";
+import { postInvoicePaymentTx } from "@/lib/accounting";
 
 export type ActionResult<T> =
   | { success: true; data: T }
@@ -191,8 +192,9 @@ export async function acceptProof(proofId: string): Promise<ActionResult<void>> 
     }
 
     const invoiceId = proof.invoice.id;
+    const existingPaymentId = proof.invoicePayment?.id ?? null;
 
-    if (!proof.invoicePayment) {
+    if (!existingPaymentId) {
       // Legacy proof: create a SETTLED payment and link it to the proof in one transaction
       await db.$transaction(async (tx) => {
         const newPayment = await tx.invoicePayment.create({
@@ -208,6 +210,13 @@ export async function acceptProof(proofId: string): Promise<ActionResult<void>> 
             reviewedAt: new Date(),
           },
         });
+
+        await postInvoicePaymentTx(tx, {
+          orgId,
+          invoicePaymentId: newPayment.id,
+          actorId: userId,
+        });
+
         await tx.invoiceProof.update({
           where: { id: proofId },
           data: {
@@ -219,16 +228,23 @@ export async function acceptProof(proofId: string): Promise<ActionResult<void>> 
         });
       });
     } else {
-      await db.$transaction([
-        db.invoicePayment.update({
-          where: { id: proof.invoicePayment.id },
+      await db.$transaction(async (tx) => {
+        await tx.invoicePayment.update({
+          where: { id: existingPaymentId },
           data: { status: "SETTLED", reviewedByUserId: userId, reviewedAt: new Date() },
-        }),
-        db.invoiceProof.update({
+        });
+
+        await postInvoicePaymentTx(tx, {
+          orgId,
+          invoicePaymentId: existingPaymentId,
+          actorId: userId,
+        });
+
+        await tx.invoiceProof.update({
           where: { id: proofId },
           data: { reviewStatus: "ACCEPTED", reviewedById: userId, reviewedAt: new Date() },
-        }),
-      ]);
+        });
+      });
     }
 
     await reconcileInvoicePayment(invoiceId, userId);

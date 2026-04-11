@@ -50,6 +50,18 @@ export const suiteNavItems: NavItem[] = [
     ],
   },
   {
+    href: "/app/books",
+    label: "Books",
+    suite: "books",
+    children: [
+      { href: "/app/books", label: "Overview" },
+      { href: "/app/books/chart-of-accounts", label: "Chart of Accounts" },
+      { href: "/app/books/journals", label: "Journals" },
+      { href: "/app/books/ledger", label: "Ledger" },
+      { href: "/app/books/trial-balance", label: "Trial Balance" },
+    ],
+  },
+  {
     href: "/app/flow/tickets",
     label: "Flow",
     suite: "flow",

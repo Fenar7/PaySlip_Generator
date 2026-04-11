@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
 import { db } from "@/lib/db";
+import { postInvoicePaymentTx } from "@/lib/accounting";
 import { dispatchEvent } from "@/lib/webhook/deliver";
 import { validatePaymentAmount, reconcileInvoicePayment } from "@/lib/invoice-reconciliation";
 import {
@@ -61,21 +62,30 @@ export async function POST(request: NextRequest, context: RouteContext) {
       }
     }
 
-    const payment = await db.invoicePayment.create({
-      data: {
-        invoiceId: id,
+    const payment = await db.$transaction(async (tx) => {
+      const created = await tx.invoicePayment.create({
+        data: {
+          invoiceId: id,
+          orgId: auth.orgId,
+          amount: paymentAmount,
+          currency: body.currency ?? "INR",
+          method: body.method ?? null,
+          note: body.note ?? null,
+          source: "api",
+          status: "SETTLED",
+          isPartial,
+          paidAt: body.paidAt ? new Date(body.paidAt) : new Date(),
+          plannedNextPaymentDate: isPartial ? (body.plannedNextPaymentDate ?? null) : null,
+          recordedByUserId: null,
+        },
+      });
+
+      await postInvoicePaymentTx(tx, {
         orgId: auth.orgId,
-        amount: paymentAmount,
-        currency: body.currency ?? "INR",
-        method: body.method ?? null,
-        note: body.note ?? null,
-        source: "api",
-        status: "SETTLED",
-        isPartial,
-        paidAt: body.paidAt ? new Date(body.paidAt) : new Date(),
-        plannedNextPaymentDate: isPartial ? (body.plannedNextPaymentDate ?? null) : null,
-        recordedByUserId: null,
-      },
+        invoicePaymentId: created.id,
+      });
+
+      return created;
     });
 
     const reconciled = await reconcileInvoicePayment(id);

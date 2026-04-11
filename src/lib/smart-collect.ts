@@ -1,6 +1,7 @@
 import "server-only";
 import { db } from "@/lib/db";
 import { createVirtualAccount, getRazorpay } from "@/lib/razorpay";
+import { postInvoicePaymentTx } from "@/lib/accounting";
 
 type ActionResult<T> =
   | { success: true; data: T }
@@ -116,21 +117,30 @@ export async function handleVirtualAccountCredited(
 
   if (matchingInvoice && invoiceAmountPaise === amountPaise) {
     // Exact match — auto-apply payment
-    await db.invoicePayment.create({
-      data: {
-        invoiceId: matchingInvoice.id,
-        orgId: va.orgId,
-        amount: amountPaise / 100,
-        currency: "INR",
-        method: "virtual_account",
-        note: `VA credit ${payerInfo.razorpayPaymentId}`,
-        paidAt: new Date(),
-      },
-    });
+    await db.$transaction(async (tx) => {
+      const invoicePayment = await tx.invoicePayment.create({
+        data: {
+          invoiceId: matchingInvoice.id,
+          orgId: va.orgId,
+          amount: amountPaise / 100,
+          currency: "INR",
+          method: "virtual_account",
+          source: "virtual_account",
+          status: "SETTLED",
+          note: `VA credit ${payerInfo.razorpayPaymentId}`,
+          paidAt: new Date(),
+        },
+      });
 
-    await db.invoice.update({
-      where: { id: matchingInvoice.id },
-      data: { status: "PAID", paidAt: new Date() },
+      await postInvoicePaymentTx(tx, {
+        orgId: va.orgId,
+        invoicePaymentId: invoicePayment.id,
+      });
+
+      await tx.invoice.update({
+        where: { id: matchingInvoice.id },
+        data: { status: "PAID", paidAt: new Date() },
+      });
     });
 
     return {
@@ -180,36 +190,45 @@ export async function matchUnmatchedPayment(
     return { success: false, error: "Invoice not found" };
   }
 
-  await db.invoicePayment.create({
-    data: {
-      invoiceId: invoice.id,
+  await db.$transaction(async (tx) => {
+    const invoicePayment = await tx.invoicePayment.create({
+      data: {
+        invoiceId: invoice.id,
+        orgId: payment.orgId,
+        amount: Number(payment.amountPaise) / 100,
+        currency: "INR",
+        method: "virtual_account",
+        source: "virtual_account",
+        status: "SETTLED",
+        note: `Manually matched from ${payment.razorpayPaymentId}`,
+        paidAt: new Date(),
+      },
+    });
+
+    await postInvoicePaymentTx(tx, {
       orgId: payment.orgId,
-      amount: Number(payment.amountPaise) / 100,
-      currency: "INR",
-      method: "virtual_account",
-      note: `Manually matched from ${payment.razorpayPaymentId}`,
-      paidAt: new Date(),
-    },
-  });
+      invoicePaymentId: invoicePayment.id,
+    });
 
-  const totalPaid = Number(payment.amountPaise) / 100;
-  const isFullyPaid = totalPaid >= invoice.totalAmount;
+    const totalPaid = Number(payment.amountPaise) / 100;
+    const isFullyPaid = totalPaid >= invoice.totalAmount;
 
-  await db.invoice.update({
-    where: { id: invoice.id },
-    data: {
-      status: isFullyPaid ? "PAID" : "PARTIALLY_PAID",
-      ...(isFullyPaid && { paidAt: new Date() }),
-    },
-  });
+    await tx.invoice.update({
+      where: { id: invoice.id },
+      data: {
+        status: isFullyPaid ? "PAID" : "PARTIALLY_PAID",
+        ...(isFullyPaid && { paidAt: new Date() }),
+      },
+    });
 
-  await db.unmatchedPayment.update({
-    where: { id: paymentId },
-    data: {
-      status: "matched",
-      matchedInvoiceId: invoiceId,
-      resolvedAt: new Date(),
-    },
+    await tx.unmatchedPayment.update({
+      where: { id: paymentId },
+      data: {
+        status: "matched",
+        matchedInvoiceId: invoiceId,
+        resolvedAt: new Date(),
+      },
+    });
   });
 
   return { success: true, data: { matched: true } };

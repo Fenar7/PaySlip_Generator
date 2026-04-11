@@ -34,11 +34,15 @@ vi.mock("@/lib/dunning", () => ({
   stopDunningOnArrangement: vi.fn().mockResolvedValue(undefined),
   resumeDunning: vi.fn().mockResolvedValue(undefined),
 }));
+vi.mock("@/lib/accounting", () => ({
+  postInvoicePaymentTx: vi.fn().mockResolvedValue(undefined),
+}));
 
 import { db } from "@/lib/db";
 import { logAudit } from "@/lib/audit";
 import { reconcileInvoicePayment } from "@/lib/invoice-reconciliation";
 import { stopDunningOnArrangement, resumeDunning } from "@/lib/dunning";
+import { postInvoicePaymentTx } from "@/lib/accounting";
 import {
   createArrangement,
   recordInstallmentPayment,
@@ -248,6 +252,14 @@ describe("payment-arrangements service", () => {
       expect(db.paymentInstallment.update).toHaveBeenCalledWith(
         expect.objectContaining({
           data: expect.objectContaining({ status: "PAID" }),
+        }),
+      );
+      expect(postInvoicePaymentTx).toHaveBeenCalledWith(
+        db,
+        expect.objectContaining({
+          orgId: ORG,
+          invoicePaymentId: "pay-1",
+          actorId: USER,
         }),
       );
     });
