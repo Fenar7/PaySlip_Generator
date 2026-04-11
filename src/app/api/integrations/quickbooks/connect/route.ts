@@ -1,6 +1,11 @@
 import { NextResponse } from "next/server";
 import { getOrgContext } from "@/lib/auth";
 import { getAuthUrl } from "@/lib/integrations/quickbooks";
+import {
+  createIntegrationOAuthState,
+  getIntegrationOAuthStateCookieName,
+  getIntegrationOAuthStateCookieOptions,
+} from "@/lib/integrations/oauth-state";
 
 export async function GET() {
   try {
@@ -9,8 +14,18 @@ export async function GET() {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const url = getAuthUrl(ctx.orgId);
-    return NextResponse.redirect(url);
+    const { state, cookieValue } = createIntegrationOAuthState(
+      "quickbooks",
+      ctx.orgId,
+      ctx.userId,
+    );
+    const response = NextResponse.redirect(getAuthUrl(state));
+    response.cookies.set(
+      getIntegrationOAuthStateCookieName("quickbooks"),
+      cookieValue,
+      getIntegrationOAuthStateCookieOptions("quickbooks"),
+    );
+    return response;
   } catch (error) {
     console.error("QuickBooks connect failed:", error);
     return NextResponse.json(

@@ -17,14 +17,14 @@ function getClientCredentials() {
   return { clientId, clientSecret, redirectUri };
 }
 
-export function getAuthUrl(orgId: string): string {
+export function getAuthUrl(state: string): string {
   const { clientId, redirectUri } = getClientCredentials();
   const params = new URLSearchParams({
     client_id: clientId,
     redirect_uri: redirectUri,
     response_type: "code",
     scope: "ZohoBooks.invoices.CREATE,ZohoBooks.invoices.READ",
-    state: orgId,
+    state,
     access_type: "offline",
     prompt: "consent",
   });
