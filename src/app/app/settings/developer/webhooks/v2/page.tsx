@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { WEBHOOK_EVENTS } from "@/lib/webhook/constants";
 import {
   createWebhookEndpoint,
   listWebhookEndpoints,
@@ -10,23 +11,12 @@ import {
   deleteWebhookEndpoint,
 } from "./actions";
 
-const WEBHOOK_EVENTS = [
-  "invoice.created",
-  "invoice.updated",
-  "invoice.paid",
-  "invoice.overdue",
-  "customer.created",
-  "customer.updated",
-  "voucher.created",
-  "salary_slip.generated",
-  "ping",
-];
-
 interface EndpointItem {
   id: string;
   url: string;
   events: string[];
   isActive: boolean;
+  requiresSecretRotation: boolean;
   consecutiveFails: number;
   lastDeliveryAt: Date | null;
   lastSuccessAt: Date | null;
@@ -69,7 +59,6 @@ export default function WebhooksV2Page() {
     }
     load();
     return () => { cancelled = true; };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   async function handleCreate() {
@@ -149,6 +138,22 @@ export default function WebhooksV2Page() {
           {error}
         </div>
       )}
+
+      <div className="border border-slate-200 rounded-xl p-5 bg-white shadow-sm space-y-3">
+        <div>
+          <h2 className="text-base font-semibold text-slate-900">Signature verification</h2>
+          <p className="text-sm text-slate-500 mt-1">
+            Verify <code className="font-mono">X-Slipwise-Signature</code> against the raw body using HMAC-SHA256 over
+            <code className="font-mono"> timestamp + &quot;.&quot; + rawBody </code> and the signing secret shown when the endpoint
+            is created or rotated.
+          </p>
+        </div>
+        <div className="text-sm text-slate-600 space-y-1">
+          <p>1. Read the raw request body and <code className="font-mono">X-Slipwise-Timestamp</code>.</p>
+          <p>2. Compute <code className="font-mono">sha256=HMAC(secret, timestamp + &quot;.&quot; + rawBody)</code>.</p>
+          <p>3. Compare it to <code className="font-mono">X-Slipwise-Signature</code> and reject stale timestamps or replayed delivery IDs.</p>
+        </div>
+      </div>
 
       {/* Secret Modal */}
       {secretModal && (
@@ -257,6 +262,11 @@ export default function WebhooksV2Page() {
                     <span className="text-sm font-medium text-slate-900">
                       {ep.isActive ? "Active" : "Disabled"}
                     </span>
+                    {ep.requiresSecretRotation && (
+                      <span className="text-xs text-amber-700 bg-amber-50 px-2 py-0.5 rounded">
+                        Rotate secret required
+                      </span>
+                    )}
                     {ep.consecutiveFails > 0 && (
                       <span className="text-xs text-amber-600 bg-amber-50 px-2 py-0.5 rounded">
                         {ep.consecutiveFails} consecutive failures
@@ -264,6 +274,11 @@ export default function WebhooksV2Page() {
                     )}
                   </div>
                   <p className="text-sm text-slate-600 font-mono">{ep.url}</p>
+                  {ep.requiresSecretRotation && (
+                    <p className="text-xs text-amber-700 mt-1">
+                      This endpoint was created on the legacy stack. Rotate the signing secret to resume signed deliveries.
+                    </p>
+                  )}
                   <div className="flex flex-wrap gap-1 mt-1">
                     {ep.events.map((event) => (
                       <span
@@ -291,7 +306,7 @@ export default function WebhooksV2Page() {
                     {ep.isActive ? "Disable" : "Enable"}
                   </Button>
                   <Button onClick={() => handleRotateSecret(ep.id)}>
-                    Rotate Secret
+                    {ep.requiresSecretRotation ? "Generate Secret" : "Rotate Secret"}
                   </Button>
                   <Button onClick={() => handleDelete(ep.id)}>
                     Delete

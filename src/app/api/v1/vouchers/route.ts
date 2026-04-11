@@ -2,7 +2,7 @@ import { NextRequest } from "next/server";
 import { db } from "@/lib/db";
 import { incrementUsage } from "@/lib/plans/usage";
 import { checkLimit } from "@/lib/plans/enforcement";
-import { dispatchEvent } from "@/lib/api-webhooks";
+import { dispatchEvent } from "@/lib/webhook/deliver";
 import {
   authenticateApiRequest,
   requireScope,

@@ -1,4 +1,11 @@
 import crypto from 'crypto';
+import {
+  WEBHOOK_DELIVERY_HEADER,
+  WEBHOOK_EVENT_HEADER,
+  WEBHOOK_SIGNATURE_HEADER,
+  WEBHOOK_SIGNATURE_PREFIX,
+  WEBHOOK_TIMESTAMP_HEADER,
+} from './constants';
 
 export function generateWebhookSignature(signingSecret: string, body: string, timestamp: number): string {
   const payload = `${timestamp}.${body}`;
@@ -14,10 +21,10 @@ export function generateSignatureHeaders(
   const timestamp = Math.floor(Date.now() / 1000);
   const signature = generateWebhookSignature(signingSecret, body, timestamp);
   return {
-    'X-Slipwise-Signature': `sha256=${signature}`,
-    'X-Slipwise-Delivery': deliveryId,
-    'X-Slipwise-Event': event,
-    'X-Slipwise-Timestamp': String(timestamp),
+    [WEBHOOK_SIGNATURE_HEADER]: `${WEBHOOK_SIGNATURE_PREFIX}${signature}`,
+    [WEBHOOK_DELIVERY_HEADER]: deliveryId,
+    [WEBHOOK_EVENT_HEADER]: event,
+    [WEBHOOK_TIMESTAMP_HEADER]: String(timestamp),
   };
 }
 
