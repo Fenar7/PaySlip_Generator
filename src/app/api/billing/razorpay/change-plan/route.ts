@@ -1,8 +1,7 @@
 import { NextResponse } from "next/server";
 import { createSupabaseServer } from "@/lib/supabase/server";
-import { db } from "@/lib/db";
-import { changePlan } from "@/lib/billing";
-import type { BillingInterval } from "@/lib/plans/config";
+import { changePlan, resolveBillingOrgId } from "@/lib/billing";
+import { PLANS, type BillingInterval, type PlanId } from "@/lib/plans/config";
 
 export const dynamic = "force-dynamic";
 
@@ -17,33 +16,42 @@ export async function POST(request: Request) {
 
   const body = await request.json();
   const {
-    orgId,
+    orgId: requestedOrgId,
     newPlanId,
     billingInterval,
     immediate = false,
   }: {
-    orgId: string;
-    newPlanId: string;
+    orgId?: string;
+    newPlanId: PlanId;
     billingInterval: BillingInterval;
     immediate?: boolean;
   } = body;
 
-  if (!orgId || !newPlanId || !billingInterval) {
+  if (!newPlanId || !billingInterval) {
     return NextResponse.json(
       { error: "Missing required fields" },
       { status: 400 },
     );
   }
 
-  const member = await db.member.findFirst({
-    where: { userId: user.id, organizationId: orgId },
-    select: { organizationId: true },
-  });
-  if (!member) {
-    return NextResponse.json({ error: "Unauthorized for this org" }, { status: 403 });
+  if (!PLANS.some((plan) => plan.id === newPlanId)) {
+    return NextResponse.json({ error: "Invalid plan" }, { status: 400 });
   }
 
-  const result = await changePlan(orgId, newPlanId, billingInterval, immediate);
+  const orgResult = await resolveBillingOrgId(user.id, requestedOrgId);
+  if (!orgResult.success) {
+    return NextResponse.json(
+      { error: orgResult.error },
+      { status: orgResult.status },
+    );
+  }
+
+  const result = await changePlan(
+    orgResult.orgId,
+    newPlanId,
+    billingInterval,
+    immediate,
+  );
 
   if (!result.success) {
     return NextResponse.json({ error: result.error }, { status: 400 });

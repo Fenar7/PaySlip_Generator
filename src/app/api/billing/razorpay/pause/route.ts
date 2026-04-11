@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import { createSupabaseServer } from "@/lib/supabase/server";
-import { db } from "@/lib/db";
-import { pauseSubscription } from "@/lib/billing";
+import { pauseSubscription, resolveBillingOrgId } from "@/lib/billing";
 
 export const dynamic = "force-dynamic";
 
@@ -16,25 +15,21 @@ export async function POST(request: Request) {
 
   const body = await request.json();
   const {
-    orgId,
+    orgId: requestedOrgId,
     resumeDate,
     reason,
-  }: { orgId: string; resumeDate?: string; reason?: string } = body;
+  }: { orgId?: string; resumeDate?: string; reason?: string } = body;
 
-  if (!orgId) {
-    return NextResponse.json({ error: "Missing orgId" }, { status: 400 });
-  }
-
-  const member = await db.member.findFirst({
-    where: { userId: user.id, organizationId: orgId },
-    select: { organizationId: true },
-  });
-  if (!member) {
-    return NextResponse.json({ error: "Unauthorized for this org" }, { status: 403 });
+  const orgResult = await resolveBillingOrgId(user.id, requestedOrgId);
+  if (!orgResult.success) {
+    return NextResponse.json(
+      { error: orgResult.error },
+      { status: orgResult.status },
+    );
   }
 
   const result = await pauseSubscription(
-    orgId,
+    orgResult.orgId,
     resumeDate ? new Date(resumeDate) : undefined,
     reason,
   );

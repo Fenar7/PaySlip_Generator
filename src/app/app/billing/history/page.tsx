@@ -1,5 +1,6 @@
 import { db } from "@/lib/db";
 import { createSupabaseServer } from "@/lib/supabase/server";
+import { getActiveOrg } from "@/lib/multi-org";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { formatPriceInr } from "@/lib/plans/config";
@@ -11,14 +12,11 @@ export default async function BillingHistoryPage() {
   } = await supabase.auth.getUser();
   if (!user) redirect("/auth/login");
 
-  const member = await db.member.findFirst({
-    where: { userId: user.id },
-    select: { organizationId: true },
-  });
-  if (!member) redirect("/onboarding");
+  const activeOrg = await getActiveOrg(user.id);
+  if (!activeOrg) redirect("/onboarding");
 
   const invoices = await db.billingInvoice.findMany({
-    where: { orgId: member.organizationId },
+    where: { orgId: activeOrg.id },
     orderBy: { createdAt: "desc" },
   });
 

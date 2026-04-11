@@ -1,21 +1,27 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 
-export function CancelBillingPageClient() {
-  const searchParams = useSearchParams();
+interface CancelBillingPageClientProps {
+  orgId: string;
+}
+
+export function CancelBillingPageClient({
+  orgId,
+}: CancelBillingPageClientProps) {
   const router = useRouter();
-  const orgId = searchParams.get("orgId") ?? "";
 
   const [cancelAtPeriodEnd, setCancelAtPeriodEnd] = useState(true);
   const [confirmed, setConfirmed] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const handleCancel = async () => {
     if (!confirmed) return;
 
     setLoading(true);
+    setError(null);
     try {
       const res = await fetch("/api/billing/razorpay/cancel", {
         method: "POST",
@@ -27,10 +33,11 @@ export function CancelBillingPageClient() {
         router.push("/app/billing");
       } else {
         const data = await res.json();
-        console.error("Cancel failed:", data.error);
+        setError(data.error ?? "Could not cancel the subscription.");
       }
-    } catch (error) {
-      console.error("Error cancelling:", error);
+    } catch (cancelError) {
+      console.error("Error cancelling:", cancelError);
+      setError("Could not cancel the subscription. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -46,6 +53,11 @@ export function CancelBillingPageClient() {
           We&apos;re sorry to see you go. Please review what you&apos;ll lose
           before cancelling.
         </p>
+        {error ? (
+          <p className="mt-4 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+            {error}
+          </p>
+        ) : null}
 
         <div className="mt-6 rounded-md border border-amber-200 bg-amber-50 p-4">
           <h3 className="text-sm font-medium text-amber-800">
