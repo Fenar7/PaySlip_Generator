@@ -1,0 +1,100 @@
+{
+  "app": {
+    "title": "Slipwise One"
+  },
+  "nav": {
+    "dashboard": "डैशबोर्ड",
+    "invoices": "चालान",
+    "vouchers": "वाउचर",
+    "salarySlips": "वेतन पर्ची",
+    "quotes": "कोटेशन",
+    "billing": "बिलिंग",
+    "settings": "सेटिंग्स",
+    "reports": "रिपोर्ट",
+    "customers": "ग्राहक",
+    "tds": "टीडीएस",
+    "gstReports": "जीएसटी रिपोर्ट",
+    "templates": "टेम्पलेट"
+  },
+  "actions": {
+    "save": "सहेजें",
+    "cancel": "रद्द करें",
+    "delete": "हटाएं",
+    "edit": "संपादित करें",
+    "create": "बनाएं",
+    "export": "निर्यात करें",
+    "download": "डाउनलोड करें",
+    "print": "प्रिंट करें",
+    "search": "खोजें",
+    "filter": "फ़िल्टर",
+    "refresh": "रीफ़्रेश करें",
+    "back": "वापस",
+    "next": "अगला",
+    "previous": "पिछला",
+    "submit": "जमा करें",
+    "close": "बंद करें"
+  },
+  "status": {
+    "draft": "ड्राफ्ट",
+    "issued": "जारी किया गया",
+    "paid": "भुगतान किया गया",
+    "overdue": "अतिदेय",
+    "cancelled": "रद्द",
+    "partiallyPaid": "आंशिक भुगतान",
+    "pending": "लंबित",
+    "active": "सक्रिय",
+    "inactive": "निष्क्रिय"
+  },
+  "labels": {
+    "date": "दिनांक",
+    "amount": "राशि",
+    "total": "कुल",
+    "subtotal": "उप-कुल",
+    "tax": "कर",
+    "discount": "छूट",
+    "quantity": "मात्रा",
+    "unitPrice": "इकाई मूल्य",
+    "description": "विवरण",
+    "notes": "टिप्पणियाँ",
+    "currency": "मुद्रा",
+    "language": "भाषा",
+    "email": "ईमेल",
+    "phone": "फ़ोन",
+    "address": "पता",
+    "name": "नाम",
+    "number": "संख्या"
+  },
+  "messages": {
+    "loading": "लोड हो रहा है...",
+    "noData": "कोई डेटा उपलब्ध नहीं है",
+    "error": "एक त्रुटि हुई",
+    "success": "कार्य सफलतापूर्वक पूरा हुआ",
+    "confirm": "क्या आप सुनिश्चित हैं?",
+    "deleteConfirm": "क्या आप वाकई इस आइटम को हटाना चाहते हैं?"
+  },
+  "currency": {
+    "inr": "भारतीय रुपया (₹)",
+    "usd": "अमेरिकी डॉलर ($)",
+    "eur": "यूरो (€)",
+    "gbp": "ब्रिटिश पाउंड (£)",
+    "aed": "यूएई दिरहम (د.إ)",
+    "sgd": "सिंगापुर डॉलर (S$)",
+    "aud": "ऑस्ट्रेलियाई डॉलर (A$)",
+    "sar": "सऊदी रियाल (﷼)"
+  },
+  "language": {
+    "en": "अंग्रेज़ी",
+    "hi": "हिन्दी",
+    "ar": "अरबी",
+    "es": "स्पेनिश",
+    "fr": "फ़्रेंच",
+    "de": "जर्मन"
+  },
+  "settings": {
+    "appLanguage": "ऐप भाषा",
+    "documentLanguage": "दस्तावेज़ भाषा",
+    "country": "देश",
+    "baseCurrency": "आधार मुद्रा",
+    "timezone": "समय क्षेत्र"
+  }
+}

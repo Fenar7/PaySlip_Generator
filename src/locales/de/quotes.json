@@ -1,0 +1,27 @@
+{
+  "title": "Angebot",
+  "fields": {
+    "quoteNumber": "Angebotsnummer",
+    "issueDate": "Ausstellungsdatum",
+    "validUntil": "Gültig bis",
+    "to": "An",
+    "from": "Von",
+    "description": "Beschreibung",
+    "quantity": "Menge",
+    "unitPrice": "Stückpreis",
+    "amount": "Betrag",
+    "subtotal": "Zwischensumme",
+    "tax": "Steuer",
+    "total": "Gesamt",
+    "notes": "Anmerkungen",
+    "terms": "Allgemeine Geschäftsbedingungen"
+  },
+  "status": {
+    "draft": "Entwurf",
+    "sent": "Gesendet",
+    "accepted": "Angenommen",
+    "declined": "Abgelehnt",
+    "expired": "Abgelaufen",
+    "converted": "Umgewandelt"
+  }
+}

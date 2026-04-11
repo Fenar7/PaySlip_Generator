@@ -1,0 +1,20 @@
+{
+  "title": "سند صرف",
+  "fields": {
+    "voucherNumber": "رقم السند",
+    "voucherDate": "تاريخ السند",
+    "paidTo": "المدفوع له",
+    "amount": "المبلغ",
+    "paymentMethod": "طريقة الدفع",
+    "purpose": "الغرض",
+    "approvedBy": "اعتمد من قبل",
+    "receivedBy": "استلم من قبل",
+    "description": "الوصف",
+    "category": "الفئة"
+  },
+  "types": {
+    "payment": "صرف",
+    "receipt": "قبض",
+    "journal": "قيد يومية"
+  }
+}

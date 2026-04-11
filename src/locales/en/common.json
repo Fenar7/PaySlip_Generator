@@ -1,0 +1,100 @@
+{
+  "app": {
+    "title": "Slipwise One"
+  },
+  "nav": {
+    "dashboard": "Dashboard",
+    "invoices": "Invoices",
+    "vouchers": "Vouchers",
+    "salarySlips": "Salary Slips",
+    "quotes": "Quotes",
+    "billing": "Billing",
+    "settings": "Settings",
+    "reports": "Reports",
+    "customers": "Customers",
+    "tds": "TDS",
+    "gstReports": "GST Reports",
+    "templates": "Templates"
+  },
+  "actions": {
+    "save": "Save",
+    "cancel": "Cancel",
+    "delete": "Delete",
+    "edit": "Edit",
+    "create": "Create",
+    "export": "Export",
+    "download": "Download",
+    "print": "Print",
+    "search": "Search",
+    "filter": "Filter",
+    "refresh": "Refresh",
+    "back": "Back",
+    "next": "Next",
+    "previous": "Previous",
+    "submit": "Submit",
+    "close": "Close"
+  },
+  "status": {
+    "draft": "Draft",
+    "issued": "Issued",
+    "paid": "Paid",
+    "overdue": "Overdue",
+    "cancelled": "Cancelled",
+    "partiallyPaid": "Partially Paid",
+    "pending": "Pending",
+    "active": "Active",
+    "inactive": "Inactive"
+  },
+  "labels": {
+    "date": "Date",
+    "amount": "Amount",
+    "total": "Total",
+    "subtotal": "Subtotal",
+    "tax": "Tax",
+    "discount": "Discount",
+    "quantity": "Quantity",
+    "unitPrice": "Unit Price",
+    "description": "Description",
+    "notes": "Notes",
+    "currency": "Currency",
+    "language": "Language",
+    "email": "Email",
+    "phone": "Phone",
+    "address": "Address",
+    "name": "Name",
+    "number": "Number"
+  },
+  "messages": {
+    "loading": "Loading...",
+    "noData": "No data available",
+    "error": "An error occurred",
+    "success": "Operation completed successfully",
+    "confirm": "Are you sure?",
+    "deleteConfirm": "Are you sure you want to delete this item?"
+  },
+  "currency": {
+    "inr": "Indian Rupee (₹)",
+    "usd": "US Dollar ($)",
+    "eur": "Euro (€)",
+    "gbp": "British Pound (£)",
+    "aed": "UAE Dirham (د.إ)",
+    "sgd": "Singapore Dollar (S$)",
+    "aud": "Australian Dollar (A$)",
+    "sar": "Saudi Riyal (﷼)"
+  },
+  "language": {
+    "en": "English",
+    "hi": "Hindi",
+    "ar": "Arabic",
+    "es": "Spanish",
+    "fr": "French",
+    "de": "German"
+  },
+  "settings": {
+    "appLanguage": "App Language",
+    "documentLanguage": "Document Language",
+    "country": "Country",
+    "baseCurrency": "Base Currency",
+    "timezone": "Timezone"
+  }
+}

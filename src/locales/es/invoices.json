@@ -1,0 +1,56 @@
+{
+  "title": "Factura",
+  "taxInvoice": "Factura Fiscal",
+  "vatInvoice": "Factura con IVA",
+  "fields": {
+    "invoiceNumber": "Número de Factura",
+    "invoiceDate": "Fecha de Factura",
+    "dueDate": "Fecha de Vencimiento",
+    "billTo": "Facturar a",
+    "shipTo": "Enviar a",
+    "from": "De",
+    "itemDescription": "Descripción del Artículo",
+    "quantity": "Cantidad",
+    "unitPrice": "Precio Unitario",
+    "amount": "Monto",
+    "subtotal": "Subtotal",
+    "tax": "Impuesto",
+    "total": "Total",
+    "amountDue": "Monto Adeudado",
+    "paymentTerms": "Condiciones de Pago",
+    "bankDetails": "Datos Bancarios",
+    "notes": "Notas",
+    "terms": "Términos y Condiciones"
+  },
+  "gst": {
+    "gstin": "GSTIN",
+    "hsn": "Código HSN",
+    "sac": "Código SAC",
+    "cgst": "CGST",
+    "sgst": "SGST",
+    "igst": "IGST",
+    "cess": "Tasa Adicional",
+    "placeOfSupply": "Lugar de Suministro",
+    "reverseCharge": "Cargo Inverso",
+    "irn": "IRN",
+    "eWayBill": "Guía de Transporte Electrónica"
+  },
+  "vat": {
+    "vatNumber": "Número de IVA",
+    "trn": "NIF",
+    "vatId": "ID de IVA",
+    "vatRate": "Tasa de IVA",
+    "vatAmount": "Monto de IVA"
+  },
+  "currency": {
+    "exchangeRateNote": "Tipo de cambio: {{rate}} a fecha {{date}}"
+  },
+  "status": {
+    "draft": "Borrador",
+    "issued": "Emitida",
+    "paid": "Pagada",
+    "overdue": "Vencida",
+    "cancelled": "Cancelada",
+    "partiallyPaid": "Parcialmente Pagada"
+  }
+}

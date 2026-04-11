@@ -1,0 +1,56 @@
+{
+  "title": "Invoice",
+  "taxInvoice": "Tax Invoice",
+  "vatInvoice": "VAT Invoice",
+  "fields": {
+    "invoiceNumber": "Invoice Number",
+    "invoiceDate": "Invoice Date",
+    "dueDate": "Due Date",
+    "billTo": "Bill To",
+    "shipTo": "Ship To",
+    "from": "From",
+    "itemDescription": "Item Description",
+    "quantity": "Quantity",
+    "unitPrice": "Unit Price",
+    "amount": "Amount",
+    "subtotal": "Subtotal",
+    "tax": "Tax",
+    "total": "Total",
+    "amountDue": "Amount Due",
+    "paymentTerms": "Payment Terms",
+    "bankDetails": "Bank Details",
+    "notes": "Notes",
+    "terms": "Terms & Conditions"
+  },
+  "gst": {
+    "gstin": "GSTIN",
+    "hsn": "HSN Code",
+    "sac": "SAC Code",
+    "cgst": "CGST",
+    "sgst": "SGST",
+    "igst": "IGST",
+    "cess": "Cess",
+    "placeOfSupply": "Place of Supply",
+    "reverseCharge": "Reverse Charge",
+    "irn": "IRN",
+    "eWayBill": "e-Way Bill"
+  },
+  "vat": {
+    "vatNumber": "VAT Number",
+    "trn": "TRN",
+    "vatId": "VAT ID",
+    "vatRate": "VAT Rate",
+    "vatAmount": "VAT Amount"
+  },
+  "currency": {
+    "exchangeRateNote": "Exchange rate: {{rate}} as of {{date}}"
+  },
+  "status": {
+    "draft": "Draft",
+    "issued": "Issued",
+    "paid": "Paid",
+    "overdue": "Overdue",
+    "cancelled": "Cancelled",
+    "partiallyPaid": "Partially Paid"
+  }
+}

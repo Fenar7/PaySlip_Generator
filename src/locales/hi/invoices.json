@@ -1,0 +1,56 @@
+{
+  "title": "चालान",
+  "taxInvoice": "कर चालान",
+  "vatInvoice": "वैट चालान",
+  "fields": {
+    "invoiceNumber": "चालान संख्या",
+    "invoiceDate": "चालान दिनांक",
+    "dueDate": "देय तिथि",
+    "billTo": "बिल प्राप्तकर्ता",
+    "shipTo": "शिपिंग पता",
+    "from": "प्रेषक",
+    "itemDescription": "वस्तु विवरण",
+    "quantity": "मात्रा",
+    "unitPrice": "इकाई मूल्य",
+    "amount": "राशि",
+    "subtotal": "उप-कुल",
+    "tax": "कर",
+    "total": "कुल",
+    "amountDue": "देय राशि",
+    "paymentTerms": "भुगतान शर्तें",
+    "bankDetails": "बैंक विवरण",
+    "notes": "टिप्पणियाँ",
+    "terms": "नियम और शर्तें"
+  },
+  "gst": {
+    "gstin": "जीएसटीआईएन",
+    "hsn": "एचएसएन कोड",
+    "sac": "एसएसी कोड",
+    "cgst": "सीजीएसटी",
+    "sgst": "एसजीएसटी",
+    "igst": "आईजीएसटी",
+    "cess": "सेस",
+    "placeOfSupply": "आपूर्ति का स्थान",
+    "reverseCharge": "रिवर्स चार्ज",
+    "irn": "आईआरएन",
+    "eWayBill": "ई-वे बिल"
+  },
+  "vat": {
+    "vatNumber": "वैट नंबर",
+    "trn": "टीआरएन",
+    "vatId": "वैट आईडी",
+    "vatRate": "वैट दर",
+    "vatAmount": "वैट राशि"
+  },
+  "currency": {
+    "exchangeRateNote": "विनिमय दर: {{rate}} दिनांक {{date}} के अनुसार"
+  },
+  "status": {
+    "draft": "ड्राफ्ट",
+    "issued": "जारी किया गया",
+    "paid": "भुगतान किया गया",
+    "overdue": "अतिदेय",
+    "cancelled": "रद्द",
+    "partiallyPaid": "आंशिक भुगतान"
+  }
+}
