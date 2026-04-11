@@ -1,0 +1,100 @@
+{
+  "app": {
+    "title": "Slipwise One"
+  },
+  "nav": {
+    "dashboard": "Panel",
+    "invoices": "Facturas",
+    "vouchers": "Comprobantes",
+    "salarySlips": "Recibos de Nómina",
+    "quotes": "Cotizaciones",
+    "billing": "Facturación",
+    "settings": "Configuración",
+    "reports": "Informes",
+    "customers": "Clientes",
+    "tds": "TDS",
+    "gstReports": "Informes de GST",
+    "templates": "Plantillas"
+  },
+  "actions": {
+    "save": "Guardar",
+    "cancel": "Cancelar",
+    "delete": "Eliminar",
+    "edit": "Editar",
+    "create": "Crear",
+    "export": "Exportar",
+    "download": "Descargar",
+    "print": "Imprimir",
+    "search": "Buscar",
+    "filter": "Filtrar",
+    "refresh": "Actualizar",
+    "back": "Atrás",
+    "next": "Siguiente",
+    "previous": "Anterior",
+    "submit": "Enviar",
+    "close": "Cerrar"
+  },
+  "status": {
+    "draft": "Borrador",
+    "issued": "Emitida",
+    "paid": "Pagada",
+    "overdue": "Vencida",
+    "cancelled": "Cancelada",
+    "partiallyPaid": "Parcialmente Pagada",
+    "pending": "Pendiente",
+    "active": "Activo",
+    "inactive": "Inactivo"
+  },
+  "labels": {
+    "date": "Fecha",
+    "amount": "Monto",
+    "total": "Total",
+    "subtotal": "Subtotal",
+    "tax": "Impuesto",
+    "discount": "Descuento",
+    "quantity": "Cantidad",
+    "unitPrice": "Precio Unitario",
+    "description": "Descripción",
+    "notes": "Notas",
+    "currency": "Moneda",
+    "language": "Idioma",
+    "email": "Correo Electrónico",
+    "phone": "Teléfono",
+    "address": "Dirección",
+    "name": "Nombre",
+    "number": "Número"
+  },
+  "messages": {
+    "loading": "Cargando...",
+    "noData": "No hay datos disponibles",
+    "error": "Ocurrió un error",
+    "success": "Operación completada con éxito",
+    "confirm": "¿Está seguro?",
+    "deleteConfirm": "¿Está seguro de que desea eliminar este elemento?"
+  },
+  "currency": {
+    "inr": "Rupia India (₹)",
+    "usd": "Dólar Estadounidense ($)",
+    "eur": "Euro (€)",
+    "gbp": "Libra Esterlina (£)",
+    "aed": "Dírham de los EAU (د.إ)",
+    "sgd": "Dólar de Singapur (S$)",
+    "aud": "Dólar Australiano (A$)",
+    "sar": "Riyal Saudí (﷼)"
+  },
+  "language": {
+    "en": "Inglés",
+    "hi": "Hindi",
+    "ar": "Árabe",
+    "es": "Español",
+    "fr": "Francés",
+    "de": "Alemán"
+  },
+  "settings": {
+    "appLanguage": "Idioma de la Aplicación",
+    "documentLanguage": "Idioma del Documento",
+    "country": "País",
+    "baseCurrency": "Moneda Base",
+    "timezone": "Zona Horaria"
+  }
+}

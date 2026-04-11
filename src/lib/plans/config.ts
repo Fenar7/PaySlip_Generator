@@ -36,6 +36,17 @@ export interface PlanLimits {
   customerHealthScores: boolean;
   // Phase 14: Payment Arrangements
   paymentArrangements: boolean;
+  // Phase 15: GST & Tax Compliance
+  gstEInvoicing: boolean;
+  tdsTracking: boolean;
+  gstrExport: boolean;
+  // Phase 15: Global Expansion
+  multiCurrency: boolean;
+  // Phase 15: Marketplace & Ecosystem
+  templatePublish: boolean;
+  oauthApps: boolean;
+  webhookV2: boolean;
+  partnerProgram: boolean;
 }
 
 export interface PlanConfig {
@@ -44,8 +55,6 @@ export interface PlanConfig {
   description: string;
   monthlyPriceInr: number; // in paise (₹999 = 99900)
   yearlyPriceInr: number; // in paise (₹9,990 = 999000 — 2 months free)
-  razorpayMonthlyPlanId?: string; // Set via env vars or admin
-  razorpayYearlyPlanId?: string;
   limits: PlanLimits;
   popular?: boolean;
   trialDays?: number;
@@ -81,6 +90,14 @@ export const PLAN_LIMITS: Record<PlanId, PlanLimits> = {
     cashFlowForecast: false,
     customerHealthScores: false,
     paymentArrangements: false,
+    gstEInvoicing: false,
+    tdsTracking: false,
+    gstrExport: false,
+    multiCurrency: false,
+    templatePublish: false,
+    oauthApps: false,
+    webhookV2: false,
+    partnerProgram: false,
   },
   starter: {
     invoicesPerMonth: 100,
@@ -111,6 +128,14 @@ export const PLAN_LIMITS: Record<PlanId, PlanLimits> = {
     cashFlowForecast: false,
     customerHealthScores: false,
     paymentArrangements: true,
+    gstEInvoicing: false,
+    tdsTracking: true,
+    gstrExport: false,
+    multiCurrency: true,
+    templatePublish: false,
+    oauthApps: true,
+    webhookV2: true,
+    partnerProgram: false,
   },
   pro: {
     invoicesPerMonth: 1000,
@@ -141,6 +166,14 @@ export const PLAN_LIMITS: Record<PlanId, PlanLimits> = {
     cashFlowForecast: true,
     customerHealthScores: true,
     paymentArrangements: true,
+    gstEInvoicing: true,
+    tdsTracking: true,
+    gstrExport: true,
+    multiCurrency: true,
+    templatePublish: true,
+    oauthApps: true,
+    webhookV2: true,
+    partnerProgram: true,
   },
   enterprise: {
     invoicesPerMonth: -1, // unlimited
@@ -171,6 +204,14 @@ export const PLAN_LIMITS: Record<PlanId, PlanLimits> = {
     cashFlowForecast: true,
     customerHealthScores: true,
     paymentArrangements: true,
+    gstEInvoicing: true,
+    tdsTracking: true,
+    gstrExport: true,
+    multiCurrency: true,
+    templatePublish: true,
+    oauthApps: true,
+    webhookV2: true,
+    partnerProgram: true,
   },
 };
 

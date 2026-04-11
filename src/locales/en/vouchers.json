@@ -1,0 +1,20 @@
+{
+  "title": "Payment Voucher",
+  "fields": {
+    "voucherNumber": "Voucher Number",
+    "voucherDate": "Voucher Date",
+    "paidTo": "Paid To",
+    "amount": "Amount",
+    "paymentMethod": "Payment Method",
+    "purpose": "Purpose",
+    "approvedBy": "Approved By",
+    "receivedBy": "Received By",
+    "description": "Description",
+    "category": "Category"
+  },
+  "types": {
+    "payment": "Payment",
+    "receipt": "Receipt",
+    "journal": "Journal"
+  }
+}

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import {
   PLANS,
   formatPriceInr,
@@ -9,41 +9,66 @@ import {
   type PlanId,
 } from "@/lib/plans/config";
 
-export function UpgradePageClient() {
-  const searchParams = useSearchParams();
+interface UpgradePageClientProps {
+  orgId: string;
+  currentPlanId: PlanId;
+  hasManagedSubscription: boolean;
+}
+
+export function UpgradePageClient({
+  orgId,
+  currentPlanId,
+  hasManagedSubscription,
+}: UpgradePageClientProps) {
   const router = useRouter();
-  const currentPlanId = (searchParams.get("current") ?? "free") as PlanId;
-  const orgId = searchParams.get("orgId") ?? "";
 
   const [billingInterval, setBillingInterval] =
     useState<BillingInterval>("monthly");
   const [loading, setLoading] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   const handleUpgrade = async (planId: PlanId) => {
     if (planId === "free" || planId === currentPlanId) return;
 
     setLoading(planId);
+    setError(null);
+
     try {
-      const res = await fetch("/api/billing/razorpay/create-subscription", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          orgId,
-          planId,
-          billingInterval,
-          email: "",
-          name: "",
-        }),
-      });
+      const isPlanChange = currentPlanId !== "free" && hasManagedSubscription;
+      const res = await fetch(
+        isPlanChange
+          ? "/api/billing/razorpay/change-plan"
+          : "/api/billing/razorpay/create-subscription",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            orgId,
+            ...(isPlanChange ? { newPlanId: planId, immediate: false } : { planId }),
+            billingInterval,
+          }),
+        },
+      );
 
       const data = await res.json();
+      if (!res.ok) {
+        setError(data.error ?? "Could not update the subscription.");
+        return;
+      }
+
       if (data.shortUrl) {
         window.location.href = data.shortUrl;
-      } else {
-        console.error("Subscription creation failed:", data.error);
+        return;
       }
-    } catch (error) {
-      console.error("Error creating subscription:", error);
+
+      const nextPlan = PLANS.find((plan) => plan.id === planId);
+      router.push(
+        `/app/billing/success?plan=${encodeURIComponent(nextPlan?.name ?? planId)}`,
+      );
+      router.refresh();
+    } catch (actionError) {
+      console.error("Error updating subscription:", actionError);
+      setError("Could not update the subscription. Please try again.");
     } finally {
       setLoading(null);
     }
@@ -52,13 +77,16 @@ export function UpgradePageClient() {
   return (
     <div className="mx-auto max-w-6xl p-6">
       <div className="mb-8 text-center">
-        <h1 className="text-3xl font-bold text-gray-900">
-          Choose Your Plan
-        </h1>
+        <h1 className="text-3xl font-bold text-gray-900">Choose Your Plan</h1>
         <p className="mt-2 text-gray-500">
           Scale your business with the right plan. All plans include a 14-day
           free trial.
         </p>
+        {error ? (
+          <p className="mt-4 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+            {error}
+          </p>
+        ) : null}
 
         <div className="mt-6 inline-flex items-center rounded-lg bg-gray-100 p-1">
           <button
@@ -120,9 +148,7 @@ export function UpgradePageClient() {
                 </span>
               ) : null}
 
-              <h3 className="text-lg font-semibold text-gray-900">
-                {plan.name}
-              </h3>
+              <h3 className="text-lg font-semibold text-gray-900">{plan.name}</h3>
               <p className="mt-1 text-sm text-gray-500">{plan.description}</p>
 
               <div className="mt-4">
@@ -190,7 +216,7 @@ export function UpgradePageClient() {
 
       <div className="mt-8 text-center">
         <button
-          onClick={() => router.back()}
+          onClick={() => router.push("/app/billing")}
           className="text-sm text-gray-500 hover:text-gray-700"
         >
           ← Back to Billing

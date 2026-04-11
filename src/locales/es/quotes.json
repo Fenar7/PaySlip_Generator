@@ -1,0 +1,27 @@
+{
+  "title": "Cotización",
+  "fields": {
+    "quoteNumber": "Número de Cotización",
+    "issueDate": "Fecha de Emisión",
+    "validUntil": "Válido Hasta",
+    "to": "Para",
+    "from": "De",
+    "description": "Descripción",
+    "quantity": "Cantidad",
+    "unitPrice": "Precio Unitario",
+    "amount": "Monto",
+    "subtotal": "Subtotal",
+    "tax": "Impuesto",
+    "total": "Total",
+    "notes": "Notas",
+    "terms": "Términos y Condiciones"
+  },
+  "status": {
+    "draft": "Borrador",
+    "sent": "Enviada",
+    "accepted": "Aceptada",
+    "declined": "Rechazada",
+    "expired": "Vencida",
+    "converted": "Convertida"
+  }
+}

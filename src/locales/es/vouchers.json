@@ -1,0 +1,20 @@
+{
+  "title": "Comprobante de Pago",
+  "fields": {
+    "voucherNumber": "Número de Comprobante",
+    "voucherDate": "Fecha del Comprobante",
+    "paidTo": "Pagado a",
+    "amount": "Monto",
+    "paymentMethod": "Método de Pago",
+    "purpose": "Propósito",
+    "approvedBy": "Aprobado por",
+    "receivedBy": "Recibido por",
+    "description": "Descripción",
+    "category": "Categoría"
+  },
+  "types": {
+    "payment": "Pago",
+    "receipt": "Recibo",
+    "journal": "Diario"
+  }
+}

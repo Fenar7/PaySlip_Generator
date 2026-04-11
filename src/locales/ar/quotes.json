@@ -1,0 +1,27 @@
+{
+  "title": "عرض سعر",
+  "fields": {
+    "quoteNumber": "رقم عرض السعر",
+    "issueDate": "تاريخ الإصدار",
+    "validUntil": "صالح حتى",
+    "to": "إلى",
+    "from": "من",
+    "description": "الوصف",
+    "quantity": "الكمية",
+    "unitPrice": "سعر الوحدة",
+    "amount": "المبلغ",
+    "subtotal": "المجموع الفرعي",
+    "tax": "الضريبة",
+    "total": "الإجمالي",
+    "notes": "ملاحظات",
+    "terms": "الشروط والأحكام"
+  },
+  "status": {
+    "draft": "مسودة",
+    "sent": "مُرسل",
+    "accepted": "مقبول",
+    "declined": "مرفوض",
+    "expired": "منتهي الصلاحية",
+    "converted": "محوّل"
+  }
+}

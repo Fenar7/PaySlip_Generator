@@ -10,7 +10,7 @@ export function BillingSuccessPageClient() {
 
   useEffect(() => {
     const timer = setTimeout(() => {
-      router.push("/app");
+      router.push("/app/billing");
     }, 3000);
     return () => clearTimeout(timer);
   }, [router]);
@@ -41,7 +41,7 @@ export function BillingSuccessPageClient() {
           <span className="font-semibold text-indigo-600">{planName}</span>.
         </p>
         <p className="mt-4 text-sm text-gray-400">
-          Redirecting to dashboard...
+          Redirecting to billing...
         </p>
         <div className="mt-4">
           <div className="mx-auto h-1 w-32 overflow-hidden rounded-full bg-gray-200">

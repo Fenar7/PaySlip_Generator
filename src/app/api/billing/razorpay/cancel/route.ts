@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import { createSupabaseServer } from "@/lib/supabase/server";
-import { db } from "@/lib/db";
-import { cancelRazorpaySubscription } from "@/lib/razorpay";
+import { cancelSubscription, resolveBillingOrgId } from "@/lib/billing";
 
 export const dynamic = "force-dynamic";
 
@@ -16,48 +15,25 @@ export async function POST(request: Request) {
 
   const body = await request.json();
   const {
-    orgId,
+    orgId: requestedOrgId,
     cancelAtPeriodEnd = true,
-  }: { orgId: string; cancelAtPeriodEnd?: boolean } = body;
+  }: { orgId?: string; cancelAtPeriodEnd?: boolean } = body;
 
-  if (!orgId) {
-    return NextResponse.json({ error: "Missing orgId" }, { status: 400 });
-  }
-
-  try {
-    const sub = await db.subscription.findUnique({ where: { orgId } });
-    if (!sub) {
-      return NextResponse.json(
-        { error: "Subscription not found" },
-        { status: 404 },
-      );
-    }
-
-    if (!sub.razorpaySubId) {
-      return NextResponse.json(
-        { error: "No active Razorpay subscription" },
-        { status: 400 },
-      );
-    }
-
-    await cancelRazorpaySubscription(sub.razorpaySubId, cancelAtPeriodEnd);
-
-    await db.subscription.update({
-      where: { orgId },
-      data: {
-        cancelAtPeriodEnd,
-        ...(cancelAtPeriodEnd
-          ? {}
-          : { status: "cancelled", cancelledAt: new Date() }),
-      },
-    });
-
-    return NextResponse.json({ success: true });
-  } catch (error) {
-    console.error("[Billing] cancel error:", error);
+  const orgResult = await resolveBillingOrgId(user.id, requestedOrgId);
+  if (!orgResult.success) {
     return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 },
+      { error: orgResult.error },
+      { status: orgResult.status },
     );
   }
+
+  const result = await cancelSubscription(
+    orgResult.orgId,
+    cancelAtPeriodEnd,
+  );
+  if (!result.success) {
+    return NextResponse.json({ error: result.error }, { status: 400 });
+  }
+
+  return NextResponse.json(result.data);
 }
