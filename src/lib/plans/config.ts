@@ -55,8 +55,6 @@ export interface PlanConfig {
   description: string;
   monthlyPriceInr: number; // in paise (₹999 = 99900)
   yearlyPriceInr: number; // in paise (₹9,990 = 999000 — 2 months free)
-  razorpayMonthlyPlanId?: string; // Set via env vars or admin
-  razorpayYearlyPlanId?: string;
   limits: PlanLimits;
   popular?: boolean;
   trialDays?: number;

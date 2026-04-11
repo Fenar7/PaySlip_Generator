@@ -1,9 +1,11 @@
 import { db } from "@/lib/db";
 import { createSupabaseServer } from "@/lib/supabase/server";
+import { getActiveOrg } from "@/lib/multi-org";
 import { redirect } from "next/navigation";
 import { getPlan, formatPriceInr } from "@/lib/plans/config";
 import type { PlanId } from "@/lib/plans/config";
 import Link from "next/link";
+import { BillingPageActions } from "./billing-actions";
 
 export default async function BillingPage() {
   const supabase = await createSupabaseServer();
@@ -12,14 +14,11 @@ export default async function BillingPage() {
   } = await supabase.auth.getUser();
   if (!user) redirect("/auth/login");
 
-  const member = await db.member.findFirst({
-    where: { userId: user.id },
-    select: { organizationId: true },
-  });
-  if (!member) redirect("/onboarding");
+  const activeOrg = await getActiveOrg(user.id);
+  if (!activeOrg) redirect("/onboarding");
 
   const sub = await db.subscription.findUnique({
-    where: { orgId: member.organizationId },
+    where: { orgId: activeOrg.id },
   });
 
   const planId = (sub?.planId ?? "free") as PlanId;
@@ -201,30 +200,11 @@ export default async function BillingPage() {
               Cancel Subscription
             </Link>
           )}
-          {planId !== "free" &&
-            status === "active" && (
-              <Link
-                href={`/api/billing/razorpay/pause`}
-                onClick={(e) => {
-                  e.preventDefault();
-                  // Handled via form or client component
-                }}
-                className="rounded-md border border-orange-300 bg-white px-4 py-2 text-sm font-medium text-orange-700 hover:bg-orange-50"
-              >
-                Pause Subscription
-              </Link>
-            )}
-          {status === "paused" && (
-            <Link
-              href={`/api/billing/razorpay/resume`}
-              onClick={(e) => {
-                e.preventDefault();
-              }}
-              className="rounded-md bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700"
-            >
-              Resume Subscription
-            </Link>
-          )}
+          <BillingPageActions
+            orgId={activeOrg.id}
+            canPause={planId !== "free" && status === "active"}
+            canResume={status === "paused"}
+          />
         </div>
       </div>
 

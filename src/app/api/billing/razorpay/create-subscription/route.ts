@@ -6,6 +6,11 @@ import {
   createRazorpaySubscription,
   getRazorpay,
 } from "@/lib/razorpay";
+import {
+  getRazorpayPlanId,
+  resolveBillingCustomer,
+  resolveBillingOrgId,
+} from "@/lib/billing";
 import { PLANS, type PlanId, type BillingInterval } from "@/lib/plans/config";
 
 export const dynamic = "force-dynamic";
@@ -28,53 +33,97 @@ export async function POST(request: Request) {
 
   const body = await request.json();
   const {
-    orgId,
+    orgId: requestedOrgId,
     planId,
     billingInterval,
-    email,
-    name,
     phone,
   }: {
-    orgId: string;
+    orgId?: string;
     planId: PlanId;
     billingInterval: BillingInterval;
-    email: string;
-    name: string;
     phone?: string;
   } = body;
 
-  if (!orgId || !planId || !billingInterval || !email || !name) {
+  if (!planId || !billingInterval) {
     return NextResponse.json(
       { error: "Missing required fields" },
       { status: 400 },
     );
   }
 
-  const plan = PLANS.find((p) => p.id === planId);
-  if (!plan) {
+  if (!PLANS.some((plan) => plan.id === planId)) {
     return NextResponse.json({ error: "Invalid plan" }, { status: 400 });
   }
 
-  const razorpayPlanId =
-    billingInterval === "yearly"
-      ? plan.razorpayYearlyPlanId
-      : plan.razorpayMonthlyPlanId;
+  const orgResult = await resolveBillingOrgId(user.id, requestedOrgId);
+  if (!orgResult.success) {
+    return NextResponse.json(
+      { error: orgResult.error },
+      { status: orgResult.status },
+    );
+  }
+
+  const orgId = orgResult.orgId;
+
+  if (planId === "free") {
+    return NextResponse.json(
+      { error: "Free plan does not require a subscription" },
+      { status: 400 },
+    );
+  }
+
+  const razorpayPlanId = getRazorpayPlanId(planId, billingInterval);
 
   if (!razorpayPlanId) {
     return NextResponse.json(
-      { error: "Plan not available for this billing interval" },
+      {
+        error:
+          "Plan not available for this billing interval. Configure the matching Razorpay plan ID first.",
+      },
       { status: 400 },
     );
   }
 
   try {
     const sub = await db.subscription.findUnique({ where: { orgId } });
+    if (
+      sub?.razorpaySubId &&
+      sub.status !== "cancelled" &&
+      sub.status !== "expired"
+    ) {
+      return NextResponse.json(
+        { error: "An active subscription already exists. Use change plan instead." },
+        { status: 400 },
+      );
+    }
+
+    const billingCustomer = await resolveBillingCustomer({
+      id: user.id,
+      email: user.email,
+      user_metadata: {
+        full_name:
+          typeof user.user_metadata?.full_name === "string"
+            ? user.user_metadata.full_name
+            : null,
+        name:
+          typeof user.user_metadata?.name === "string"
+            ? user.user_metadata.name
+            : null,
+      },
+    });
+    if (!billingCustomer.success) {
+      return NextResponse.json(
+        { error: billingCustomer.error },
+        { status: 400 },
+      );
+    }
+
     let customerId = sub?.razorpayCustomerId;
 
     if (!customerId) {
       const customer = await createRazorpayCustomer({
-        name,
-        email,
+        name: billingCustomer.data.name,
+        email: billingCustomer.data.email,
         contact: phone,
       });
       if (!customer) {
