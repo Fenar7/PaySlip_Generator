@@ -3,6 +3,7 @@
 import { db } from "@/lib/db";
 import { requireOrgContext } from "@/lib/auth";
 import { revalidatePath } from "next/cache";
+import { postVoucherTx } from "@/lib/accounting";
 import { createNotification, notifyOrgAdmins } from "@/lib/notifications";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -410,29 +411,36 @@ export async function approveRequest(
 
     const approverName = profile?.name ?? "Unknown User";
 
-    await db.approvalRequest.update({
-      where: { id: requestId },
-      data: {
-        status: "APPROVED",
-        approverId: userId,
-        approverName,
-        decidedAt: new Date(),
-        note: note ?? null,
-      },
-    });
+    await db.$transaction(async (tx) => {
+      await tx.approvalRequest.update({
+        where: { id: requestId },
+        data: {
+          status: "APPROVED",
+          approverId: userId,
+          approverName,
+          decidedAt: new Date(),
+          note: note ?? null,
+        },
+      });
 
-    // Update document status if applicable
-    if (approval.docType === "voucher") {
-      await db.voucher.update({
-        where: { id: approval.docId },
-        data: { status: "approved" },
-      });
-    } else if (approval.docType === "salary-slip") {
-      await db.salarySlip.update({
-        where: { id: approval.docId },
-        data: { status: "approved" },
-      });
-    }
+      if (approval.docType === "voucher") {
+        await tx.voucher.update({
+          where: { id: approval.docId },
+          data: { status: "approved" },
+        });
+
+        await postVoucherTx(tx, {
+          orgId,
+          voucherId: approval.docId,
+          actorId: userId,
+        });
+      } else if (approval.docType === "salary-slip") {
+        await tx.salarySlip.update({
+          where: { id: approval.docId },
+          data: { status: "approved" },
+        });
+      }
+    });
 
     const docNumber = await getDocNumber(approval.docType, approval.docId);
 

@@ -5,6 +5,7 @@ import { requireOrgContext } from "@/lib/auth";
 import { nextDocumentNumber } from "@/lib/docs";
 import { revalidatePath } from "next/cache";
 import type { Prisma } from "@/generated/prisma/client";
+import { postSalarySlipAccrualTx, postSalarySlipPayoutTx } from "@/lib/accounting";
 
 export type ActionResult<T> = 
   | { success: true; data: T }
@@ -29,7 +30,7 @@ export async function saveSalarySlip(
   status: "draft" | "released" = "draft"
 ): Promise<ActionResult<{ id: string; slipNumber: string }>> {
   try {
-    const { orgId } = await requireOrgContext();
+    const { orgId, userId } = await requireOrgContext();
     
     const slipNumber = await nextDocumentNumber(orgId, "salarySlip");
     
@@ -40,26 +41,38 @@ export async function saveSalarySlip(
       .filter((c) => c.type === "deduction")
       .reduce((sum, c) => sum + c.amount, 0);
     
-    const salarySlip = await db.salarySlip.create({
-      data: {
-        organizationId: orgId,
-        employeeId: input.employeeId || null,
-        slipNumber,
-        month: input.month,
-        year: input.year,
-        status,
-        formData: input.formData as Prisma.InputJsonValue,
-        grossPay: earnings,
-        netPay: earnings - deductions,
-        components: {
-          create: input.components.map((comp, index) => ({
-            label: comp.label,
-            amount: comp.amount,
-            type: comp.type,
-            sortOrder: index,
-          })),
+    const salarySlip = await db.$transaction(async (tx) => {
+      const created = await tx.salarySlip.create({
+        data: {
+          organizationId: orgId,
+          employeeId: input.employeeId || null,
+          slipNumber,
+          month: input.month,
+          year: input.year,
+          status,
+          formData: input.formData as Prisma.InputJsonValue,
+          grossPay: earnings,
+          netPay: earnings - deductions,
+          components: {
+            create: input.components.map((comp, index) => ({
+              label: comp.label,
+              amount: comp.amount,
+              type: comp.type,
+              sortOrder: index,
+            })),
+          },
         },
-      },
+      });
+
+      if (status === "released") {
+        await postSalarySlipAccrualTx(tx, {
+          orgId,
+          salarySlipId: created.id,
+          actorId: userId,
+        });
+      }
+
+      return created;
     });
     
     revalidatePath("/app/docs/salary-slips");
@@ -79,10 +92,20 @@ export async function updateSalarySlip(
     
     const existing = await db.salarySlip.findFirst({
       where: { id, organizationId: orgId },
+      select: {
+        id: true,
+        grossPay: true,
+        netPay: true,
+        accountingStatus: true,
+      },
     });
     
     if (!existing) {
       return { success: false, error: "Salary slip not found" };
+    }
+    
+    if (existing.accountingStatus === "POSTED") {
+      return { success: false, error: "Released salary slips cannot be edited. Create a new payout or a reversing entry instead." };
     }
     
     let grossPay = existing.grossPay;
@@ -135,11 +158,19 @@ export async function updateSalarySlip(
 
 export async function releaseSalarySlip(id: string): Promise<ActionResult<void>> {
   try {
-    const { orgId } = await requireOrgContext();
+    const { orgId, userId } = await requireOrgContext();
     
-    await db.salarySlip.update({
-      where: { id, organizationId: orgId },
-      data: { status: "released" },
+    await db.$transaction(async (tx) => {
+      await tx.salarySlip.update({
+        where: { id, organizationId: orgId },
+        data: { status: "released" },
+      });
+
+      await postSalarySlipAccrualTx(tx, {
+        orgId,
+        salarySlipId: id,
+        actorId: userId,
+      });
     });
     
     revalidatePath("/app/docs/salary-slips");
@@ -148,6 +179,27 @@ export async function releaseSalarySlip(id: string): Promise<ActionResult<void>>
   } catch (error) {
     console.error("releaseSalarySlip error:", error);
     return { success: false, error: "Failed to release salary slip" };
+  }
+}
+
+export async function payoutSalarySlip(id: string): Promise<ActionResult<void>> {
+  try {
+    const { orgId, userId } = await requireOrgContext();
+
+    await db.$transaction(async (tx) => {
+      await postSalarySlipPayoutTx(tx, {
+        orgId,
+        salarySlipId: id,
+        actorId: userId,
+      });
+    });
+
+    revalidatePath("/app/docs/salary-slips");
+    revalidatePath(`/app/docs/salary-slips/${id}`);
+    return { success: true, data: undefined };
+  } catch (error) {
+    console.error("payoutSalarySlip error:", error);
+    return { success: false, error: "Failed to post salary payout" };
   }
 }
 

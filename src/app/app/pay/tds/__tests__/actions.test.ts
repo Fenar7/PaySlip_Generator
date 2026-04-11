@@ -4,12 +4,16 @@ import { describe, it, expect, beforeEach, vi } from "vitest";
 
 vi.mock("@/lib/db", () => ({
   db: {
+    $transaction: vi.fn(),
     tdsRecord: {
       findMany: vi.fn(),
       findUnique: vi.fn(),
       create: vi.fn(),
       update: vi.fn(),
       delete: vi.fn(),
+    },
+    journalEntry: {
+      findFirst: vi.fn(),
     },
     invoice: {
       findUnique: vi.fn(),
@@ -28,6 +32,10 @@ vi.mock("@/lib/plans/enforcement", () => ({
 
 vi.mock("next/cache", () => ({
   revalidatePath: vi.fn(),
+}));
+
+vi.mock("@/lib/accounting", () => ({
+  postTdsRecordTx: vi.fn().mockResolvedValue(undefined),
 }));
 
 import { db } from "@/lib/db";
@@ -72,11 +80,17 @@ function mockFeatureDisabled() {
   vi.mocked(checkFeature).mockResolvedValue(false);
 }
 
+function txProxy() {
+  vi.mocked(db.$transaction).mockImplementation(async (fn: any) => fn(db));
+}
+
 // ─── Tests ───────────────────────────────────────────────────────────────────
 
 describe("TDS actions", () => {
   beforeEach(() => {
     vi.resetAllMocks();
+    txProxy();
+    vi.mocked(db.journalEntry.findFirst).mockResolvedValue(null);
   });
 
   // ── TC-15-011: TDS amount calculation ───────────────────────────────────

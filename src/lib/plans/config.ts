@@ -42,6 +42,16 @@ export interface PlanLimits {
   gstrExport: boolean;
   // Phase 15: Global Expansion
   multiCurrency: boolean;
+  // Phase 16: Books & Close
+  accountingCore: boolean;
+  bankReconciliation: boolean;
+  vendorBills: boolean;
+  financialStatements: boolean;
+  closeWorkflow: boolean;
+  auditPackExports: boolean;
+  bankAccounts: number;
+  statementImportsPerMonth: number;
+  vendorBillsPerMonth: number;
   // Phase 15: Marketplace & Ecosystem
   templatePublish: boolean;
   oauthApps: boolean;
@@ -94,6 +104,15 @@ export const PLAN_LIMITS: Record<PlanId, PlanLimits> = {
     tdsTracking: false,
     gstrExport: false,
     multiCurrency: false,
+    accountingCore: false,
+    bankReconciliation: false,
+    vendorBills: false,
+    financialStatements: false,
+    closeWorkflow: false,
+    auditPackExports: false,
+    bankAccounts: 0,
+    statementImportsPerMonth: 0,
+    vendorBillsPerMonth: 0,
     templatePublish: false,
     oauthApps: false,
     webhookV2: false,
@@ -132,6 +151,15 @@ export const PLAN_LIMITS: Record<PlanId, PlanLimits> = {
     tdsTracking: true,
     gstrExport: false,
     multiCurrency: true,
+    accountingCore: true,
+    bankReconciliation: false,
+    vendorBills: true,
+    financialStatements: true,
+    closeWorkflow: false,
+    auditPackExports: false,
+    bankAccounts: 1,
+    statementImportsPerMonth: 5,
+    vendorBillsPerMonth: 100,
     templatePublish: false,
     oauthApps: true,
     webhookV2: true,
@@ -170,6 +198,15 @@ export const PLAN_LIMITS: Record<PlanId, PlanLimits> = {
     tdsTracking: true,
     gstrExport: true,
     multiCurrency: true,
+    accountingCore: true,
+    bankReconciliation: true,
+    vendorBills: true,
+    financialStatements: true,
+    closeWorkflow: true,
+    auditPackExports: false,
+    bankAccounts: 5,
+    statementImportsPerMonth: 50,
+    vendorBillsPerMonth: 1000,
     templatePublish: true,
     oauthApps: true,
     webhookV2: true,
@@ -208,6 +245,15 @@ export const PLAN_LIMITS: Record<PlanId, PlanLimits> = {
     tdsTracking: true,
     gstrExport: true,
     multiCurrency: true,
+    accountingCore: true,
+    bankReconciliation: true,
+    vendorBills: true,
+    financialStatements: true,
+    closeWorkflow: true,
+    auditPackExports: true,
+    bankAccounts: Infinity,
+    statementImportsPerMonth: Infinity,
+    vendorBillsPerMonth: Infinity,
     templatePublish: true,
     oauthApps: true,
     webhookV2: true,
