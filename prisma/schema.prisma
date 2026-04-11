@@ -1722,7 +1722,7 @@ model MarketplacePurchase {
   id                String   @id @default(cuid())
   orgId             String
   templateId        String
-  userId            String
+  userId            String?  @db.Uuid
   amount            Decimal  @db.Decimal(8, 2)
   razorpayPaymentId String?
   razorpayOrderId   String?
@@ -1742,7 +1742,7 @@ model MarketplaceReview {
   id         String   @id @default(cuid())
   orgId      String
   templateId String
-  userId     String
+  userId     String?  @db.Uuid
   rating     Int
   review     String?
   createdAt  DateTime @default(now())
