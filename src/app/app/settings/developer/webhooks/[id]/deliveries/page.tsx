@@ -10,6 +10,7 @@ interface Delivery {
   eventType: string;
   success: boolean;
   attempt: number;
+  nextRetryAt: Date | null;
   responseStatus: number | null;
   durationMs: number | null;
   deliveredAt: Date | null;
@@ -17,11 +18,26 @@ interface Delivery {
   responseBody: string | null;
 }
 
-function StatusBadge({ success, httpStatus }: { success: boolean; httpStatus: number | null }) {
+function StatusBadge({
+  success,
+  httpStatus,
+  nextRetryAt,
+}: {
+  success: boolean;
+  httpStatus: number | null;
+  nextRetryAt: Date | null;
+}) {
   if (success) {
     return (
       <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800">
         {httpStatus ?? 200}
+      </span>
+    );
+  }
+  if (nextRetryAt) {
+    return (
+      <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-amber-100 text-amber-800">
+        Retry queued
       </span>
     );
   }
@@ -73,7 +89,6 @@ export default function DeliveriesPage() {
     }
     load();
     return () => { cancelled = true; };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [endpointId]);
 
   async function handleReplay(deliveryId: string) {
@@ -125,7 +140,11 @@ export default function DeliveriesPage() {
                   onClick={() => setExpandedId(expandedId === d.id ? null : d.id)}
                 >
                   <div className="flex items-center gap-3">
-                    <StatusBadge success={d.success} httpStatus={d.responseStatus} />
+                    <StatusBadge
+                      success={d.success}
+                      httpStatus={d.responseStatus}
+                      nextRetryAt={d.nextRetryAt}
+                    />
                     <span className="text-sm font-medium text-slate-800">{d.eventType}</span>
                     {d.attempt && d.attempt > 1 && (
                       <span className="text-xs text-slate-400">Attempt #{d.attempt}</span>
@@ -158,7 +177,12 @@ export default function DeliveriesPage() {
                         </pre>
                       </div>
                     )}
-                    {!d.success && (
+                    {d.nextRetryAt && (
+                      <p className="text-xs text-amber-700">
+                        Next retry scheduled for {new Date(d.nextRetryAt).toLocaleString()}.
+                      </p>
+                    )}
+                    {!d.success && !d.nextRetryAt && (
                       <Button
                         onClick={() => handleReplay(d.id)}
                         disabled={replaying === d.id}

@@ -1,28 +1,19 @@
 "use server";
 
-import crypto from "crypto";
 import { db } from "@/lib/db";
 import { requireRole } from "@/lib/auth";
 import { checkFeature } from "@/lib/plans/enforcement";
 import { revalidatePath } from "next/cache";
+import {
+  validateWebhookEvents,
+  validateWebhookUrl,
+} from "@/lib/webhook/constants";
 import { generateSigningSecret } from "@/lib/webhook/signature";
 import { deliverWebhook } from "@/lib/webhook/deliver";
 
 type ActionResult<T> =
   | { success: true; data: T }
   | { success: false; error: string };
-
-const WEBHOOK_EVENTS = [
-  "invoice.created",
-  "invoice.updated",
-  "invoice.paid",
-  "invoice.overdue",
-  "customer.created",
-  "customer.updated",
-  "voucher.created",
-  "salary_slip.generated",
-  "ping",
-] as const;
 
 async function requireWebhookFeature() {
   const ctx = await requireRole("admin");
@@ -40,20 +31,21 @@ export async function createWebhookEndpoint(input: {
 }): Promise<ActionResult<{ id: string; signingSecret: string }>> {
   try {
     const ctx = await requireWebhookFeature();
+    const url = input.url.trim();
 
-    if (!input.url.trim()) {
+    if (!url) {
       return { success: false, error: "URL is required." };
     }
-    if (input.events.length === 0) {
-      return { success: false, error: "At least one event is required." };
-    }
+
+    validateWebhookUrl(url);
+    validateWebhookEvents(input.events);
 
     const signingSecret = generateSigningSecret();
 
     const endpoint = await db.apiWebhookEndpoint.create({
       data: {
         orgId: ctx.orgId,
-        url: input.url.trim(),
+        url,
         events: input.events,
         secretHash: "",
         apiVersion: "v2",
@@ -80,6 +72,7 @@ export async function listWebhookEndpoints(): Promise<
       url: string;
       events: string[];
       isActive: boolean;
+      requiresSecretRotation: boolean;
       consecutiveFails: number;
       lastDeliveryAt: Date | null;
       lastSuccessAt: Date | null;
@@ -97,6 +90,7 @@ export async function listWebhookEndpoints(): Promise<
         url: true,
         events: true,
         isActive: true,
+        signingSecret: true,
         consecutiveFails: true,
         lastDeliveryAt: true,
         lastSuccessAt: true,
@@ -105,7 +99,20 @@ export async function listWebhookEndpoints(): Promise<
       orderBy: { createdAt: "desc" },
     });
 
-    return { success: true, data: endpoints };
+    return {
+      success: true,
+      data: endpoints.map((endpoint) => ({
+        id: endpoint.id,
+        url: endpoint.url,
+        events: endpoint.events,
+        isActive: endpoint.isActive,
+        requiresSecretRotation: !endpoint.signingSecret,
+        consecutiveFails: endpoint.consecutiveFails,
+        lastDeliveryAt: endpoint.lastDeliveryAt,
+        lastSuccessAt: endpoint.lastSuccessAt,
+        createdAt: endpoint.createdAt,
+      })),
+    };
   } catch (err) {
     return { success: false, error: err instanceof Error ? err.message : "Failed to list endpoints." };
   }
@@ -174,6 +181,18 @@ export async function updateWebhookEndpoint(
     if (!endpoint) {
       return { success: false, error: "Webhook endpoint not found." };
     }
+    if (input.url !== undefined) {
+      validateWebhookUrl(input.url.trim());
+    }
+    if (input.events !== undefined) {
+      validateWebhookEvents(input.events);
+    }
+    if (input.isActive && !endpoint.signingSecret) {
+      return {
+        success: false,
+        error: "Rotate the signing secret before re-enabling this endpoint.",
+      };
+    }
 
     await db.apiWebhookEndpoint.update({
       where: { id: endpointId },
@@ -210,7 +229,7 @@ export async function rotateSigningSecret(
     const signingSecret = generateSigningSecret();
     await db.apiWebhookEndpoint.update({
       where: { id: endpointId },
-      data: { signingSecret },
+      data: { signingSecret, isActive: true, consecutiveFails: 0 },
     });
 
     revalidatePath("/app/settings/developer/webhooks/v2");
@@ -251,6 +270,7 @@ export async function getDeliveryLog(
       eventType: string;
       success: boolean;
       attempt: number;
+      nextRetryAt: Date | null;
       responseStatus: number | null;
       durationMs: number | null;
       deliveredAt: Date | null;
@@ -266,7 +286,7 @@ export async function getDeliveryLog(
     const ctx = await requireWebhookFeature();
 
     const endpoint = await db.apiWebhookEndpoint.findFirst({
-      where: { id: endpointId, orgId: ctx.orgId },
+      where: { id: endpointId, orgId: ctx.orgId, apiVersion: "v2" },
     });
     if (!endpoint) {
       return { success: false, error: "Webhook endpoint not found." };
@@ -286,6 +306,7 @@ export async function getDeliveryLog(
           eventType: true,
           success: true,
           attempt: true,
+          nextRetryAt: true,
           responseStatus: true,
           durationMs: true,
           deliveredAt: true,

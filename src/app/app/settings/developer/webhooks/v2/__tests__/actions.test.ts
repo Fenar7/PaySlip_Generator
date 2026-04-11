@@ -52,6 +52,7 @@ import {
   deleteWebhookEndpoint,
   replayDelivery,
   rotateSigningSecret,
+  updateWebhookEndpoint,
 } from "../actions";
 import { getNextRetryTime } from "@/lib/webhook/deliver";
 
@@ -118,6 +119,22 @@ describe("Webhook v2 actions", () => {
       });
 
       expect(result.success).toBe(false);
+    });
+
+    it("rejects insecure or local endpoint URLs", async () => {
+      mockAdmin();
+      mockFeatureEnabled();
+
+      const result = await createWebhookEndpoint({
+        url: "http://127.0.0.1/hooks",
+        events: ["invoice.created"],
+      });
+
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        expect(result.error).toContain("HTTPS");
+      }
+      expect(db.apiWebhookEndpoint.create).not.toHaveBeenCalled();
     });
   });
 
@@ -232,6 +249,36 @@ describe("Webhook v2 actions", () => {
       if (result.success) {
         expect(result.data.signingSecret).toMatch(/^whsec_/);
       }
+      expect(db.apiWebhookEndpoint.update).toHaveBeenCalledWith({
+        where: { id: "ep-1" },
+        data: expect.objectContaining({
+          signingSecret: expect.stringMatching(/^whsec_/),
+          isActive: true,
+          consecutiveFails: 0,
+        }),
+      });
+    });
+  });
+
+  describe("updateWebhookEndpoint", () => {
+    it("requires secret rotation before re-enabling a legacy endpoint", async () => {
+      mockAdmin();
+      mockFeatureEnabled();
+
+      vi.mocked(db.apiWebhookEndpoint.findFirst).mockResolvedValue({
+        id: "ep-1",
+        orgId: ORG_ID,
+        apiVersion: "v2",
+        signingSecret: null,
+      } as any);
+
+      const result = await updateWebhookEndpoint("ep-1", { isActive: true });
+
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        expect(result.error).toContain("Rotate the signing secret");
+      }
+      expect(db.apiWebhookEndpoint.update).not.toHaveBeenCalled();
     });
   });
 

@@ -1,29 +1,92 @@
 import crypto from 'crypto';
+import { Prisma } from '@/generated/prisma/client';
 import { db } from '@/lib/db';
+import { isWebhookEventSubscribed } from './constants';
 import { generateSignatureHeaders } from './signature';
 
-export async function deliverWebhook(endpointId: string, event: string, payload: unknown): Promise<void> {
-  const endpoint = await db.apiWebhookEndpoint.findUnique({ where: { id: endpointId } });
-  if (!endpoint || !endpoint.isActive) return;
+type EndpointRecord = {
+  id: string;
+  orgId: string;
+  url: string;
+  events: string[];
+  isActive: boolean;
+  signingSecret: string | null;
+  maxRetries: number | null;
+  autoDisableAt: number | null;
+  consecutiveFails: number | null;
+};
 
-  const body = JSON.stringify(payload);
+type DeliverWebhookOptions = {
+  attempt?: number;
+};
+
+type DeliveryOutcome = 'success' | 'retry_scheduled' | 'dead_lettered';
+
+function clonePayload(
+  payload: unknown,
+): Prisma.InputJsonValue | typeof Prisma.JsonNull {
+  const normalized =
+    payload === undefined ? null : JSON.parse(JSON.stringify(payload));
+
+  return normalized === null
+    ? Prisma.JsonNull
+    : (normalized as Prisma.InputJsonValue);
+}
+
+async function markEndpointFailure(endpointId: string) {
+  const endpoint = await db.apiWebhookEndpoint.update({
+    where: { id: endpointId },
+    data: { consecutiveFails: { increment: 1 }, lastDeliveryAt: new Date() },
+  });
+
+  if ((endpoint.consecutiveFails ?? 0) >= (endpoint.autoDisableAt ?? 10)) {
+    await db.apiWebhookEndpoint.update({
+      where: { id: endpointId },
+      data: { isActive: false },
+    });
+  }
+}
+
+async function deliverToEndpoint(
+  endpoint: EndpointRecord,
+  event: string,
+  payload: unknown,
+  attempt: number,
+): Promise<DeliveryOutcome> {
+  const requestPayload = clonePayload(payload);
+  const body = JSON.stringify(requestPayload);
   const deliveryId = crypto.randomUUID();
-  const headers: Record<string, string> = endpoint.signingSecret
-    ? generateSignatureHeaders(endpoint.signingSecret, body, deliveryId, event)
-    : { 'X-Slipwise-Delivery': deliveryId, 'X-Slipwise-Event': event };
+  const maxRetries = endpoint.maxRetries ?? 5;
 
   await db.apiWebhookDelivery.create({
     data: {
       id: deliveryId,
-      endpointId,
+      endpointId: endpoint.id,
       eventType: event,
       success: false,
-      payload: body,
-      requestBody: JSON.parse(JSON.stringify(payload)),
-      attempt: 1,
+      payload: requestPayload,
+      requestBody: requestPayload,
+      attempt,
     },
   });
 
+  if (!endpoint.signingSecret) {
+    await db.apiWebhookDelivery.update({
+      where: { id: deliveryId },
+      data: {
+        success: false,
+        responseBody:
+          'Signing secret is missing for this endpoint. Rotate the secret before resuming deliveries.',
+        durationMs: 0,
+        deliveredAt: new Date(),
+        nextRetryAt: null,
+      },
+    });
+    await markEndpointFailure(endpoint.id);
+    return 'dead_lettered';
+  }
+
+  const headers = generateSignatureHeaders(endpoint.signingSecret, body, deliveryId, event);
   const startTime = Date.now();
   try {
     const response = await fetch(endpoint.url, {
@@ -41,47 +104,102 @@ export async function deliverWebhook(endpointId: string, event: string, payload:
       data: {
         success: response.ok,
         responseStatus: response.status,
-        responseBody,
+        responseBody: responseBody.slice(0, 4000),
         durationMs,
-        deliveredAt: response.ok ? new Date() : null,
-        nextRetryAt: response.ok ? null : getNextRetryTime(1),
+        deliveredAt: new Date(),
+        nextRetryAt: response.ok
+          ? null
+          : attempt < maxRetries
+            ? getNextRetryTime(attempt)
+            : null,
       },
     });
 
     if (response.ok) {
       await db.apiWebhookEndpoint.update({
-        where: { id: endpointId },
+        where: { id: endpoint.id },
         data: { consecutiveFails: 0, lastDeliveryAt: new Date(), lastSuccessAt: new Date() },
       });
-    } else {
-      await handleDeliveryFailure(endpointId);
+      return 'success';
     }
+
+    await markEndpointFailure(endpoint.id);
+    return attempt < maxRetries ? 'retry_scheduled' : 'dead_lettered';
   } catch (error) {
     const durationMs = Date.now() - startTime;
     await db.apiWebhookDelivery.update({
       where: { id: deliveryId },
       data: {
         success: false,
-        responseBody: error instanceof Error ? error.message : 'Unknown error',
+        responseBody: (error instanceof Error ? error.message : 'Unknown error').slice(0, 4000),
         durationMs,
-        nextRetryAt: getNextRetryTime(1),
+        deliveredAt: new Date(),
+        nextRetryAt: attempt < maxRetries ? getNextRetryTime(attempt) : null,
       },
     });
-    await handleDeliveryFailure(endpointId);
+    await markEndpointFailure(endpoint.id);
+    return attempt < maxRetries ? 'retry_scheduled' : 'dead_lettered';
   }
 }
 
-async function handleDeliveryFailure(endpointId: string) {
-  const endpoint = await db.apiWebhookEndpoint.update({
+export async function deliverWebhook(
+  endpointId: string,
+  event: string,
+  payload: unknown,
+  options: DeliverWebhookOptions = {},
+): Promise<void> {
+  const endpoint = await db.apiWebhookEndpoint.findUnique({
     where: { id: endpointId },
-    data: { consecutiveFails: { increment: 1 }, lastDeliveryAt: new Date() },
+    select: {
+      id: true,
+      orgId: true,
+      url: true,
+      events: true,
+      isActive: true,
+      signingSecret: true,
+      maxRetries: true,
+      autoDisableAt: true,
+      consecutiveFails: true,
+    },
   });
-  if (endpoint.consecutiveFails >= (endpoint.autoDisableAt ?? 10)) {
-    await db.apiWebhookEndpoint.update({
-      where: { id: endpointId },
-      data: { isActive: false },
-    });
+
+  if (!endpoint || !endpoint.isActive) {
+    return;
   }
+
+  await deliverToEndpoint(endpoint, event, payload, options.attempt ?? 1);
+}
+
+export async function dispatchEvent(
+  orgId: string,
+  eventType: string,
+  payload: unknown,
+): Promise<void> {
+  const endpoints = await db.apiWebhookEndpoint.findMany({
+    where: {
+      orgId,
+      isActive: true,
+    },
+    select: {
+      id: true,
+      orgId: true,
+      url: true,
+      events: true,
+      isActive: true,
+      signingSecret: true,
+      maxRetries: true,
+      autoDisableAt: true,
+      consecutiveFails: true,
+    },
+  });
+
+  const matchedEndpoints = endpoints.filter((endpoint) =>
+    isWebhookEventSubscribed(endpoint.events, eventType),
+  );
+
+  await Promise.allSettled(
+    matchedEndpoints.map((endpoint) => deliverToEndpoint(endpoint, eventType, payload, 1)),
+  );
 }
 
 // Retry schedule: 1m, 5m, 15m, 1h, 4h
@@ -91,4 +209,73 @@ export function getNextRetryTime(attempt: number): Date | null {
   if (attempt > 5) return null;
   const delayMs = RETRY_DELAYS_MS[attempt - 1] ?? RETRY_DELAYS_MS[RETRY_DELAYS_MS.length - 1];
   return new Date(Date.now() + delayMs);
+}
+
+export async function retryPendingWebhookDeliveries(
+  now = new Date(),
+): Promise<{ due: number; retried: number; deadLettered: number; skipped: number }> {
+  const dueDeliveries = await db.apiWebhookDelivery.findMany({
+    where: {
+      success: false,
+      nextRetryAt: { lte: now },
+    },
+    orderBy: { nextRetryAt: 'asc' },
+    include: {
+      endpoint: {
+        select: {
+          id: true,
+          orgId: true,
+          url: true,
+          events: true,
+          isActive: true,
+          signingSecret: true,
+          maxRetries: true,
+          autoDisableAt: true,
+          consecutiveFails: true,
+        },
+      },
+    },
+  });
+
+  let retried = 0;
+  let deadLettered = 0;
+  let skipped = 0;
+
+  for (const delivery of dueDeliveries) {
+    await db.apiWebhookDelivery.update({
+      where: { id: delivery.id },
+      data: { nextRetryAt: null },
+    });
+
+    if (!delivery.endpoint || !delivery.endpoint.isActive) {
+      skipped += 1;
+      continue;
+    }
+
+    const maxRetries = delivery.endpoint.maxRetries ?? 5;
+    if (delivery.attempt >= maxRetries) {
+      deadLettered += 1;
+      continue;
+    }
+
+    const outcome = await deliverToEndpoint(
+      delivery.endpoint,
+      delivery.eventType,
+      delivery.requestBody ?? delivery.payload,
+      delivery.attempt + 1,
+    );
+
+    if (outcome === 'dead_lettered') {
+      deadLettered += 1;
+    } else {
+      retried += 1;
+    }
+  }
+
+  return {
+    due: dueDeliveries.length,
+    retried,
+    deadLettered,
+    skipped,
+  };
 }
