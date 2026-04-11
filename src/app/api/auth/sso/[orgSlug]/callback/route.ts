@@ -1,11 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { parseSamlResponse } from "@/lib/sso";
+import { getSsoRuntimeDisabledReason, parseSamlResponse } from "@/lib/sso";
 
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ orgSlug: string }> }
 ) {
+  const disabledReason = getSsoRuntimeDisabledReason();
+  if (disabledReason) {
+    return NextResponse.json({ error: disabledReason }, { status: 503 });
+  }
+
   const { orgSlug } = await params;
 
   try {

@@ -17,14 +17,14 @@ function getClientCredentials() {
   return { clientId, clientSecret, redirectUri };
 }
 
-export function getAuthUrl(orgId: string): string {
+export function getAuthUrl(state: string): string {
   const { clientId, redirectUri } = getClientCredentials();
   const params = new URLSearchParams({
     client_id: clientId,
     redirect_uri: redirectUri,
     response_type: "code",
     scope: "com.intuit.quickbooks.accounting",
-    state: orgId,
+    state,
   });
   return `${QB_AUTH_URL}?${params.toString()}`;
 }
