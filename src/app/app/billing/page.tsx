@@ -26,6 +26,7 @@ export default async function BillingPage() {
   const status = sub?.status ?? "active";
 
   const statusColors: Record<string, string> = {
+    pending: "bg-amber-100 text-amber-800",
     active: "bg-green-100 text-green-800",
     trialing: "bg-blue-100 text-blue-800",
     past_due: "bg-yellow-100 text-yellow-800",
@@ -95,6 +96,16 @@ export default async function BillingPage() {
             <p className="text-sm text-amber-800">
               ✨ Upgrade to unlock more invoices, team members, and advanced
               features.
+            </p>
+          </div>
+        )}
+
+        {status === "pending" && (
+          <div className="mt-4 rounded-md border border-amber-200 bg-amber-50 p-3">
+            <p className="text-sm text-amber-800">
+              Your billing checkout has been created and is waiting for provider
+              confirmation. Paid feature limits stay on your current plan until
+              Razorpay confirms activation.
             </p>
           </div>
         )}

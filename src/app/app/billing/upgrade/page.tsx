@@ -36,6 +36,7 @@ export default async function UpgradePage() {
       orgId={activeOrg.id}
       currentPlanId={currentPlanId}
       hasManagedSubscription={hasManagedSubscription}
+      subscriptionStatus={sub?.status ?? null}
     />
   );
 }

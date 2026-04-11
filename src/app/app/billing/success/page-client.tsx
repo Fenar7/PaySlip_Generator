@@ -7,6 +7,7 @@ export function BillingSuccessPageClient() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const planName = searchParams.get("plan") ?? "your new plan";
+  const mode = searchParams.get("mode") ?? "checkout";
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -34,11 +35,23 @@ export function BillingSuccessPageClient() {
           </svg>
         </div>
         <h1 className="text-2xl font-bold text-gray-900">
-          Payment Successful! 🎉
+          {mode === "change" ? "Plan Change Submitted" : "Billing Update Received"}
         </h1>
         <p className="mt-3 text-gray-600">
-          Your plan has been upgraded to{" "}
-          <span className="font-semibold text-indigo-600">{planName}</span>.
+          {mode === "change" ? (
+            <>
+              Your request to switch to{" "}
+              <span className="font-semibold text-indigo-600">{planName}</span>{" "}
+              has been recorded. Your workspace will reflect the new plan once
+              Razorpay confirms the change.
+            </>
+          ) : (
+            <>
+              We received your billing confirmation for{" "}
+              <span className="font-semibold text-indigo-600">{planName}</span>.
+              Your workspace will update after Razorpay activation is confirmed.
+            </>
+          )}
         </p>
         <p className="mt-4 text-sm text-gray-400">
           Redirecting to billing...

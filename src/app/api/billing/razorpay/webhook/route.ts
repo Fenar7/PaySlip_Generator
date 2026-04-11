@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { verifyWebhookSignature } from "@/lib/razorpay";
 import {
+  getInternalPlanIdForRazorpayPlanId,
   recordRazorpayEvent,
   updateSubscriptionFromWebhook,
 } from "@/lib/billing";
@@ -30,6 +31,9 @@ export async function POST(request: Request) {
   try {
     const subscription = event.payload?.subscription?.entity;
     const razorpaySubId: string | undefined = subscription?.id;
+    const internalPlanId = getInternalPlanIdForRazorpayPlanId(
+      subscription?.plan_id,
+    );
 
     switch (eventType) {
       case "subscription.activated": {
@@ -37,6 +41,7 @@ export async function POST(request: Request) {
           await updateSubscriptionFromWebhook({
             razorpaySubId,
             status: "active",
+            ...(internalPlanId ? { planId: internalPlanId } : {}),
             currentPeriodStart: subscription.current_start
               ? new Date(subscription.current_start * 1000)
               : undefined,
@@ -53,6 +58,7 @@ export async function POST(request: Request) {
           await updateSubscriptionFromWebhook({
             razorpaySubId,
             status: "active",
+            ...(internalPlanId ? { planId: internalPlanId } : {}),
             currentPeriodStart: subscription.current_start
               ? new Date(subscription.current_start * 1000)
               : undefined,
@@ -68,7 +74,7 @@ export async function POST(request: Request) {
         if (razorpaySubId) {
           await updateSubscriptionFromWebhook({
             razorpaySubId,
-            status: "past_due",
+            status: "pending",
           });
         }
         break;

@@ -13,12 +13,14 @@ interface UpgradePageClientProps {
   orgId: string;
   currentPlanId: PlanId;
   hasManagedSubscription: boolean;
+  subscriptionStatus: string | null;
 }
 
 export function UpgradePageClient({
   orgId,
   currentPlanId,
   hasManagedSubscription,
+  subscriptionStatus,
 }: UpgradePageClientProps) {
   const router = useRouter();
 
@@ -28,7 +30,13 @@ export function UpgradePageClient({
   const [error, setError] = useState<string | null>(null);
 
   const handleUpgrade = async (planId: PlanId) => {
-    if (planId === "free" || planId === currentPlanId) return;
+    if (
+      planId === "free" ||
+      planId === currentPlanId ||
+      subscriptionStatus === "pending"
+    ) {
+      return;
+    }
 
     setLoading(planId);
     setError(null);
@@ -63,7 +71,9 @@ export function UpgradePageClient({
 
       const nextPlan = PLANS.find((plan) => plan.id === planId);
       router.push(
-        `/app/billing/success?plan=${encodeURIComponent(nextPlan?.name ?? planId)}`,
+        `/app/billing/success?plan=${encodeURIComponent(nextPlan?.name ?? planId)}&mode=${
+          isPlanChange ? "change" : "checkout"
+        }`,
       );
       router.refresh();
     } catch (actionError) {
@@ -82,6 +92,12 @@ export function UpgradePageClient({
           Scale your business with the right plan. All plans include a 14-day
           free trial.
         </p>
+        {subscriptionStatus === "pending" ? (
+          <p className="mt-4 rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+            Your checkout is still pending provider confirmation. Wait for
+            activation before starting another plan change.
+          </p>
+        ) : null}
         {error ? (
           <p className="mt-4 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
             {error}
@@ -188,7 +204,12 @@ export function UpgradePageClient({
 
               <button
                 onClick={() => handleUpgrade(plan.id)}
-                disabled={isCurrent || plan.id === "free" || loading === plan.id}
+                disabled={
+                  isCurrent ||
+                  plan.id === "free" ||
+                  loading === plan.id ||
+                  subscriptionStatus === "pending"
+                }
                 className={`mt-6 w-full rounded-md px-4 py-2.5 text-sm font-medium transition-colors ${
                   isCurrent
                     ? "cursor-default border border-green-300 bg-green-50 text-green-700"
@@ -203,6 +224,8 @@ export function UpgradePageClient({
                   ? "Processing..."
                   : isCurrent
                     ? "Current Plan"
+                    : subscriptionStatus === "pending"
+                      ? "Pending Activation"
                     : plan.id === "free"
                       ? "Free"
                       : isDowngrade
