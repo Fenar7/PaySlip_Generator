@@ -186,7 +186,7 @@ describe("TC-15-028: Idempotent install", () => {
     );
     vi.mocked(db.marketplacePurchase.findUnique).mockResolvedValue({
       id: "existing-purchase-1",
-      organizationId: "org-1",
+      orgId: "org-1",
       templateId: "tpl-1",
     } as never);
 
@@ -310,7 +310,7 @@ describe("TC-15-030: Cannot install unpublished template", () => {
 
 describe("TC-15-031: Revenue split 70/30", () => {
   it("creates MarketplaceRevenue with correct split", async () => {
-    const template = mockTemplate({ price: 1000, publisherId: "org-pub-1" });
+    const template = mockTemplate({ price: 1000, publisherOrgId: "org-pub-1" });
     vi.mocked(db.marketplaceTemplate.findUnique).mockResolvedValue(
       template as never
     );
