@@ -5,6 +5,7 @@ import { getActiveOrg } from "@/lib/multi-org";
 import type { BillingInterval, PlanId } from "@/lib/plans/config";
 
 export type SubscriptionStatus =
+  | "pending"
   | "trialing"
   | "active"
   | "past_due"
@@ -114,6 +115,15 @@ const RAZORPAY_PLAN_ENV_KEYS: Record<
   },
 };
 
+const RAZORPAY_PLAN_MAPPINGS = Object.entries(
+  RAZORPAY_PLAN_ENV_KEYS,
+) as Array<
+  [
+    Exclude<PlanId, "free">,
+    Record<BillingInterval, keyof NodeJS.ProcessEnv>,
+  ]
+>;
+
 export function getRazorpayPlanId(
   planId: PlanId,
   billingInterval: BillingInterval,
@@ -124,6 +134,25 @@ export function getRazorpayPlanId(
 
   const envKey = RAZORPAY_PLAN_ENV_KEYS[planId][billingInterval];
   return process.env[envKey] ?? null;
+}
+
+export function getInternalPlanIdForRazorpayPlanId(
+  razorpayPlanId?: string | null,
+): Exclude<PlanId, "free"> | null {
+  if (!razorpayPlanId) {
+    return null;
+  }
+
+  for (const [planId, envKeys] of RAZORPAY_PLAN_MAPPINGS) {
+    if (
+      process.env[envKeys.monthly] === razorpayPlanId ||
+      process.env[envKeys.yearly] === razorpayPlanId
+    ) {
+      return planId;
+    }
+  }
+
+  return null;
 }
 
 export async function getOrCreateSubscription(orgId: string) {
@@ -145,7 +174,7 @@ export async function getOrCreateSubscription(orgId: string) {
 export async function updateSubscriptionFromWebhook(params: {
   orgId?: string;
   razorpaySubId: string;
-  planId?: string;
+  planId?: PlanId;
   status: SubscriptionStatus;
   currentPeriodStart?: Date;
   currentPeriodEnd?: Date;
@@ -342,14 +371,16 @@ export async function changePlan(
     return { success: false, error: "Failed to change plan on Razorpay" };
   }
 
-  await db.subscription.update({
-    where: { orgId },
-    data: {
-      planId: newPlanId,
-      razorpayPlanId,
-      billingInterval,
-    },
-  });
+  if (immediate) {
+    await db.subscription.update({
+      where: { orgId },
+      data: {
+        planId: newPlanId,
+        razorpayPlanId,
+        billingInterval,
+      },
+    });
+  }
 
   return { success: true, data: { planId: newPlanId } };
 }

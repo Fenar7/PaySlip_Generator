@@ -92,6 +92,10 @@ export function verifyWebhookSignature(
     .update(body)
     .digest("hex");
 
+  if (!signature || signature.length !== expectedSignature.length) {
+    return false;
+  }
+
   return crypto.timingSafeEqual(
     Buffer.from(signature),
     Buffer.from(expectedSignature),

@@ -121,6 +121,17 @@ describe("billing Razorpay routes", () => {
       planId: "plan_starter_monthly",
       customerId: "cust_1",
     });
+    expect(db.subscription.create).toHaveBeenCalledWith({
+      data: {
+        orgId: "org-active",
+        razorpayCustomerId: "cust_1",
+        razorpaySubId: "sub_1",
+        razorpayPlanId: "plan_starter_monthly",
+        planId: "free",
+        billingInterval: "monthly",
+        status: "pending",
+      },
+    });
     expect(body.shortUrl).toBe("https://rzp.io/i/subscription");
   });
 
@@ -188,6 +199,7 @@ describe("billing Razorpay routes", () => {
       "plan_pro_yearly",
       false,
     );
+    expect(db.subscription.update).not.toHaveBeenCalled();
   });
 
   it.each([

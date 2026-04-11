@@ -37,6 +37,7 @@ import { getActiveOrg } from "@/lib/multi-org";
 import {
   cancelSubscription,
   changePlan,
+  getInternalPlanIdForRazorpayPlanId,
   getRazorpayPlanId,
   pauseSubscription,
   resolveBillingCustomer,
@@ -122,7 +123,16 @@ describe("billing helpers", () => {
     expect(getRazorpayPlanId("free", "monthly")).toBeNull();
   });
 
-  it("uses Razorpay plan IDs when changing plans", async () => {
+  it("maps a configured Razorpay plan ID back to the internal plan ID", () => {
+    process.env.RAZORPAY_PLAN_STARTER_MONTHLY = "plan_starter_monthly";
+
+    expect(
+      getInternalPlanIdForRazorpayPlanId("plan_starter_monthly"),
+    ).toBe("starter");
+    expect(getInternalPlanIdForRazorpayPlanId("plan_unknown")).toBeNull();
+  });
+
+  it("does not promote entitlements early when scheduling a plan change", async () => {
     process.env.RAZORPAY_PLAN_PRO_YEARLY = "plan_pro_yearly";
 
     vi.mocked(db.subscription.findUnique).mockResolvedValue({
@@ -141,6 +151,23 @@ describe("billing helpers", () => {
       "plan_pro_yearly",
       false,
     );
+    expect(db.subscription.update).not.toHaveBeenCalled();
+  });
+
+  it("updates local plan state for immediate plan changes", async () => {
+    process.env.RAZORPAY_PLAN_PRO_YEARLY = "plan_pro_yearly";
+
+    vi.mocked(db.subscription.findUnique).mockResolvedValue({
+      orgId: "org-1",
+      planId: "starter",
+      razorpaySubId: "sub_123",
+    } as never);
+    vi.mocked(changeSubscriptionPlan).mockResolvedValue({ id: "sub_123" } as never);
+    vi.mocked(db.subscription.update).mockResolvedValue({} as never);
+
+    const result = await changePlan("org-1", "pro", "yearly", true);
+
+    expect(result).toEqual({ success: true, data: { planId: "pro" } });
     expect(db.subscription.update).toHaveBeenCalledWith({
       where: { orgId: "org-1" },
       data: {

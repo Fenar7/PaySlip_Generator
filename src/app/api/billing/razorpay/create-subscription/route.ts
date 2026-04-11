@@ -156,9 +156,8 @@ export async function POST(request: Request) {
           razorpayCustomerId: customerId,
           razorpaySubId,
           razorpayPlanId,
-          planId,
           billingInterval,
-          status: "active",
+          status: "pending",
         },
       });
     } else {
@@ -168,9 +167,9 @@ export async function POST(request: Request) {
           razorpayCustomerId: customerId,
           razorpaySubId,
           razorpayPlanId,
-          planId,
+          planId: "free",
           billingInterval,
-          status: "active",
+          status: "pending",
         },
       });
     }

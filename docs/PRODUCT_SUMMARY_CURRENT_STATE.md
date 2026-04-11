@@ -3,7 +3,7 @@
 > **Version:** 2026-04-11  
 > **Product:** Slipwise One by Zenxvio  
 > **Purpose:** Internal source of truth for engineering, QA, product, and ops.  
-> This document reflects the product surface implemented in code after the production-remediation branch stack (`PR-01` through `PR-04`). It separates implemented functionality from operational sign-off and accepted-risk areas.
+> This document reflects the product surface implemented in code after the production-remediation branch stack (`PR-01` through `PR-05`). It separates implemented functionality from operational sign-off and accepted-risk areas.
 
 ---
 

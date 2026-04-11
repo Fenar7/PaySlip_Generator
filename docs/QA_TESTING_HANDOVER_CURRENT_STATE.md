@@ -2,7 +2,7 @@
 
 > **Version:** 2026-04-11  
 > **Purpose:** Practical release-oriented QA guide for the current remediation branch stack.  
-> **Scope:** Focus on the highest-risk business and security paths after PR-01 through PR-04.
+> **Scope:** Focus on the highest-risk business and security paths after PR-01 through PR-05.
 
 ---
 
