@@ -1,26 +1,38 @@
 # Slipwise One — QA & Testing Handbook
 **Prepared for:** QA / Testing Team  
-**Date:** April 6, 2026  
+**Date:** April 11, 2026  
 **Product:** Slipwise One by Zenxvio  
-**Version:** v1.0  
+**Version:** v1.1  
 
 ---
 
 ## Overview
 
-This document covers all test flows, edge cases, and acceptance criteria for every feature in Slipwise One. It is organized by module/phase and should be used as the authoritative QA reference.
+This handbook is the **broad regression catalog** for Slipwise One. It is useful for deep module coverage, but it is **not** the release-signoff source of truth by itself.
+
+For current release posture and remediation-focused launch checks, use these companion docs first:
+
+- `docs/QA_TESTING_HANDOVER_CURRENT_STATE.md`
+- `docs/production/PRODUCT_STATUS_REPORT.md`
+- `docs/production/RELEASE_READINESS_CHECKLIST.md`
 
 ### Test Environment Setup
-1. Clone the repository: `git clone https://github.com/Fenar7/PaySlip_Generator.git`
-2. Install dependencies: `npm install`
-3. Copy `.env.example` → `.env.local` and fill in test credentials
-4. Run DB migrations: `npx prisma migrate dev`
-5. Start the app: `npm run dev` → `http://localhost:3000`
+1. Clone the repository and install dependencies
+   ```bash
+   git clone <repository-url>
+   cd payslip-generator
+   npm install
+   ```
+2. Copy `.env.example` to `.env` and fill in the required test credentials
+3. Start local Supabase services: `npm run supabase:start`
+4. Apply database migrations: `npm run db:migrate`
+5. Start the app: `npm run dev` → `http://localhost:3001`
 
 ### Test Credentials Needed
 - Supabase project (test)
 - Razorpay test keys (from Razorpay Dashboard → Test Mode)
 - Brevo SMTP test credentials
+- `CRON_SECRET`, `PORTAL_JWT_SECRET`, and `DUNNING_OPT_OUT_SECRET`
 
 ---
 

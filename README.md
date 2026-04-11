@@ -1,136 +1,94 @@
-# Slipwise
+# Slipwise One
 
-Phase 1 implementation of a premium document-generation product built with Next.js. The app supports vouchers, salary slips, and invoices through a shared shell, live preview, and export-ready layout system.
+Slipwise One is Zenxvio's multi-module finance and document operations platform. This repository now contains the full application surface — document workflows, receivables, analytics, developer APIs, compliance tooling, internationalization, marketplace features, and partner/developer ecosystem work — not the old Phase 1-only product.
+
+## Current release posture
+
+- Treat the repo as a broad SaaS product, not a template/demo app.
+- Use `docs/production/PRODUCT_STATUS_REPORT.md` and `docs/production/RELEASE_READINESS_CHECKLIST.md` for release claims and launch sign-off.
+- SSO remains feature-flagged off by default for production rollouts until full SAML verification is explicitly enabled.
+- QuickBooks/Zoho token storage accepted risk is documented in `docs/production/WEBHOOKS_AND_INTEGRATIONS.md`.
+
+## Product surfaces
+
+| Area | What is in code |
+| --- | --- |
+| **SW Docs** | Invoices, vouchers, salary slips, quotes, template store, template marketplace, PDF Studio |
+| **SW Pay** | Billing, recurring invoices, receivables, send log, payment proofs, dunning, payment arrangements, TDS |
+| **SW Intel** | Dashboards, reports, cash flow intelligence, GST reports |
+| **SW Flow** | Approval workflows, activity feed, background job views |
+| **Data + Portal** | Customers, vendors, employees, customer portal |
+| **Developer** | API v1, OAuth apps, webhook v2, OpenAPI surface |
+| **Compliance / Global** | GST compute, HSN/SAC search, IRN/e-invoicing, e-way bill, multi-language, multi-currency |
+| **Partner / Ecosystem** | Partner dashboard, client management, integrations, marketplace publishing/install flows |
 
 ## Stack
 
-- Next.js App Router
-- TypeScript
-- Tailwind CSS
-- Motion for interaction polish
-- Vitest + Testing Library
-- Playwright
+- Next.js 16 App Router + React 19 + TypeScript
+- Prisma 7 + PostgreSQL
+- Supabase auth/session helpers
+- Razorpay for billing and payment collection
+- Resend/Brevo/MSG91 for outbound communication flows
+- Optional Redis, Sentry, PostHog, OpenAI, QuickBooks, Zoho, IRP, and exchange-rate providers
+- Vitest, Playwright, ESLint
 
-## Available Scripts
+## Local setup
 
-```bash
-npm run dev
-npm run lint
-npm run test
-npm run test:e2e
-npm run build
-```
-
-## Getting Started
-
-### Prerequisites
-- Node.js 22+
-- PostgreSQL database (local or [Neon](https://neon.tech) for cloud)
-
-### Setup
-
-1. **Clone and install**
+1. **Install dependencies**
    ```bash
-   git clone <repo>
-   cd payslip-generator
    npm install
    ```
-
-2. **Configure environment**
+2. **Copy environment template**
    ```bash
    cp .env.example .env
    ```
-   Edit `.env` and fill in your values:
-   - `DATABASE_URL` — PostgreSQL connection string
-   - `BETTER_AUTH_SECRET` — Random secret (generate with `openssl rand -base64 32`)
-   - `BETTER_AUTH_URL` — Your app URL (http://localhost:3000 for dev)
-   - `RESEND_API_KEY` — Optional (emails logged to console if absent)
-   - `GOOGLE_CLIENT_ID/SECRET` — Optional (disables Google OAuth if absent)
-
-3. **Set up the database**
+3. **Fill the minimum local values**
+   - `NEXT_PUBLIC_SUPABASE_URL`
+   - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+   - `SUPABASE_SERVICE_ROLE_KEY`
+   - `DATABASE_URL`
+   - `DIRECT_URL`
+   - `CRON_SECRET`
+   - `DUNNING_OPT_OUT_SECRET`
+   - `PORTAL_JWT_SECRET`
+4. **Start local services**
    ```bash
-   npm run supabase:start # if you use the local Supabase stack in this repo
-   npx prisma generate    # generate the Prisma client
-   npx prisma migrate dev # run migrations (requires running PostgreSQL)
+   npm run supabase:start
+   npm run db:migrate
    ```
-   App workflows such as invoice save/export, approvals, and notifications depend on the migrated schema.
-   If those features fail with `P2021` or "table does not exist" errors, run the Prisma migrations before debugging the UI.
-   If your local database has drifted from the committed migration history, reset it with:
-   ```bash
-   ./node_modules/.bin/prisma migrate reset --force
-   ```
-
-4. **Run the dev server**
+5. **Run the app**
    ```bash
    npm run dev
    ```
-   Open [http://localhost:3000](http://localhost:3000)
+   Local development runs on `http://localhost:3001`.
 
-### Development without a database
+## Optional providers
 
-PDF Studio and the marketing homepage work without any database. For authenticated app features such as saved invoices, approvals, notifications, and workflow pages, you need a running PostgreSQL instance with the committed Prisma migrations applied.
+You only need to configure third-party services for the surfaces you want to exercise:
 
-## Phase 1 Scope
+- **Billing / payments:** Razorpay
+- **Email / SMS:** Resend, Brevo SMTP, MSG91
+- **Compliance / global:** IRP sandbox credentials, Open Exchange Rates
+- **Integrations:** QuickBooks, Zoho
+- **Observability / caching / AI:** Sentry, PostHog, Redis, OpenAI
 
-This phase includes:
+The authoritative variable list lives in `.env.example`.
 
-- landing and module entry experience
-- shared form primitives, preview shell, and export infrastructure
-- Voucher Generator with payment/receipt modes and 2 templates
-- Salary Slip Generator with dynamic earnings/deductions and 2 templates
-- Invoice Generator with line-item tax math and 3 templates
-- session-scoped branding controls with logo upload and accent color
-- PDF export, PNG export, and browser print flows
-- unit and E2E coverage for preview, print, and export paths
-
-## Deployment
-
-The app is designed to stay stateless and deploy cleanly on Vercel.
-
-- deploy target: Vercel
-- runtime expectation for export routes: Node.js serverless functions
-- export rendering uses local Chromium in development and `@sparticuz/chromium` on Vercel/Linux
-- no database, auth provider, object storage, or background jobs are required for Phase 1
-
-Recommended deployment checks after creating a Vercel preview:
-
-1. Open `/voucher`, `/salary-slip`, and `/invoice`.
-2. Confirm each workspace renders and template switching still works.
-3. Export one PDF and one PNG from each module.
-4. Confirm browser print opens the correct print surface for each module.
-5. Verify exported PDFs keep selectable text and PNG downloads complete without server errors.
-
-## Release Verification
-
-Use this sequence before merging release-facing changes:
+## Validation commands
 
 ```bash
+npm run test
 npm run lint
-npm test
 npm run build
 npm run test:e2e
 ```
 
-If `npm run test:e2e` is rerun multiple times locally in the same shell session, make sure the previous Playwright web server has exited before starting another run.
+For release verification, pair those commands with the manual checks in `docs/QA_TESTING_HANDOVER_CURRENT_STATE.md` and `docs/production/RELEASE_READINESS_CHECKLIST.md`.
 
-## Repository Notes
+## Reference docs
 
-- default branch target: `master`
-- feature branch prefix: `codex/`
-- deploy target: Vercel
-
-## Excluded From Phase 1
-
-- authentication and user accounts
-- saved drafts or document history
-- persistent branding/company profiles
-- database-backed storage
-- recurring invoices or billing automation
-- payroll automation and compliance workflows
-- team collaboration or approval flows
-
-## PRD
-
-The original PRD is stored in the repo root as `Phase 1 Product Requirements Document (PRD) v1.1.docx`.
-
-The implementation status and acceptance checklist are documented in `docs/phase1-checklist.md`.
+- `docs/PRODUCT_SUMMARY_CURRENT_STATE.md` — truthful product/module summary
+- `docs/production/PRODUCT_STATUS_REPORT.md` — current release posture and accepted risks
+- `docs/QA_TESTING_HANDOVER_CURRENT_STATE.md` — current QA execution guide
+- `docs/production/RELEASE_READINESS_CHECKLIST.md` — merge/release checklist
+- `docs/production/WEBHOOKS_AND_INTEGRATIONS.md` — webhook signature verification and integration-token risk notes

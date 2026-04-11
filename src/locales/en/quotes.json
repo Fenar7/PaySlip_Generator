@@ -1,0 +1,27 @@
+{
+  "title": "Quote",
+  "fields": {
+    "quoteNumber": "Quote Number",
+    "issueDate": "Issue Date",
+    "validUntil": "Valid Until",
+    "to": "To",
+    "from": "From",
+    "description": "Description",
+    "quantity": "Quantity",
+    "unitPrice": "Unit Price",
+    "amount": "Amount",
+    "subtotal": "Subtotal",
+    "tax": "Tax",
+    "total": "Total",
+    "notes": "Notes",
+    "terms": "Terms & Conditions"
+  },
+  "status": {
+    "draft": "Draft",
+    "sent": "Sent",
+    "accepted": "Accepted",
+    "declined": "Declined",
+    "expired": "Expired",
+    "converted": "Converted"
+  }
+}

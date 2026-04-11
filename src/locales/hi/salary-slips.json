@@ -1,0 +1,28 @@
+{
+  "title": "वेतन पर्ची",
+  "fields": {
+    "employeeName": "कर्मचारी का नाम",
+    "employeeId": "कर्मचारी आईडी",
+    "designation": "पदनाम",
+    "department": "विभाग",
+    "month": "माह",
+    "year": "वर्ष",
+    "grossPay": "सकल वेतन",
+    "netPay": "शुद्ध वेतन",
+    "deductions": "कटौती",
+    "earnings": "आय",
+    "bankAccount": "बैंक खाता",
+    "panNumber": "पैन नंबर",
+    "uanNumber": "यूएएन नंबर"
+  },
+  "components": {
+    "basic": "मूल वेतन",
+    "hra": "मकान किराया भत्ता",
+    "da": "महंगाई भत्ता",
+    "ta": "यात्रा भत्ता",
+    "pf": "भविष्य निधि",
+    "esi": "कर्मचारी राज्य बीमा",
+    "tax": "पेशेवर कर",
+    "other": "अन्य"
+  }
+}

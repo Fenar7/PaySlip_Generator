@@ -1,0 +1,28 @@
+{
+  "title": "Gehaltsabrechnung",
+  "fields": {
+    "employeeName": "Name des Mitarbeiters",
+    "employeeId": "Mitarbeiter-ID",
+    "designation": "Position",
+    "department": "Abteilung",
+    "month": "Monat",
+    "year": "Jahr",
+    "grossPay": "Bruttogehalt",
+    "netPay": "Nettogehalt",
+    "deductions": "Abzüge",
+    "earnings": "Bezüge",
+    "bankAccount": "Bankkonto",
+    "panNumber": "PAN-Nummer",
+    "uanNumber": "UAN-Nummer"
+  },
+  "components": {
+    "basic": "Grundgehalt",
+    "hra": "Wohngeldzuschuss",
+    "da": "Teuerungszulage",
+    "ta": "Fahrtkostenzuschuss",
+    "pf": "Vorsorgefonds",
+    "esi": "Sozialversicherung",
+    "tax": "Lohnsteuer",
+    "other": "Sonstiges"
+  }
+}

@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import { createSupabaseServer } from "@/lib/supabase/server";
-import { db } from "@/lib/db";
-import { resumeSubscription } from "@/lib/billing";
+import { resumeSubscription, resolveBillingOrgId } from "@/lib/billing";
 
 export const dynamic = "force-dynamic";
 
@@ -15,21 +14,17 @@ export async function POST(request: Request) {
   }
 
   const body = await request.json();
-  const { orgId }: { orgId: string } = body;
+  const { orgId: requestedOrgId }: { orgId?: string } = body;
 
-  if (!orgId) {
-    return NextResponse.json({ error: "Missing orgId" }, { status: 400 });
+  const orgResult = await resolveBillingOrgId(user.id, requestedOrgId);
+  if (!orgResult.success) {
+    return NextResponse.json(
+      { error: orgResult.error },
+      { status: orgResult.status },
+    );
   }
 
-  const member = await db.member.findFirst({
-    where: { userId: user.id, organizationId: orgId },
-    select: { organizationId: true },
-  });
-  if (!member) {
-    return NextResponse.json({ error: "Unauthorized for this org" }, { status: 403 });
-  }
-
-  const result = await resumeSubscription(orgId);
+  const result = await resumeSubscription(orgResult.orgId);
 
   if (!result.success) {
     return NextResponse.json({ error: result.error }, { status: 400 });

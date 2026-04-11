@@ -55,7 +55,7 @@ const STEPS: OnboardingStep[] = [
   },
 ];
 
-export function OnboardingChecklist({ userId }: { userId: string }) {
+export function OnboardingChecklist() {
   const [status, setStatus] = useState<OnboardingStatusData | null>(null);
   const [isOpen, setIsOpen] = useState(true);
   const [isVisible, setIsVisible] = useState(true);
@@ -63,9 +63,7 @@ export function OnboardingChecklist({ userId }: { userId: string }) {
 
   const fetchStatus = useCallback(async () => {
     try {
-      const res = await fetch(
-        `/api/onboarding/status?userId=${encodeURIComponent(userId)}`,
-      );
+      const res = await fetch("/api/onboarding/status");
       if (res.ok) {
         const data = await res.json();
         setStatus(data);
@@ -78,7 +76,7 @@ export function OnboardingChecklist({ userId }: { userId: string }) {
     } finally {
       setIsLoading(false);
     }
-  }, [userId]);
+  }, []);
 
   useEffect(() => {
     fetchStatus();
@@ -90,7 +88,6 @@ export function OnboardingChecklist({ userId }: { userId: string }) {
       await fetch("/api/onboarding/dismiss", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ userId }),
       });
     } catch {
       // Non-critical

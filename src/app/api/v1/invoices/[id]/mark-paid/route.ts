@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import { db } from "@/lib/db";
-import { dispatchEvent } from "@/lib/api-webhooks";
+import { dispatchEvent } from "@/lib/webhook/deliver";
 import { validatePaymentAmount, reconcileInvoicePayment } from "@/lib/invoice-reconciliation";
 import {
   authenticateApiRequest,

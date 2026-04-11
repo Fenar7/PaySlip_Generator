@@ -1,0 +1,56 @@
+{
+  "title": "Facture",
+  "taxInvoice": "Facture Fiscale",
+  "vatInvoice": "Facture TVA",
+  "fields": {
+    "invoiceNumber": "Numéro de Facture",
+    "invoiceDate": "Date de Facture",
+    "dueDate": "Date d'Échéance",
+    "billTo": "Facturer à",
+    "shipTo": "Livrer à",
+    "from": "De",
+    "itemDescription": "Description de l'Article",
+    "quantity": "Quantité",
+    "unitPrice": "Prix Unitaire",
+    "amount": "Montant",
+    "subtotal": "Sous-total",
+    "tax": "Taxe",
+    "total": "Total",
+    "amountDue": "Montant Dû",
+    "paymentTerms": "Conditions de Paiement",
+    "bankDetails": "Coordonnées Bancaires",
+    "notes": "Notes",
+    "terms": "Conditions Générales"
+  },
+  "gst": {
+    "gstin": "GSTIN",
+    "hsn": "Code HSN",
+    "sac": "Code SAC",
+    "cgst": "CGST",
+    "sgst": "SGST",
+    "igst": "IGST",
+    "cess": "Taxe Supplémentaire",
+    "placeOfSupply": "Lieu de Livraison",
+    "reverseCharge": "Autoliquidation",
+    "irn": "IRN",
+    "eWayBill": "Bon de Transport Électronique"
+  },
+  "vat": {
+    "vatNumber": "Numéro de TVA",
+    "trn": "NIF",
+    "vatId": "ID TVA",
+    "vatRate": "Taux de TVA",
+    "vatAmount": "Montant de TVA"
+  },
+  "currency": {
+    "exchangeRateNote": "Taux de change : {{rate}} au {{date}}"
+  },
+  "status": {
+    "draft": "Brouillon",
+    "issued": "Émise",
+    "paid": "Payée",
+    "overdue": "En Retard",
+    "cancelled": "Annulée",
+    "partiallyPaid": "Partiellement Payée"
+  }
+}

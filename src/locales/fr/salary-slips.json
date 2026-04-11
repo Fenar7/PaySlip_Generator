@@ -1,0 +1,28 @@
+{
+  "title": "Bulletin de Paie",
+  "fields": {
+    "employeeName": "Nom de l'Employé",
+    "employeeId": "Matricule",
+    "designation": "Poste",
+    "department": "Département",
+    "month": "Mois",
+    "year": "Année",
+    "grossPay": "Salaire Brut",
+    "netPay": "Salaire Net",
+    "deductions": "Retenues",
+    "earnings": "Revenus",
+    "bankAccount": "Compte Bancaire",
+    "panNumber": "Numéro PAN",
+    "uanNumber": "Numéro UAN"
+  },
+  "components": {
+    "basic": "Salaire de Base",
+    "hra": "Allocation Logement",
+    "da": "Indemnité de Vie Chère",
+    "ta": "Indemnité de Transport",
+    "pf": "Fonds de Prévoyance",
+    "esi": "Assurance Sociale",
+    "tax": "Taxe Professionnelle",
+    "other": "Autres"
+  }
+}

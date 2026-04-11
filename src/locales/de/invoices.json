@@ -1,0 +1,56 @@
+{
+  "title": "Rechnung",
+  "taxInvoice": "Steuerrechnung",
+  "vatInvoice": "Umsatzsteuerrechnung",
+  "fields": {
+    "invoiceNumber": "Rechnungsnummer",
+    "invoiceDate": "Rechnungsdatum",
+    "dueDate": "Fälligkeitsdatum",
+    "billTo": "Rechnungsempfänger",
+    "shipTo": "Lieferadresse",
+    "from": "Von",
+    "itemDescription": "Artikelbeschreibung",
+    "quantity": "Menge",
+    "unitPrice": "Stückpreis",
+    "amount": "Betrag",
+    "subtotal": "Zwischensumme",
+    "tax": "Steuer",
+    "total": "Gesamt",
+    "amountDue": "Fälliger Betrag",
+    "paymentTerms": "Zahlungsbedingungen",
+    "bankDetails": "Bankverbindung",
+    "notes": "Anmerkungen",
+    "terms": "Allgemeine Geschäftsbedingungen"
+  },
+  "gst": {
+    "gstin": "GSTIN",
+    "hsn": "HSN-Code",
+    "sac": "SAC-Code",
+    "cgst": "CGST",
+    "sgst": "SGST",
+    "igst": "IGST",
+    "cess": "Zusatzabgabe",
+    "placeOfSupply": "Lieferort",
+    "reverseCharge": "Steuerschuldumkehr",
+    "irn": "IRN",
+    "eWayBill": "Elektronischer Frachtbrief"
+  },
+  "vat": {
+    "vatNumber": "USt-IdNr.",
+    "trn": "Steuernummer",
+    "vatId": "USt-ID",
+    "vatRate": "Umsatzsteuersatz",
+    "vatAmount": "Umsatzsteuerbetrag"
+  },
+  "currency": {
+    "exchangeRateNote": "Wechselkurs: {{rate}} vom {{date}}"
+  },
+  "status": {
+    "draft": "Entwurf",
+    "issued": "Ausgestellt",
+    "paid": "Bezahlt",
+    "overdue": "Überfällig",
+    "cancelled": "Storniert",
+    "partiallyPaid": "Teilweise Bezahlt"
+  }
+}

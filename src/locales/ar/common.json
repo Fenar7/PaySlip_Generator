@@ -1,0 +1,100 @@
+{
+  "app": {
+    "title": "Slipwise One"
+  },
+  "nav": {
+    "dashboard": "لوحة التحكم",
+    "invoices": "الفواتير",
+    "vouchers": "القسائم",
+    "salarySlips": "كشوف الرواتب",
+    "quotes": "عروض الأسعار",
+    "billing": "الفوترة",
+    "settings": "الإعدادات",
+    "reports": "التقارير",
+    "customers": "العملاء",
+    "tds": "الخصم من المصدر",
+    "gstReports": "تقارير ضريبة السلع والخدمات",
+    "templates": "القوالب"
+  },
+  "actions": {
+    "save": "حفظ",
+    "cancel": "إلغاء",
+    "delete": "حذف",
+    "edit": "تعديل",
+    "create": "إنشاء",
+    "export": "تصدير",
+    "download": "تنزيل",
+    "print": "طباعة",
+    "search": "بحث",
+    "filter": "تصفية",
+    "refresh": "تحديث",
+    "back": "رجوع",
+    "next": "التالي",
+    "previous": "السابق",
+    "submit": "إرسال",
+    "close": "إغلاق"
+  },
+  "status": {
+    "draft": "مسودة",
+    "issued": "صادرة",
+    "paid": "مدفوعة",
+    "overdue": "متأخرة",
+    "cancelled": "ملغاة",
+    "partiallyPaid": "مدفوعة جزئياً",
+    "pending": "قيد الانتظار",
+    "active": "نشط",
+    "inactive": "غير نشط"
+  },
+  "labels": {
+    "date": "التاريخ",
+    "amount": "المبلغ",
+    "total": "الإجمالي",
+    "subtotal": "المجموع الفرعي",
+    "tax": "الضريبة",
+    "discount": "الخصم",
+    "quantity": "الكمية",
+    "unitPrice": "سعر الوحدة",
+    "description": "الوصف",
+    "notes": "ملاحظات",
+    "currency": "العملة",
+    "language": "اللغة",
+    "email": "البريد الإلكتروني",
+    "phone": "الهاتف",
+    "address": "العنوان",
+    "name": "الاسم",
+    "number": "الرقم"
+  },
+  "messages": {
+    "loading": "جارٍ التحميل...",
+    "noData": "لا توجد بيانات متاحة",
+    "error": "حدث خطأ",
+    "success": "تمت العملية بنجاح",
+    "confirm": "هل أنت متأكد؟",
+    "deleteConfirm": "هل أنت متأكد من حذف هذا العنصر؟"
+  },
+  "currency": {
+    "inr": "روبية هندية (₹)",
+    "usd": "دولار أمريكي ($)",
+    "eur": "يورو (€)",
+    "gbp": "جنيه إسترليني (£)",
+    "aed": "درهم إماراتي (د.إ)",
+    "sgd": "دولار سنغافوري (S$)",
+    "aud": "دولار أسترالي (A$)",
+    "sar": "ريال سعودي (﷼)"
+  },
+  "language": {
+    "en": "الإنجليزية",
+    "hi": "الهندية",
+    "ar": "العربية",
+    "es": "الإسبانية",
+    "fr": "الفرنسية",
+    "de": "الألمانية"
+  },
+  "settings": {
+    "appLanguage": "لغة التطبيق",
+    "documentLanguage": "لغة المستند",
+    "country": "الدولة",
+    "baseCurrency": "العملة الأساسية",
+    "timezone": "المنطقة الزمنية"
+  }
+}
