@@ -22,6 +22,7 @@ export const SYSTEM_ACCOUNT_KEYS = {
   SALES_REVENUE: "SALES_REVENUE",
   SERVICE_REVENUE: "SERVICE_REVENUE",
   DISCOUNTS_WRITEOFFS: "DISCOUNTS_WRITEOFFS",
+  OPERATING_EXPENSES: "OPERATING_EXPENSES",
   GST_OUTPUT_TAX: "GST_OUTPUT_TAX",
   GST_INPUT_TAX: "GST_INPUT_TAX",
   TDS_RECEIVABLE: "TDS_RECEIVABLE",
@@ -313,6 +314,18 @@ const DEFAULT_TEMPLATE: AccountSeed[] = [
     allowManualEntries: true,
     sortOrder: 220,
   },
+  {
+    code: "5300",
+    name: "Operating Expenses",
+    accountType: "EXPENSE",
+    normalBalance: "DEBIT",
+    parentCode: "5000",
+    systemKey: SYSTEM_ACCOUNT_KEYS.OPERATING_EXPENSES,
+    isSystem: true,
+    isProtected: true,
+    allowManualEntries: true,
+    sortOrder: 230,
+  },
 ];
 
 function getCoaTemplate(country?: string | null, baseCurrency?: string | null): {
@@ -458,6 +471,7 @@ export async function ensureBooksSetupTx(
       defaultPayableAccountId: true,
       defaultBankAccountId: true,
       defaultRevenueAccountId: true,
+      defaultExpenseAccountId: true,
       defaultPayrollExpenseAccountId: true,
       defaultPayrollPayableAccountId: true,
       defaultGstOutputAccountId: true,
@@ -496,6 +510,8 @@ export async function ensureBooksSetupTx(
         defaults.defaultBankAccountId ?? systemAccountIds[SYSTEM_ACCOUNT_KEYS.PRIMARY_BANK],
       defaultRevenueAccountId:
         defaults.defaultRevenueAccountId ?? systemAccountIds[SYSTEM_ACCOUNT_KEYS.SERVICE_REVENUE],
+      defaultExpenseAccountId:
+        defaults.defaultExpenseAccountId ?? systemAccountIds[SYSTEM_ACCOUNT_KEYS.OPERATING_EXPENSES],
       defaultPayrollExpenseAccountId:
         defaults.defaultPayrollExpenseAccountId ??
         systemAccountIds[SYSTEM_ACCOUNT_KEYS.PAYROLL_EXPENSE],
@@ -607,6 +623,7 @@ export async function archiveGlAccount(orgId: string, accountId: string): Promis
       defaultPayableAccountId: true,
       defaultBankAccountId: true,
       defaultRevenueAccountId: true,
+      defaultExpenseAccountId: true,
       defaultPayrollExpenseAccountId: true,
       defaultPayrollPayableAccountId: true,
       defaultGstOutputAccountId: true,

@@ -316,6 +316,216 @@ export async function postVoucherTx(
   return journal;
 }
 
+export async function postVendorBillTx(
+  tx: TxClient,
+  input: {
+    orgId: string;
+    vendorBillId: string;
+    actorId?: string;
+  },
+) {
+  const bill = await tx.vendorBill.findFirst({
+    where: {
+      id: input.vendorBillId,
+      orgId: input.orgId,
+    },
+    select: {
+      id: true,
+      billNumber: true,
+      billDate: true,
+      totalAmount: true,
+      gstTotalCgst: true,
+      gstTotalSgst: true,
+      gstTotalIgst: true,
+      gstTotalCess: true,
+      status: true,
+      expenseAccountId: true,
+      journalEntryId: true,
+      accountingStatus: true,
+    },
+  });
+
+  if (!bill) {
+    throw new Error("Vendor bill not found.");
+  }
+
+  if (
+    bill.status !== "APPROVED" &&
+    bill.status !== "OVERDUE" &&
+    bill.status !== "PARTIALLY_PAID" &&
+    bill.status !== "PAID"
+  ) {
+    return null;
+  }
+
+  if (bill.journalEntryId || bill.accountingStatus === "POSTED") {
+    return bill.journalEntryId
+      ? tx.journalEntry.findUnique({ where: { id: bill.journalEntryId } })
+      : null;
+  }
+
+  const accounts = await getRequiredSystemAccountsTx(tx, input.orgId, [
+    SYSTEM_ACCOUNT_KEYS.ACCOUNTS_PAYABLE,
+    SYSTEM_ACCOUNT_KEYS.GST_INPUT_TAX,
+    SYSTEM_ACCOUNT_KEYS.OPERATING_EXPENSES,
+  ]);
+
+  const defaults = await tx.orgDefaults.findUnique({
+    where: { organizationId: input.orgId },
+    select: { defaultExpenseAccountId: true },
+  });
+
+  const expenseAccountId =
+    bill.expenseAccountId ??
+    defaults?.defaultExpenseAccountId ??
+    accounts[SYSTEM_ACCOUNT_KEYS.OPERATING_EXPENSES].id;
+
+  const taxAmount = roundMoney(
+    bill.gstTotalCgst + bill.gstTotalSgst + bill.gstTotalIgst + bill.gstTotalCess,
+  );
+  const expenseAmount = roundMoney(bill.totalAmount - taxAmount);
+
+  if (expenseAmount < 0) {
+    throw new Error("Vendor bill expense amount cannot be negative.");
+  }
+
+  const journal = await createAndPostJournalTx(tx, {
+    orgId: input.orgId,
+    source: "VENDOR_BILL",
+    sourceId: bill.id,
+    sourceRef: bill.billNumber,
+    entryDate: parseAccountingDate(bill.billDate),
+    actorId: input.actorId,
+    memo: `Vendor bill ${bill.billNumber}`,
+    lines: [
+      ...(expenseAmount > 0
+        ? [
+            {
+              accountId: expenseAccountId,
+              debit: expenseAmount,
+              description: `Expense for vendor bill ${bill.billNumber}`,
+              entityType: "vendor_bill",
+              entityId: bill.id,
+            },
+          ]
+        : []),
+      ...(taxAmount > 0
+        ? [
+            {
+              accountId: accounts[SYSTEM_ACCOUNT_KEYS.GST_INPUT_TAX].id,
+              debit: taxAmount,
+              description: `GST input for vendor bill ${bill.billNumber}`,
+              entityType: "vendor_bill",
+              entityId: bill.id,
+            },
+          ]
+        : []),
+      {
+        accountId: accounts[SYSTEM_ACCOUNT_KEYS.ACCOUNTS_PAYABLE].id,
+        credit: roundMoney(bill.totalAmount),
+        description: `Accounts payable for vendor bill ${bill.billNumber}`,
+        entityType: "vendor_bill",
+        entityId: bill.id,
+      },
+    ],
+  });
+
+  await tx.vendorBill.update({
+    where: { id: bill.id },
+    data: {
+      journalEntryId: journal.id,
+      accountingStatus: "POSTED",
+      postedAt: new Date(),
+    },
+  });
+
+  return journal;
+}
+
+export async function postVendorBillPaymentTx(
+  tx: TxClient,
+  input: {
+    orgId: string;
+    vendorBillPaymentId: string;
+    actorId?: string;
+  },
+) {
+  const payment = await tx.vendorBillPayment.findFirst({
+    where: {
+      id: input.vendorBillPaymentId,
+      orgId: input.orgId,
+    },
+    include: {
+      vendorBill: {
+        select: {
+          id: true,
+          billNumber: true,
+        },
+      },
+    },
+  });
+
+  if (!payment) {
+    throw new Error("Vendor bill payment not found.");
+  }
+
+  if (payment.status !== "SETTLED") {
+    return null;
+  }
+
+  if (payment.journalEntryId || payment.accountingStatus === "POSTED") {
+    return payment.journalEntryId
+      ? tx.journalEntry.findUnique({ where: { id: payment.journalEntryId } })
+      : null;
+  }
+
+  const accounts = await getRequiredSystemAccountsTx(tx, input.orgId, [
+    SYSTEM_ACCOUNT_KEYS.ACCOUNTS_PAYABLE,
+    SYSTEM_ACCOUNT_KEYS.PRIMARY_BANK,
+  ]);
+
+  const creditAccountId =
+    payment.clearingAccountId ?? accounts[SYSTEM_ACCOUNT_KEYS.PRIMARY_BANK].id;
+
+  const journal = await createAndPostJournalTx(tx, {
+    orgId: input.orgId,
+    source: "VENDOR_BILL_PAYMENT",
+    sourceId: payment.id,
+    sourceRef: payment.vendorBill.billNumber,
+    entryDate: payment.paidAt,
+    actorId: input.actorId,
+    memo: cleanText(payment.note) ?? `Payment for vendor bill ${payment.vendorBill.billNumber}`,
+    lines: [
+      {
+        accountId: accounts[SYSTEM_ACCOUNT_KEYS.ACCOUNTS_PAYABLE].id,
+        debit: roundMoney(payment.amount),
+        description: `Settlement of vendor bill ${payment.vendorBill.billNumber}`,
+        entityType: "vendor_bill_payment",
+        entityId: payment.id,
+      },
+      {
+        accountId: creditAccountId,
+        credit: roundMoney(payment.amount),
+        description: `Cash out for vendor bill ${payment.vendorBill.billNumber}`,
+        entityType: "vendor_bill_payment",
+        entityId: payment.id,
+      },
+    ],
+  });
+
+  await tx.vendorBillPayment.update({
+    where: { id: payment.id },
+    data: {
+      journalEntryId: journal.id,
+      accountingStatus: "POSTED",
+      accountingPostedAt: new Date(),
+      clearingAccountId: payment.clearingAccountId ?? creditAccountId,
+    },
+  });
+
+  return journal;
+}
+
 export async function postSalarySlipAccrualTx(
   tx: TxClient,
   input: {

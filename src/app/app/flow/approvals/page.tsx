@@ -8,6 +8,8 @@ const DOC_TYPE_BADGE: Record<string, string> = {
   invoice: "bg-blue-100 text-blue-700",
   voucher: "bg-amber-100 text-amber-700",
   "salary-slip": "bg-green-100 text-green-700",
+  "vendor-bill": "bg-purple-100 text-purple-700",
+  "payment-run": "bg-indigo-100 text-indigo-700",
 };
 
 const STATUS_BADGE: Record<string, string> = {
@@ -32,6 +34,10 @@ function docTypeLabel(docType: string): string {
       return "Voucher";
     case "salary-slip":
       return "Salary Slip";
+    case "vendor-bill":
+      return "Vendor Bill";
+    case "payment-run":
+      return "Payment Run";
     default:
       return docType;
   }

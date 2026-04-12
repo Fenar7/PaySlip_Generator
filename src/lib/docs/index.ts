@@ -1,5 +1,6 @@
 export {
   nextDocumentNumber,
+  nextDocumentNumberTx,
   previewNextNumber,
   updatePrefix,
   resetCounter,

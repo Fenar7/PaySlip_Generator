@@ -8,32 +8,55 @@ import type {
   JournalEntryStatus,
   JournalSource,
   NormalBalance,
+  PaymentRunStatus,
   Prisma,
+  VendorBillStatus,
 } from "@/generated/prisma/client";
 import { requireOrgContext, requireRole } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { generateCSV } from "@/lib/csv";
 import { isCsvUpload, isUploadedFile } from "@/lib/server/form-data";
-import { uploadFileServer } from "@/lib/storage/upload-server";
+import { getSignedUrlServer, uploadFileServer } from "@/lib/storage/upload-server";
 import {
   archiveGlAccount,
+  archiveVendorBill,
+  approvePaymentRun,
+  buildAuditPackage,
+  completeCloseRun,
   createAdjustingJournalFromBankTransaction,
   createBankAccount as createBankAccountRecord,
   createAndPostJournal,
   createGlAccount,
+  createPaymentRun,
+  createVendorBill,
+  createVendorBillPayment,
+  executePaymentRun,
   exportReconciliationCsv,
   ensureBooksSetup,
   generateBankStatementStoragePath,
+  getAccountsPayableAging,
+  getAccountsReceivableAging,
+  getBalanceSheet,
   getGeneralLedger,
   getBankStatementImportDetail,
+  getCloseWorkspace,
+  getCashFlowStatement,
+  getGstTieOut,
+  getPaymentRun,
+  getProfitAndLoss,
   getReconciliationWorkspace,
+  getTdsTieOut,
   getTrialBalance,
+  getVendorBill,
   importBankStatement,
   listFiscalPeriods,
   listGlAccounts,
   listJournalEntries,
   listBankAccounts,
+  listPaymentRuns,
+  listVendorBills,
   lockFiscalPeriod,
+  markCloseRunReopened,
   postJournalEntry,
   refreshReconciliationSuggestions,
   confirmBankTransactionMatch,
@@ -41,8 +64,11 @@ import {
   ignoreBankTransaction,
   reopenFiscalPeriod,
   reverseJournalEntry,
+  updateCloseTaskStatus,
+  updateVendorBill,
 } from "@/lib/accounting";
 import { checkFeature, checkLimit, getOrgPlan } from "@/lib/plans";
+import { requestApproval } from "../flow/approvals/actions";
 
 type ActionResult<T = null> = { success: true; data: T } | { success: false; error: string };
 
@@ -131,6 +157,23 @@ async function createBooksReportSnapshot(input: {
       createdBy: input.userId,
     },
   });
+}
+
+function sanitizeStorageSegment(value: string): string {
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9._-]+/g, "-")
+    .replace(/^-+|-+$/g, "") || "file";
+}
+
+function generateVendorBillAttachmentStoragePath(
+  orgId: string,
+  vendorBillId: string,
+  fileName: string,
+): string {
+  const safeName = sanitizeStorageSegment(fileName);
+  return `books/vendor-bills/${orgId}/${vendorBillId}/${Date.now()}-${crypto.randomUUID()}-${safeName}`;
 }
 
 async function loadChartOfAccountsData(orgId: string): Promise<ChartOfAccountsRow[]> {
@@ -238,10 +281,92 @@ async function requireBankingWrite() {
   return context;
 }
 
+async function requireVendorBillsRead() {
+  const context = await requireBooksRead();
+  const allowed = await checkFeature(context.orgId, "vendorBills");
+
+  if (!allowed) {
+    throw new Error("Vendor bills require the Starter plan or above.");
+  }
+
+  return context;
+}
+
+async function requireVendorBillsWrite() {
+  const context = await requireRole("admin");
+  const allowed = await checkFeature(context.orgId, "vendorBills");
+
+  if (!allowed) {
+    throw new Error("Vendor bills require the Starter plan or above.");
+  }
+
+  return context;
+}
+
+async function requireFinanceReportsRead() {
+  const context = await requireBooksRead();
+  const allowed = await checkFeature(context.orgId, "financialStatements");
+
+  if (!allowed) {
+    throw new Error("Financial statements require the Starter plan or above.");
+  }
+
+  return context;
+}
+
+async function requireCloseWorkflowRead() {
+  const context = await requireBooksRead();
+  const allowed = await checkFeature(context.orgId, "closeWorkflow");
+
+  if (!allowed) {
+    throw new Error("Financial close requires the Pro plan or above.");
+  }
+
+  return context;
+}
+
+async function requireCloseWorkflowWrite() {
+  const context = await requireRole("admin");
+  const allowed = await checkFeature(context.orgId, "closeWorkflow");
+
+  if (!allowed) {
+    throw new Error("Financial close requires the Pro plan or above.");
+  }
+
+  return context;
+}
+
+async function requireAuditPackageRead() {
+  const context = await requireRole("admin");
+  const allowed = await checkFeature(context.orgId, "auditPackExports");
+
+  if (!allowed) {
+    throw new Error("Audit package exports require the Enterprise plan.");
+  }
+
+  return context;
+}
+
 function revalidateBooksBanking() {
   revalidatePath("/app/books");
   revalidatePath("/app/books/banks");
   revalidatePath("/app/books/reconciliation");
+}
+
+function revalidateBooksVendorBills() {
+  revalidatePath("/app/books");
+  revalidatePath("/app/books/vendor-bills");
+  revalidatePath("/app/books/payment-runs");
+}
+
+function revalidateBooksReports() {
+  revalidatePath("/app/books");
+  revalidatePath("/app/books/close");
+  revalidatePath("/app/books/reports/profit-loss");
+  revalidatePath("/app/books/reports/balance-sheet");
+  revalidatePath("/app/books/reports/cash-flow");
+  revalidatePath("/app/books/reports/ar-aging");
+  revalidatePath("/app/books/reports/ap-aging");
 }
 
 export async function getBooksOverview(): Promise<
@@ -1195,6 +1320,1307 @@ export async function exportBooksReconciliationCsv(input: {
     return {
       success: false,
       error: error instanceof Error ? error.message : "Failed to export reconciliation data.",
+    };
+  }
+}
+
+export async function getBooksVendorBillFormOptions(): Promise<
+  ActionResult<{
+    vendors: Array<{ id: string; name: string; gstin: string | null }>;
+    expenseAccounts: Array<{ id: string; code: string; name: string }>;
+  }>
+> {
+  try {
+    const { orgId } = await requireVendorBillsRead();
+    const [vendors, expenseAccounts] = await Promise.all([
+      db.vendor.findMany({
+        where: { organizationId: orgId },
+        select: {
+          id: true,
+          name: true,
+          gstin: true,
+        },
+        orderBy: { name: "asc" },
+      }),
+      db.glAccount.findMany({
+        where: {
+          orgId,
+          isActive: true,
+          accountType: "EXPENSE",
+        },
+        select: {
+          id: true,
+          code: true,
+          name: true,
+        },
+        orderBy: [{ code: "asc" }],
+      }),
+    ]);
+
+    return {
+      success: true,
+      data: {
+        vendors,
+        expenseAccounts,
+      },
+    };
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Failed to load vendor bill options.",
+    };
+  }
+}
+
+export async function getBooksPaymentRunOptions(): Promise<
+  ActionResult<{
+    bills: Array<{
+      id: string;
+      billNumber: string;
+      dueDate: string | null;
+      remainingAmount: number;
+      vendorName: string | null;
+      status: VendorBillStatus;
+    }>;
+  }>
+> {
+  try {
+    const { orgId } = await requireVendorBillsRead();
+    const bills = await db.vendorBill.findMany({
+      where: {
+        orgId,
+        archivedAt: null,
+        status: {
+          in: ["APPROVED", "OVERDUE", "PARTIALLY_PAID"],
+        },
+        remainingAmount: { gt: 0 },
+      },
+      select: {
+        id: true,
+        billNumber: true,
+        dueDate: true,
+        remainingAmount: true,
+        status: true,
+        vendor: {
+          select: {
+            name: true,
+          },
+        },
+      },
+      orderBy: [{ dueDate: "asc" }, { billNumber: "asc" }],
+    });
+
+    return {
+      success: true,
+      data: {
+        bills: bills.map((bill) => ({
+          id: bill.id,
+          billNumber: bill.billNumber,
+          dueDate: bill.dueDate,
+          remainingAmount: bill.remainingAmount,
+          vendorName: bill.vendor?.name ?? null,
+          status: bill.status,
+        })),
+      },
+    };
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Failed to load payment run options.",
+    };
+  }
+}
+
+export async function getBooksVendorBills(input: {
+  status?: VendorBillStatus;
+  vendorId?: string;
+  search?: string;
+  page?: number;
+  limit?: number;
+} = {}): Promise<ActionResult<Awaited<ReturnType<typeof listVendorBills>>>> {
+  try {
+    const { orgId } = await requireVendorBillsRead();
+    const data = await listVendorBills(orgId, input);
+
+    return { success: true, data };
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Failed to load vendor bills.",
+    };
+  }
+}
+
+export async function getBooksVendorBill(
+  vendorBillId: string,
+): Promise<ActionResult<NonNullable<Awaited<ReturnType<typeof getVendorBill>>>>> {
+  try {
+    const { orgId } = await requireVendorBillsRead();
+    const bill = await getVendorBill(orgId, vendorBillId);
+
+    if (!bill) {
+      return { success: false, error: "Vendor bill not found." };
+    }
+
+    return { success: true, data: bill };
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Failed to load vendor bill.",
+    };
+  }
+}
+
+export async function createBooksVendorBill(input: {
+  vendorId?: string | null;
+  expenseAccountId?: string | null;
+  billDate: string;
+  dueDate?: string | null;
+  currency?: string | null;
+  notes?: string | null;
+  status?: VendorBillStatus;
+  formData?: Prisma.InputJsonValue;
+  lines: Array<{
+    description: string;
+    quantity?: number;
+    unitPrice?: number;
+    taxRate?: number;
+  }>;
+}): Promise<ActionResult<{ id: string }>> {
+  try {
+    const { orgId, userId } = await requireVendorBillsWrite();
+    const limitCheck = await checkLimit(orgId, "vendorBillsPerMonth");
+
+    if (!limitCheck.allowed) {
+      return {
+        success: false,
+        error: `Vendor bill limit reached for this month (${limitCheck.current}/${limitCheck.limit}).`,
+      };
+    }
+
+    const bill = await createVendorBill({
+      orgId,
+      actorId: userId,
+      vendorId: input.vendorId,
+      expenseAccountId: input.expenseAccountId,
+      billDate: input.billDate,
+      dueDate: input.dueDate,
+      currency: input.currency,
+      notes: input.notes,
+      status: input.status,
+      formData: input.formData,
+      lines: input.lines,
+    });
+
+    revalidateBooksVendorBills();
+    revalidateBooksReports();
+
+    return { success: true, data: { id: bill.id } };
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Failed to create vendor bill.",
+    };
+  }
+}
+
+export async function updateBooksVendorBill(
+  vendorBillId: string,
+  input: {
+    vendorId?: string | null;
+    expenseAccountId?: string | null;
+    billDate?: string;
+    dueDate?: string | null;
+    currency?: string | null;
+    notes?: string | null;
+    status?: VendorBillStatus;
+    formData?: Prisma.InputJsonValue;
+    lines?: Array<{
+      description: string;
+      quantity?: number;
+      unitPrice?: number;
+      taxRate?: number;
+    }>;
+  },
+): Promise<ActionResult<{ id: string }>> {
+  try {
+    const { orgId, userId } = await requireVendorBillsWrite();
+    const bill = await updateVendorBill(orgId, vendorBillId, {
+      ...input,
+      actorId: userId,
+    });
+
+    revalidateBooksVendorBills();
+    revalidatePath(`/app/books/vendor-bills/${vendorBillId}`);
+    revalidateBooksReports();
+
+    return { success: true, data: { id: bill.id } };
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Failed to update vendor bill.",
+    };
+  }
+}
+
+export async function archiveBooksVendorBill(vendorBillId: string): Promise<ActionResult> {
+  try {
+    const { orgId } = await requireVendorBillsWrite();
+    await archiveVendorBill(orgId, vendorBillId);
+
+    revalidateBooksVendorBills();
+    revalidateBooksReports();
+
+    return { success: true, data: null };
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Failed to archive vendor bill.",
+    };
+  }
+}
+
+export async function requestBooksVendorBillApproval(
+  vendorBillId: string,
+): Promise<ActionResult<{ id: string }>> {
+  try {
+    const { orgId } = await requireVendorBillsWrite();
+    const bill = await db.vendorBill.findFirst({
+      where: {
+        id: vendorBillId,
+        orgId,
+        archivedAt: null,
+      },
+      select: {
+        id: true,
+        status: true,
+      },
+    });
+
+    if (!bill) {
+      return { success: false, error: "Vendor bill not found." };
+    }
+
+    if (bill.status !== "DRAFT") {
+      return { success: false, error: "Only draft vendor bills can be submitted for approval." };
+    }
+
+    await db.vendorBill.update({
+      where: { id: vendorBillId },
+      data: {
+        status: "PENDING_APPROVAL",
+      },
+    });
+
+    const approval = await requestApproval("vendor-bill", vendorBillId);
+    if (!approval.success) {
+      await db.vendorBill.update({
+        where: { id: vendorBillId },
+        data: {
+          status: "DRAFT",
+        },
+      });
+      return approval;
+    }
+
+    revalidateBooksVendorBills();
+    revalidatePath(`/app/books/vendor-bills/${vendorBillId}`);
+
+    return approval;
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Failed to request vendor bill approval.",
+    };
+  }
+}
+
+export async function recordBooksVendorBillPayment(input: {
+  vendorBillId: string;
+  amount: number;
+  paidAt?: string;
+  method?: string | null;
+  note?: string | null;
+}): Promise<ActionResult<{ id: string }>> {
+  try {
+    const { orgId, userId } = await requireVendorBillsWrite();
+    const payment = await createVendorBillPayment({
+      orgId,
+      actorId: userId,
+      vendorBillId: input.vendorBillId,
+      amount: input.amount,
+      paidAt: input.paidAt ? new Date(`${input.paidAt}T00:00:00.000Z`) : undefined,
+      method: input.method,
+      note: input.note,
+    });
+
+    revalidateBooksVendorBills();
+    revalidatePath(`/app/books/vendor-bills/${input.vendorBillId}`);
+    revalidateBooksReports();
+    revalidateBooksBanking();
+
+    return { success: true, data: { id: payment.id } };
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Failed to record vendor bill payment.",
+    };
+  }
+}
+
+export async function uploadBooksVendorBillAttachment(
+  formData: FormData,
+): Promise<ActionResult<{ id: string; fileName: string }>> {
+  try {
+    const { orgId } = await requireVendorBillsWrite();
+    const vendorBillId = String(formData.get("vendorBillId") ?? "").trim();
+    const file = formData.get("file");
+
+    if (!vendorBillId) {
+      return { success: false, error: "Vendor bill is required." };
+    }
+
+    if (!isUploadedFile(file)) {
+      return { success: false, error: "Attachment file is required." };
+    }
+
+    const bill = await db.vendorBill.findFirst({
+      where: {
+        id: vendorBillId,
+        orgId,
+        archivedAt: null,
+      },
+      select: { id: true },
+    });
+
+    if (!bill) {
+      return { success: false, error: "Vendor bill not found." };
+    }
+
+    const uploaded = await uploadFileServer(
+      "attachments",
+      generateVendorBillAttachmentStoragePath(orgId, vendorBillId, file.name),
+      Buffer.from(await file.arrayBuffer()),
+      file.type || "application/octet-stream",
+    );
+
+    const attachment = await db.fileAttachment.create({
+      data: {
+        organizationId: orgId,
+        entityType: "vendor_bill",
+        entityId: vendorBillId,
+        fileName: file.name,
+        storageKey: uploaded.storageKey,
+        mimeType: file.type || "application/octet-stream",
+        size: file.size,
+      },
+    });
+
+    revalidateBooksVendorBills();
+    revalidatePath(`/app/books/vendor-bills/${vendorBillId}`);
+
+    return {
+      success: true,
+      data: {
+        id: attachment.id,
+        fileName: attachment.fileName,
+      },
+    };
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Failed to upload vendor bill attachment.",
+    };
+  }
+}
+
+export async function getBooksVendorBillAttachmentDownloadUrl(
+  attachmentId: string,
+): Promise<ActionResult<{ url: string; fileName: string }>> {
+  try {
+    const { orgId } = await requireVendorBillsRead();
+    const attachment = await db.fileAttachment.findFirst({
+      where: {
+        id: attachmentId,
+        organizationId: orgId,
+        entityType: "vendor_bill",
+      },
+      select: {
+        fileName: true,
+        storageKey: true,
+      },
+    });
+
+    if (!attachment) {
+      return { success: false, error: "Attachment not found." };
+    }
+
+    const url = await getSignedUrlServer("attachments", attachment.storageKey);
+
+    return {
+      success: true,
+      data: {
+        url,
+        fileName: attachment.fileName,
+      },
+    };
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Failed to prepare attachment download.",
+    };
+  }
+}
+
+export async function getBooksPaymentRuns(input: {
+  status?: PaymentRunStatus;
+  page?: number;
+  limit?: number;
+} = {}): Promise<ActionResult<Awaited<ReturnType<typeof listPaymentRuns>>>> {
+  try {
+    const { orgId } = await requireVendorBillsRead();
+    const data = await listPaymentRuns(orgId, input);
+    return { success: true, data };
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Failed to load payment runs.",
+    };
+  }
+}
+
+export async function getBooksPaymentRun(
+  paymentRunId: string,
+): Promise<ActionResult<NonNullable<Awaited<ReturnType<typeof getPaymentRun>>>>> {
+  try {
+    const { orgId } = await requireVendorBillsRead();
+    const run = await getPaymentRun(orgId, paymentRunId);
+
+    if (!run) {
+      return { success: false, error: "Payment run not found." };
+    }
+
+    return { success: true, data: run };
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Failed to load payment run.",
+    };
+  }
+}
+
+export async function createBooksPaymentRun(input: {
+  scheduledDate: string;
+  notes?: string | null;
+  items: Array<{
+    vendorBillId: string;
+    amount: number;
+  }>;
+}): Promise<ActionResult<{ id: string }>> {
+  try {
+    const { orgId, userId } = await requireVendorBillsWrite();
+    const run = await createPaymentRun({
+      orgId,
+      actorId: userId,
+      scheduledDate: new Date(`${input.scheduledDate}T00:00:00.000Z`),
+      notes: input.notes,
+      items: input.items,
+    });
+
+    revalidateBooksVendorBills();
+    revalidatePath(`/app/books/payment-runs/${run.id}`);
+
+    return { success: true, data: { id: run.id } };
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Failed to create payment run.",
+    };
+  }
+}
+
+export async function requestBooksPaymentRunApproval(
+  paymentRunId: string,
+): Promise<ActionResult<{ id: string }>> {
+  try {
+    const { orgId } = await requireVendorBillsWrite();
+    const run = await db.paymentRun.findFirst({
+      where: {
+        id: paymentRunId,
+        orgId,
+      },
+      select: {
+        id: true,
+        status: true,
+      },
+    });
+
+    if (!run) {
+      return { success: false, error: "Payment run not found." };
+    }
+
+    if (run.status !== "DRAFT") {
+      return { success: false, error: "Only draft payment runs can be submitted for approval." };
+    }
+
+    await db.paymentRun.update({
+      where: { id: paymentRunId },
+      data: {
+        status: "PENDING_APPROVAL",
+      },
+    });
+
+    const approval = await requestApproval("payment-run", paymentRunId);
+    if (!approval.success) {
+      await db.paymentRun.update({
+        where: { id: paymentRunId },
+        data: {
+          status: "DRAFT",
+        },
+      });
+      return approval;
+    }
+
+    revalidateBooksVendorBills();
+    revalidatePath(`/app/books/payment-runs/${paymentRunId}`);
+
+    return approval;
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Failed to request payment run approval.",
+    };
+  }
+}
+
+export async function approveBooksPaymentRun(
+  paymentRunId: string,
+): Promise<ActionResult> {
+  try {
+    const { orgId, userId } = await requireVendorBillsWrite();
+    await approvePaymentRun(orgId, paymentRunId, userId);
+
+    revalidateBooksVendorBills();
+    revalidatePath(`/app/books/payment-runs/${paymentRunId}`);
+
+    return { success: true, data: null };
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Failed to approve payment run.",
+    };
+  }
+}
+
+export async function executeBooksPaymentRun(input: {
+  paymentRunId: string;
+  paidAt?: string;
+  method?: string | null;
+  note?: string | null;
+}): Promise<ActionResult<{ id: string }>> {
+  try {
+    const { orgId, userId } = await requireVendorBillsWrite();
+    const run = await executePaymentRun({
+      orgId,
+      actorId: userId,
+      paymentRunId: input.paymentRunId,
+      paidAt: input.paidAt ? new Date(`${input.paidAt}T00:00:00.000Z`) : undefined,
+      method: input.method,
+      note: input.note,
+    });
+
+    revalidateBooksVendorBills();
+    revalidatePath(`/app/books/payment-runs/${input.paymentRunId}`);
+    revalidateBooksReports();
+    revalidateBooksBanking();
+
+    return { success: true, data: { id: run.id } };
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Failed to execute payment run.",
+    };
+  }
+}
+
+export async function markBooksPaymentRunItemFailed(input: {
+  paymentRunId: string;
+  paymentRunItemId: string;
+  reason: string;
+}): Promise<ActionResult> {
+  try {
+    const { orgId, userId } = await requireVendorBillsWrite();
+    const reason = input.reason.trim();
+
+    if (!reason) {
+      return { success: false, error: "Failure reason is required." };
+    }
+
+    await db.$transaction(async (tx) => {
+      const item = await tx.paymentRunItem.findFirst({
+        where: {
+          id: input.paymentRunItemId,
+          paymentRunId: input.paymentRunId,
+          paymentRun: {
+            orgId,
+          },
+        },
+        include: {
+          paymentRun: {
+            select: {
+              id: true,
+              runNumber: true,
+              status: true,
+            },
+          },
+          vendorBill: {
+            select: {
+              billNumber: true,
+            },
+          },
+        },
+      });
+
+      if (!item) {
+        throw new Error("Payment run item not found.");
+      }
+
+      if (item.paymentRun.status === "DRAFT" || item.paymentRun.status === "PENDING_APPROVAL") {
+        throw new Error("Only approved or processing payment runs can mark items as failed.");
+      }
+
+      if (item.paymentRun.status === "COMPLETED" || item.paymentRun.status === "CANCELLED") {
+        throw new Error("Completed or cancelled payment runs cannot be updated.");
+      }
+
+      if (item.status === "PAID") {
+        throw new Error("Paid items cannot be marked as failed.");
+      }
+
+      if (item.status === "FAILED") {
+        throw new Error("This payment run item is already marked as failed.");
+      }
+
+      await tx.paymentRunItem.update({
+        where: { id: item.id },
+        data: {
+          status: "FAILED",
+        },
+      });
+
+      const remainingOpenItems = await tx.paymentRunItem.count({
+        where: {
+          paymentRunId: input.paymentRunId,
+          status: {
+            in: ["PENDING", "APPROVED"],
+          },
+        },
+      });
+
+      await tx.paymentRun.update({
+        where: { id: input.paymentRunId },
+        data: {
+          status: remainingOpenItems === 0 ? "FAILED" : "PROCESSING",
+        },
+      });
+
+      await tx.auditLog.create({
+        data: {
+          orgId,
+          actorId: userId,
+          action: "books.payment_run.item_failed",
+          entityType: "payment_run_item",
+          entityId: item.id,
+          metadata: {
+            paymentRunId: input.paymentRunId,
+            runNumber: item.paymentRun.runNumber,
+            billNumber: item.vendorBill.billNumber,
+            reason,
+          },
+        },
+      });
+    });
+
+    revalidateBooksVendorBills();
+    revalidatePath(`/app/books/payment-runs/${input.paymentRunId}`);
+
+    return { success: true, data: null };
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Failed to update payment run item.",
+    };
+  }
+}
+
+export async function exportBooksPaymentRunPayoutCsv(
+  paymentRunId: string,
+): Promise<ActionResult<string>> {
+  try {
+    const { orgId, userId } = await requireVendorBillsRead();
+    const run = await getPaymentRun(orgId, paymentRunId);
+
+    if (!run) {
+      return { success: false, error: "Payment run not found." };
+    }
+
+    await createBooksReportSnapshot({
+      orgId,
+      userId,
+      reportType: "books.payment_run_payout",
+      filters: compactJson({ paymentRunId }),
+      rowCount: run.items.length,
+    });
+
+    const csv = generateCSV(
+      [
+        "Run Number",
+        "Scheduled Date",
+        "Bill Number",
+        "Vendor",
+        "Due Date",
+        "Proposed Amount",
+        "Approved Amount",
+        "Status",
+        "Payment Reference",
+      ],
+      run.items.map((item, index) => [
+        run.runNumber,
+        formatCsvDate(run.scheduledDate),
+        item.vendorBill.billNumber,
+        item.vendorBill.vendor?.name ?? "",
+        formatCsvDate(item.vendorBill.dueDate),
+        formatCsvNumber(item.proposedAmount),
+        formatCsvNumber(item.approvedAmount ?? item.proposedAmount),
+        item.status,
+        item.executedPayment?.externalReferenceId ??
+          item.executedPayment?.externalPaymentId ??
+          `${run.runNumber}-${String(index + 1).padStart(2, "0")}`,
+      ]),
+    );
+
+    return { success: true, data: csv };
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Failed to export payment run payout file.",
+    };
+  }
+}
+
+export async function getBooksCloseWorkspace(
+  fiscalPeriodId?: string,
+): Promise<ActionResult<Awaited<ReturnType<typeof getCloseWorkspace>>>> {
+  try {
+    const { orgId } = await requireCloseWorkflowRead();
+    const workspace = await getCloseWorkspace(orgId, fiscalPeriodId);
+    return { success: true, data: workspace };
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Failed to load close workspace.",
+    };
+  }
+}
+
+export async function markBooksCloseTaskReviewed(input: {
+  fiscalPeriodId: string;
+  code:
+    | "ar_aging_reviewed"
+    | "ap_aging_reviewed"
+    | "gst_tie_out_reviewed"
+    | "tds_tie_out_reviewed";
+  status: "PASSED" | "WAIVED";
+  note?: string | null;
+}): Promise<ActionResult> {
+  try {
+    const { orgId, userId } = await requireCloseWorkflowWrite();
+    await updateCloseTaskStatus({
+      orgId,
+      fiscalPeriodId: input.fiscalPeriodId,
+      actorId: userId,
+      code: input.code,
+      status: input.status,
+      note: input.note,
+    });
+
+    revalidateBooksReports();
+    return { success: true, data: null };
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Failed to update close checklist.",
+    };
+  }
+}
+
+export async function completeBooksClose(input: {
+  fiscalPeriodId: string;
+  notes?: string | null;
+}): Promise<ActionResult<{ id: string }>> {
+  try {
+    const { orgId, userId } = await requireCloseWorkflowWrite();
+    const closeRun = await completeCloseRun({
+      orgId,
+      fiscalPeriodId: input.fiscalPeriodId,
+      actorId: userId,
+      notes: input.notes,
+    });
+
+    revalidateBooksReports();
+    return { success: true, data: { id: closeRun.id } };
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Failed to close fiscal period.",
+    };
+  }
+}
+
+export async function reopenBooksClosedPeriod(
+  periodId: string,
+  reason: string,
+): Promise<ActionResult> {
+  try {
+    const { orgId, userId } = await requireCloseWorkflowWrite();
+    await reopenFiscalPeriod({
+      orgId,
+      periodId,
+      actorId: userId,
+      reason,
+    });
+    await markCloseRunReopened({
+      orgId,
+      fiscalPeriodId: periodId,
+      actorId: userId,
+      reason,
+    });
+
+    revalidateBooksReports();
+    return { success: true, data: null };
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Failed to reopen fiscal period.",
+    };
+  }
+}
+
+export async function exportBooksAuditPackageJson(
+  fiscalPeriodId: string,
+): Promise<ActionResult<string>> {
+  try {
+    const { orgId, userId } = await requireAuditPackageRead();
+    const auditPackage = await buildAuditPackage(orgId, fiscalPeriodId);
+
+    await createBooksReportSnapshot({
+      orgId,
+      userId,
+      reportType: "books.audit_package",
+      filters: compactJson({ fiscalPeriodId }),
+      rowCount: auditPackage.closeRun.tasks.length,
+    });
+
+    return {
+      success: true,
+      data: JSON.stringify(auditPackage, null, 2),
+    };
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Failed to export audit package.",
+    };
+  }
+}
+
+export async function getBooksProfitLoss(input: {
+  startDate?: string;
+  endDate?: string;
+  compareStartDate?: string;
+  compareEndDate?: string;
+} = {}): Promise<ActionResult<Awaited<ReturnType<typeof getProfitAndLoss>>>> {
+  try {
+    const { orgId } = await requireFinanceReportsRead();
+    const data = await getProfitAndLoss(orgId, input);
+    return { success: true, data };
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Failed to load profit and loss.",
+    };
+  }
+}
+
+export async function getBooksBalanceSheet(input: {
+  asOfDate?: string;
+  compareAsOfDate?: string;
+} = {}): Promise<ActionResult<Awaited<ReturnType<typeof getBalanceSheet>>>> {
+  try {
+    const { orgId } = await requireFinanceReportsRead();
+    const data = await getBalanceSheet(orgId, input);
+    return { success: true, data };
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Failed to load balance sheet.",
+    };
+  }
+}
+
+export async function getBooksCashFlow(input: {
+  startDate?: string;
+  endDate?: string;
+} = {}): Promise<ActionResult<Awaited<ReturnType<typeof getCashFlowStatement>>>> {
+  try {
+    const { orgId } = await requireFinanceReportsRead();
+    const data = await getCashFlowStatement(orgId, input);
+    return { success: true, data };
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Failed to load cash flow.",
+    };
+  }
+}
+
+export async function getBooksAccountsReceivableAging(input: {
+  asOfDate?: string;
+} = {}): Promise<ActionResult<Awaited<ReturnType<typeof getAccountsReceivableAging>>>> {
+  try {
+    const { orgId } = await requireFinanceReportsRead();
+    const data = await getAccountsReceivableAging(orgId, input);
+    return { success: true, data };
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Failed to load receivables aging.",
+    };
+  }
+}
+
+export async function getBooksAccountsPayableAging(input: {
+  asOfDate?: string;
+} = {}): Promise<ActionResult<Awaited<ReturnType<typeof getAccountsPayableAging>>>> {
+  try {
+    const { orgId } = await requireFinanceReportsRead();
+    const data = await getAccountsPayableAging(orgId, input);
+    return { success: true, data };
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Failed to load payables aging.",
+    };
+  }
+}
+
+export async function getBooksGstTieOutAction(input: {
+  startDate?: string;
+  endDate?: string;
+} = {}): Promise<ActionResult<Awaited<ReturnType<typeof getGstTieOut>>>> {
+  try {
+    const { orgId } = await requireFinanceReportsRead();
+    const data = await getGstTieOut(orgId, input);
+    return { success: true, data };
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Failed to load GST tie-out.",
+    };
+  }
+}
+
+export async function getBooksTdsTieOutAction(input: {
+  startDate?: string;
+  endDate?: string;
+} = {}): Promise<ActionResult<Awaited<ReturnType<typeof getTdsTieOut>>>> {
+  try {
+    const { orgId } = await requireFinanceReportsRead();
+    const data = await getTdsTieOut(orgId, input);
+    return { success: true, data };
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Failed to load TDS tie-out.",
+    };
+  }
+}
+
+export async function exportBooksProfitLossCsv(input: {
+  startDate?: string;
+  endDate?: string;
+  compareStartDate?: string;
+  compareEndDate?: string;
+} = {}): Promise<ActionResult<string>> {
+  try {
+    const { orgId, userId } = await requireFinanceReportsRead();
+    const report = await getProfitAndLoss(orgId, input);
+
+    await createBooksReportSnapshot({
+      orgId,
+      userId,
+      reportType: "books.profit_loss",
+      filters: compactJson(input),
+      rowCount: report.current.income.length + report.current.expenses.length,
+    });
+
+    return {
+      success: true,
+      data: generateCSV(
+        ["Section", "Code", "Account", "Amount"],
+        [
+          ...report.current.income.map((row) => ["Income", row.code, row.name, formatCsvNumber(row.amount)]),
+          ...report.current.expenses.map((row) => ["Expense", row.code, row.name, formatCsvNumber(row.amount)]),
+          ["Summary", "", "Net Profit", formatCsvNumber(report.current.totals.netProfit)],
+        ],
+      ),
+    };
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Failed to export profit and loss.",
+    };
+  }
+}
+
+export async function exportBooksBalanceSheetCsv(input: {
+  asOfDate?: string;
+  compareAsOfDate?: string;
+} = {}): Promise<ActionResult<string>> {
+  try {
+    const { orgId, userId } = await requireFinanceReportsRead();
+    const report = await getBalanceSheet(orgId, input);
+
+    await createBooksReportSnapshot({
+      orgId,
+      userId,
+      reportType: "books.balance_sheet",
+      filters: compactJson(input),
+      rowCount:
+        report.current.assets.length + report.current.liabilities.length + report.current.equity.length,
+    });
+
+    return {
+      success: true,
+      data: generateCSV(
+        ["Section", "Code", "Account", "Amount"],
+        [
+          ...report.current.assets.map((row) => ["Assets", row.code, row.name, formatCsvNumber(row.amount)]),
+          ...report.current.liabilities.map((row) => [
+            "Liabilities",
+            row.code,
+            row.name,
+            formatCsvNumber(row.amount),
+          ]),
+          ...report.current.equity.map((row) => ["Equity", row.code, row.name, formatCsvNumber(row.amount)]),
+        ],
+      ),
+    };
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Failed to export balance sheet.",
+    };
+  }
+}
+
+export async function exportBooksCashFlowCsv(input: {
+  startDate?: string;
+  endDate?: string;
+} = {}): Promise<ActionResult<string>> {
+  try {
+    const { orgId, userId } = await requireFinanceReportsRead();
+    const report = await getCashFlowStatement(orgId, input);
+
+    await createBooksReportSnapshot({
+      orgId,
+      userId,
+      reportType: "books.cash_flow",
+      filters: compactJson(input),
+      rowCount: report.adjustments.length + 4,
+    });
+
+    return {
+      success: true,
+      data: generateCSV(
+        ["Category", "Item", "Amount"],
+        [
+          ["Operating", "Net Profit", formatCsvNumber(report.netProfit)],
+          ...report.adjustments.map((row) => ["Operating", row.label, formatCsvNumber(row.amount)]),
+          ["Summary", "Net Cash From Operating", formatCsvNumber(report.netCashFromOperating)],
+          ["Summary", "Opening Cash", formatCsvNumber(report.openingCash)],
+          ["Summary", "Closing Cash", formatCsvNumber(report.closingCash)],
+          ["Summary", "Actual Net Cash Movement", formatCsvNumber(report.actualNetCashMovement)],
+        ],
+      ),
+    };
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Failed to export cash flow.",
+    };
+  }
+}
+
+export async function exportBooksAccountsReceivableAgingCsv(input: {
+  asOfDate?: string;
+} = {}): Promise<ActionResult<string>> {
+  try {
+    const { orgId, userId } = await requireFinanceReportsRead();
+    const report = await getAccountsReceivableAging(orgId, input);
+
+    await createBooksReportSnapshot({
+      orgId,
+      userId,
+      reportType: "books.ar_aging",
+      filters: compactJson(input),
+      rowCount: report.rows.length,
+    });
+
+    return {
+      success: true,
+      data: generateCSV(
+        ["Invoice", "Customer", "Invoice Date", "Due Date", "Outstanding", "Days Overdue", "Bucket"],
+        report.rows.map((row) => [
+          row.number,
+          row.partyName ?? "",
+          row.issueDate,
+          row.dueDate ?? "",
+          formatCsvNumber(row.outstandingAmount),
+          String(row.daysOverdue),
+          row.bucket,
+        ]),
+      ),
+    };
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Failed to export receivables aging.",
+    };
+  }
+}
+
+export async function exportBooksAccountsPayableAgingCsv(input: {
+  asOfDate?: string;
+} = {}): Promise<ActionResult<string>> {
+  try {
+    const { orgId, userId } = await requireFinanceReportsRead();
+    const report = await getAccountsPayableAging(orgId, input);
+
+    await createBooksReportSnapshot({
+      orgId,
+      userId,
+      reportType: "books.ap_aging",
+      filters: compactJson(input),
+      rowCount: report.rows.length,
+    });
+
+    return {
+      success: true,
+      data: generateCSV(
+        ["Bill", "Vendor", "Bill Date", "Due Date", "Outstanding", "Days Overdue", "Bucket"],
+        report.rows.map((row) => [
+          row.number,
+          row.partyName ?? "",
+          row.issueDate,
+          row.dueDate ?? "",
+          formatCsvNumber(row.outstandingAmount),
+          String(row.daysOverdue),
+          row.bucket,
+        ]),
+      ),
+    };
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Failed to export payables aging.",
+    };
+  }
+}
+
+export async function exportBooksGstTieOutCsv(input: {
+  startDate?: string;
+  endDate?: string;
+} = {}): Promise<ActionResult<string>> {
+  try {
+    const { orgId, userId } = await requireFinanceReportsRead();
+    const report = await getGstTieOut(orgId, input);
+
+    await createBooksReportSnapshot({
+      orgId,
+      userId,
+      reportType: "books.gst_tie_out",
+      filters: compactJson(input),
+      rowCount: 2,
+    });
+
+    return {
+      success: true,
+      data: generateCSV(
+        ["Metric", "Documents", "Ledger", "Variance"],
+        [
+          [
+            "GST Output Tax",
+            formatCsvNumber(report.outputTax.documents),
+            formatCsvNumber(report.outputTax.ledger),
+            formatCsvNumber(report.outputTax.variance),
+          ],
+          [
+            "GST Input Tax",
+            formatCsvNumber(report.inputTax.documents),
+            formatCsvNumber(report.inputTax.ledger),
+            formatCsvNumber(report.inputTax.variance),
+          ],
+        ],
+      ),
+    };
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Failed to export GST tie-out.",
+    };
+  }
+}
+
+export async function exportBooksTdsTieOutCsv(input: {
+  startDate?: string;
+  endDate?: string;
+} = {}): Promise<ActionResult<string>> {
+  try {
+    const { orgId, userId } = await requireFinanceReportsRead();
+    const report = await getTdsTieOut(orgId, input);
+
+    await createBooksReportSnapshot({
+      orgId,
+      userId,
+      reportType: "books.tds_tie_out",
+      filters: compactJson(input),
+      rowCount: 2,
+    });
+
+    return {
+      success: true,
+      data: generateCSV(
+        ["Metric", "Documents", "Ledger", "Variance"],
+        [
+          [
+            "TDS Receivable",
+            formatCsvNumber(report.receivable.documents),
+            formatCsvNumber(report.receivable.ledger),
+            formatCsvNumber(report.receivable.variance),
+          ],
+          [
+            "TDS Payable",
+            "",
+            formatCsvNumber(report.payable.ledger),
+            "",
+          ],
+        ],
+      ),
+    };
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Failed to export TDS tie-out.",
     };
   }
 }
