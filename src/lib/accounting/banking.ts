@@ -18,14 +18,11 @@ import {
   getRequiredSystemAccountsTx,
   SYSTEM_ACCOUNT_KEYS,
 } from "./accounts";
+import { getBooksBankingConfig } from "./config";
 import { createAndPostJournalTx } from "./journals";
 import { cleanText, parseAccountingDate, roundMoney } from "./utils";
 
 type TxClient = Prisma.TransactionClient;
-
-const MAX_STATEMENT_ROWS = 5000;
-const MAX_STATEMENT_SIZE_BYTES = 2 * 1024 * 1024;
-const AMOUNT_TOLERANCE = 0.01;
 
 export interface BankStatementMapping {
   dateColumn: string;
@@ -224,11 +221,12 @@ function calculateTextScore(haystack: string, needles: Array<string | null | und
 }
 
 function scoreAmountMatch(bankAmount: number, candidateAmount: number): number {
+  const { reconMatchToleranceAmount } = getBooksBankingConfig();
   const diff = Math.abs(roundMoney(bankAmount - candidateAmount));
-  if (diff <= AMOUNT_TOLERANCE) {
+  if (diff <= reconMatchToleranceAmount) {
     return 55;
   }
-  if (candidateAmount <= bankAmount + AMOUNT_TOLERANCE) {
+  if (candidateAmount <= bankAmount + reconMatchToleranceAmount) {
     return 35;
   }
   return 0;
@@ -244,14 +242,15 @@ function scoreDateMatch(bankDate: Date, candidateDate: Date | string | null | un
   const days = Math.abs(
     Math.round((candidate.getTime() - bankDate.getTime()) / (1000 * 60 * 60 * 24)),
   );
+  const { reconMatchDateWindowDays } = getBooksBankingConfig();
 
   if (days <= 1) {
     return 20;
   }
-  if (days <= 3) {
+  if (days <= Math.min(3, reconMatchDateWindowDays)) {
     return 10;
   }
-  if (days <= 7) {
+  if (days <= reconMatchDateWindowDays) {
     return 5;
   }
   return 0;
@@ -498,13 +497,14 @@ async function syncBankTransactionStatusTx(tx: TxClient, bankTxnId: string) {
       .reduce((sum, match) => sum + match.matchedAmount, 0),
   );
   const suggestedCount = bankTxn.matches.filter((match) => match.status === "SUGGESTED").length;
+  const { reconMatchToleranceAmount } = getBooksBankingConfig();
 
   let nextStatus = bankTxn.status;
   if (bankTxn.status === "IGNORED" && confirmed === 0) {
     nextStatus = "IGNORED";
   } else if (confirmed <= 0) {
     nextStatus = suggestedCount > 0 ? "SUGGESTED" : "UNMATCHED";
-  } else if (confirmed + AMOUNT_TOLERANCE >= bankTxn.amount) {
+  } else if (confirmed + reconMatchToleranceAmount >= bankTxn.amount) {
     nextStatus = "MATCHED";
   } else {
     nextStatus = "PARTIALLY_MATCHED";
@@ -533,14 +533,15 @@ async function scoreInvoicePaymentCandidatesTx(
   if (bankTxn.direction !== "CREDIT") {
     return [];
   }
+  const { reconMatchDateWindowDays, reconMatchToleranceAmount } = getBooksBankingConfig();
 
   const payments = await tx.invoicePayment.findMany({
     where: {
       orgId: bankTxn.orgId,
       status: "SETTLED",
       bankMatchId: null,
-      amount: { lte: bankTxn.amount + AMOUNT_TOLERANCE },
-      paidAt: bankDateWindow(bankTxn.txnDate, 7),
+      amount: { lte: bankTxn.amount + reconMatchToleranceAmount },
+      paidAt: bankDateWindow(bankTxn.txnDate, reconMatchDateWindowDays),
     },
     include: {
       invoice: {
@@ -599,6 +600,7 @@ async function scoreVoucherCandidatesTx(
     reference: string | null;
   },
 ): Promise<BankMatchCandidate[]> {
+  const { reconMatchDateWindowDays, reconMatchToleranceAmount } = getBooksBankingConfig();
   const vouchers = await tx.voucher.findMany({
     where: {
       organizationId: bankTxn.orgId,
@@ -606,12 +608,12 @@ async function scoreVoucherCandidatesTx(
       status: "approved",
       accountingStatus: "POSTED",
       type: bankTxn.direction === "CREDIT" ? "receipt" : "payment",
-      totalAmount: { lte: bankTxn.amount + AMOUNT_TOLERANCE },
+      totalAmount: { lte: bankTxn.amount + reconMatchToleranceAmount },
       voucherDate: {
-        gte: new Date(bankTxn.txnDate.getTime() - 7 * 24 * 60 * 60 * 1000)
+        gte: new Date(bankTxn.txnDate.getTime() - reconMatchDateWindowDays * 24 * 60 * 60 * 1000)
           .toISOString()
           .slice(0, 10),
-        lte: new Date(bankTxn.txnDate.getTime() + 7 * 24 * 60 * 60 * 1000)
+        lte: new Date(bankTxn.txnDate.getTime() + reconMatchDateWindowDays * 24 * 60 * 60 * 1000)
           .toISOString()
           .slice(0, 10),
       },
@@ -662,13 +664,14 @@ async function scoreJournalCandidatesTx(
     reference: string | null;
   },
 ): Promise<BankMatchCandidate[]> {
+  const { reconMatchDateWindowDays, reconMatchToleranceAmount } = getBooksBankingConfig();
   const journals = await tx.journalEntry.findMany({
     where: {
       orgId: bankTxn.orgId,
       status: "POSTED",
       source: "MANUAL",
-      entryDate: bankDateWindow(bankTxn.txnDate, 7),
-      totalDebit: { lte: bankTxn.amount + AMOUNT_TOLERANCE },
+      entryDate: bankDateWindow(bankTxn.txnDate, reconMatchDateWindowDays),
+      totalDebit: { lte: bankTxn.amount + reconMatchToleranceAmount },
     },
     take: 20,
     orderBy: { entryDate: "desc" },
@@ -721,14 +724,15 @@ async function scoreInternalTransferCandidatesTx(
     reference: string | null;
   },
 ): Promise<BankMatchCandidate[]> {
+  const { reconMatchDateWindowDays, reconMatchToleranceAmount } = getBooksBankingConfig();
   const counterpartyTxns = await tx.bankTransaction.findMany({
     where: {
       orgId: bankTxn.orgId,
       id: { not: bankTxn.id },
       bankAccountId: { not: bankTxn.bankAccountId },
       direction: bankTxn.direction === "CREDIT" ? "DEBIT" : "CREDIT",
-      amount: { gte: bankTxn.amount - AMOUNT_TOLERANCE, lte: bankTxn.amount + AMOUNT_TOLERANCE },
-      txnDate: bankDateWindow(bankTxn.txnDate, 3),
+      amount: { gte: bankTxn.amount - reconMatchToleranceAmount, lte: bankTxn.amount + reconMatchToleranceAmount },
+      txnDate: bankDateWindow(bankTxn.txnDate, reconMatchDateWindowDays),
     },
     take: 10,
     orderBy: { txnDate: "desc" },
@@ -1331,9 +1335,14 @@ export async function importBankStatement(input: {
   mapping: unknown;
 }) {
   const mapping = normalizeMapping(input.mapping);
+  const {
+    bankImportMaxFileSizeBytes,
+    bankImportMaxFileSizeMb,
+    bankImportMaxRows,
+  } = getBooksBankingConfig();
 
-  if (Buffer.byteLength(input.csvText, "utf8") > MAX_STATEMENT_SIZE_BYTES) {
-    throw new Error("CSV file exceeds the 2 MB size limit.");
+  if (Buffer.byteLength(input.csvText, "utf8") > bankImportMaxFileSizeBytes) {
+    throw new Error(`CSV file exceeds the ${bankImportMaxFileSizeMb} MB size limit.`);
   }
 
   const parsed = Papa.parse<Record<string, string>>(input.csvText, {
@@ -1344,8 +1353,8 @@ export async function importBankStatement(input: {
 
   ensureBankStatementHeaders(parsed.meta.fields, mapping);
 
-  if (parsed.data.length > MAX_STATEMENT_ROWS) {
-    throw new Error(`CSV exceeds the ${MAX_STATEMENT_ROWS} row import limit.`);
+  if (parsed.data.length > bankImportMaxRows) {
+    throw new Error(`CSV exceeds the ${bankImportMaxRows} row import limit.`);
   }
 
   const normalizedRows: NormalizedBankStatementRow[] = [];
@@ -1662,6 +1671,7 @@ export async function confirmBankTransactionMatch(input: {
   matchedAmount?: number;
 }) {
   return db.$transaction(async (tx) => {
+    const { reconMatchToleranceAmount } = getBooksBankingConfig();
     const bankTxn = await tx.bankTransaction.findFirst({
       where: { id: input.bankTransactionId, orgId: input.orgId },
       include: {
@@ -1706,7 +1716,7 @@ export async function confirmBankTransactionMatch(input: {
     if (matchedAmount <= 0) {
       throw new Error("Matched amount must be greater than zero.");
     }
-    if (matchedAmount > remainingTxnAmount + AMOUNT_TOLERANCE) {
+    if (matchedAmount > remainingTxnAmount + reconMatchToleranceAmount) {
       throw new Error("Matched amount exceeds the remaining bank transaction amount.");
     }
 
@@ -1714,7 +1724,7 @@ export async function confirmBankTransactionMatch(input: {
       entityType: match.entityType,
       entityId: match.entityId,
     });
-    if (matchedAmount > entityAvailable + AMOUNT_TOLERANCE) {
+    if (matchedAmount > entityAvailable + reconMatchToleranceAmount) {
       throw new Error("Matched amount exceeds the available amount for the selected entity.");
     }
 

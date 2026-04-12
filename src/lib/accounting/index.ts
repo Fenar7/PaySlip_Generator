@@ -4,6 +4,7 @@ export * from "./periods";
 export * from "./posting";
 export * from "./reports";
 export * from "./utils";
+export * from "./config";
 export * from "./banking";
 export * from "./vendor-bills";
 export * from "./finance-reports";
