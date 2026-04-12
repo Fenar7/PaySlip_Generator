@@ -51,6 +51,19 @@ describe("getTrialBalance", () => {
     const result = await getTrialBalance("org-1");
 
     expect(ensureBooksSetup).toHaveBeenCalledWith("org-1");
+    expect(db.journalLine.findMany).toHaveBeenCalledWith({
+      where: {
+        orgId: "org-1",
+        journalEntry: {
+          status: "POSTED",
+        },
+      },
+      select: {
+        accountId: true,
+        debit: true,
+        credit: true,
+      },
+    });
     expect(result.balanced).toBe(true);
     expect(result.totals).toEqual({ debit: 100, credit: 100 });
     expect(result.rows).toEqual([
