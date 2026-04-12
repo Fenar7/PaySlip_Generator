@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { requireOrgContext, requireRole } from "@/lib/auth";
 import { checkFeature } from "@/lib/plans/enforcement";
 import { revalidatePath } from "next/cache";
+import { postTdsRecordTx } from "@/lib/accounting";
 
 export type ActionResult<T> =
   | { success: true; data: T }
@@ -36,7 +37,7 @@ export async function createTdsRecord(
   input: CreateTdsInput,
 ): Promise<ActionResult<{ id: string }>> {
   try {
-    const { orgId } = await requireRole("admin");
+    const { orgId, userId } = await requireRole("admin");
 
     const hasFeature = await checkFeature(orgId, "tdsTracking");
     if (!hasFeature) {
@@ -62,18 +63,28 @@ export async function createTdsRecord(
       return { success: false, error: "Invalid TDS section" };
     }
 
-    const record = await db.tdsRecord.create({
-      data: {
-        organizationId: orgId,
-        invoiceId: input.invoiceId,
-        tdsSection: input.tdsSection as keyof typeof TDS_SECTIONS,
-        tdsRate: input.tdsRate,
-        tdsAmount,
-        financialYear: getCurrentFY(),
-        quarter: getCurrentQuarter(),
-        deductorTan: input.deductorTan,
-        notes: input.notes,
-      },
+    const record = await db.$transaction(async (tx) => {
+      const created = await tx.tdsRecord.create({
+        data: {
+          organizationId: orgId,
+          invoiceId: input.invoiceId,
+          tdsSection: input.tdsSection as keyof typeof TDS_SECTIONS,
+          tdsRate: input.tdsRate,
+          tdsAmount,
+          financialYear: getCurrentFY(),
+          quarter: getCurrentQuarter(),
+          deductorTan: input.deductorTan,
+          notes: input.notes,
+        },
+      });
+
+      await postTdsRecordTx(tx, {
+        orgId,
+        tdsRecordId: created.id,
+        actorId: userId,
+      });
+
+      return created;
     });
 
     revalidatePath(TDS_PATH);
@@ -186,6 +197,22 @@ export async function deleteTdsRecord(
       return {
         success: false,
         error: "Only pending TDS records can be deleted",
+      };
+    }
+
+    const hasPostedJournal = await db.journalEntry.findFirst({
+      where: {
+        orgId,
+        source: "TDS",
+        sourceId: tdsRecordId,
+      },
+      select: { id: true },
+    });
+
+    if (hasPostedJournal) {
+      return {
+        success: false,
+        error: "Delete is blocked because this TDS record is already posted to books.",
       };
     }
 

@@ -17,16 +17,16 @@ model Profile {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  members              Member[]
-  auditActorLogs       AuditLog[]            @relation("AuditActor")
-  auditRepLogs         AuditLog[]            @relation("AuditRepresented")
-  referrals            Referral[]
-  onboardingProgress   OnboardingProgress?
-  pushSubscriptions    PushSubscription[]
-  orgPreferences       UserOrgPreference[]
-  quotes               Quote[]
-  arrangements         PaymentArrangement[]
-  oauthAuthorizations  OAuthAuthorization[]
+  members             Member[]
+  auditActorLogs      AuditLog[]           @relation("AuditActor")
+  auditRepLogs        AuditLog[]           @relation("AuditRepresented")
+  referrals           Referral[]
+  onboardingProgress  OnboardingProgress?
+  pushSubscriptions   PushSubscription[]
+  orgPreferences      UserOrgPreference[]
+  quotes              Quote[]
+  arrangements        PaymentArrangement[]
+  oauthAuthorizations OAuthAuthorization[]
 
   @@map("profiles")
 }
@@ -41,56 +41,69 @@ model Organization {
   createdAt DateTime @default(now())
   metadata  String?
 
-  members         Member[]
-  invitations     Invitation[]
-  branding        BrandingProfile?
-  defaults        OrgDefaults?
-  customers       Customer[]
-  vendors         Vendor[]
-  employees       Employee[]
-  invoices        Invoice[]
-  vouchers        Voucher[]
-  salarySlips     SalarySlip[]
-  salaryPresets   SalaryPreset[]
-  attachments     FileAttachment[]
-  reportSnapshots ReportSnapshot[]
-  proxyGrants     ProxyGrant[]
-  auditLogs       AuditLog[]
-  subscription    Subscription?
-  usageRecords    UsageRecord[]
-  storageUsage    StorageUsage[]
-  sendLogs        SendLog[]
-  sharedDocuments SharedDocument[]
-  virtualAccounts     CustomerVirtualAccount[]
-  unmatchedPayments   UnmatchedPayment[]
-  billingInvoices     BillingInvoice[]
-  apiKeys             ApiKey[]
-  webhookEndpoints    ApiWebhookEndpoint[]
-  apiRequestLogs      ApiRequestLog[]
-  ssoConfig           SsoConfig?
-  orgPreferences      UserOrgPreference[]
-  orgDomain           OrgDomain?
-  whiteLabel          OrgWhiteLabel?
-  emailDomains        OrgEmailDomain[]
-  ocrJobs             OcrJob[]
-  integrations        OrgIntegration[]
-  dunningSequences    DunningSequence[]
-  dunningLogs         DunningLog[]
-  dunningOptOuts      DunningOptOut[]
-  portalTokens        CustomerPortalToken[]
-  portalAccessLogs    CustomerPortalAccessLog[]
-  statements          CustomerStatement[]
-  quotes              Quote[]
-  arrangements        PaymentArrangement[]
-  tdsRecords          TdsRecord[]
-  marketplaceTemplates MarketplaceTemplate[]
-  marketplacePurchases MarketplacePurchase[]
-  marketplaceReviews   MarketplaceReview[]
-  marketplaceRevenue   MarketplaceRevenue[]
-  oauthApps            OAuthApp[]
-  oauthAuthorizations  OAuthAuthorization[]
-  partnerProfile       PartnerProfile?
-  partnerManagedOrgs   PartnerManagedOrg[]
+  members                Member[]
+  invitations            Invitation[]
+  branding               BrandingProfile?
+  defaults               OrgDefaults?
+  customers              Customer[]
+  vendors                Vendor[]
+  employees              Employee[]
+  invoices               Invoice[]
+  vouchers               Voucher[]
+  salarySlips            SalarySlip[]
+  salaryPresets          SalaryPreset[]
+  attachments            FileAttachment[]
+  reportSnapshots        ReportSnapshot[]
+  glAccounts             GlAccount[]
+  fiscalPeriods          FiscalPeriod[]
+  journalEntries         JournalEntry[]
+  journalLines           JournalLine[]
+  bankAccounts           BankAccount[]
+  bankStatementImports   BankStatementImport[]
+  bankTransactions       BankTransaction[]
+  bankTransactionMatches BankTransactionMatch[]
+  vendorBills            VendorBill[]
+  vendorBillPayments     VendorBillPayment[]
+  paymentRuns            PaymentRun[]
+  closeRuns              CloseRun[]
+  closeTasks             CloseTask[]
+  proxyGrants            ProxyGrant[]
+  auditLogs              AuditLog[]
+  subscription           Subscription?
+  usageRecords           UsageRecord[]
+  storageUsage           StorageUsage[]
+  sendLogs               SendLog[]
+  sharedDocuments        SharedDocument[]
+  virtualAccounts        CustomerVirtualAccount[]
+  unmatchedPayments      UnmatchedPayment[]
+  billingInvoices        BillingInvoice[]
+  apiKeys                ApiKey[]
+  webhookEndpoints       ApiWebhookEndpoint[]
+  apiRequestLogs         ApiRequestLog[]
+  ssoConfig              SsoConfig?
+  orgPreferences         UserOrgPreference[]
+  orgDomain              OrgDomain?
+  whiteLabel             OrgWhiteLabel?
+  emailDomains           OrgEmailDomain[]
+  ocrJobs                OcrJob[]
+  integrations           OrgIntegration[]
+  dunningSequences       DunningSequence[]
+  dunningLogs            DunningLog[]
+  dunningOptOuts         DunningOptOut[]
+  portalTokens           CustomerPortalToken[]
+  portalAccessLogs       CustomerPortalAccessLog[]
+  statements             CustomerStatement[]
+  quotes                 Quote[]
+  arrangements           PaymentArrangement[]
+  tdsRecords             TdsRecord[]
+  marketplaceTemplates   MarketplaceTemplate[]
+  marketplacePurchases   MarketplacePurchase[]
+  marketplaceReviews     MarketplaceReview[]
+  marketplaceRevenue     MarketplaceRevenue[]
+  oauthApps              OAuthApp[]
+  oauthAuthorizations    OAuthAuthorization[]
+  partnerProfile         PartnerProfile?
+  partnerManagedOrgs     PartnerManagedOrg[]
 
   @@map("organization")
 }
@@ -157,37 +170,55 @@ model OrgDefaults {
   voucherCounter    Int    @default(1)
   salarySlipPrefix  String @default("SAL")
   salarySlipCounter Int    @default(1)
+  vendorBillPrefix  String @default("BILL")
+  vendorBillCounter Int    @default(1)
 
   defaultInvoiceTemplate String @default("minimal")
   defaultVoucherTemplate String @default("minimal-office")
   defaultSlipTemplate    String @default("modern-premium")
 
-  upiVpa         String?
-  gstStateCode   String?
-  panNumber      String?
+  upiVpa       String?
+  gstStateCode String?
+  panNumber    String?
 
   // Phase 14: Portal
-  portalEnabled         Boolean @default(false)
-  portalHeaderMessage   String?
-  portalSupportEmail    String?
-  portalSupportPhone    String?
+  portalEnabled       Boolean @default(false)
+  portalHeaderMessage String?
+  portalSupportEmail  String?
+  portalSupportPhone  String?
   // Phase 14: Quotes
-  quotePrefix           String  @default("QTE")
-  quoteCounter          Int     @default(1)
-  quoteValidityDays     Int     @default(14)
-  quoteHeaderLabel      String  @default("QUOTE")
+  quotePrefix         String  @default("QTE")
+  quoteCounter        Int     @default(1)
+  quoteValidityDays   Int     @default(14)
+  quoteHeaderLabel    String  @default("QUOTE")
   // Phase 14: Dunning
-  defaultDunningSeqId   String?
+  defaultDunningSeqId String?
 
   // Phase 15.2: i18n + Country
-  defaultLanguage     String  @default("en")
-  defaultDocLanguage  String  @default("en")
-  country             String  @default("IN")
-  baseCurrency        String  @default("INR")
-  timezone            String  @default("Asia/Kolkata")
-  vatRegNumber        String?
-  vatRate             Decimal?  @db.Decimal(5, 2)
-  fiscalYearStart     Int     @default(4)
+  defaultLanguage    String   @default("en")
+  defaultDocLanguage String   @default("en")
+  country            String   @default("IN")
+  baseCurrency       String   @default("INR")
+  timezone           String   @default("Asia/Kolkata")
+  vatRegNumber       String?
+  vatRate            Decimal? @db.Decimal(5, 2)
+  fiscalYearStart    Int      @default(4)
+
+  // Phase 16: SW Books
+  booksEnabled                    Boolean   @default(false)
+  coaTemplate                     String?
+  coaSeededAt                     DateTime?
+  defaultReceivableAccountId      String?
+  defaultPayableAccountId         String?
+  defaultBankAccountId            String?
+  defaultRevenueAccountId         String?
+  defaultExpenseAccountId         String?
+  defaultPayrollExpenseAccountId  String?
+  defaultPayrollPayableAccountId  String?
+  defaultGstOutputAccountId       String?
+  defaultTdsPayableAccountId      String?
+  defaultGatewayClearingAccountId String?
+  defaultSuspenseAccountId        String?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -195,6 +226,588 @@ model OrgDefaults {
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
   @@map("org_defaults")
+}
+
+// ─── Phase 16: SW Books — Accounting Foundation ────────────────────────────────
+
+enum GlAccountType {
+  ASSET
+  LIABILITY
+  EQUITY
+  INCOME
+  EXPENSE
+  CONTRA
+}
+
+enum NormalBalance {
+  DEBIT
+  CREDIT
+}
+
+enum AccountingStatus {
+  PENDING
+  POSTED
+  REVERSED
+}
+
+enum RevenueRecognitionStatus {
+  PENDING
+  RECOGNIZED
+  DEFERRED
+}
+
+enum JournalEntryStatus {
+  DRAFT
+  POSTED
+  REVERSED
+}
+
+enum JournalSource {
+  MANUAL
+  INVOICE
+  INVOICE_PAYMENT
+  VOUCHER
+  VENDOR_BILL
+  VENDOR_BILL_PAYMENT
+  SALARY_SLIP
+  GST
+  TDS
+  BANK_RECONCILIATION
+  OPENING_BALANCE
+  SYSTEM_REVERSAL
+}
+
+enum FiscalPeriodStatus {
+  OPEN
+  LOCKED
+  CLOSED
+}
+
+enum BankAccountType {
+  BANK
+  CASH
+  PETTY_CASH
+  GATEWAY_CLEARING
+}
+
+enum BankImportStatus {
+  UPLOADED
+  PROCESSING
+  PROCESSED
+  FAILED
+}
+
+enum BankTxnDirection {
+  CREDIT
+  DEBIT
+}
+
+enum BankTxnStatus {
+  UNMATCHED
+  SUGGESTED
+  PARTIALLY_MATCHED
+  MATCHED
+  IGNORED
+}
+
+enum MatchEntityType {
+  INVOICE_PAYMENT
+  VENDOR_BILL_PAYMENT
+  VOUCHER
+  JOURNAL_ENTRY
+  INTERNAL_TRANSFER
+  BANK_FEE
+}
+
+model GlAccount {
+  id                 String        @id @default(cuid())
+  orgId              String
+  code               String
+  name               String
+  accountType        GlAccountType
+  normalBalance      NormalBalance
+  parentId           String?
+  description        String?
+  systemKey          String?
+  isSystem           Boolean       @default(false)
+  isProtected        Boolean       @default(false)
+  allowManualEntries Boolean       @default(true)
+  isActive           Boolean       @default(true)
+  sortOrder          Int           @default(0)
+  archivedAt         DateTime?
+  createdAt          DateTime      @default(now())
+  updatedAt          DateTime      @updatedAt
+
+  organization                Organization  @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  parent                      GlAccount?    @relation("GlAccountHierarchy", fields: [parentId], references: [id])
+  children                    GlAccount[]   @relation("GlAccountHierarchy")
+  journalLines                JournalLine[]
+  bankAccounts                BankAccount[] @relation("BankAccountLedger")
+  gatewayClearingBankAccounts BankAccount[] @relation("BankAccountGatewayClearing")
+  vendorBills                 VendorBill[]  @relation("VendorBillExpenseAccount")
+
+  @@unique([orgId, code])
+  @@unique([orgId, systemKey])
+  @@index([orgId, accountType, isActive])
+  @@index([orgId, parentId])
+  @@map("gl_account")
+}
+
+model FiscalPeriod {
+  id                 String             @id @default(cuid())
+  orgId              String
+  label              String
+  startDate          DateTime
+  endDate            DateTime
+  status             FiscalPeriodStatus @default(OPEN)
+  isAdjustmentPeriod Boolean            @default(false)
+  lockedAt           DateTime?
+  lockedBy           String?            @db.Uuid
+  reopenReason       String?
+  reopenedAt         DateTime?
+  reopenedBy         String?            @db.Uuid
+  closedAt           DateTime?
+  closedBy           String?            @db.Uuid
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+
+  organization   Organization   @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  journalEntries JournalEntry[]
+  closeRuns      CloseRun[]
+
+  @@unique([orgId, label])
+  @@unique([orgId, startDate, endDate])
+  @@index([orgId, status, startDate])
+  @@map("fiscal_period")
+}
+
+model JournalEntry {
+  id             String             @id @default(cuid())
+  orgId          String
+  fiscalPeriodId String
+  entryNumber    String
+  entryDate      DateTime
+  source         JournalSource
+  status         JournalEntryStatus @default(DRAFT)
+  memo           String?
+  sourceId       String?
+  sourceRef      String?
+  currency       String             @default("INR")
+  totalDebit     Float              @default(0)
+  totalCredit    Float              @default(0)
+  isAdjustment   Boolean            @default(false)
+  isReversal     Boolean            @default(false)
+  reversalOfId   String?
+  metadata       Json?
+  createdBy      String?            @db.Uuid
+  postedBy       String?            @db.Uuid
+  postedAt       DateTime?
+  reversedAt     DateTime?
+  reversedBy     String?            @db.Uuid
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
+
+  organization         Organization    @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  fiscalPeriod         FiscalPeriod    @relation(fields: [fiscalPeriodId], references: [id], onDelete: Restrict)
+  reversalOf           JournalEntry?   @relation("JournalReversal", fields: [reversalOfId], references: [id])
+  reversals            JournalEntry[]  @relation("JournalReversal")
+  lines                JournalLine[]
+  invoicePosted        Invoice?        @relation("InvoicePostedJournal")
+  invoicePaymentPosted InvoicePayment? @relation("InvoicePaymentJournal")
+  voucherPosted        Voucher?        @relation("VoucherPostedJournal")
+  vendorBillPosted     VendorBill?     @relation("VendorBillJournal")
+  vendorBillPaymentPosted VendorBillPayment? @relation("VendorBillPaymentJournal")
+  salarySlipAccrual    SalarySlip?     @relation("SalarySlipJournal")
+  salarySlipPayout     SalarySlip?     @relation("SalarySlipPayoutJournal")
+  bankAccountOpening   BankAccount?    @relation("BankAccountOpeningJournal")
+
+  @@unique([orgId, entryNumber])
+  @@index([orgId, entryDate, status])
+  @@index([orgId, source, sourceId])
+  @@index([fiscalPeriodId, status])
+  @@map("journal_entry")
+}
+
+model JournalLine {
+  id                String   @id @default(cuid())
+  journalEntryId    String
+  orgId             String
+  accountId         String
+  bankTransactionId String?
+  lineNumber        Int
+  description       String?
+  debit             Float    @default(0)
+  credit            Float    @default(0)
+  entityType        String?
+  entityId          String?
+  createdAt         DateTime @default(now())
+
+  organization    Organization     @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  journalEntry    JournalEntry     @relation(fields: [journalEntryId], references: [id], onDelete: Cascade)
+  account         GlAccount        @relation(fields: [accountId], references: [id], onDelete: Restrict)
+  bankTransaction BankTransaction? @relation(fields: [bankTransactionId], references: [id], onDelete: SetNull)
+
+  @@unique([journalEntryId, lineNumber])
+  @@index([orgId, accountId])
+  @@index([orgId, bankTransactionId])
+  @@index([orgId, entityType, entityId])
+  @@map("journal_line")
+}
+
+model BankAccount {
+  id                       String          @id @default(cuid())
+  orgId                    String
+  glAccountId              String          @unique
+  openingJournalEntryId    String?         @unique
+  gatewayClearingAccountId String?
+  type                     BankAccountType @default(BANK)
+  name                     String
+  bankName                 String?
+  maskedAccountNo          String?
+  ifscOrSwift              String?
+  currency                 String          @default("INR")
+  openingBalance           Float           @default(0)
+  openingBalanceDate       DateTime?
+  mappingProfile           Json?
+  isPrimary                Boolean         @default(false)
+  isActive                 Boolean         @default(true)
+  createdAt                DateTime        @default(now())
+  updatedAt                DateTime        @updatedAt
+
+  organization           Organization          @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  glAccount              GlAccount             @relation("BankAccountLedger", fields: [glAccountId], references: [id], onDelete: Restrict)
+  openingJournalEntry    JournalEntry?         @relation("BankAccountOpeningJournal", fields: [openingJournalEntryId], references: [id], onDelete: SetNull)
+  gatewayClearingAccount GlAccount?            @relation("BankAccountGatewayClearing", fields: [gatewayClearingAccountId], references: [id], onDelete: SetNull)
+  statementImports       BankStatementImport[]
+  transactions           BankTransaction[]
+
+  @@index([orgId, isActive])
+  @@index([orgId, isPrimary])
+  @@map("bank_account")
+}
+
+model BankStatementImport {
+  id               String           @id @default(cuid())
+  orgId            String
+  bankAccountId    String
+  fileName         String
+  storageKey       String
+  checksum         String
+  sourceFormat     String           @default("csv")
+  status           BankImportStatus @default(UPLOADED)
+  mappingProfile   Json?
+  importedRows     Int              @default(0)
+  failedRows       Int              @default(0)
+  errorRows        Json?
+  statementStart   DateTime?
+  statementEnd     DateTime?
+  uploadedByUserId String?          @db.Uuid
+  createdAt        DateTime         @default(now())
+  completedAt      DateTime?
+
+  organization Organization      @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  bankAccount  BankAccount       @relation(fields: [bankAccountId], references: [id], onDelete: Cascade)
+  transactions BankTransaction[]
+
+  @@unique([bankAccountId, checksum])
+  @@index([orgId, status])
+  @@map("bank_statement_import")
+}
+
+model BankTransaction {
+  id              String           @id @default(cuid())
+  orgId           String
+  bankAccountId   String
+  importId        String
+  txnDate         DateTime
+  valueDate       DateTime?
+  direction       BankTxnDirection
+  amount          Float
+  runningBalance  Float?
+  reference       String?
+  description     String
+  normalizedPayee String?
+  normalizedType  String?
+  fingerprint     String
+  rawPayload      Json?
+  status          BankTxnStatus    @default(UNMATCHED)
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+
+  organization Organization           @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  bankAccount  BankAccount            @relation(fields: [bankAccountId], references: [id], onDelete: Cascade)
+  import       BankStatementImport    @relation(fields: [importId], references: [id], onDelete: Cascade)
+  matches      BankTransactionMatch[]
+  journalLines JournalLine[]
+
+  @@unique([bankAccountId, fingerprint])
+  @@index([orgId, status, txnDate])
+  @@index([orgId, bankAccountId, txnDate])
+  @@map("bank_transaction")
+}
+
+model BankTransactionMatch {
+  id              String          @id @default(cuid())
+  orgId           String
+  bankTxnId       String
+  entityType      MatchEntityType
+  entityId        String
+  matchedAmount   Float
+  confidenceScore Float?
+  status          String          @default("SUGGESTED")
+  createdByUserId String?         @db.Uuid
+  confirmedAt     DateTime?
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+
+  organization    Organization     @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  bankTransaction BankTransaction  @relation(fields: [bankTxnId], references: [id], onDelete: Cascade)
+  invoicePayments InvoicePayment[] @relation("InvoicePaymentBankMatch")
+  vendorBillPayments VendorBillPayment[] @relation("VendorBillPaymentBankMatch")
+
+  @@unique([bankTxnId, entityType, entityId])
+  @@index([orgId, status])
+  @@index([entityType, entityId])
+  @@map("bank_transaction_match")
+}
+
+enum VendorBillStatus {
+  DRAFT
+  PENDING_APPROVAL
+  APPROVED
+  OVERDUE
+  PARTIALLY_PAID
+  PAID
+  CANCELLED
+}
+
+enum VendorBillPaymentStatus {
+  PENDING
+  SETTLED
+  FAILED
+  VOIDED
+}
+
+enum PaymentRunStatus {
+  DRAFT
+  PENDING_APPROVAL
+  APPROVED
+  PROCESSING
+  COMPLETED
+  FAILED
+  CANCELLED
+}
+
+enum PaymentRunItemStatus {
+  PENDING
+  APPROVED
+  PAID
+  FAILED
+  SKIPPED
+}
+
+enum CloseRunStatus {
+  DRAFT
+  READY
+  BLOCKED
+  CLOSED
+  REOPENED
+}
+
+enum CloseTaskStatus {
+  PENDING
+  PASSED
+  BLOCKED
+  WAIVED
+}
+
+model VendorBill {
+  id               String           @id @default(cuid())
+  orgId            String
+  vendorId         String?
+  expenseAccountId String?
+  billNumber       String
+  billDate         String
+  dueDate          String?
+  status           VendorBillStatus @default(DRAFT)
+  formData         Json
+  subtotalAmount   Float            @default(0)
+  taxAmount        Float            @default(0)
+  totalAmount      Float            @default(0)
+  amountPaid       Float            @default(0)
+  remainingAmount  Float            @default(0)
+  currency         String           @default("INR")
+  gstTotalCgst     Float            @default(0)
+  gstTotalSgst     Float            @default(0)
+  gstTotalIgst     Float            @default(0)
+  gstTotalCess     Float            @default(0)
+  notes            String?
+  accountingStatus AccountingStatus @default(PENDING)
+  journalEntryId   String?          @unique
+  postedAt         DateTime?
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+  archivedAt       DateTime?
+
+  organization     Organization      @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  vendor           Vendor?           @relation(fields: [vendorId], references: [id])
+  expenseAccount   GlAccount?        @relation("VendorBillExpenseAccount", fields: [expenseAccountId], references: [id])
+  lines            VendorBillLine[]
+  payments         VendorBillPayment[]
+  paymentRunItems  PaymentRunItem[]
+  attachments      FileAttachment[]  @relation("VendorBillAttachments")
+  journalEntry     JournalEntry?     @relation("VendorBillJournal", fields: [journalEntryId], references: [id])
+  approvalRequests ApprovalRequest[] @relation("VendorBillApprovals")
+
+  @@unique([orgId, billNumber])
+  @@index([orgId, status])
+  @@map("vendor_bill")
+}
+
+model VendorBillLine {
+  id           String  @id @default(cuid())
+  vendorBillId String
+  description  String
+  quantity     Float   @default(1)
+  unitPrice    Float   @default(0)
+  taxRate      Float   @default(0)
+  lineTotal    Float   @default(0)
+  sortOrder    Int     @default(0)
+
+  vendorBill VendorBill @relation(fields: [vendorBillId], references: [id], onDelete: Cascade)
+
+  @@map("vendor_bill_line")
+}
+
+model VendorBillPayment {
+  id                 String                  @id @default(cuid())
+  vendorBillId       String
+  orgId              String
+  paymentRunId       String?
+  amount             Float
+  currency           String                  @default("INR")
+  paidAt             DateTime                @default(now())
+  method             String?
+  note               String?
+  source             String                  @default("admin_manual")
+  status             VendorBillPaymentStatus @default(SETTLED)
+  externalPaymentId  String?
+  externalReferenceId String?
+  externalPayload    Json?
+  recordedByUserId   String?                 @db.Uuid
+  accountingStatus   AccountingStatus        @default(PENDING)
+  journalEntryId     String?                 @unique
+  bankMatchId        String?
+  clearingAccountId  String?
+  accountingPostedAt DateTime?
+  createdAt          DateTime                @default(now())
+
+  organization Organization          @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  vendorBill   VendorBill            @relation(fields: [vendorBillId], references: [id], onDelete: Cascade)
+  paymentRun   PaymentRun?           @relation(fields: [paymentRunId], references: [id], onDelete: SetNull)
+  journalEntry JournalEntry?         @relation("VendorBillPaymentJournal", fields: [journalEntryId], references: [id])
+  bankMatch    BankTransactionMatch? @relation("VendorBillPaymentBankMatch", fields: [bankMatchId], references: [id])
+  paymentRunItem PaymentRunItem?     @relation("PaymentRunItemPayment")
+
+  @@index([vendorBillId])
+  @@index([externalPaymentId])
+  @@map("vendor_bill_payment")
+}
+
+model PaymentRun {
+  id               String            @id @default(cuid())
+  orgId            String
+  runNumber        String
+  scheduledDate    DateTime
+  status           PaymentRunStatus  @default(DRAFT)
+  totalAmount      Float             @default(0)
+  notes            String?
+  requestedByUserId String?          @db.Uuid
+  approvedAt       DateTime?
+  approvedByUserId String?           @db.Uuid
+  executedAt       DateTime?
+  executedByUserId String?           @db.Uuid
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+
+  organization     Organization      @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  items            PaymentRunItem[]
+  payments         VendorBillPayment[]
+  approvalRequests ApprovalRequest[] @relation("PaymentRunApprovals")
+
+  @@unique([orgId, runNumber])
+  @@index([orgId, status])
+  @@map("payment_run")
+}
+
+model PaymentRunItem {
+  id               String               @id @default(cuid())
+  paymentRunId     String
+  vendorBillId     String
+  proposedAmount   Float
+  approvedAmount   Float?
+  status           PaymentRunItemStatus @default(PENDING)
+  executedPaymentId String?            @unique
+  createdAt        DateTime             @default(now())
+  updatedAt        DateTime             @updatedAt
+
+  paymentRun     PaymentRun        @relation(fields: [paymentRunId], references: [id], onDelete: Cascade)
+  vendorBill     VendorBill        @relation(fields: [vendorBillId], references: [id], onDelete: Cascade)
+  executedPayment VendorBillPayment? @relation("PaymentRunItemPayment", fields: [executedPaymentId], references: [id])
+
+  @@unique([paymentRunId, vendorBillId])
+  @@index([vendorBillId, status])
+  @@map("payment_run_item")
+}
+
+model CloseRun {
+  id               String         @id @default(cuid())
+  orgId            String
+  fiscalPeriodId   String
+  status           CloseRunStatus @default(DRAFT)
+  blockerCount     Int            @default(0)
+  summary          Json?
+  notes            String?
+  startedAt        DateTime       @default(now())
+  startedByUserId  String?        @db.Uuid
+  completedAt      DateTime?
+  completedByUserId String?       @db.Uuid
+  reopenedAt       DateTime?
+  reopenedByUserId String?        @db.Uuid
+  reportSnapshotId String?
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+
+  organization Organization  @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  fiscalPeriod FiscalPeriod  @relation(fields: [fiscalPeriodId], references: [id], onDelete: Cascade)
+  tasks        CloseTask[]
+
+  @@unique([orgId, fiscalPeriodId])
+  @@index([orgId, status])
+  @@map("close_run")
+}
+
+model CloseTask {
+  id          String          @id @default(cuid())
+  closeRunId  String
+  orgId       String
+  code        String
+  label       String
+  description String?
+  status      CloseTaskStatus @default(PENDING)
+  severity    String          @default("blocker")
+  blockerReason String?
+  metadata    Json?
+  resolvedAt  DateTime?
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+
+  closeRun      CloseRun      @relation(fields: [closeRunId], references: [id], onDelete: Cascade)
+  organization  Organization  @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@unique([closeRunId, code])
+  @@index([orgId, status])
+  @@map("close_task")
 }
 
 // ─── Master Data Models ─────────────────────────────────────────────────────────
@@ -211,18 +824,18 @@ model Customer {
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
-  paymentHealthScore   Int       @default(100)
-  preferredLanguage   String?
+  paymentHealthScore Int     @default(100)
+  preferredLanguage  String?
 
-  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  invoices     Invoice[]
-  virtualAccounts CustomerVirtualAccount[]
-  dunningOptOuts       DunningOptOut[]
-  portalTokens         CustomerPortalToken[]
-  portalAccessLogs     CustomerPortalAccessLog[]
-  statements           CustomerStatement[]
-  quotes               Quote[]
-  arrangements         PaymentArrangement[]
+  organization     Organization              @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  invoices         Invoice[]
+  virtualAccounts  CustomerVirtualAccount[]
+  dunningOptOuts   DunningOptOut[]
+  portalTokens     CustomerPortalToken[]
+  portalAccessLogs CustomerPortalAccessLog[]
+  statements       CustomerStatement[]
+  quotes           Quote[]
+  arrangements     PaymentArrangement[]
 
   @@index([organizationId])
   @@map("customer")
@@ -242,6 +855,7 @@ model Vendor {
 
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   vouchers     Voucher[]
+  bills        VendorBill[]
 
   @@index([organizationId])
   @@map("vendor")
@@ -310,91 +924,96 @@ enum InvoiceStatus {
 }
 
 model Invoice {
-  id             String        @id @default(cuid())
-  organizationId String
-  customerId     String?
-  invoiceNumber  String
-  invoiceDate    String
-  dueDate        String?
-  status         InvoiceStatus @default(DRAFT)
-  formData       Json
-  totalAmount    Float         @default(0)
-  notes          String?
-  originalId     String?
-  issuedAt       DateTime?
-  paidAt         DateTime?
-  overdueAt      DateTime?
-  reissueReason           String?
-  razorpayPaymentLinkId   String?
-  razorpayPaymentLinkUrl  String?
-  paymentLinkExpiresAt    DateTime?
+  id                     String        @id @default(cuid())
+  organizationId         String
+  customerId             String?
+  invoiceNumber          String
+  invoiceDate            String
+  dueDate                String?
+  status                 InvoiceStatus @default(DRAFT)
+  formData               Json
+  totalAmount            Float         @default(0)
+  notes                  String?
+  originalId             String?
+  issuedAt               DateTime?
+  paidAt                 DateTime?
+  overdueAt              DateTime?
+  reissueReason          String?
+  razorpayPaymentLinkId  String?
+  razorpayPaymentLinkUrl String?
+  paymentLinkExpiresAt   DateTime?
   // Payment reconciliation snapshot fields (derived, maintained by reconciliation service)
-  amountPaid              Float     @default(0)
-  remainingAmount         Float     @default(0)
-  lastPaymentAt           DateTime?
-  lastPaymentMethod       String?
-  paymentPromiseDate      String?
-  paymentLinkStatus       String?
-  paymentLinkLastEventAt  DateTime?
+  amountPaid             Float         @default(0)
+  remainingAmount        Float         @default(0)
+  lastPaymentAt          DateTime?
+  lastPaymentMethod      String?
+  paymentPromiseDate     String?
+  paymentLinkStatus      String?
+  paymentLinkLastEventAt DateTime?
   // Phase 14: Dunning
-  dunningEnabled       Boolean   @default(true)
-  dunningPausedUntil   DateTime?
-  dunningSequenceId    String?
+  dunningEnabled         Boolean       @default(true)
+  dunningPausedUntil     DateTime?
+  dunningSequenceId      String?
   // Phase 15: GST & e-Invoicing
-  supplierGstin       String?
-  customerGstin       String?
-  placeOfSupply       String?
-  reverseCharge       Boolean   @default(false)
-  exportType          String?
-  gstTotalCgst        Float     @default(0)
-  gstTotalSgst        Float     @default(0)
-  gstTotalIgst        Float     @default(0)
-  gstTotalCess        Float     @default(0)
-  irnNumber           String?
-  irnAckNumber        String?
-  irnAckDate          DateTime?
-  irnQrCode           String?   @db.Text
-  eWayBillNumber      String?
-  eWayBillDate        DateTime?
-  eWayBillExpiry      DateTime?
-  ewbTransportMode    String?
-  ewbVehicleNumber    String?
-  ewbTransporterGstin String?
-  ewbTransportDocNo   String?
-  ewbDistanceKm       Int?
-  ewbFromPincode      String?
-  ewbToPincode        String?
+  supplierGstin          String?
+  customerGstin          String?
+  placeOfSupply          String?
+  reverseCharge          Boolean       @default(false)
+  exportType             String?
+  gstTotalCgst           Float         @default(0)
+  gstTotalSgst           Float         @default(0)
+  gstTotalIgst           Float         @default(0)
+  gstTotalCess           Float         @default(0)
+  irnNumber              String?
+  irnAckNumber           String?
+  irnAckDate             DateTime?
+  irnQrCode              String?       @db.Text
+  eWayBillNumber         String?
+  eWayBillDate           DateTime?
+  eWayBillExpiry         DateTime?
+  ewbTransportMode       String?
+  ewbVehicleNumber       String?
+  ewbTransporterGstin    String?
+  ewbTransportDocNo      String?
+  ewbDistanceKm          Int?
+  ewbFromPincode         String?
+  ewbToPincode           String?
 
   // Phase 15.2: Multi-currency + i18n
-  displayCurrency     String?
-  exchangeRate        Float?
-  displayTotalAmount  Float?
-  exchangeRateDate    DateTime?
-  documentLanguage    String    @default("en")
+  displayCurrency          String?
+  exchangeRate             Float?
+  displayTotalAmount       Float?
+  exchangeRateDate         DateTime?
+  documentLanguage         String                   @default("en")
+  accountingStatus         AccountingStatus         @default(PENDING)
+  revenueRecognitionStatus RevenueRecognitionStatus @default(PENDING)
+  postedJournalEntryId     String?                  @unique
+  accountingPostedAt       DateTime?
 
-  createdAt      DateTime      @default(now())
-  updatedAt      DateTime      @updatedAt
-  archivedAt     DateTime?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+  archivedAt DateTime?
 
-  organization   Organization          @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  customer       Customer?             @relation(fields: [customerId], references: [id])
-  original       Invoice?              @relation("InvoiceReissue", fields: [originalId], references: [id])
-  reissues       Invoice[]             @relation("InvoiceReissue")
-  lineItems      InvoiceLineItem[]
-  attachments    FileAttachment[]      @relation("InvoiceAttachments")
-  stateEvents    InvoiceStateEvent[]
-  payments       InvoicePayment[]
-  proofs         InvoiceProof[]
-  publicTokens   PublicInvoiceToken[]
-  tickets        InvoiceTicket[]
-  scheduledSends ScheduledSend[]
-  recurringRule  RecurringInvoiceRule? @relation("RecurringBase")
-  generatedFrom  RecurringInvoiceRule? @relation("RecurringGenerated", fields: [generatedFromRuleId], references: [id])
+  organization        Organization          @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  customer            Customer?             @relation(fields: [customerId], references: [id])
+  original            Invoice?              @relation("InvoiceReissue", fields: [originalId], references: [id])
+  reissues            Invoice[]             @relation("InvoiceReissue")
+  lineItems           InvoiceLineItem[]
+  attachments         FileAttachment[]      @relation("InvoiceAttachments")
+  stateEvents         InvoiceStateEvent[]
+  payments            InvoicePayment[]
+  proofs              InvoiceProof[]
+  publicTokens        PublicInvoiceToken[]
+  tickets             InvoiceTicket[]
+  scheduledSends      ScheduledSend[]
+  recurringRule       RecurringInvoiceRule? @relation("RecurringBase")
+  generatedFrom       RecurringInvoiceRule? @relation("RecurringGenerated", fields: [generatedFromRuleId], references: [id])
   generatedFromRuleId String?
-  approvalRequests ApprovalRequest[]   @relation("InvoiceApprovals")
-  dunningLogs    DunningLog[]
-  arrangement    PaymentArrangement?
-  tdsRecords     TdsRecord[]
+  approvalRequests    ApprovalRequest[]     @relation("InvoiceApprovals")
+  dunningLogs         DunningLog[]
+  arrangement         PaymentArrangement?
+  postedJournalEntry  JournalEntry?         @relation("InvoicePostedJournal", fields: [postedJournalEntryId], references: [id])
+  tdsRecords          TdsRecord[]
 
   @@unique([organizationId, invoiceNumber])
   @@index([organizationId, status])
@@ -402,24 +1021,24 @@ model Invoice {
 }
 
 model InvoiceLineItem {
-  id          String @id @default(cuid())
+  id          String  @id @default(cuid())
   invoiceId   String
   description String
-  quantity    Float  @default(1)
-  unitPrice   Float  @default(0)
-  taxRate     Float  @default(0)
-  discount    Float  @default(0)
-  amount      Float  @default(0)
-  sortOrder   Int    @default(0)
+  quantity    Float   @default(1)
+  unitPrice   Float   @default(0)
+  taxRate     Float   @default(0)
+  discount    Float   @default(0)
+  amount      Float   @default(0)
+  sortOrder   Int     @default(0)
   // Phase 15: GST
-  hsnCode        String?
-  sacCode        String?
-  gstRate        Float    @default(0)
-  gstType        GstType  @default(INTRASTATE)
-  cgstAmount     Float    @default(0)
-  sgstAmount     Float    @default(0)
-  igstAmount     Float    @default(0)
-  cessAmount     Float    @default(0)
+  hsnCode     String?
+  sacCode     String?
+  gstRate     Float   @default(0)
+  gstType     GstType @default(INTRASTATE)
+  cgstAmount  Float   @default(0)
+  sgstAmount  Float   @default(0)
+  igstAmount  Float   @default(0)
+  cessAmount  Float   @default(0)
 
   invoice Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
 
@@ -427,25 +1046,29 @@ model InvoiceLineItem {
 }
 
 model Voucher {
-  id             String    @id @default(cuid())
-  organizationId String
-  vendorId       String?
-  voucherNumber  String
-  voucherDate    String
-  type           String    @default("payment")
-  status         String    @default("draft")
-  formData       Json
-  totalAmount    Float     @default(0)
-  isMultiLine    Boolean   @default(false)
-  documentLanguage    String    @default("en")
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
-  archivedAt     DateTime?
+  id               String           @id @default(cuid())
+  organizationId   String
+  vendorId         String?
+  voucherNumber    String
+  voucherDate      String
+  type             String           @default("payment")
+  status           String           @default("draft")
+  formData         Json
+  totalAmount      Float            @default(0)
+  isMultiLine      Boolean          @default(false)
+  documentLanguage String           @default("en")
+  accountingStatus AccountingStatus @default(PENDING)
+  journalEntryId   String?          @unique
+  postedAt         DateTime?
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+  archivedAt       DateTime?
 
-  organization Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  vendor       Vendor?          @relation(fields: [vendorId], references: [id])
-  lines        VoucherLine[]
-  attachments  FileAttachment[] @relation("VoucherAttachments")
+  organization     Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  vendor           Vendor?           @relation(fields: [vendorId], references: [id])
+  lines            VoucherLine[]
+  attachments      FileAttachment[]  @relation("VoucherAttachments")
+  journalEntry     JournalEntry?     @relation("VoucherPostedJournal", fields: [journalEntryId], references: [id])
   approvalRequests ApprovalRequest[] @relation("VoucherApprovals")
 
   @@unique([organizationId, voucherNumber])
@@ -469,26 +1092,33 @@ model VoucherLine {
 }
 
 model SalarySlip {
-  id             String    @id @default(cuid())
-  organizationId String
-  employeeId     String?
-  slipNumber     String
-  month          Int
-  year           Int
-  status         String    @default("draft")
-  formData       Json
-  grossPay       Float     @default(0)
-  netPay         Float     @default(0)
-  documentLanguage    String    @default("en")
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
-  archivedAt     DateTime?
+  id                   String           @id @default(cuid())
+  organizationId       String
+  employeeId           String?
+  slipNumber           String
+  month                Int
+  year                 Int
+  status               String           @default("draft")
+  formData             Json
+  grossPay             Float            @default(0)
+  netPay               Float            @default(0)
+  documentLanguage     String           @default("en")
+  accountingStatus     AccountingStatus @default(PENDING)
+  journalEntryId       String?          @unique
+  payoutJournalEntryId String?          @unique
+  postedAt             DateTime?
+  payoutPostedAt       DateTime?
+  createdAt            DateTime         @default(now())
+  updatedAt            DateTime         @updatedAt
+  archivedAt           DateTime?
 
-  organization Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  employee     Employee?         @relation(fields: [employeeId], references: [id])
-  components   SalaryComponent[]
-  attachments  FileAttachment[]  @relation("SalarySlipAttachments")
-  approvalRequests ApprovalRequest[] @relation("SalarySlipApprovals")
+  organization       Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  employee           Employee?         @relation(fields: [employeeId], references: [id])
+  components         SalaryComponent[]
+  attachments        FileAttachment[]  @relation("SalarySlipAttachments")
+  journalEntry       JournalEntry?     @relation("SalarySlipJournal", fields: [journalEntryId], references: [id])
+  payoutJournalEntry JournalEntry?     @relation("SalarySlipPayoutJournal", fields: [payoutJournalEntryId], references: [id])
+  approvalRequests   ApprovalRequest[] @relation("SalarySlipApprovals")
 
   @@unique([organizationId, slipNumber])
   @@index([organizationId, status])
@@ -523,6 +1153,7 @@ model FileAttachment {
 
   invoice    Invoice?    @relation("InvoiceAttachments", fields: [entityId], references: [id], map: "file_attachment_invoice_fkey")
   voucher    Voucher?    @relation("VoucherAttachments", fields: [entityId], references: [id], map: "file_attachment_voucher_fkey")
+  vendorBill VendorBill? @relation("VendorBillAttachments", fields: [entityId], references: [id], map: "file_attachment_vendor_bill_fkey")
   salarySlip SalarySlip? @relation("SalarySlipAttachments", fields: [entityId], references: [id], map: "file_attachment_salary_slip_fkey")
 
   @@index([organizationId, entityType, entityId])
@@ -563,33 +1194,40 @@ model InvoiceStateEvent {
 }
 
 model InvoicePayment {
-  id         String   @id @default(cuid())
-  invoiceId  String
-  orgId      String
-  amount     Float
-  currency   String   @default("INR")
-  paidAt     DateTime @default(now())
-  method     String?
-  note       String?
-  isPartial  Boolean  @default(false)
+  id                     String           @id @default(cuid())
+  invoiceId              String
+  orgId                  String
+  amount                 Float
+  currency               String           @default("INR")
+  paidAt                 DateTime         @default(now())
+  method                 String?
+  note                   String?
+  isPartial              Boolean          @default(false)
   // Reconciliation fields
-  source                String  @default("admin_manual")
-  status                String  @default("SETTLED")
-  externalPaymentId     String?
-  externalReferenceId   String?
-  externalPayload       Json?
-  paymentMethodDisplay  String?
-  paymentChannel        String?
+  source                 String           @default("admin_manual")
+  status                 String           @default("SETTLED")
+  externalPaymentId      String?
+  externalReferenceId    String?
+  externalPayload        Json?
+  paymentMethodDisplay   String?
+  paymentChannel         String?
   plannedNextPaymentDate String?
-  recordedByUserId      String? @db.Uuid
-  reviewedByUserId      String? @db.Uuid
-  reviewedAt            DateTime?
-  rejectionReason       String?
-  createdAt  DateTime @default(now())
+  recordedByUserId       String?          @db.Uuid
+  reviewedByUserId       String?          @db.Uuid
+  reviewedAt             DateTime?
+  rejectionReason        String?
+  accountingStatus       AccountingStatus @default(PENDING)
+  journalEntryId         String?          @unique
+  bankMatchId            String?
+  clearingAccountId      String?
+  accountingPostedAt     DateTime?
+  createdAt              DateTime         @default(now())
 
-  invoice Invoice      @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
-  proof   InvoiceProof? @relation("PaymentProof")
-  installment         PaymentInstallment?
+  invoice      Invoice               @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  proof        InvoiceProof?         @relation("PaymentProof")
+  installment  PaymentInstallment?
+  journalEntry JournalEntry?         @relation("InvoicePaymentJournal", fields: [journalEntryId], references: [id])
+  bankMatch    BankTransactionMatch? @relation("InvoicePaymentBankMatch", fields: [bankMatchId], references: [id])
 
   @@index([invoiceId])
   @@index([externalPaymentId])
@@ -603,22 +1241,22 @@ enum ProofReviewStatus {
 }
 
 model InvoiceProof {
-  id               String            @id @default(cuid())
-  invoiceId        String
-  invoicePaymentId String?           @unique
-  fileUrl          String
-  fileName         String
-  amount           Float             @default(0)
-  paymentDate      String?
-  paymentMethod    String?
+  id                     String            @id @default(cuid())
+  invoiceId              String
+  invoicePaymentId       String?           @unique
+  fileUrl                String
+  fileName               String
+  amount                 Float             @default(0)
+  paymentDate            String?
+  paymentMethod          String?
   plannedNextPaymentDate String?
-  uploadedByToken  String?
-  uploadedByUserId String?           @db.Uuid
-  reviewStatus     ProofReviewStatus @default(PENDING)
-  reviewNote       String?
-  reviewedById     String?           @db.Uuid
-  reviewedAt       DateTime?
-  createdAt        DateTime          @default(now())
+  uploadedByToken        String?
+  uploadedByUserId       String?           @db.Uuid
+  reviewStatus           ProofReviewStatus @default(PENDING)
+  reviewNote             String?
+  reviewedById           String?           @db.Uuid
+  reviewedAt             DateTime?
+  createdAt              DateTime          @default(now())
 
   invoice        Invoice         @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
   invoicePayment InvoicePayment? @relation("PaymentProof", fields: [invoicePaymentId], references: [id])
@@ -660,18 +1298,18 @@ enum TicketStatus {
 }
 
 model InvoiceTicket {
-  id              String         @id @default(cuid())
-  invoiceId       String
-  orgId           String
-  submitterToken  String?
-  submitterName   String
-  submitterEmail  String
-  category        TicketCategory @default(OTHER)
-  description     String
-  status          TicketStatus   @default(OPEN)
-  assigneeId      String?        @db.Uuid
-  createdAt       DateTime       @default(now())
-  resolvedAt      DateTime?
+  id             String         @id @default(cuid())
+  invoiceId      String
+  orgId          String
+  submitterToken String?
+  submitterName  String
+  submitterEmail String
+  category       TicketCategory @default(OTHER)
+  description    String
+  status         TicketStatus   @default(OPEN)
+  assigneeId     String?        @db.Uuid
+  createdAt      DateTime       @default(now())
+  resolvedAt     DateTime?
 
   invoice Invoice       @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
   replies TicketReply[]
@@ -705,21 +1343,23 @@ enum ApprovalStatus {
 }
 
 model ApprovalRequest {
-  id            String         @id @default(cuid())
-  docType       String
-  docId         String
-  orgId         String
-  requestedById String         @db.Uuid
+  id              String         @id @default(cuid())
+  docType         String
+  docId           String
+  orgId           String
+  requestedById   String         @db.Uuid
   requestedByName String?
-  approverId    String?        @db.Uuid
-  approverName  String?
-  status        ApprovalStatus @default(PENDING)
-  note          String?
-  createdAt     DateTime       @default(now())
-  decidedAt     DateTime?
+  approverId      String?        @db.Uuid
+  approverName    String?
+  status          ApprovalStatus @default(PENDING)
+  note            String?
+  createdAt       DateTime       @default(now())
+  decidedAt       DateTime?
 
   invoice    Invoice?    @relation("InvoiceApprovals", fields: [docId], references: [id], map: "approval_invoice_fkey")
   voucher    Voucher?    @relation("VoucherApprovals", fields: [docId], references: [id], map: "approval_voucher_fkey")
+  vendorBill VendorBill? @relation("VendorBillApprovals", fields: [docId], references: [id], map: "approval_vendor_bill_fkey")
+  paymentRun PaymentRun? @relation("PaymentRunApprovals", fields: [docId], references: [id], map: "approval_payment_run_fkey")
   salarySlip SalarySlip? @relation("SalarySlipApprovals", fields: [docId], references: [id], map: "approval_salary_slip_fkey")
 
   @@index([orgId, status])
@@ -804,19 +1444,19 @@ enum RecurringStatus {
 }
 
 model RecurringInvoiceRule {
-  id             String             @id @default(cuid())
-  orgId          String
-  baseInvoiceId  String             @unique
-  frequency      RecurringFrequency @default(MONTHLY)
-  nextRunAt      DateTime
-  endDate        DateTime?
-  autoSend       Boolean            @default(false)
-  status         RecurringStatus    @default(ACTIVE)
-  runsCount      Int                @default(0)
-  lastRunAt      DateTime?
-  createdAt      DateTime           @default(now())
+  id            String             @id @default(cuid())
+  orgId         String
+  baseInvoiceId String             @unique
+  frequency     RecurringFrequency @default(MONTHLY)
+  nextRunAt     DateTime
+  endDate       DateTime?
+  autoSend      Boolean            @default(false)
+  status        RecurringStatus    @default(ACTIVE)
+  runsCount     Int                @default(0)
+  lastRunAt     DateTime?
+  createdAt     DateTime           @default(now())
 
-  baseInvoice      Invoice   @relation("RecurringBase", fields: [baseInvoiceId], references: [id], onDelete: Cascade)
+  baseInvoice       Invoice   @relation("RecurringBase", fields: [baseInvoiceId], references: [id], onDelete: Cascade)
   generatedInvoices Invoice[] @relation("RecurringGenerated")
 
   @@index([orgId, status])
@@ -909,9 +1549,9 @@ model AuditLog {
   userAgent     String?
   createdAt     DateTime @default(now())
 
-  organization  Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
-  actor         Profile      @relation("AuditActor", fields: [actorId], references: [id])
-  represented   Profile?     @relation("AuditRepresented", fields: [representedId], references: [id])
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  actor        Profile      @relation("AuditActor", fields: [actorId], references: [id])
+  represented  Profile?     @relation("AuditRepresented", fields: [representedId], references: [id])
 
   @@index([orgId, createdAt])
   @@index([actorId])
@@ -922,12 +1562,12 @@ model AuditLog {
 // ─── Phase 10: Storage Usage Tracking ─────────────────────────────────────────
 
 model StorageUsage {
-  id             String   @id @default(cuid())
-  orgId          String
-  category       String   // "export" | "proof" | "attachment" | "pixel"
-  sizeBytes      BigInt   @default(0)
-  fileCount      Int      @default(0)
-  lastUpdatedAt  DateTime @updatedAt
+  id            String   @id @default(cuid())
+  orgId         String
+  category      String // "export" | "proof" | "attachment" | "pixel"
+  sizeBytes     BigInt   @default(0)
+  fileCount     Int      @default(0)
+  lastUpdatedAt DateTime @updatedAt
 
   organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
 
@@ -939,16 +1579,16 @@ model StorageUsage {
 // ─── Phase 10: Send Log ───────────────────────────────────────────────────────
 
 model SendLog {
-  id           String   @id @default(cuid())
-  orgId        String
-  type         String   // "invoice_send" | "scheduled_send" | "reminder" | "notification"
+  id             String   @id @default(cuid())
+  orgId          String
+  type           String // "invoice_send" | "scheduled_send" | "reminder" | "notification"
   recipientEmail String
-  subject      String?
-  status       String   @default("sent") // "sent" | "failed" | "bounced"
-  errorMessage String?
-  docType      String?  // "invoice" | "voucher" | "salary_slip"
-  docId        String?
-  sentAt       DateTime @default(now())
+  subject        String?
+  status         String   @default("sent") // "sent" | "failed" | "bounced"
+  errorMessage   String?
+  docType        String? // "invoice" | "voucher" | "salary_slip"
+  docId          String?
+  sentAt         DateTime @default(now())
 
   organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
 
@@ -960,24 +1600,24 @@ model SendLog {
 // ─── Phase 11: Subscription & Billing ─────────────────────────────────────────
 
 model Subscription {
-  id                  String    @id @default(cuid())
-  orgId               String    @unique
-  planId              String    @default("free")
-  status              String    @default("trialing")
-  billingInterval     String?
-  razorpayCustomerId  String?   @unique
-  razorpaySubId       String?   @unique
-  razorpayPlanId      String?
-  trialEndsAt         DateTime?
-  currentPeriodStart  DateTime?
-  currentPeriodEnd    DateTime?
-  cancelAtPeriodEnd   Boolean   @default(false)
-  cancelledAt         DateTime?
-  pausedAt            DateTime?
-  pausedUntil         DateTime?
-  pauseReason         String?
-  createdAt           DateTime  @default(now())
-  updatedAt           DateTime  @updatedAt
+  id                 String    @id @default(cuid())
+  orgId              String    @unique
+  planId             String    @default("free")
+  status             String    @default("trialing")
+  billingInterval    String?
+  razorpayCustomerId String?   @unique
+  razorpaySubId      String?   @unique
+  razorpayPlanId     String?
+  trialEndsAt        DateTime?
+  currentPeriodStart DateTime?
+  currentPeriodEnd   DateTime?
+  cancelAtPeriodEnd  Boolean   @default(false)
+  cancelledAt        DateTime?
+  pausedAt           DateTime?
+  pausedUntil        DateTime?
+  pauseReason        String?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
 
   organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
 
@@ -1014,16 +1654,16 @@ model RazorpayEvent {
 // ─── Phase 11: Referral System ────────────────────────────────────────────────
 
 model Referral {
-  id              String    @id @default(cuid())
-  referrerId      String    @db.Uuid
-  referredOrgId   String?
-  referralCode    String    @unique
-  status          String    @default("pending")
-  creditApplied   Boolean   @default(false)
-  referrerCredit  Boolean   @default(false)
-  createdAt       DateTime  @default(now())
-  convertedAt     DateTime?
-  creditedAt      DateTime?
+  id             String    @id @default(cuid())
+  referrerId     String    @db.Uuid
+  referredOrgId  String?
+  referralCode   String    @unique
+  status         String    @default("pending")
+  creditApplied  Boolean   @default(false)
+  referrerCredit Boolean   @default(false)
+  createdAt      DateTime  @default(now())
+  convertedAt    DateTime?
+  creditedAt     DateTime?
 
   referrer Profile @relation(fields: [referrerId], references: [id], onDelete: Cascade)
 
@@ -1056,19 +1696,19 @@ model SharedDocument {
 // ─── Phase 11: Onboarding Progress ───────────────────────────────────────────
 
 model OnboardingProgress {
-  id                  String    @id @default(cuid())
-  userId              String    @unique @db.Uuid
-  accountCreated      Boolean   @default(true)
-  emailVerified       Boolean   @default(false)
-  orgSetup            Boolean   @default(false)
-  firstDocCreated     Boolean   @default(false)
-  firstDocExported    Boolean   @default(false)
-  teamMemberInvited   Boolean   @default(false)
-  recurringSetup      Boolean   @default(false)
-  completedAt         DateTime?
-  dismissedAt         DateTime?
-  createdAt           DateTime  @default(now())
-  updatedAt           DateTime  @updatedAt
+  id                String    @id @default(cuid())
+  userId            String    @unique @db.Uuid
+  accountCreated    Boolean   @default(true)
+  emailVerified     Boolean   @default(false)
+  orgSetup          Boolean   @default(false)
+  firstDocCreated   Boolean   @default(false)
+  firstDocExported  Boolean   @default(false)
+  teamMemberInvited Boolean   @default(false)
+  recurringSetup    Boolean   @default(false)
+  completedAt       DateTime?
+  dismissedAt       DateTime?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
 
   user Profile @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -1078,15 +1718,15 @@ model OnboardingProgress {
 // ─── Phase 12: Razorpay Payment Links & Smart Collect ─────────────────────────
 
 model CustomerVirtualAccount {
-  id              String    @id @default(cuid())
-  orgId           String
-  customerId      String
-  razorpayVaId    String    @unique
-  accountNumber   String
-  ifsc            String
-  isActive        Boolean   @default(true)
-  createdAt       DateTime  @default(now())
-  closedAt        DateTime?
+  id            String    @id @default(cuid())
+  orgId         String
+  customerId    String
+  razorpayVaId  String    @unique
+  accountNumber String
+  ifsc          String
+  isActive      Boolean   @default(true)
+  createdAt     DateTime  @default(now())
+  closedAt      DateTime?
 
   organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
   customer     Customer     @relation(fields: [customerId], references: [id], onDelete: Cascade)
@@ -1116,18 +1756,18 @@ model UnmatchedPayment {
 }
 
 model BillingInvoice {
-  id                  String   @id @default(cuid())
-  orgId               String
-  razorpayInvoiceId   String?  @unique
-  razorpayPaymentId   String?
-  planId              String
-  amountPaise         BigInt
-  currency            String   @default("INR")
-  periodStart         DateTime
-  periodEnd           DateTime
-  status              String   @default("paid")
-  pdfUrl              String?
-  createdAt           DateTime @default(now())
+  id                String   @id @default(cuid())
+  orgId             String
+  razorpayInvoiceId String?  @unique
+  razorpayPaymentId String?
+  planId            String
+  amountPaise       BigInt
+  currency          String   @default("INR")
+  periodStart       DateTime
+  periodEnd         DateTime
+  status            String   @default("paid")
+  pdfUrl            String?
+  createdAt         DateTime @default(now())
 
   organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
 
@@ -1138,18 +1778,18 @@ model BillingInvoice {
 // ─── Phase 12: API Platform ──────────────────────────────────────────────────
 
 model ApiKey {
-  id          String    @id @default(cuid())
-  orgId       String
-  name        String
-  keyHash     String    @unique
-  keyPrefix   String
-  scopes      String[]
-  lastUsedAt  DateTime?
-  expiresAt   DateTime?
-  isActive    Boolean   @default(true)
-  createdBy   String    @db.Uuid
-  createdAt   DateTime  @default(now())
-  revokedAt   DateTime?
+  id         String    @id @default(cuid())
+  orgId      String
+  name       String
+  keyHash    String    @unique
+  keyPrefix  String
+  scopes     String[]
+  lastUsedAt DateTime?
+  expiresAt  DateTime?
+  isActive   Boolean   @default(true)
+  createdBy  String    @db.Uuid
+  createdAt  DateTime  @default(now())
+  revokedAt  DateTime?
 
   organization Organization    @relation(fields: [orgId], references: [id], onDelete: Cascade)
   requestLogs  ApiRequestLog[]
@@ -1160,24 +1800,24 @@ model ApiKey {
 }
 
 model ApiWebhookEndpoint {
-  id              String    @id @default(cuid())
-  orgId           String
-  url             String
-  events          String[]
-  secretHash      String
-  isActive        Boolean   @default(true)
-  description     String?
-  failureCount      Int       @default(0)
-  createdAt         DateTime  @default(now())
-  lastDeliveredAt   DateTime?
-  apiVersion        String    @default("v2")
-  signingSecret     String?
-  maxRetries        Int       @default(5)
-  retryBackoff      String    @default("exponential")
-  consecutiveFails  Int       @default(0)
-  autoDisableAt     Int       @default(10)
-  lastDeliveryAt    DateTime?
-  lastSuccessAt     DateTime?
+  id               String    @id @default(cuid())
+  orgId            String
+  url              String
+  events           String[]
+  secretHash       String
+  isActive         Boolean   @default(true)
+  description      String?
+  failureCount     Int       @default(0)
+  createdAt        DateTime  @default(now())
+  lastDeliveredAt  DateTime?
+  apiVersion       String    @default("v2")
+  signingSecret    String?
+  maxRetries       Int       @default(5)
+  retryBackoff     String    @default("exponential")
+  consecutiveFails Int       @default(0)
+  autoDisableAt    Int       @default(10)
+  lastDeliveryAt   DateTime?
+  lastSuccessAt    DateTime?
 
   organization Organization         @relation(fields: [orgId], references: [id], onDelete: Cascade)
   deliveries   ApiWebhookDelivery[]
@@ -1187,18 +1827,18 @@ model ApiWebhookEndpoint {
 }
 
 model ApiWebhookDelivery {
-  id              String   @id @default(cuid())
-  endpointId      String
-  eventType       String
-  payload         Json
-  responseStatus  Int?
-  responseBody    String?   @db.Text
-  durationMs      Int?
-  success         Boolean
-  attempt         Int       @default(1)
-  nextRetryAt     DateTime?
-  requestBody     Json?
-  deliveredAt     DateTime?
+  id             String    @id @default(cuid())
+  endpointId     String
+  eventType      String
+  payload        Json
+  responseStatus Int?
+  responseBody   String?   @db.Text
+  durationMs     Int?
+  success        Boolean
+  attempt        Int       @default(1)
+  nextRetryAt    DateTime?
+  requestBody    Json?
+  deliveredAt    DateTime?
 
   endpoint ApiWebhookEndpoint @relation(fields: [endpointId], references: [id], onDelete: Cascade)
 
@@ -1228,18 +1868,18 @@ model ApiRequestLog {
 // ─── Phase 12: Enterprise Features ───────────────────────────────────────────
 
 model SsoConfig {
-  id              String    @id @default(cuid())
-  orgId           String    @unique
-  provider        String
-  metadataUrl     String?
-  metadataXml     String?   @db.Text
-  acsUrl          String
-  entityId        String
-  ssoEnforced     Boolean   @default(false)
-  isActive        Boolean   @default(true)
-  testedAt        DateTime?
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
+  id          String    @id @default(cuid())
+  orgId       String    @unique
+  provider    String
+  metadataUrl String?
+  metadataXml String?   @db.Text
+  acsUrl      String
+  entityId    String
+  ssoEnforced Boolean   @default(false)
+  isActive    Boolean   @default(true)
+  testedAt    DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
 
   organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
 
@@ -1258,13 +1898,13 @@ model UserOrgPreference {
 }
 
 model OrgDomain {
-  id           String    @id @default(cuid())
-  orgId        String    @unique
-  domain       String    @unique
-  verified     Boolean   @default(false)
-  verifyToken  String
-  createdAt    DateTime  @default(now())
-  verifiedAt   DateTime?
+  id          String    @id @default(cuid())
+  orgId       String    @unique
+  domain      String    @unique
+  verified    Boolean   @default(false)
+  verifyToken String
+  createdAt   DateTime  @default(now())
+  verifiedAt  DateTime?
 
   organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
 
@@ -1272,13 +1912,13 @@ model OrgDomain {
 }
 
 model OrgWhiteLabel {
-  id              String   @id @default(cuid())
-  orgId           String   @unique
-  removeBranding  Boolean  @default(false)
-  emailFromName   String?
-  emailReplyTo    String?
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  id             String   @id @default(cuid())
+  orgId          String   @unique
+  removeBranding Boolean  @default(false)
+  emailFromName  String?
+  emailReplyTo   String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
   organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
 
@@ -1471,14 +2111,14 @@ model DunningOptOut {
 // ─── Phase 14: AR Automation — Customer Portal ───────────────────────────────
 
 model CustomerPortalToken {
-  id          String    @id @default(cuid())
-  orgId       String
-  customerId  String
-  tokenHash   String    @unique
-  expiresAt   DateTime
-  lastUsedAt  DateTime?
-  isRevoked   Boolean   @default(false)
-  createdAt   DateTime  @default(now())
+  id         String    @id @default(cuid())
+  orgId      String
+  customerId String
+  tokenHash  String    @unique
+  expiresAt  DateTime
+  lastUsedAt DateTime?
+  isRevoked  Boolean   @default(false)
+  createdAt  DateTime  @default(now())
 
   org      Organization @relation(fields: [orgId], references: [id])
   customer Customer     @relation(fields: [customerId], references: [id])
@@ -1542,7 +2182,7 @@ model Quote {
   notes              String?     @db.Text
   termsAndConditions String?     @db.Text
   templateId         String?
-  documentLanguage    String    @default("en")
+  documentLanguage   String      @default("en")
   publicToken        String?     @unique
   convertedInvoiceId String?
   acceptedAt         DateTime?
@@ -1564,13 +2204,13 @@ model Quote {
 }
 
 model QuoteLineItem {
-  id          String  @id @default(cuid())
+  id          String @id @default(cuid())
   quoteId     String
   description String
-  quantity    Float   @default(1)
-  unitPrice   Float   @default(0)
-  taxRate     Float   @default(0)
-  amount      Float   @default(0)
+  quantity    Float  @default(1)
+  unitPrice   Float  @default(0)
+  taxRate     Float  @default(0)
+  amount      Float  @default(0)
   sortOrder   Int
 
   quote Quote @relation(fields: [quoteId], references: [id], onDelete: Cascade)
@@ -1593,10 +2233,10 @@ model PaymentArrangement {
   createdAt        DateTime          @default(now())
   updatedAt        DateTime          @updatedAt
 
-  org          Organization        @relation(fields: [orgId], references: [id])
-  invoice      Invoice             @relation(fields: [invoiceId], references: [id])
-  customer     Customer            @relation(fields: [customerId], references: [id])
-  creator      Profile             @relation(fields: [createdBy], references: [id])
+  org          Organization         @relation(fields: [orgId], references: [id])
+  invoice      Invoice              @relation(fields: [invoiceId], references: [id])
+  customer     Customer             @relation(fields: [customerId], references: [id])
+  creator      Profile              @relation(fields: [createdBy], references: [id])
   installments PaymentInstallment[]
 
   @@index([orgId, status])
@@ -1688,7 +2328,7 @@ enum MarketplaceTemplateStatus {
 }
 
 model MarketplaceTemplate {
-  id              String                     @id @default(cuid())
+  id              String                    @id @default(cuid())
   templateType    String
   name            String
   description     String
@@ -1696,20 +2336,20 @@ model MarketplaceTemplate {
   previewPdfUrl   String?
   category        String[]
   tags            String[]
-  price           Decimal                    @db.Decimal(8, 2)
-  currency        String                     @default("INR")
+  price           Decimal                   @db.Decimal(8, 2)
+  currency        String                    @default("INR")
   publisherOrgId  String?
   publisherName   String
-  isOfficial      Boolean                    @default(false)
-  isApproved      Boolean                    @default(false)
-  status          MarketplaceTemplateStatus  @default(DRAFT)
-  downloadCount   Int                        @default(0)
-  rating          Decimal?                   @db.Decimal(3, 2)
-  ratingCount     Int                        @default(0)
+  isOfficial      Boolean                   @default(false)
+  isApproved      Boolean                   @default(false)
+  status          MarketplaceTemplateStatus @default(DRAFT)
+  downloadCount   Int                       @default(0)
+  rating          Decimal?                  @db.Decimal(3, 2)
+  ratingCount     Int                       @default(0)
   templateData    Json
-  version         String                     @default("1.0.0")
-  createdAt       DateTime                   @default(now())
-  updatedAt       DateTime                   @updatedAt
+  version         String                    @default("1.0.0")
+  createdAt       DateTime                  @default(now())
+  updatedAt       DateTime                  @updatedAt
 
   publisherOrg Organization?         @relation(fields: [publisherOrgId], references: [id])
   purchases    MarketplacePurchase[]
@@ -1755,18 +2395,18 @@ model MarketplaceReview {
 }
 
 model MarketplaceRevenue {
-  id             String   @id @default(cuid())
-  purchaseId     String   @unique
+  id             String    @id @default(cuid())
+  purchaseId     String    @unique
   publisherOrgId String
-  totalAmount    Decimal  @db.Decimal(8, 2)
-  publisherShare Decimal  @db.Decimal(8, 2)
-  platformShare  Decimal  @db.Decimal(8, 2)
-  status         String   @default("PENDING_PAYOUT")
+  totalAmount    Decimal   @db.Decimal(8, 2)
+  publisherShare Decimal   @db.Decimal(8, 2)
+  platformShare  Decimal   @db.Decimal(8, 2)
+  status         String    @default("PENDING_PAYOUT")
   paidOutAt      DateTime?
-  createdAt      DateTime @default(now())
+  createdAt      DateTime  @default(now())
 
   purchase     MarketplacePurchase @relation(fields: [purchaseId], references: [id])
-  publisherOrg Organization       @relation(fields: [publisherOrgId], references: [id])
+  publisherOrg Organization        @relation(fields: [publisherOrgId], references: [id])
 
   @@map("marketplace_revenue")
 }
@@ -1809,9 +2449,9 @@ model OAuthAuthorization {
   isRevoked        Boolean  @default(false)
   createdAt        DateTime @default(now())
 
-  app            OAuthApp     @relation(fields: [appId], references: [id])
-  org            Organization @relation(fields: [orgId], references: [id])
-  grantedByUser  Profile      @relation(fields: [grantedBy], references: [id])
+  app           OAuthApp     @relation(fields: [appId], references: [id])
+  org           Organization @relation(fields: [orgId], references: [id])
+  grantedByUser Profile      @relation(fields: [grantedBy], references: [id])
 
   @@map("oauth_authorizations")
 }

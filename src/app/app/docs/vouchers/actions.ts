@@ -5,6 +5,7 @@ import { requireOrgContext } from "@/lib/auth";
 import { nextDocumentNumber } from "@/lib/docs";
 import { revalidatePath } from "next/cache";
 import type { Prisma } from "@/generated/prisma/client";
+import { postVoucherTx } from "@/lib/accounting";
 
 export type ActionResult<T> = 
   | { success: true; data: T }
@@ -33,34 +34,46 @@ export async function saveVoucher(
   status: "draft" | "approved" = "draft"
 ): Promise<ActionResult<{ id: string; voucherNumber: string }>> {
   try {
-    const { orgId } = await requireOrgContext();
+    const { orgId, userId } = await requireOrgContext();
     
     const voucherNumber = await nextDocumentNumber(orgId, "voucher");
     
     const totalAmount = input.lines.reduce((sum, line) => sum + line.amount, 0);
     
-    const voucher = await db.voucher.create({
-      data: {
-        organizationId: orgId,
-        vendorId: input.vendorId || null,
-        voucherNumber,
-        voucherDate: input.voucherDate,
-        type: input.type,
-        status,
-        isMultiLine: input.isMultiLine ?? false,
-        formData: input.formData as Prisma.InputJsonValue,
-        totalAmount,
-        lines: {
-          create: input.lines.map((line, index) => ({
-            description: line.description,
-            date: line.date || null,
-            time: line.time || null,
-            amount: line.amount,
-            category: line.category || null,
-            sortOrder: index,
-          })),
+    const voucher = await db.$transaction(async (tx) => {
+      const created = await tx.voucher.create({
+        data: {
+          organizationId: orgId,
+          vendorId: input.vendorId || null,
+          voucherNumber,
+          voucherDate: input.voucherDate,
+          type: input.type,
+          status,
+          isMultiLine: input.isMultiLine ?? false,
+          formData: input.formData as Prisma.InputJsonValue,
+          totalAmount,
+          lines: {
+            create: input.lines.map((line, index) => ({
+              description: line.description,
+              date: line.date || null,
+              time: line.time || null,
+              amount: line.amount,
+              category: line.category || null,
+              sortOrder: index,
+            })),
+          },
         },
-      },
+      });
+
+      if (status === "approved") {
+        await postVoucherTx(tx, {
+          orgId,
+          voucherId: created.id,
+          actorId: userId,
+        });
+      }
+
+      return created;
     });
     
     revalidatePath("/app/docs/vouchers");
@@ -76,48 +89,69 @@ export async function updateVoucher(
   input: Partial<VoucherInput>
 ): Promise<ActionResult<{ id: string }>> {
   try {
-    const { orgId } = await requireOrgContext();
+    const { orgId, userId } = await requireOrgContext();
     
     const existing = await db.voucher.findFirst({
       where: { id, organizationId: orgId },
+      select: {
+        id: true,
+        status: true,
+        accountingStatus: true,
+        totalAmount: true,
+      },
     });
     
     if (!existing) {
       return { success: false, error: "Voucher not found" };
+    }
+
+    if (existing.accountingStatus === "POSTED") {
+      return { success: false, error: "Posted vouchers cannot be edited. Reverse and recreate instead." };
     }
     
     let totalAmount = existing.totalAmount;
     if (input.lines) {
       totalAmount = input.lines.reduce((sum, line) => sum + line.amount, 0);
     }
-    
-    await db.voucher.update({
-      where: { id },
-      data: {
-        vendorId: input.vendorId,
-        voucherDate: input.voucherDate,
-        type: input.type,
-        isMultiLine: input.isMultiLine,
-        ...(input.status && { status: input.status }),
-        formData: input.formData as Prisma.InputJsonValue | undefined,
-        totalAmount,
-      },
-    });
-    
-    if (input.lines) {
-      await db.voucherLine.deleteMany({ where: { voucherId: id } });
-      await db.voucherLine.createMany({
-        data: input.lines.map((line, index) => ({
-          voucherId: id,
-          description: line.description,
-          date: line.date || null,
-          time: line.time || null,
-          amount: line.amount,
-          category: line.category || null,
-          sortOrder: index,
-        })),
+
+    await db.$transaction(async (tx) => {
+      await tx.voucher.update({
+        where: { id },
+        data: {
+          vendorId: input.vendorId,
+          voucherDate: input.voucherDate,
+          type: input.type,
+          isMultiLine: input.isMultiLine,
+          ...(input.status && { status: input.status }),
+          formData: input.formData as Prisma.InputJsonValue | undefined,
+          totalAmount,
+        },
       });
-    }
+
+      if (input.lines) {
+        await tx.voucherLine.deleteMany({ where: { voucherId: id } });
+        await tx.voucherLine.createMany({
+          data: input.lines.map((line, index) => ({
+            voucherId: id,
+            description: line.description,
+            date: line.date || null,
+            time: line.time || null,
+            amount: line.amount,
+            category: line.category || null,
+            sortOrder: index,
+          })),
+        });
+      }
+
+      const nextStatus = input.status ?? existing.status;
+      if (nextStatus === "approved") {
+        await postVoucherTx(tx, {
+          orgId,
+          voucherId: id,
+          actorId: userId,
+        });
+      }
+    });
     
     revalidatePath("/app/docs/vouchers");
     revalidatePath(`/app/docs/vouchers/${id}`);

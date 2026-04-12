@@ -5,6 +5,7 @@ import { logAudit } from "@/lib/audit";
 import { reconcileInvoicePayment } from "@/lib/invoice-reconciliation";
 import { stopDunningOnArrangement, resumeDunning } from "@/lib/dunning";
 import type { Prisma } from "@/generated/prisma/client";
+import { postInvoicePaymentTx } from "@/lib/accounting";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -203,6 +204,12 @@ export async function recordInstallmentPayment(
         recordedByUserId: actorId,
         note: `Installment #${installment.installmentNumber} payment`,
       },
+    });
+
+    await postInvoicePaymentTx(tx, {
+      orgId: invoice.organizationId,
+      invoicePaymentId: payment.id,
+      actorId,
     });
 
     // Mark installment as PAID and link to payment

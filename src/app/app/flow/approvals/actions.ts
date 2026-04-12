@@ -3,6 +3,7 @@
 import { db } from "@/lib/db";
 import { requireOrgContext } from "@/lib/auth";
 import { revalidatePath } from "next/cache";
+import { postVendorBillTx, postVoucherTx } from "@/lib/accounting";
 import { createNotification, notifyOrgAdmins } from "@/lib/notifications";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -11,7 +12,7 @@ export type ActionResult<T> =
   | { success: true; data: T }
   | { success: false; error: string };
 
-const VALID_DOC_TYPES = ["invoice", "voucher", "salary-slip"] as const;
+const VALID_DOC_TYPES = ["invoice", "voucher", "salary-slip", "vendor-bill", "payment-run"] as const;
 type DocType = (typeof VALID_DOC_TYPES)[number];
 
 const PAGE_SIZE = 20;
@@ -26,6 +27,10 @@ function docTypeToLabel(docType: string): string {
       return "Voucher";
     case "salary-slip":
       return "Salary Slip";
+    case "vendor-bill":
+      return "Vendor Bill";
+    case "payment-run":
+      return "Payment Run";
     default:
       return docType;
   }
@@ -63,6 +68,20 @@ async function getDocNumber(docType: string, docId: string): Promise<string> {
       });
       return s?.slipNumber ?? docId;
     }
+    case "vendor-bill": {
+      const bill = await db.vendorBill.findUnique({
+        where: { id: docId },
+        select: { billNumber: true },
+      });
+      return bill?.billNumber ?? docId;
+    }
+    case "payment-run": {
+      const run = await db.paymentRun.findUnique({
+        where: { id: docId },
+        select: { runNumber: true },
+      });
+      return run?.runNumber ?? docId;
+    }
     default:
       return docId;
   }
@@ -80,8 +99,14 @@ async function getApprovalDocumentSummaries(
   const salarySlipIds = approvals
     .filter((approval) => approval.docType === "salary-slip")
     .map((approval) => approval.docId);
+  const vendorBillIds = approvals
+    .filter((approval) => approval.docType === "vendor-bill")
+    .map((approval) => approval.docId);
+  const paymentRunIds = approvals
+    .filter((approval) => approval.docType === "payment-run")
+    .map((approval) => approval.docId);
 
-  const [invoices, vouchers, salarySlips] = await Promise.all([
+  const [invoices, vouchers, salarySlips, vendorBills, paymentRuns] = await Promise.all([
     invoiceIds.length > 0
       ? db.invoice.findMany({
           where: { id: { in: invoiceIds } },
@@ -119,6 +144,29 @@ async function getApprovalDocumentSummaries(
           },
         })
       : Promise.resolve([]),
+    vendorBillIds.length > 0
+      ? db.vendorBill.findMany({
+          where: { id: { in: vendorBillIds } },
+          select: {
+            id: true,
+            billNumber: true,
+            totalAmount: true,
+            billDate: true,
+            vendor: { select: { name: true } },
+          },
+        })
+      : Promise.resolve([]),
+    paymentRunIds.length > 0
+      ? db.paymentRun.findMany({
+          where: { id: { in: paymentRunIds } },
+          select: {
+            id: true,
+            runNumber: true,
+            totalAmount: true,
+            scheduledDate: true,
+          },
+        })
+      : Promise.resolve([]),
   ]);
 
   const documents = new Map<string, ApprovalDocumentSummary>();
@@ -149,6 +197,24 @@ async function getApprovalDocumentSummaries(
       date: `${salarySlip.month}/${salarySlip.year}`,
       month: salarySlip.month,
       year: salarySlip.year,
+    });
+  }
+
+  for (const bill of vendorBills) {
+    documents.set(`vendor-bill:${bill.id}`, {
+      number: bill.billNumber,
+      entityName: bill.vendor?.name ?? null,
+      amount: bill.totalAmount,
+      date: bill.billDate,
+    });
+  }
+
+  for (const paymentRun of paymentRuns) {
+    documents.set(`payment-run:${paymentRun.id}`, {
+      number: paymentRun.runNumber,
+      entityName: null,
+      amount: paymentRun.totalAmount,
+      date: paymentRun.scheduledDate.toISOString().slice(0, 10),
     });
   }
 
@@ -186,6 +252,18 @@ export async function requestApproval(
       case "salary-slip":
         docExists = !!(await db.salarySlip.findFirst({
           where: { id: docId, organizationId: orgId },
+          select: { id: true },
+        }));
+        break;
+      case "vendor-bill":
+        docExists = !!(await db.vendorBill.findFirst({
+          where: { id: docId, orgId },
+          select: { id: true },
+        }));
+        break;
+      case "payment-run":
+        docExists = !!(await db.paymentRun.findFirst({
+          where: { id: docId, orgId },
           select: { id: true },
         }));
         break;
@@ -410,29 +488,56 @@ export async function approveRequest(
 
     const approverName = profile?.name ?? "Unknown User";
 
-    await db.approvalRequest.update({
-      where: { id: requestId },
-      data: {
-        status: "APPROVED",
-        approverId: userId,
-        approverName,
-        decidedAt: new Date(),
-        note: note ?? null,
-      },
-    });
+    await db.$transaction(async (tx) => {
+      await tx.approvalRequest.update({
+        where: { id: requestId },
+        data: {
+          status: "APPROVED",
+          approverId: userId,
+          approverName,
+          decidedAt: new Date(),
+          note: note ?? null,
+        },
+      });
 
-    // Update document status if applicable
-    if (approval.docType === "voucher") {
-      await db.voucher.update({
-        where: { id: approval.docId },
-        data: { status: "approved" },
-      });
-    } else if (approval.docType === "salary-slip") {
-      await db.salarySlip.update({
-        where: { id: approval.docId },
-        data: { status: "approved" },
-      });
-    }
+      if (approval.docType === "voucher") {
+        await tx.voucher.update({
+          where: { id: approval.docId },
+          data: { status: "approved" },
+        });
+
+        await postVoucherTx(tx, {
+          orgId,
+          voucherId: approval.docId,
+          actorId: userId,
+        });
+      } else if (approval.docType === "salary-slip") {
+        await tx.salarySlip.update({
+          where: { id: approval.docId },
+          data: { status: "approved" },
+        });
+      } else if (approval.docType === "vendor-bill") {
+        await tx.vendorBill.update({
+          where: { id: approval.docId },
+          data: { status: "APPROVED" },
+        });
+
+        await postVendorBillTx(tx, {
+          orgId,
+          vendorBillId: approval.docId,
+          actorId: userId,
+        });
+      } else if (approval.docType === "payment-run") {
+        await tx.paymentRun.update({
+          where: { id: approval.docId },
+          data: {
+            status: "APPROVED",
+            approvedByUserId: userId,
+            approvedAt: new Date(),
+          },
+        });
+      }
+    });
 
     const docNumber = await getDocNumber(approval.docType, approval.docId);
 

@@ -175,12 +175,12 @@ export async function renderExportPdfViaBrowser(
       });
     });
 
-    return page.pdf({
+    return Buffer.from(await page.pdf({
       format: "A4",
       printBackground: true,
       preferCSSPageSize: true,
       displayHeaderFooter: false,
-    });
+    }));
   } finally {
     await browser.close();
   }
@@ -272,9 +272,9 @@ export async function renderExportPngViaBrowser(
       });
     });
 
-    return element.screenshot({
+    return Buffer.from(await element.screenshot({
       type: "png",
-    });
+    }));
   } finally {
     await browser.close();
   }

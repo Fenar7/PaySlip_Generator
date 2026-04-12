@@ -3,11 +3,21 @@
 import { db } from "@/lib/db";
 import { Prisma } from "@/generated/prisma/client";
 
-export type DocumentType = "invoice" | "voucher" | "salarySlip" | "quote";
+export type DocumentType = "invoice" | "voucher" | "salarySlip" | "quote" | "vendorBill";
 
 interface NumberingConfig {
-  prefixField: "invoicePrefix" | "voucherPrefix" | "salarySlipPrefix" | "quotePrefix";
-  counterField: "invoiceCounter" | "voucherCounter" | "salarySlipCounter" | "quoteCounter";
+  prefixField:
+    | "invoicePrefix"
+    | "voucherPrefix"
+    | "salarySlipPrefix"
+    | "quotePrefix"
+    | "vendorBillPrefix";
+  counterField:
+    | "invoiceCounter"
+    | "voucherCounter"
+    | "salarySlipCounter"
+    | "quoteCounter"
+    | "vendorBillCounter";
 }
 
 type PrefixField = NumberingConfig["prefixField"];
@@ -22,6 +32,8 @@ type NumberingFields = {
   salarySlipCounter: number;
   quotePrefix: string;
   quoteCounter: number;
+  vendorBillPrefix: string;
+  vendorBillCounter: number;
 };
 
 const DEFAULT_NUMBERING: NumberingFields = {
@@ -33,6 +45,8 @@ const DEFAULT_NUMBERING: NumberingFields = {
   salarySlipCounter: 1,
   quotePrefix: "QTE",
   quoteCounter: 1,
+  vendorBillPrefix: "BILL",
+  vendorBillCounter: 1,
 };
 
 const CONFIG: Record<DocumentType, NumberingConfig> = {
@@ -51,6 +65,10 @@ const CONFIG: Record<DocumentType, NumberingConfig> = {
   quote: {
     prefixField: "quotePrefix",
     counterField: "quoteCounter",
+  },
+  vendorBill: {
+    prefixField: "vendorBillPrefix",
+    counterField: "vendorBillCounter",
   },
 };
 
@@ -81,45 +99,45 @@ function getNumberingFieldValue<T extends PrefixField | CounterField>(
  * @param docType - Type of document (invoice, voucher, salarySlip)
  * @returns Formatted document number
  */
-export async function nextDocumentNumber(
+export async function nextDocumentNumberTx(
+  tx: Prisma.TransactionClient,
   orgId: string,
-  docType: DocumentType
+  docType: DocumentType,
 ): Promise<string> {
   const config = CONFIG[docType];
   const select = numberingSelect(config);
 
-  // Use a transaction to atomically read and increment
-  const result = await db.$transaction(async (tx: Prisma.TransactionClient) => {
-    // Get or create OrgDefaults — only fetch the two fields we need
-    let defaults = await tx.orgDefaults.findUnique({
-      where: { organizationId: orgId },
-      select,
-    });
-
-    if (!defaults) {
-      defaults = await tx.orgDefaults.create({
-        data: { organizationId: orgId },
-        select,
-      });
-    }
-
-    const prefix = getNumberingFieldValue(defaults, config.prefixField);
-    const currentCounter = getNumberingFieldValue(defaults, config.counterField);
-
-    // Increment the counter — updateMany avoids a full-row read on return
-    await tx.orgDefaults.updateMany({
-      where: { organizationId: orgId },
-      data: {
-        [config.counterField]: currentCounter + 1,
-      },
-    });
-
-    return { prefix, counter: currentCounter };
+  let defaults = await tx.orgDefaults.findUnique({
+    where: { organizationId: orgId },
+    select,
   });
 
-  // Format: PREFIX-001, PREFIX-002, etc.
-  const paddedCounter = result.counter.toString().padStart(3, "0");
-  return `${result.prefix}-${paddedCounter}`;
+  if (!defaults) {
+    defaults = await tx.orgDefaults.create({
+      data: { organizationId: orgId },
+      select,
+    });
+  }
+
+  const prefix = getNumberingFieldValue(defaults, config.prefixField);
+  const currentCounter = getNumberingFieldValue(defaults, config.counterField);
+
+  await tx.orgDefaults.updateMany({
+    where: { organizationId: orgId },
+    data: {
+      [config.counterField]: currentCounter + 1,
+    },
+  });
+
+  const paddedCounter = currentCounter.toString().padStart(3, "0");
+  return `${prefix}-${paddedCounter}`;
+}
+
+export async function nextDocumentNumber(
+  orgId: string,
+  docType: DocumentType
+): Promise<string> {
+  return db.$transaction((tx) => nextDocumentNumberTx(tx, orgId, docType));
 }
 
 /**

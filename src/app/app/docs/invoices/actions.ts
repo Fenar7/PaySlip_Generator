@@ -7,6 +7,7 @@ import { getSchemaDriftActionMessage, isModelMissingTableError } from "@/lib/pri
 import { revalidatePath } from "next/cache";
 import type { Prisma } from "@/generated/prisma/client";
 import { reconcileInvoicePayment, validatePaymentAmount } from "@/lib/invoice-reconciliation";
+import { postInvoiceIssueTx, postInvoicePaymentTx, reverseJournalEntryTx } from "@/lib/accounting";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -26,6 +27,8 @@ export type ActionResult<T> =
   | { success: true; data: T }
   | { success: false; error: string };
 
+type TxClient = Prisma.TransactionClient;
+
 export interface InvoiceLineItemInput {
   description: string;
   quantity: number;
@@ -43,6 +46,44 @@ export interface InvoiceInput {
   lineItems: InvoiceLineItemInput[];
 }
 
+async function reverseInvoicePostingIfNeededTx(
+  tx: TxClient,
+  input: {
+    orgId: string;
+    actorId: string;
+    invoice: {
+      id: string;
+      invoiceNumber: string;
+      amountPaid: number;
+      postedJournalEntryId: string | null;
+      accountingStatus: string;
+    };
+    reason: string;
+    action: "cancel" | "reissue";
+  },
+): Promise<string | null> {
+  if (input.invoice.amountPaid > 0) {
+    throw new Error(
+      `Cannot ${input.action} an invoice with recorded settled payments. Reverse or refund payments first.`,
+    );
+  }
+
+  if (!input.invoice.postedJournalEntryId || input.invoice.accountingStatus !== "POSTED") {
+    return null;
+  }
+
+  const reversal = await reverseJournalEntryTx(tx, {
+    orgId: input.orgId,
+    journalEntryId: input.invoice.postedJournalEntryId,
+    actorId: input.actorId,
+    memo: `${input.action === "cancel" ? "Cancel" : "Reissue"} invoice ${input.invoice.invoiceNumber}${
+      input.reason.trim() ? `: ${input.reason.trim()}` : ""
+    }`,
+  });
+
+  return reversal.id;
+}
+
 // ─── Invoice Actions ──────────────────────────────────────────────────────────
 
 export async function saveInvoice(
@@ -50,7 +91,7 @@ export async function saveInvoice(
   status: "DRAFT" | "ISSUED" = "DRAFT"
 ): Promise<ActionResult<{ id: string; invoiceNumber: string }>> {
   try {
-    const { orgId } = await requireOrgContext();
+    const { orgId, userId } = await requireOrgContext();
 
     const invoiceNumber = await nextDocumentNumber(orgId, "invoice");
 
@@ -61,31 +102,61 @@ export async function saveInvoice(
       return sum + subtotal + tax - discount;
     }, 0);
 
-    const invoice = await db.invoice.create({
-      data: {
-        organizationId: orgId,
-        customerId: input.customerId || null,
-        invoiceNumber,
-        invoiceDate: input.invoiceDate,
-        dueDate: input.dueDate || null,
-        status,
-        notes: input.notes || null,
-        formData: input.formData as Prisma.InputJsonValue,
-        totalAmount,
-        lineItems: {
-          create: input.lineItems.map((item, index) => ({
-            description: item.description,
-            quantity: item.quantity,
-            unitPrice: item.unitPrice,
-            taxRate: item.taxRate,
-            discount: item.discount,
-            amount:
-              item.quantity * item.unitPrice * (1 + item.taxRate / 100) -
-              item.discount,
-            sortOrder: index,
-          })),
+    const invoice = await db.$transaction(async (tx) => {
+      const created = await tx.invoice.create({
+        data: {
+          organizationId: orgId,
+          customerId: input.customerId || null,
+          invoiceNumber,
+          invoiceDate: input.invoiceDate,
+          dueDate: input.dueDate || null,
+          status,
+          notes: input.notes || null,
+          formData: input.formData as Prisma.InputJsonValue,
+          totalAmount,
+          issuedAt: status === "ISSUED" ? new Date() : null,
+          lineItems: {
+            create: input.lineItems.map((item, index) => ({
+              description: item.description,
+              quantity: item.quantity,
+              unitPrice: item.unitPrice,
+              taxRate: item.taxRate,
+              discount: item.discount,
+              amount:
+                item.quantity * item.unitPrice * (1 + item.taxRate / 100) -
+                item.discount,
+              sortOrder: index,
+            })),
+          },
         },
-      },
+      });
+
+      if (status === "ISSUED") {
+        await tx.invoiceStateEvent.create({
+          data: {
+            invoiceId: created.id,
+            fromStatus: "DRAFT",
+            toStatus: "ISSUED",
+            actorId: userId,
+          },
+        });
+
+        await tx.publicInvoiceToken.create({
+          data: {
+            invoiceId: created.id,
+            orgId,
+            token: crypto.randomUUID(),
+          },
+        });
+
+        await postInvoiceIssueTx(tx, {
+          orgId,
+          invoiceId: created.id,
+          actorId: userId,
+        });
+      }
+
+      return created;
     });
 
     revalidatePath("/app/docs/invoices");
@@ -118,6 +189,10 @@ export async function updateInvoice(
 
     if (!existing) {
       return { success: false, error: "Invoice not found" };
+    }
+
+    if (existing.accountingStatus === "POSTED" || existing.postedJournalEntryId) {
+      return { success: false, error: "Posted invoices cannot be edited" };
     }
 
     let totalAmount = existing.totalAmount;
@@ -370,27 +445,35 @@ export async function issueInvoice(id: string): Promise<ActionResult<void>> {
       return { success: false, error: `Cannot issue invoice in ${existing.status} status` };
     }
 
-    await db.$transaction([
-      db.invoice.update({
+    await db.$transaction(async (tx) => {
+      await tx.invoice.update({
         where: { id },
         data: { status: "ISSUED", issuedAt: new Date() },
-      }),
-      db.invoiceStateEvent.create({
+      });
+
+      await tx.invoiceStateEvent.create({
         data: {
           invoiceId: id,
           fromStatus: existing.status,
           toStatus: "ISSUED",
           actorId: userId,
         },
-      }),
-      db.publicInvoiceToken.create({
+      });
+
+      await tx.publicInvoiceToken.create({
         data: {
           invoiceId: id,
           orgId,
           token: crypto.randomUUID(),
         },
-      }),
-    ]);
+      });
+
+      await postInvoiceIssueTx(tx, {
+        orgId,
+        invoiceId: id,
+        actorId: userId,
+      });
+    });
 
     revalidatePath("/app/docs/invoices");
     revalidatePath(`/app/docs/invoices/${id}`);
@@ -434,16 +517,24 @@ export async function markInvoicePaid(id: string): Promise<ActionResult<void>> {
       return { success: false, error: "Invoice has no remaining balance" };
     }
 
-    await db.invoicePayment.create({
-      data: {
-        invoiceId: id,
+    await db.$transaction(async (tx) => {
+      const payment = await tx.invoicePayment.create({
+        data: {
+          invoiceId: id,
+          orgId,
+          amount: remaining,
+          method: "manual",
+          source: "admin_manual",
+          status: "SETTLED",
+          recordedByUserId: userId,
+        },
+      });
+
+      await postInvoicePaymentTx(tx, {
         orgId,
-        amount: remaining,
-        method: "manual",
-        source: "admin_manual",
-        status: "SETTLED",
-        recordedByUserId: userId,
-      },
+        invoicePaymentId: payment.id,
+        actorId: userId,
+      });
     });
 
     await reconcileInvoicePayment(id, userId);
@@ -501,20 +592,28 @@ export async function recordPayment(
       }
     }
 
-    await db.invoicePayment.create({
-      data: {
-        invoiceId,
+    await db.$transaction(async (tx) => {
+      const payment = await tx.invoicePayment.create({
+        data: {
+          invoiceId,
+          orgId,
+          amount: input.amount,
+          method: input.method ?? null,
+          paidAt: input.paidAt ?? new Date(),
+          note: input.note ?? null,
+          source: "admin_manual",
+          status: "SETTLED",
+          recordedByUserId: userId,
+          plannedNextPaymentDate:
+            input.amount < remaining ? (input.plannedNextPaymentDate ?? null) : null,
+        },
+      });
+
+      await postInvoicePaymentTx(tx, {
         orgId,
-        amount: input.amount,
-        method: input.method ?? null,
-        paidAt: input.paidAt ?? new Date(),
-        note: input.note ?? null,
-        source: "admin_manual",
-        status: "SETTLED",
-        recordedByUserId: userId,
-        plannedNextPaymentDate:
-          input.amount < remaining ? (input.plannedNextPaymentDate ?? null) : null,
-      },
+        invoicePaymentId: payment.id,
+        actorId: userId,
+      });
     });
 
     await reconcileInvoicePayment(invoiceId, userId);
@@ -631,28 +730,49 @@ export async function cancelInvoice(
       return { success: false, error: `Cannot cancel invoice in ${existing.status} status` };
     }
 
-    await db.$transaction([
-      db.invoice.update({
+    await db.$transaction(async (tx) => {
+      const reversalJournalId = await reverseInvoicePostingIfNeededTx(tx, {
+        orgId,
+        actorId: userId,
+        invoice: existing,
+        reason,
+        action: "cancel",
+      });
+
+      await tx.invoice.update({
         where: { id: invoiceId },
-        data: { status: "CANCELLED" },
-      }),
-      db.invoiceStateEvent.create({
+        data: {
+          status: "CANCELLED",
+          ...(reversalJournalId
+            ? {
+                accountingStatus: "REVERSED",
+                revenueRecognitionStatus: "PENDING",
+              }
+            : {}),
+        },
+      });
+
+      await tx.invoiceStateEvent.create({
         data: {
           invoiceId,
           fromStatus: existing.status,
           toStatus: "CANCELLED",
           actorId: userId,
           reason,
+          metadata: reversalJournalId ? ({ reversalJournalId } as Prisma.InputJsonValue) : undefined,
         },
-      }),
-    ]);
+      });
+    });
 
     revalidatePath("/app/docs/invoices");
     revalidatePath(`/app/docs/invoices/${invoiceId}`);
     return { success: true, data: undefined };
   } catch (error) {
     console.error("cancelInvoice error:", error);
-    return { success: false, error: "Failed to cancel invoice" };
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Failed to cancel invoice",
+    };
   }
 }
 
@@ -679,6 +799,14 @@ export async function reissueInvoice(
     const newNumber = await nextDocumentNumber(orgId, "invoice");
 
     const result = await db.$transaction(async (tx) => {
+      const reversalJournalId = await reverseInvoicePostingIfNeededTx(tx, {
+        orgId,
+        actorId: userId,
+        invoice: existing,
+        reason,
+        action: "reissue",
+      });
+
       const newInvoice = await tx.invoice.create({
         data: {
           organizationId: orgId,
@@ -707,7 +835,16 @@ export async function reissueInvoice(
 
       await tx.invoice.update({
         where: { id: invoiceId },
-        data: { status: "REISSUED", reissueReason: reason },
+        data: {
+          status: "REISSUED",
+          reissueReason: reason,
+          ...(reversalJournalId
+            ? {
+                accountingStatus: "REVERSED",
+                revenueRecognitionStatus: "PENDING",
+              }
+            : {}),
+        },
       });
 
       await tx.invoiceStateEvent.create({
@@ -717,7 +854,11 @@ export async function reissueInvoice(
           toStatus: "REISSUED",
           actorId: userId,
           reason,
-          metadata: { newInvoiceId: newInvoice.id, newInvoiceNumber: newNumber } as Prisma.InputJsonValue,
+          metadata: {
+            newInvoiceId: newInvoice.id,
+            newInvoiceNumber: newNumber,
+            ...(reversalJournalId ? { reversalJournalId } : {}),
+          } as Prisma.InputJsonValue,
         },
       });
 
@@ -729,7 +870,10 @@ export async function reissueInvoice(
     return { success: true, data: { id: result.id, invoiceNumber: newNumber } };
   } catch (error) {
     console.error("reissueInvoice error:", error);
-    return { success: false, error: "Failed to reissue invoice" };
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Failed to reissue invoice",
+    };
   }
 }
 

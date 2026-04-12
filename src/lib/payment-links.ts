@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { createPaymentLink, getRazorpay } from "@/lib/razorpay";
 import { reconcileInvoicePayment } from "@/lib/invoice-reconciliation";
 import type { Prisma } from "@/generated/prisma/client";
+import { postInvoicePaymentTx } from "@/lib/accounting";
 
 type ActionResult<T> =
   | { success: true; data: T }
@@ -135,21 +136,28 @@ export async function handlePaymentLinkPaid(
   }
 
   // Normal flow: create a SETTLED ledger row and reconcile
-  await db.invoicePayment.create({
-    data: {
-      invoiceId: invoice.id,
+  await db.$transaction(async (tx) => {
+    const payment = await tx.invoicePayment.create({
+      data: {
+        invoiceId: invoice.id,
+        orgId: invoice.organizationId,
+        amount: amount / 100,
+        currency: "INR",
+        method: "razorpay_payment_link",
+        source: "razorpay_payment_link",
+        status: "SETTLED",
+        externalPaymentId: paymentId,
+        externalReferenceId: paymentLinkId,
+        externalPayload: { paymentLinkId, paymentId, amount } as Prisma.InputJsonValue,
+        paymentMethodDisplay: "Razorpay Payment Link",
+        paidAt: new Date(),
+      },
+    });
+
+    await postInvoicePaymentTx(tx, {
       orgId: invoice.organizationId,
-      amount: amount / 100,
-      currency: "INR",
-      method: "razorpay_payment_link",
-      source: "razorpay_payment_link",
-      status: "SETTLED",
-      externalPaymentId: paymentId,
-      externalReferenceId: paymentLinkId,
-      externalPayload: { paymentLinkId, paymentId, amount } as Prisma.InputJsonValue,
-      paymentMethodDisplay: "Razorpay Payment Link",
-      paidAt: new Date(),
-    },
+      invoicePaymentId: payment.id,
+    });
   });
 
   await reconcileInvoicePayment(invoice.id);
