@@ -1,5 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+vi.mock("next/cache", () => ({
+  revalidatePath: vi.fn(),
+}));
+
 vi.mock("@/lib/db", () => ({
   db: {
     reportSnapshot: {
@@ -8,12 +12,15 @@ vi.mock("@/lib/db", () => ({
     journalLine: {
       findMany: vi.fn(),
     },
+    vendorBill: {
+      findFirst: vi.fn(),
+      update: vi.fn(),
+    },
   },
 }));
 
 vi.mock("@/lib/auth", () => ({
   requireOrgContext: vi.fn(),
-  requireRole: vi.fn(),
 }));
 
 vi.mock("@/lib/plans/enforcement", () => ({
@@ -36,18 +43,26 @@ vi.mock("@/lib/accounting", () => ({
   reverseJournalEntry: vi.fn(),
 }));
 
+vi.mock("../../flow/approvals/actions", () => ({
+  requestApproval: vi.fn(),
+}));
+
 import { requireOrgContext } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { checkFeature } from "@/lib/plans/enforcement";
 import {
+  createGlAccount,
   getTrialBalance,
   listGlAccounts,
   listJournalEntries,
 } from "@/lib/accounting";
+import { requestApproval } from "../../flow/approvals/actions";
 import {
+  createChartAccount,
   exportBooksJournalRegisterCsv,
   exportBooksTrialBalanceCsv,
   exportChartOfAccountsCsv,
+  requestBooksVendorBillApproval,
 } from "../actions";
 
 const ORG_ID = "org-1";
@@ -206,6 +221,104 @@ describe("Books export actions", () => {
         filters: { startDate: "2026-04-01" },
         rowCount: 1,
       }),
+    });
+  });
+
+  it("allows finance managers to perform Books write actions", async () => {
+    vi.mocked(requireOrgContext).mockResolvedValue({
+      orgId: ORG_ID,
+      userId: USER_ID,
+      role: "finance_manager",
+    });
+    vi.mocked(createGlAccount).mockResolvedValue({
+      id: "acct-1",
+    } as never);
+
+    const result = await createChartAccount({
+      code: "5100",
+      name: "Office Supplies",
+      accountType: "EXPENSE",
+    });
+
+    expect(result).toEqual({
+      success: true,
+      data: { id: "acct-1" },
+    });
+    expect(createGlAccount).toHaveBeenCalledWith({
+      orgId: ORG_ID,
+      code: "5100",
+      name: "Office Supplies",
+      accountType: "EXPENSE",
+      parentId: null,
+      normalBalance: undefined,
+      description: undefined,
+    });
+  });
+
+  it("blocks Books reads for non-finance roles", async () => {
+    vi.mocked(requireOrgContext).mockResolvedValue({
+      orgId: ORG_ID,
+      userId: USER_ID,
+      role: "viewer",
+    });
+
+    const result = await exportChartOfAccountsCsv();
+
+    expect(result).toEqual({
+      success: false,
+      error: "Insufficient permissions.",
+    });
+    expect(listGlAccounts).not.toHaveBeenCalled();
+  });
+
+  it("resubmits a draft vendor bill with a fresh approval request", async () => {
+    vi.mocked(requireOrgContext).mockResolvedValue({
+      orgId: ORG_ID,
+      userId: USER_ID,
+      role: "finance_manager",
+    });
+    vi.mocked(db.vendorBill.findFirst).mockResolvedValue({
+      id: "bill-1",
+      status: "DRAFT",
+    } as never);
+    vi.mocked(db.vendorBill.update).mockResolvedValue({} as never);
+    vi.mocked(requestApproval)
+      .mockResolvedValueOnce({
+        success: true,
+        data: { id: "approval-1" },
+      } as never)
+      .mockResolvedValueOnce({
+        success: true,
+        data: { id: "approval-2" },
+      } as never);
+
+    const first = await requestBooksVendorBillApproval("bill-1");
+    const second = await requestBooksVendorBillApproval("bill-1");
+
+    expect(first).toEqual({
+      success: true,
+      data: { id: "approval-1" },
+    });
+    expect(second).toEqual({
+      success: true,
+      data: { id: "approval-2" },
+    });
+    expect(requestApproval).toHaveBeenNthCalledWith(
+      1,
+      "vendor-bill",
+      "bill-1",
+    );
+    expect(requestApproval).toHaveBeenNthCalledWith(
+      2,
+      "vendor-bill",
+      "bill-1",
+    );
+    expect(db.vendorBill.update).toHaveBeenCalledTimes(2);
+    expect(db.vendorBill.update).toHaveBeenCalledWith({
+      where: { id: "bill-1" },
+      data: {
+        status: "PENDING_APPROVAL",
+      },
     });
   });
 });
