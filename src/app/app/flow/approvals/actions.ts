@@ -1,7 +1,18 @@
 "use server";
 
+import type { Prisma } from "@/generated/prisma/client";
 import { db } from "@/lib/db";
 import { requireOrgContext } from "@/lib/auth";
+import {
+  canDecideApprovalForDoc,
+  canRequestApprovalForDoc,
+  canViewApprovalForDoc,
+  canWriteBooks,
+  isApprovalDocType,
+  isFinanceApprovalDocType,
+  type ApprovalDocType,
+} from "@/lib/books-permissions";
+import { hasPermission } from "@/lib/permissions";
 import { revalidatePath } from "next/cache";
 import { postVendorBillTx, postVoucherTx } from "@/lib/accounting";
 import { createNotification, notifyOrgAdmins } from "@/lib/notifications";
@@ -11,9 +22,6 @@ import { createNotification, notifyOrgAdmins } from "@/lib/notifications";
 export type ActionResult<T> =
   | { success: true; data: T }
   | { success: false; error: string };
-
-const VALID_DOC_TYPES = ["invoice", "voucher", "salary-slip", "vendor-bill", "payment-run"] as const;
-type DocType = (typeof VALID_DOC_TYPES)[number];
 
 const PAGE_SIZE = 20;
 
@@ -43,6 +51,48 @@ interface ApprovalDocumentSummary {
   date: string;
   month?: number;
   year?: number;
+}
+
+const FINANCE_APPROVAL_DOC_TYPES: ApprovalDocType[] = [
+  "vendor-bill",
+  "payment-run",
+] as const;
+
+function getApprovalVisibilityWhere(
+  role: string,
+  userId: string,
+): Prisma.ApprovalRequestWhereInput {
+  if (canWriteBooks(role)) {
+    return {};
+  }
+
+  if (hasPermission(role, "flow_approvals", "read")) {
+    return {
+      OR: [
+        { docType: { notIn: FINANCE_APPROVAL_DOC_TYPES } },
+        { requestedById: userId },
+      ],
+    };
+  }
+
+  return { requestedById: userId };
+}
+
+function revalidateApprovalDocumentPaths(docType: ApprovalDocType, docId: string) {
+  if (docType === "vendor-bill") {
+    revalidatePath("/app/books");
+    revalidatePath("/app/books/vendor-bills");
+    revalidatePath(`/app/books/vendor-bills/${docId}`);
+    revalidatePath("/app/books/payment-runs");
+    return;
+  }
+
+  if (docType === "payment-run") {
+    revalidatePath("/app/books");
+    revalidatePath("/app/books/payment-runs");
+    revalidatePath(`/app/books/payment-runs/${docId}`);
+    revalidatePath("/app/books/vendor-bills");
+  }
 }
 
 async function getDocNumber(docType: string, docId: string): Promise<string> {
@@ -228,10 +278,14 @@ export async function requestApproval(
   docId: string
 ): Promise<ActionResult<{ id: string }>> {
   try {
-    const { orgId, userId } = await requireOrgContext();
+    const { orgId, userId, role } = await requireOrgContext();
 
-    if (!VALID_DOC_TYPES.includes(docType as DocType)) {
+    if (!isApprovalDocType(docType)) {
       return { success: false, error: "Invalid document type" };
+    }
+
+    if (!canRequestApprovalForDoc(role, docType)) {
+      return { success: false, error: "Insufficient permissions." };
     }
 
     // Verify the document exists and belongs to the org
@@ -333,7 +387,7 @@ export async function listApprovals(
   params?: { status?: string; page?: number }
 ): Promise<ActionResult<ApprovalListResult>> {
   try {
-    const { orgId } = await requireOrgContext();
+    const { orgId, userId, role } = await requireOrgContext();
     const page = params?.page ?? 0;
 
     const statusFilter =
@@ -341,7 +395,8 @@ export async function listApprovals(
         ? { status: params.status as "PENDING" | "APPROVED" | "REJECTED" }
         : {};
 
-    const where = { orgId, ...statusFilter };
+    const visibilityWhere = getApprovalVisibilityWhere(role, userId);
+    const where = { orgId, ...statusFilter, ...visibilityWhere };
 
     const [approvals, total, pending, approved, rejected] = await Promise.all([
       db.approvalRequest.findMany({
@@ -423,7 +478,7 @@ export async function getApprovalDetail(
   requestId: string
 ): Promise<ActionResult<ApprovalDetail>> {
   try {
-    const { orgId } = await requireOrgContext();
+    const { orgId, userId, role } = await requireOrgContext();
 
     const approval = await db.approvalRequest.findFirst({
       where: { id: requestId, orgId },
@@ -431,6 +486,17 @@ export async function getApprovalDetail(
 
     if (!approval) {
       return { success: false, error: "Approval request not found" };
+    }
+
+    if (
+      !isApprovalDocType(approval.docType) ||
+      !canViewApprovalForDoc({
+        role,
+        docType: approval.docType,
+        isRequester: approval.requestedById === userId,
+      })
+    ) {
+      return { success: false, error: "Insufficient permissions." };
     }
 
     const documents = await getApprovalDocumentSummaries([approval]);
@@ -467,7 +533,7 @@ export async function approveRequest(
   note?: string
 ): Promise<ActionResult<undefined>> {
   try {
-    const { orgId, userId } = await requireOrgContext();
+    const { orgId, userId, role } = await requireOrgContext();
 
     const approval = await db.approvalRequest.findFirst({
       where: { id: requestId, orgId, status: "PENDING" },
@@ -475,6 +541,14 @@ export async function approveRequest(
 
     if (!approval) {
       return { success: false, error: "Approval request not found or already decided" };
+    }
+
+    if (!isApprovalDocType(approval.docType)) {
+      return { success: false, error: "Invalid document type" };
+    }
+
+    if (!canDecideApprovalForDoc(role, approval.docType)) {
+      return { success: false, error: "Insufficient permissions." };
     }
 
     if (approval.requestedById === userId) {
@@ -551,6 +625,7 @@ export async function approveRequest(
       link: `/app/flow/approvals/${requestId}`,
     });
 
+    revalidateApprovalDocumentPaths(approval.docType, approval.docId);
     revalidatePath("/app/flow/approvals");
     revalidatePath(`/app/flow/approvals/${requestId}`);
     return { success: true, data: undefined };
@@ -567,7 +642,7 @@ export async function rejectRequest(
   note: string
 ): Promise<ActionResult<undefined>> {
   try {
-    const { orgId, userId } = await requireOrgContext();
+    const { orgId, userId, role } = await requireOrgContext();
 
     if (!note || note.trim().length === 0) {
       return { success: false, error: "Rejection reason is required" };
@@ -581,6 +656,14 @@ export async function rejectRequest(
       return { success: false, error: "Approval request not found or already decided" };
     }
 
+    if (!isApprovalDocType(approval.docType)) {
+      return { success: false, error: "Invalid document type" };
+    }
+
+    if (!canDecideApprovalForDoc(role, approval.docType)) {
+      return { success: false, error: "Insufficient permissions." };
+    }
+
     if (approval.requestedById === userId) {
       return { success: false, error: "You cannot reject your own request" };
     }
@@ -592,15 +675,33 @@ export async function rejectRequest(
 
     const approverName = profile?.name ?? "Unknown User";
 
-    await db.approvalRequest.update({
-      where: { id: requestId },
-      data: {
-        status: "REJECTED",
-        approverId: userId,
-        approverName,
-        decidedAt: new Date(),
-        note: note.trim(),
-      },
+    await db.$transaction(async (tx) => {
+      await tx.approvalRequest.update({
+        where: { id: requestId },
+        data: {
+          status: "REJECTED",
+          approverId: userId,
+          approverName,
+          decidedAt: new Date(),
+          note: note.trim(),
+        },
+      });
+
+      if (isFinanceApprovalDocType(approval.docType)) {
+        if (approval.docType === "vendor-bill") {
+          await tx.vendorBill.update({
+            where: { id: approval.docId },
+            data: { status: "DRAFT" },
+          });
+        }
+
+        if (approval.docType === "payment-run") {
+          await tx.paymentRun.update({
+            where: { id: approval.docId },
+            data: { status: "DRAFT" },
+          });
+        }
+      }
     });
 
     const docNumber = await getDocNumber(approval.docType, approval.docId);
@@ -615,6 +716,7 @@ export async function rejectRequest(
       link: `/app/flow/approvals/${requestId}`,
     });
 
+    revalidateApprovalDocumentPaths(approval.docType, approval.docId);
     revalidatePath("/app/flow/approvals");
     revalidatePath(`/app/flow/approvals/${requestId}`);
     return { success: true, data: undefined };
