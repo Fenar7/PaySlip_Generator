@@ -59,6 +59,8 @@ export const suiteNavItems: NavItem[] = [
       { href: "/app/books/journals", label: "Journals" },
       { href: "/app/books/ledger", label: "Ledger" },
       { href: "/app/books/trial-balance", label: "Trial Balance" },
+      { href: "/app/books/banks", label: "Banks" },
+      { href: "/app/books/reconciliation", label: "Reconciliation" },
     ],
   },
   {

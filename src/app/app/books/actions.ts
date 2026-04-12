@@ -1,7 +1,9 @@
 "use server";
 
+import crypto from "node:crypto";
 import { revalidatePath } from "next/cache";
 import type {
+  BankAccountType,
   GlAccountType,
   JournalEntryStatus,
   JournalSource,
@@ -11,22 +13,36 @@ import type {
 import { requireOrgContext, requireRole } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { generateCSV } from "@/lib/csv";
+import { isCsvUpload, isUploadedFile } from "@/lib/server/form-data";
+import { uploadFileServer } from "@/lib/storage/upload-server";
 import {
   archiveGlAccount,
+  createAdjustingJournalFromBankTransaction,
+  createBankAccount as createBankAccountRecord,
   createAndPostJournal,
   createGlAccount,
+  exportReconciliationCsv,
   ensureBooksSetup,
+  generateBankStatementStoragePath,
   getGeneralLedger,
+  getBankStatementImportDetail,
+  getReconciliationWorkspace,
   getTrialBalance,
+  importBankStatement,
   listFiscalPeriods,
   listGlAccounts,
   listJournalEntries,
+  listBankAccounts,
   lockFiscalPeriod,
   postJournalEntry,
+  refreshReconciliationSuggestions,
+  confirmBankTransactionMatch,
+  rejectBankTransactionMatch,
+  ignoreBankTransaction,
   reopenFiscalPeriod,
   reverseJournalEntry,
 } from "@/lib/accounting";
-import { checkFeature } from "@/lib/plans/enforcement";
+import { checkFeature, checkLimit, getOrgPlan } from "@/lib/plans";
 
 type ActionResult<T = null> = { success: true; data: T } | { success: false; error: string };
 
@@ -198,6 +214,34 @@ async function requireBooksWrite() {
   }
 
   return context;
+}
+
+async function requireBankingRead() {
+  const context = await requireBooksRead();
+  const allowed = await checkFeature(context.orgId, "bankReconciliation");
+
+  if (!allowed) {
+    throw new Error("Bank reconciliation requires the Pro plan or above.");
+  }
+
+  return context;
+}
+
+async function requireBankingWrite() {
+  const context = await requireRole("admin");
+  const allowed = await checkFeature(context.orgId, "bankReconciliation");
+
+  if (!allowed) {
+    throw new Error("Bank reconciliation requires the Pro plan or above.");
+  }
+
+  return context;
+}
+
+function revalidateBooksBanking() {
+  revalidatePath("/app/books");
+  revalidatePath("/app/books/banks");
+  revalidatePath("/app/books/reconciliation");
 }
 
 export async function getBooksOverview(): Promise<
@@ -810,6 +854,347 @@ export async function reopenBooksPeriod(
     return {
       success: false,
       error: error instanceof Error ? error.message : "Failed to reopen fiscal period.",
+    };
+  }
+}
+
+export async function getBooksBankAccounts(): Promise<
+  ActionResult<Awaited<ReturnType<typeof listBankAccounts>>>
+> {
+  try {
+    const { orgId } = await requireBankingRead();
+    const accounts = await listBankAccounts(orgId);
+
+    return { success: true, data: accounts };
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Failed to load bank accounts.",
+    };
+  }
+}
+
+export async function createBooksBankAccount(input: {
+  name: string;
+  type: BankAccountType;
+  bankName?: string;
+  maskedAccountNo?: string;
+  ifscOrSwift?: string;
+  currency?: string;
+  openingBalance?: number;
+  openingBalanceDate?: string;
+  isPrimary?: boolean;
+  gatewayClearingAccountId?: string;
+}): Promise<ActionResult<{ id: string }>> {
+  try {
+    const { orgId, userId } = await requireBankingWrite();
+    const orgPlan = await getOrgPlan(orgId);
+    const limit = orgPlan.limits.bankAccounts;
+    const current = await db.bankAccount.count({ where: { orgId } });
+
+    if (limit !== -1 && current >= limit) {
+      return {
+        success: false,
+        error: `Your current plan allows ${limit} bank account${limit === 1 ? "" : "s"}.`,
+      };
+    }
+
+    const account = await createBankAccountRecord({
+      orgId,
+      actorId: userId,
+      name: input.name,
+      type: input.type,
+      bankName: input.bankName,
+      maskedAccountNo: input.maskedAccountNo,
+      ifscOrSwift: input.ifscOrSwift,
+      currency: input.currency,
+      openingBalance: input.openingBalance,
+      openingBalanceDate: input.openingBalanceDate,
+      isPrimary: input.isPrimary,
+      gatewayClearingAccountId: input.gatewayClearingAccountId,
+    });
+
+    revalidateBooksBanking();
+
+    return { success: true, data: { id: account.id } };
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Failed to create bank account.",
+    };
+  }
+}
+
+export async function uploadBooksBankStatement(
+  formData: FormData,
+): Promise<
+  ActionResult<{
+    importId: string;
+    importedRows: number;
+    failedRows: Array<{ rowNumber: number; error: string; raw: Record<string, string> }>;
+    transactionCount: number;
+  }>
+> {
+  try {
+    const { orgId, userId } = await requireBankingWrite();
+    const limitCheck = await checkLimit(orgId, "statementImportsPerMonth");
+
+    if (!limitCheck.allowed) {
+      return {
+        success: false,
+        error: `Statement import limit reached for this month (${limitCheck.current}/${limitCheck.limit}).`,
+      };
+    }
+
+    const bankAccountId = String(formData.get("bankAccountId") ?? "").trim();
+    const mappingRaw = String(formData.get("mapping") ?? "").trim();
+    const file = formData.get("file");
+
+    if (!bankAccountId) {
+      return { success: false, error: "Bank account is required." };
+    }
+
+    if (!isUploadedFile(file)) {
+      return { success: false, error: "CSV file is required." };
+    }
+
+    if (!isCsvUpload(file)) {
+      return { success: false, error: "Only CSV bank statements are supported." };
+    }
+
+    const csvText = await file.text();
+    const checksum = crypto.createHash("sha256").update(csvText).digest("hex");
+    const storagePath = generateBankStatementStoragePath(orgId, bankAccountId, file.name);
+    const uploaded = await uploadFileServer(
+      "attachments",
+      storagePath,
+      Buffer.from(csvText, "utf8"),
+      file.type || "text/csv",
+    );
+
+    const result = await importBankStatement({
+      orgId,
+      actorId: userId,
+      bankAccountId,
+      fileName: file.name,
+      storageKey: uploaded.storageKey,
+      checksum,
+      csvText,
+      mapping: JSON.parse(mappingRaw || "{}") as Record<string, unknown>,
+    });
+
+    revalidateBooksBanking();
+    revalidatePath(`/app/books/reconciliation/imports/${result.importId}`);
+
+    return { success: true, data: result };
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Failed to import bank statement.",
+    };
+  }
+}
+
+export async function getBooksReconciliationWorkspace(input: {
+  bankAccountId?: string;
+  importId?: string;
+  status?: string;
+  startDate?: string;
+  endDate?: string;
+  minAmount?: number;
+  maxAmount?: number;
+} = {}): Promise<ActionResult<Awaited<ReturnType<typeof getReconciliationWorkspace>>>> {
+  try {
+    const { orgId } = await requireBankingRead();
+    const workspace = await getReconciliationWorkspace(orgId, input);
+    return { success: true, data: workspace };
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Failed to load reconciliation workspace.",
+    };
+  }
+}
+
+export async function getBooksBankImportDetail(
+  importId: string,
+): Promise<ActionResult<NonNullable<Awaited<ReturnType<typeof getBankStatementImportDetail>>>>> {
+  try {
+    const { orgId } = await requireBankingRead();
+    const detail = await getBankStatementImportDetail(orgId, importId);
+
+    if (!detail) {
+      return { success: false, error: "Bank statement import not found." };
+    }
+
+    return { success: true, data: detail };
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Failed to load import detail.",
+    };
+  }
+}
+
+export async function refreshBooksReconciliationSuggestions(input: {
+  bankAccountId?: string;
+  importId?: string;
+} = {}): Promise<ActionResult<{ refreshed: number }>> {
+  try {
+    const { orgId } = await requireBankingWrite();
+    const result = await refreshReconciliationSuggestions(orgId, input);
+    revalidateBooksBanking();
+    return { success: true, data: result };
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Failed to refresh suggestions.",
+    };
+  }
+}
+
+export async function confirmBooksReconciliationMatch(input: {
+  bankTransactionId: string;
+  matchId: string;
+  matchedAmount?: number;
+}): Promise<ActionResult<{ id: string }>> {
+  try {
+    const { orgId, userId } = await requireBankingWrite();
+    const match = await confirmBankTransactionMatch({
+      orgId,
+      actorId: userId,
+      bankTransactionId: input.bankTransactionId,
+      matchId: input.matchId,
+      matchedAmount: input.matchedAmount,
+    });
+
+    revalidateBooksBanking();
+
+    return { success: true, data: { id: match.id } };
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Failed to confirm reconciliation match.",
+    };
+  }
+}
+
+export async function rejectBooksReconciliationMatch(input: {
+  bankTransactionId: string;
+  matchId: string;
+}): Promise<ActionResult<{ id: string }>> {
+  try {
+    const { orgId, userId } = await requireBankingWrite();
+    const match = await rejectBankTransactionMatch({
+      orgId,
+      actorId: userId,
+      bankTransactionId: input.bankTransactionId,
+      matchId: input.matchId,
+    });
+
+    revalidateBooksBanking();
+
+    return { success: true, data: { id: match.id } };
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Failed to reject reconciliation match.",
+    };
+  }
+}
+
+export async function ignoreBooksBankTransaction(
+  bankTransactionId: string,
+): Promise<ActionResult<{ id: string }>> {
+  try {
+    const { orgId, userId } = await requireBankingWrite();
+    const transaction = await ignoreBankTransaction({
+      orgId,
+      actorId: userId,
+      bankTransactionId,
+    });
+
+    revalidateBooksBanking();
+
+    return { success: true, data: { id: transaction.id } };
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Failed to ignore bank transaction.",
+    };
+  }
+}
+
+export async function createBooksBankAdjustmentJournal(input: {
+  bankTransactionId: string;
+  offsetAccountId: string;
+  memo?: string;
+}): Promise<ActionResult<{ id: string; entryNumber: string }>> {
+  try {
+    const { orgId, userId } = await requireBankingWrite();
+    const journal = await createAdjustingJournalFromBankTransaction({
+      orgId,
+      actorId: userId,
+      bankTransactionId: input.bankTransactionId,
+      offsetAccountId: input.offsetAccountId,
+      memo: input.memo,
+    });
+
+    revalidateBooksBanking();
+    revalidatePath("/app/books/journals");
+    revalidatePath("/app/books/ledger");
+    revalidatePath("/app/books/trial-balance");
+
+    return {
+      success: true,
+      data: {
+        id: journal.id,
+        entryNumber: journal.entryNumber,
+      },
+    };
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Failed to create adjusting journal.",
+    };
+  }
+}
+
+export async function exportBooksReconciliationCsv(input: {
+  bankAccountId?: string;
+  importId?: string;
+  status?: string;
+  startDate?: string;
+  endDate?: string;
+  minAmount?: number;
+  maxAmount?: number;
+} = {}): Promise<ActionResult<string>> {
+  try {
+    const { orgId, userId } = await requireBankingRead();
+    const workspace = await getReconciliationWorkspace(orgId, input);
+    const csv = await exportReconciliationCsv(orgId, input);
+
+    await createBooksReportSnapshot({
+      orgId,
+      userId,
+      reportType: "books.reconciliation",
+      filters: compactJson({
+        bankAccountId: input.bankAccountId,
+        importId: input.importId,
+        status: input.status,
+        startDate: input.startDate,
+        endDate: input.endDate,
+        minAmount: input.minAmount,
+        maxAmount: input.maxAmount,
+      }),
+      rowCount: workspace.transactions.length,
+    });
+
+    return { success: true, data: csv };
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Failed to export reconciliation data.",
     };
   }
 }
