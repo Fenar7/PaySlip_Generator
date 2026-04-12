@@ -588,89 +588,6 @@ async function scoreInvoicePaymentCandidatesTx(
   return candidates;
 }
 
-async function scoreVendorBillPaymentCandidatesTx(
-  tx: TxClient,
-  bankTxn: {
-    orgId: string;
-    amount: number;
-    txnDate: Date;
-    direction: BankTxnDirection;
-    description: string;
-    reference: string | null;
-  },
-): Promise<BankMatchCandidate[]> {
-  if (bankTxn.direction !== "DEBIT") {
-    return [];
-  }
-
-  const payments = await tx.vendorBillPayment.findMany({
-    where: {
-      orgId: bankTxn.orgId,
-      status: "SETTLED",
-      bankMatchId: null,
-      amount: { lte: bankTxn.amount + AMOUNT_TOLERANCE },
-      paidAt: bankDateWindow(bankTxn.txnDate, 7),
-    },
-    select: {
-      id: true,
-      amount: true,
-      paidAt: true,
-      method: true,
-      note: true,
-      externalPaymentId: true,
-      externalReferenceId: true,
-      vendorBill: {
-        select: {
-          billNumber: true,
-          vendor: {
-            select: {
-              name: true,
-            },
-          },
-        },
-      },
-    },
-    orderBy: [{ paidAt: "desc" }],
-    take: 25,
-  });
-
-  const candidates: BankMatchCandidate[] = [];
-  for (const payment of payments) {
-    const alreadyMatched = await getConfirmedMatchedAmountForEntityTx(
-      tx,
-      "VENDOR_BILL_PAYMENT",
-      payment.id,
-    );
-
-    if (alreadyMatched > 0) {
-      continue;
-    }
-
-    const score =
-      scoreAmountMatch(bankTxn.amount, payment.amount)
-      + scoreDateMatch(bankTxn.txnDate, payment.paidAt)
-      + calculateTextScore(`${bankTxn.description} ${bankTxn.reference ?? ""}`, [
-        payment.vendorBill.billNumber,
-        payment.vendorBill.vendor?.name,
-        payment.externalReferenceId,
-        payment.externalPaymentId,
-        payment.method,
-        payment.note,
-      ]);
-
-    if (score > 0) {
-      candidates.push({
-        entityType: "VENDOR_BILL_PAYMENT",
-        entityId: payment.id,
-        matchedAmount: roundMoney(payment.amount),
-        confidenceScore: score,
-      });
-    }
-  }
-
-  return candidates;
-}
-
 async function scoreVoucherCandidatesTx(
   tx: TxClient,
   bankTxn: {
@@ -897,10 +814,9 @@ async function regenerateSuggestionsForBankTransactionTx(
     },
   });
 
-  const [invoiceCandidates, vendorBillPaymentCandidates, voucherCandidates, journalCandidates, transferCandidates] =
+  const [invoiceCandidates, voucherCandidates, journalCandidates, transferCandidates] =
     await Promise.all([
       scoreInvoicePaymentCandidatesTx(tx, bankTxn),
-      scoreVendorBillPaymentCandidatesTx(tx, bankTxn),
       scoreVoucherCandidatesTx(tx, bankTxn),
       scoreJournalCandidatesTx(tx, bankTxn),
       scoreInternalTransferCandidatesTx(tx, bankTxn),
@@ -909,7 +825,6 @@ async function regenerateSuggestionsForBankTransactionTx(
   const feeCandidate = buildBankFeeCandidate(bankTxn);
   const candidates = [
     ...invoiceCandidates,
-    ...vendorBillPaymentCandidates,
     ...voucherCandidates,
     ...journalCandidates,
     ...transferCandidates,
@@ -984,21 +899,6 @@ async function resolveMatchEntityAvailableAmountTx(
       );
       return roundMoney(payment.amount - alreadyMatched);
     }
-    case "VENDOR_BILL_PAYMENT": {
-      const payment = await tx.vendorBillPayment.findUnique({
-        where: { id: match.entityId },
-        select: { id: true, amount: true, bankMatchId: true },
-      });
-      if (!payment) {
-        throw new Error("Vendor bill payment not found.");
-      }
-      const alreadyMatched = await getConfirmedMatchedAmountForEntityTx(
-        tx,
-        "VENDOR_BILL_PAYMENT",
-        payment.id,
-      );
-      return roundMoney(payment.amount - alreadyMatched);
-    }
     case "VOUCHER": {
       const voucher = await tx.voucher.findUnique({
         where: { id: match.entityId },
@@ -1043,6 +943,8 @@ async function resolveMatchEntityAvailableAmountTx(
     case "BANK_FEE":
       return Number.MAX_SAFE_INTEGER;
   }
+
+  throw new Error(`Unsupported bank match entity type: ${match.entityType}`);
 }
 
 async function createClearingSettlementJournalTx(
@@ -1858,42 +1760,6 @@ export async function confirmBankTransactionMatch(input: {
       }
 
       await tx.invoicePayment.update({
-        where: { id: payment.id },
-        data: {
-          bankMatchId: updatedMatch.id,
-        },
-      });
-    } else if (match.entityType === "VENDOR_BILL_PAYMENT") {
-      const payment = await tx.vendorBillPayment.findUnique({
-        where: { id: match.entityId },
-        include: {
-          vendorBill: {
-            select: {
-              billNumber: true,
-            },
-          },
-        },
-      });
-
-      if (!payment) {
-        throw new Error("Vendor bill payment not found.");
-      }
-
-      if (payment.clearingAccountId && payment.clearingAccountId !== bankTxn.bankAccount.glAccountId) {
-        await createClearingDisbursementSettlementJournalTx(tx, {
-          orgId: input.orgId,
-          bankTxnId: bankTxn.id,
-          actorId: input.actorId,
-          bankGlAccountId: bankTxn.bankAccount.glAccountId,
-          clearingAccountId: payment.clearingAccountId,
-          amount: matchedAmount,
-          entryDate: bankTxn.txnDate,
-          memo: `Clearing settlement for vendor bill ${payment.vendorBill.billNumber}`,
-          sourceRef: payment.vendorBill.billNumber,
-        });
-      }
-
-      await tx.vendorBillPayment.update({
         where: { id: payment.id },
         data: {
           bankMatchId: updatedMatch.id,
