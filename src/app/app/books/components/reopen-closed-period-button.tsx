@@ -14,7 +14,9 @@ export function ReopenClosedPeriodButton({ periodId }: ReopenClosedPeriodButtonP
   const [isPending, startTransition] = useTransition();
 
   function reopen() {
-    const reason = prompt("Reason for reopening this fiscal period");
+    const reason = prompt(
+      "Reason for reopening this fiscal period. This direct admin action is audit logged.",
+    );
     if (!reason?.trim()) {
       return;
     }

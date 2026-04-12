@@ -30,7 +30,7 @@ export function PeriodActionButtons({ periodId, status }: PeriodActionButtonsPro
   }
 
   function handleReopen() {
-    const reason = prompt("Reason for reopening this period");
+    const reason = prompt("Reason for reopening this period. This direct admin action is audit logged.");
     if (!reason?.trim()) {
       return;
     }
