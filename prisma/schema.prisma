@@ -41,60 +41,64 @@ model Organization {
   createdAt DateTime @default(now())
   metadata  String?
 
-  members              Member[]
-  invitations          Invitation[]
-  branding             BrandingProfile?
-  defaults             OrgDefaults?
-  customers            Customer[]
-  vendors              Vendor[]
-  employees            Employee[]
-  invoices             Invoice[]
-  vouchers             Voucher[]
-  salarySlips          SalarySlip[]
-  salaryPresets        SalaryPreset[]
-  attachments          FileAttachment[]
-  reportSnapshots      ReportSnapshot[]
-  glAccounts           GlAccount[]
-  fiscalPeriods        FiscalPeriod[]
-  journalEntries       JournalEntry[]
-  journalLines         JournalLine[]
-  proxyGrants          ProxyGrant[]
-  auditLogs            AuditLog[]
-  subscription         Subscription?
-  usageRecords         UsageRecord[]
-  storageUsage         StorageUsage[]
-  sendLogs             SendLog[]
-  sharedDocuments      SharedDocument[]
-  virtualAccounts      CustomerVirtualAccount[]
-  unmatchedPayments    UnmatchedPayment[]
-  billingInvoices      BillingInvoice[]
-  apiKeys              ApiKey[]
-  webhookEndpoints     ApiWebhookEndpoint[]
-  apiRequestLogs       ApiRequestLog[]
-  ssoConfig            SsoConfig?
-  orgPreferences       UserOrgPreference[]
-  orgDomain            OrgDomain?
-  whiteLabel           OrgWhiteLabel?
-  emailDomains         OrgEmailDomain[]
-  ocrJobs              OcrJob[]
-  integrations         OrgIntegration[]
-  dunningSequences     DunningSequence[]
-  dunningLogs          DunningLog[]
-  dunningOptOuts       DunningOptOut[]
-  portalTokens         CustomerPortalToken[]
-  portalAccessLogs     CustomerPortalAccessLog[]
-  statements           CustomerStatement[]
-  quotes               Quote[]
-  arrangements         PaymentArrangement[]
-  tdsRecords           TdsRecord[]
-  marketplaceTemplates MarketplaceTemplate[]
-  marketplacePurchases MarketplacePurchase[]
-  marketplaceReviews   MarketplaceReview[]
-  marketplaceRevenue   MarketplaceRevenue[]
-  oauthApps            OAuthApp[]
-  oauthAuthorizations  OAuthAuthorization[]
-  partnerProfile       PartnerProfile?
-  partnerManagedOrgs   PartnerManagedOrg[]
+  members                Member[]
+  invitations            Invitation[]
+  branding               BrandingProfile?
+  defaults               OrgDefaults?
+  customers              Customer[]
+  vendors                Vendor[]
+  employees              Employee[]
+  invoices               Invoice[]
+  vouchers               Voucher[]
+  salarySlips            SalarySlip[]
+  salaryPresets          SalaryPreset[]
+  attachments            FileAttachment[]
+  reportSnapshots        ReportSnapshot[]
+  glAccounts             GlAccount[]
+  fiscalPeriods          FiscalPeriod[]
+  journalEntries         JournalEntry[]
+  journalLines           JournalLine[]
+  bankAccounts           BankAccount[]
+  bankStatementImports   BankStatementImport[]
+  bankTransactions       BankTransaction[]
+  bankTransactionMatches BankTransactionMatch[]
+  proxyGrants            ProxyGrant[]
+  auditLogs              AuditLog[]
+  subscription           Subscription?
+  usageRecords           UsageRecord[]
+  storageUsage           StorageUsage[]
+  sendLogs               SendLog[]
+  sharedDocuments        SharedDocument[]
+  virtualAccounts        CustomerVirtualAccount[]
+  unmatchedPayments      UnmatchedPayment[]
+  billingInvoices        BillingInvoice[]
+  apiKeys                ApiKey[]
+  webhookEndpoints       ApiWebhookEndpoint[]
+  apiRequestLogs         ApiRequestLog[]
+  ssoConfig              SsoConfig?
+  orgPreferences         UserOrgPreference[]
+  orgDomain              OrgDomain?
+  whiteLabel             OrgWhiteLabel?
+  emailDomains           OrgEmailDomain[]
+  ocrJobs                OcrJob[]
+  integrations           OrgIntegration[]
+  dunningSequences       DunningSequence[]
+  dunningLogs            DunningLog[]
+  dunningOptOuts         DunningOptOut[]
+  portalTokens           CustomerPortalToken[]
+  portalAccessLogs       CustomerPortalAccessLog[]
+  statements             CustomerStatement[]
+  quotes                 Quote[]
+  arrangements           PaymentArrangement[]
+  tdsRecords             TdsRecord[]
+  marketplaceTemplates   MarketplaceTemplate[]
+  marketplacePurchases   MarketplacePurchase[]
+  marketplaceReviews     MarketplaceReview[]
+  marketplaceRevenue     MarketplaceRevenue[]
+  oauthApps              OAuthApp[]
+  oauthAuthorizations    OAuthAuthorization[]
+  partnerProfile         PartnerProfile?
+  partnerManagedOrgs     PartnerManagedOrg[]
 
   @@map("organization")
 }
@@ -258,6 +262,7 @@ enum JournalSource {
   SALARY_SLIP
   GST
   TDS
+  BANK_RECONCILIATION
   OPENING_BALANCE
   SYSTEM_REVERSAL
 }
@@ -266,6 +271,41 @@ enum FiscalPeriodStatus {
   OPEN
   LOCKED
   CLOSED
+}
+
+enum BankAccountType {
+  BANK
+  CASH
+  PETTY_CASH
+  GATEWAY_CLEARING
+}
+
+enum BankImportStatus {
+  UPLOADED
+  PROCESSING
+  PROCESSED
+  FAILED
+}
+
+enum BankTxnDirection {
+  CREDIT
+  DEBIT
+}
+
+enum BankTxnStatus {
+  UNMATCHED
+  SUGGESTED
+  PARTIALLY_MATCHED
+  MATCHED
+  IGNORED
+}
+
+enum MatchEntityType {
+  INVOICE_PAYMENT
+  VOUCHER
+  JOURNAL_ENTRY
+  INTERNAL_TRANSFER
+  BANK_FEE
 }
 
 model GlAccount {
@@ -287,10 +327,12 @@ model GlAccount {
   createdAt          DateTime      @default(now())
   updatedAt          DateTime      @updatedAt
 
-  organization Organization  @relation(fields: [orgId], references: [id], onDelete: Cascade)
-  parent       GlAccount?    @relation("GlAccountHierarchy", fields: [parentId], references: [id])
-  children     GlAccount[]   @relation("GlAccountHierarchy")
-  journalLines JournalLine[]
+  organization                Organization  @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  parent                      GlAccount?    @relation("GlAccountHierarchy", fields: [parentId], references: [id])
+  children                    GlAccount[]   @relation("GlAccountHierarchy")
+  journalLines                JournalLine[]
+  bankAccounts                BankAccount[] @relation("BankAccountLedger")
+  gatewayClearingBankAccounts BankAccount[] @relation("BankAccountGatewayClearing")
 
   @@unique([orgId, code])
   @@unique([orgId, systemKey])
@@ -362,6 +404,7 @@ model JournalEntry {
   voucherPosted        Voucher?        @relation("VoucherPostedJournal")
   salarySlipAccrual    SalarySlip?     @relation("SalarySlipJournal")
   salarySlipPayout     SalarySlip?     @relation("SalarySlipPayoutJournal")
+  bankAccountOpening   BankAccount?    @relation("BankAccountOpeningJournal")
 
   @@unique([orgId, entryNumber])
   @@index([orgId, entryDate, status])
@@ -371,27 +414,147 @@ model JournalEntry {
 }
 
 model JournalLine {
-  id             String   @id @default(cuid())
-  journalEntryId String
-  orgId          String
-  accountId      String
-  lineNumber     Int
-  description    String?
-  debit          Float    @default(0)
-  credit         Float    @default(0)
-  entityType     String?
-  entityId       String?
-  createdAt      DateTime @default(now())
+  id                String   @id @default(cuid())
+  journalEntryId    String
+  orgId             String
+  accountId         String
+  bankTransactionId String?
+  lineNumber        Int
+  description       String?
+  debit             Float    @default(0)
+  credit            Float    @default(0)
+  entityType        String?
+  entityId          String?
+  createdAt         DateTime @default(now())
 
-  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
-  journalEntry JournalEntry @relation(fields: [journalEntryId], references: [id], onDelete: Cascade)
-  account      GlAccount    @relation(fields: [accountId], references: [id], onDelete: Restrict)
+  organization    Organization     @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  journalEntry    JournalEntry     @relation(fields: [journalEntryId], references: [id], onDelete: Cascade)
+  account         GlAccount        @relation(fields: [accountId], references: [id], onDelete: Restrict)
+  bankTransaction BankTransaction? @relation(fields: [bankTransactionId], references: [id], onDelete: SetNull)
 
   @@unique([journalEntryId, lineNumber])
   @@index([orgId, accountId])
+  @@index([orgId, bankTransactionId])
   @@index([orgId, entityType, entityId])
   @@map("journal_line")
 }
+
+model BankAccount {
+  id                       String          @id @default(cuid())
+  orgId                    String
+  glAccountId              String          @unique
+  openingJournalEntryId    String?         @unique
+  gatewayClearingAccountId String?
+  type                     BankAccountType @default(BANK)
+  name                     String
+  bankName                 String?
+  maskedAccountNo          String?
+  ifscOrSwift              String?
+  currency                 String          @default("INR")
+  openingBalance           Float           @default(0)
+  openingBalanceDate       DateTime?
+  mappingProfile           Json?
+  isPrimary                Boolean         @default(false)
+  isActive                 Boolean         @default(true)
+  createdAt                DateTime        @default(now())
+  updatedAt                DateTime        @updatedAt
+
+  organization           Organization          @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  glAccount              GlAccount             @relation("BankAccountLedger", fields: [glAccountId], references: [id], onDelete: Restrict)
+  openingJournalEntry    JournalEntry?         @relation("BankAccountOpeningJournal", fields: [openingJournalEntryId], references: [id], onDelete: SetNull)
+  gatewayClearingAccount GlAccount?            @relation("BankAccountGatewayClearing", fields: [gatewayClearingAccountId], references: [id], onDelete: SetNull)
+  statementImports       BankStatementImport[]
+  transactions           BankTransaction[]
+
+  @@index([orgId, isActive])
+  @@index([orgId, isPrimary])
+  @@map("bank_account")
+}
+
+model BankStatementImport {
+  id               String           @id @default(cuid())
+  orgId            String
+  bankAccountId    String
+  fileName         String
+  storageKey       String
+  checksum         String
+  sourceFormat     String           @default("csv")
+  status           BankImportStatus @default(UPLOADED)
+  mappingProfile   Json?
+  importedRows     Int              @default(0)
+  failedRows       Int              @default(0)
+  errorRows        Json?
+  statementStart   DateTime?
+  statementEnd     DateTime?
+  uploadedByUserId String?          @db.Uuid
+  createdAt        DateTime         @default(now())
+  completedAt      DateTime?
+
+  organization Organization      @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  bankAccount  BankAccount       @relation(fields: [bankAccountId], references: [id], onDelete: Cascade)
+  transactions BankTransaction[]
+
+  @@unique([bankAccountId, checksum])
+  @@index([orgId, status])
+  @@map("bank_statement_import")
+}
+
+model BankTransaction {
+  id              String           @id @default(cuid())
+  orgId           String
+  bankAccountId   String
+  importId        String
+  txnDate         DateTime
+  valueDate       DateTime?
+  direction       BankTxnDirection
+  amount          Float
+  runningBalance  Float?
+  reference       String?
+  description     String
+  normalizedPayee String?
+  normalizedType  String?
+  fingerprint     String
+  rawPayload      Json?
+  status          BankTxnStatus    @default(UNMATCHED)
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+
+  organization Organization           @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  bankAccount  BankAccount            @relation(fields: [bankAccountId], references: [id], onDelete: Cascade)
+  import       BankStatementImport    @relation(fields: [importId], references: [id], onDelete: Cascade)
+  matches      BankTransactionMatch[]
+  journalLines JournalLine[]
+
+  @@unique([bankAccountId, fingerprint])
+  @@index([orgId, status, txnDate])
+  @@index([orgId, bankAccountId, txnDate])
+  @@map("bank_transaction")
+}
+
+model BankTransactionMatch {
+  id              String          @id @default(cuid())
+  orgId           String
+  bankTxnId       String
+  entityType      MatchEntityType
+  entityId        String
+  matchedAmount   Float
+  confidenceScore Float?
+  status          String          @default("SUGGESTED")
+  createdByUserId String?         @db.Uuid
+  confirmedAt     DateTime?
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+
+  organization    Organization     @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  bankTransaction BankTransaction  @relation(fields: [bankTxnId], references: [id], onDelete: Cascade)
+  invoicePayments InvoicePayment[] @relation("InvoicePaymentBankMatch")
+
+  @@unique([bankTxnId, entityType, entityId])
+  @@index([orgId, status])
+  @@index([entityType, entityId])
+  @@map("bank_transaction_match")
+}
+
 
 // ─── Master Data Models ─────────────────────────────────────────────────────────
 
@@ -804,10 +967,11 @@ model InvoicePayment {
   accountingPostedAt     DateTime?
   createdAt              DateTime         @default(now())
 
-  invoice      Invoice             @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
-  proof        InvoiceProof?       @relation("PaymentProof")
+  invoice      Invoice               @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  proof        InvoiceProof?         @relation("PaymentProof")
   installment  PaymentInstallment?
-  journalEntry JournalEntry?       @relation("InvoicePaymentJournal", fields: [journalEntryId], references: [id])
+  journalEntry JournalEntry?         @relation("InvoicePaymentJournal", fields: [journalEntryId], references: [id])
+  bankMatch    BankTransactionMatch? @relation("InvoicePaymentBankMatch", fields: [bankMatchId], references: [id])
 
   @@index([invoiceId])
   @@index([externalPaymentId])

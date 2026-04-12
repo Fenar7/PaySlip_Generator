@@ -15,6 +15,7 @@ export interface JournalLineInput {
   credit?: number;
   entityType?: string | null;
   entityId?: string | null;
+  bankTransactionId?: string | null;
 }
 
 export interface CreateJournalInput {
@@ -50,6 +51,7 @@ interface NormalizedJournalLine {
   credit: number;
   entityType: string | null;
   entityId: string | null;
+  bankTransactionId: string | null;
 }
 
 function buildEntryDateFilter(startDate?: string, endDate?: string): Prisma.DateTimeFilter | undefined {
@@ -133,6 +135,7 @@ export function validateJournalLines(lines: JournalLineInput[]): {
       credit,
       entityType: cleanText(line.entityType),
       entityId: cleanText(line.entityId),
+      bankTransactionId: cleanText(line.bankTransactionId),
     };
   });
 
@@ -193,14 +196,15 @@ export async function createDraftJournalTx(
       metadata: input.metadata,
       createdBy: input.actorId ?? undefined,
       lines: {
-        create: lines.map((line, index) => ({
-          orgId: input.orgId,
-          accountId: line.accountId,
-          lineNumber: index + 1,
-          description: line.description,
-          debit: line.debit,
-          credit: line.credit,
-          entityType: line.entityType,
+          create: lines.map((line, index) => ({
+            orgId: input.orgId,
+            accountId: line.accountId,
+            bankTransactionId: line.bankTransactionId,
+            lineNumber: index + 1,
+            description: line.description,
+            debit: line.debit,
+            credit: line.credit,
+            entityType: line.entityType,
           entityId: line.entityId,
         })),
       },
