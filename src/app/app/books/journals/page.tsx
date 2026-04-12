@@ -177,6 +177,7 @@ export default async function JournalsPage({
                   <th className="px-4 py-3">Source</th>
                   <th className="px-4 py-3">Period</th>
                   <th className="px-4 py-3">Amount</th>
+                  <th className="px-4 py-3">Evidence</th>
                   <th className="px-4 py-3">Status</th>
                   <th className="px-4 py-3 text-right">Action</th>
                 </tr>
@@ -184,7 +185,7 @@ export default async function JournalsPage({
               <tbody className="divide-y divide-slate-200">
                 {journals.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="px-4 py-10 text-center text-sm text-slate-500">
+                    <td colSpan={8} className="px-4 py-10 text-center text-sm text-slate-500">
                       No journals match the current filters.
                     </td>
                   </tr>
@@ -192,7 +193,12 @@ export default async function JournalsPage({
                   journals.map((journal) => (
                     <tr key={journal.id}>
                       <td className="px-4 py-3 text-sm text-slate-900">
-                        <div className="font-medium">{journal.entryNumber}</div>
+                        <Link
+                          href={`/app/books/journals/${journal.id}`}
+                          className="font-medium text-blue-600 hover:underline"
+                        >
+                          {journal.entryNumber}
+                        </Link>
                         <div className="text-xs text-slate-500">
                           {journal.memo || journal.sourceRef || `${journal.lineCount} lines`}
                         </div>
@@ -209,6 +215,11 @@ export default async function JournalsPage({
                           minimumFractionDigits: 2,
                           maximumFractionDigits: 2,
                         })}
+                      </td>
+                      <td className="px-4 py-3 text-sm text-slate-700">
+                        {journal.attachmentCount === 0
+                          ? "No files"
+                          : `${journal.attachmentCount} attachment${journal.attachmentCount === 1 ? "" : "s"}`}
                       </td>
                       <td className="px-4 py-3">
                         <Badge

@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
-import { getBooksOverview } from "../actions";
+import { getBooksSettings } from "../actions";
+import { BooksSettingsForm } from "../components/books-settings-form";
 import { PeriodActionButtons } from "../components/period-action-buttons";
 import { booksStatusBadgeVariant, formatBooksDate } from "../view-helpers";
 
@@ -9,8 +10,23 @@ export const metadata = {
   title: "Books Settings | Slipwise",
 };
 
+const FISCAL_YEAR_MONTHS = [
+  "January",
+  "February",
+  "March",
+  "April",
+  "May",
+  "June",
+  "July",
+  "August",
+  "September",
+  "October",
+  "November",
+  "December",
+] as const;
+
 export default async function BooksSettingsPage() {
-  const result = await getBooksOverview();
+  const result = await getBooksSettings();
 
   if (!result.success) {
     return (
@@ -20,7 +36,7 @@ export default async function BooksSettingsPage() {
     );
   }
 
-  const { setup, metrics, periods, trialBalance } = result.data;
+  const { metadata, defaultMappings, systemAccounts, accountOptions, periods } = result.data;
 
   return (
     <div className="mx-auto max-w-6xl space-y-6">
@@ -28,7 +44,7 @@ export default async function BooksSettingsPage() {
         <div>
           <h1 className="text-2xl font-semibold text-slate-900">Books Settings</h1>
           <p className="mt-1 text-sm text-slate-500">
-            Review accounting defaults, seeded structure, and fiscal-period lock controls.
+            Review seeded Books metadata, default posting mappings, and period controls for future finance activity.
           </p>
         </div>
 
@@ -44,10 +60,10 @@ export default async function BooksSettingsPage() {
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         {[
-          { label: "Seed Template", value: setup.templateKey.replaceAll("_", " ") },
-          { label: "Accounts Seeded", value: String(setup.accountsCreated) },
-          { label: "Periods Seeded", value: String(setup.periodsCreated) },
-          { label: "Trial Balance", value: trialBalance.balanced ? "Balanced" : "Review Needed" },
+          { label: "Seed Template", value: metadata.templateKey.replaceAll("_", " ") },
+          { label: "Books Enabled", value: metadata.booksEnabled ? "Yes" : "No" },
+          { label: "Active Accounts", value: String(metadata.activeAccountCount) },
+          { label: "Base Currency", value: metadata.baseCurrency },
         ].map((item) => (
           <Card key={item.label}>
             <CardHeader>
@@ -62,28 +78,54 @@ export default async function BooksSettingsPage() {
 
       <Card>
         <CardHeader>
-          <h2 className="text-lg font-semibold text-slate-900">Accounting baseline</h2>
+          <h2 className="text-lg font-semibold text-slate-900">Setup metadata</h2>
           <p className="mt-1 text-sm text-slate-500">
-            Core setup generated for the Books module at organization bootstrap.
+            Seeded configuration and organization defaults currently active for this Books workspace.
           </p>
         </CardHeader>
         <CardContent className="grid gap-4 md:grid-cols-2">
           <div className="rounded-xl bg-slate-50 p-4">
-            <p className="text-xs uppercase tracking-[0.18em] text-slate-500">Posted journals</p>
-            <p className="mt-2 text-xl font-semibold text-slate-900">{metrics.postedJournals}</p>
+            <p className="text-xs uppercase tracking-[0.18em] text-slate-500">Country</p>
+            <p className="mt-2 text-xl font-semibold text-slate-900">{metadata.country}</p>
           </div>
           <div className="rounded-xl bg-slate-50 p-4">
-            <p className="text-xs uppercase tracking-[0.18em] text-slate-500">Draft journals</p>
-            <p className="mt-2 text-xl font-semibold text-slate-900">{metrics.draftJournals}</p>
+            <p className="text-xs uppercase tracking-[0.18em] text-slate-500">Fiscal Year Start</p>
+            <p className="mt-2 text-xl font-semibold text-slate-900">
+              {FISCAL_YEAR_MONTHS[Math.max(0, Math.min(11, metadata.fiscalYearStart - 1))]}
+            </p>
           </div>
           <div className="rounded-xl bg-slate-50 p-4">
-            <p className="text-xs uppercase tracking-[0.18em] text-slate-500">Open periods</p>
-            <p className="mt-2 text-xl font-semibold text-slate-900">{metrics.openPeriods}</p>
+            <p className="text-xs uppercase tracking-[0.18em] text-slate-500">Seeded At</p>
+            <p className="mt-2 text-xl font-semibold text-slate-900">
+              {metadata.seededAt ? formatBooksDate(metadata.seededAt) : "Pending"}
+            </p>
           </div>
           <div className="rounded-xl bg-slate-50 p-4">
-            <p className="text-xs uppercase tracking-[0.18em] text-slate-500">Locked periods</p>
-            <p className="mt-2 text-xl font-semibold text-slate-900">{metrics.lockedPeriods}</p>
+            <p className="text-xs uppercase tracking-[0.18em] text-slate-500">Available Mapping Targets</p>
+            <p className="mt-2 text-xl font-semibold text-slate-900">{accountOptions.length}</p>
           </div>
+        </CardContent>
+      </Card>
+
+      <BooksSettingsForm mappings={defaultMappings} accountOptions={accountOptions} />
+
+      <Card>
+        <CardHeader>
+          <h2 className="text-lg font-semibold text-slate-900">Seeded system accounts</h2>
+          <p className="mt-1 text-sm text-slate-500">
+            Finance-controlled system accounts provided by the template and used by core Books flows.
+          </p>
+        </CardHeader>
+        <CardContent className="grid gap-4 md:grid-cols-3">
+          {systemAccounts.map((account) => (
+            <div key={account.key} className="rounded-xl border border-slate-200 p-4">
+              <p className="text-xs uppercase tracking-[0.18em] text-slate-500">{account.label}</p>
+              <p className="mt-2 text-sm text-slate-500">{account.description}</p>
+              <p className="mt-3 font-medium text-slate-900">
+                {account.account ? `${account.account.code} — ${account.account.name}` : "Not seeded"}
+              </p>
+            </div>
+          ))}
         </CardContent>
       </Card>
 
@@ -91,7 +133,7 @@ export default async function BooksSettingsPage() {
         <CardHeader>
           <h2 className="text-lg font-semibold text-slate-900">Fiscal periods</h2>
           <p className="mt-1 text-sm text-slate-500">
-            Lock and reopen periods using the same control path as financial close.
+            Lock periods here, or reopen them as a direct admin action with a required reason and audit trail.
           </p>
         </CardHeader>
         <CardContent className="px-0 py-0">
