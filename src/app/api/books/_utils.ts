@@ -7,6 +7,10 @@ import { checkFeature } from "@/lib/plans";
 const FEATURE_MESSAGES = {
   accountingCore: "SW Books requires the Starter plan or above.",
   bankReconciliation: "Bank reconciliation requires the Pro plan or above.",
+  vendorBills: "Vendor bills require the Starter plan or above.",
+  financialStatements: "Financial statements require the Starter plan or above.",
+  closeWorkflow: "Financial close requires the Pro plan or above.",
+  auditPackExports: "Audit package exports require the Enterprise plan.",
 } as const;
 
 export const BooksApiErrorCode = {
@@ -49,6 +53,17 @@ export function booksApiCsvResponse(csv: string, filename: string): NextResponse
     status: 200,
     headers: {
       "Content-Type": "text/csv; charset=utf-8",
+      "Content-Disposition": `attachment; filename="${filename}"`,
+      "Cache-Control": "no-store",
+    },
+  });
+}
+
+export function booksApiPdfResponse(pdf: Uint8Array, filename: string): NextResponse {
+  return new NextResponse(Buffer.from(pdf), {
+    status: 200,
+    headers: {
+      "Content-Type": "application/pdf",
       "Content-Disposition": `attachment; filename="${filename}"`,
       "Cache-Control": "no-store",
     },

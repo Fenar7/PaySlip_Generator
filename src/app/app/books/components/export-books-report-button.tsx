@@ -5,8 +5,14 @@ import type { JournalEntryStatus, JournalSource } from "@/generated/prisma/clien
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import {
+  exportBooksAccountsPayableAgingCsv,
+  exportBooksAccountsReceivableAgingCsv,
+  exportBooksBalanceSheetCsv,
+  exportBooksCashFlowCsv,
   exportBooksJournalRegisterCsv,
   exportBooksLedgerCsv,
+  exportBooksPaymentRunPayoutCsv,
+  exportBooksProfitLossCsv,
   exportBooksTrialBalanceCsv,
   exportChartOfAccountsCsv,
 } from "../actions";
@@ -52,6 +58,54 @@ type ExportBooksReportButtonProps =
         endDate?: string;
         includeInactive?: boolean;
       };
+    }
+  | {
+      report: "profit-loss";
+      filenamePrefix: string;
+      disabled?: boolean;
+      label?: string;
+      filters: {
+        startDate?: string;
+        endDate?: string;
+        compareStartDate?: string;
+        compareEndDate?: string;
+      };
+    }
+  | {
+      report: "balance-sheet";
+      filenamePrefix: string;
+      disabled?: boolean;
+      label?: string;
+      filters: {
+        asOfDate?: string;
+        compareAsOfDate?: string;
+      };
+    }
+  | {
+      report: "cash-flow";
+      filenamePrefix: string;
+      disabled?: boolean;
+      label?: string;
+      filters: {
+        startDate?: string;
+        endDate?: string;
+      };
+    }
+  | {
+      report: "ar-aging" | "ap-aging";
+      filenamePrefix: string;
+      disabled?: boolean;
+      label?: string;
+      filters: {
+        asOfDate?: string;
+      };
+    }
+  | {
+      report: "payment-run-payout";
+      filenamePrefix: string;
+      disabled?: boolean;
+      label?: string;
+      paymentRunId: string;
     };
 
 function downloadCsv(csv: string, filenamePrefix: string) {
@@ -69,14 +123,39 @@ export function ExportBooksReportButton(props: ExportBooksReportButtonProps) {
 
   function handleExport() {
     startTransition(async () => {
-      const result =
-        props.report === "chart-of-accounts"
-          ? await exportChartOfAccountsCsv()
-          : props.report === "journals"
-            ? await exportBooksJournalRegisterCsv(props.filters)
-            : props.report === "ledger"
-              ? await exportBooksLedgerCsv(props.filters)
-              : await exportBooksTrialBalanceCsv(props.filters);
+      let result;
+      switch (props.report) {
+        case "chart-of-accounts":
+          result = await exportChartOfAccountsCsv();
+          break;
+        case "journals":
+          result = await exportBooksJournalRegisterCsv(props.filters);
+          break;
+        case "ledger":
+          result = await exportBooksLedgerCsv(props.filters);
+          break;
+        case "trial-balance":
+          result = await exportBooksTrialBalanceCsv(props.filters);
+          break;
+        case "profit-loss":
+          result = await exportBooksProfitLossCsv(props.filters);
+          break;
+        case "balance-sheet":
+          result = await exportBooksBalanceSheetCsv(props.filters);
+          break;
+        case "cash-flow":
+          result = await exportBooksCashFlowCsv(props.filters);
+          break;
+        case "ar-aging":
+          result = await exportBooksAccountsReceivableAgingCsv(props.filters);
+          break;
+        case "ap-aging":
+          result = await exportBooksAccountsPayableAgingCsv(props.filters);
+          break;
+        case "payment-run-payout":
+          result = await exportBooksPaymentRunPayoutCsv(props.paymentRunId);
+          break;
+      }
 
       if (!result.success) {
         toast.error(result.error);

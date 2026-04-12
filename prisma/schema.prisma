@@ -62,6 +62,11 @@ model Organization {
   bankStatementImports   BankStatementImport[]
   bankTransactions       BankTransaction[]
   bankTransactionMatches BankTransactionMatch[]
+  vendorBills            VendorBill[]
+  vendorBillPayments     VendorBillPayment[]
+  paymentRuns            PaymentRun[]
+  closeRuns              CloseRun[]
+  closeTasks             CloseTask[]
   proxyGrants            ProxyGrant[]
   auditLogs              AuditLog[]
   subscription           Subscription?
@@ -165,6 +170,8 @@ model OrgDefaults {
   voucherCounter    Int    @default(1)
   salarySlipPrefix  String @default("SAL")
   salarySlipCounter Int    @default(1)
+  vendorBillPrefix  String @default("BILL")
+  vendorBillCounter Int    @default(1)
 
   defaultInvoiceTemplate String @default("minimal")
   defaultVoucherTemplate String @default("minimal-office")
@@ -205,6 +212,7 @@ model OrgDefaults {
   defaultPayableAccountId         String?
   defaultBankAccountId            String?
   defaultRevenueAccountId         String?
+  defaultExpenseAccountId         String?
   defaultPayrollExpenseAccountId  String?
   defaultPayrollPayableAccountId  String?
   defaultGstOutputAccountId       String?
@@ -259,6 +267,8 @@ enum JournalSource {
   INVOICE
   INVOICE_PAYMENT
   VOUCHER
+  VENDOR_BILL
+  VENDOR_BILL_PAYMENT
   SALARY_SLIP
   GST
   TDS
@@ -302,6 +312,7 @@ enum BankTxnStatus {
 
 enum MatchEntityType {
   INVOICE_PAYMENT
+  VENDOR_BILL_PAYMENT
   VOUCHER
   JOURNAL_ENTRY
   INTERNAL_TRANSFER
@@ -333,6 +344,7 @@ model GlAccount {
   journalLines                JournalLine[]
   bankAccounts                BankAccount[] @relation("BankAccountLedger")
   gatewayClearingBankAccounts BankAccount[] @relation("BankAccountGatewayClearing")
+  vendorBills                 VendorBill[]  @relation("VendorBillExpenseAccount")
 
   @@unique([orgId, code])
   @@unique([orgId, systemKey])
@@ -361,6 +373,7 @@ model FiscalPeriod {
 
   organization   Organization   @relation(fields: [orgId], references: [id], onDelete: Cascade)
   journalEntries JournalEntry[]
+  closeRuns      CloseRun[]
 
   @@unique([orgId, label])
   @@unique([orgId, startDate, endDate])
@@ -402,6 +415,8 @@ model JournalEntry {
   invoicePosted        Invoice?        @relation("InvoicePostedJournal")
   invoicePaymentPosted InvoicePayment? @relation("InvoicePaymentJournal")
   voucherPosted        Voucher?        @relation("VoucherPostedJournal")
+  vendorBillPosted     VendorBill?     @relation("VendorBillJournal")
+  vendorBillPaymentPosted VendorBillPayment? @relation("VendorBillPaymentJournal")
   salarySlipAccrual    SalarySlip?     @relation("SalarySlipJournal")
   salarySlipPayout     SalarySlip?     @relation("SalarySlipPayoutJournal")
   bankAccountOpening   BankAccount?    @relation("BankAccountOpeningJournal")
@@ -548,6 +563,7 @@ model BankTransactionMatch {
   organization    Organization     @relation(fields: [orgId], references: [id], onDelete: Cascade)
   bankTransaction BankTransaction  @relation(fields: [bankTxnId], references: [id], onDelete: Cascade)
   invoicePayments InvoicePayment[] @relation("InvoicePaymentBankMatch")
+  vendorBillPayments VendorBillPayment[] @relation("VendorBillPaymentBankMatch")
 
   @@unique([bankTxnId, entityType, entityId])
   @@index([orgId, status])
@@ -555,6 +571,244 @@ model BankTransactionMatch {
   @@map("bank_transaction_match")
 }
 
+enum VendorBillStatus {
+  DRAFT
+  PENDING_APPROVAL
+  APPROVED
+  OVERDUE
+  PARTIALLY_PAID
+  PAID
+  CANCELLED
+}
+
+enum VendorBillPaymentStatus {
+  PENDING
+  SETTLED
+  FAILED
+  VOIDED
+}
+
+enum PaymentRunStatus {
+  DRAFT
+  PENDING_APPROVAL
+  APPROVED
+  PROCESSING
+  COMPLETED
+  FAILED
+  CANCELLED
+}
+
+enum PaymentRunItemStatus {
+  PENDING
+  APPROVED
+  PAID
+  FAILED
+  SKIPPED
+}
+
+enum CloseRunStatus {
+  DRAFT
+  READY
+  BLOCKED
+  CLOSED
+  REOPENED
+}
+
+enum CloseTaskStatus {
+  PENDING
+  PASSED
+  BLOCKED
+  WAIVED
+}
+
+model VendorBill {
+  id               String           @id @default(cuid())
+  orgId            String
+  vendorId         String?
+  expenseAccountId String?
+  billNumber       String
+  billDate         String
+  dueDate          String?
+  status           VendorBillStatus @default(DRAFT)
+  formData         Json
+  subtotalAmount   Float            @default(0)
+  taxAmount        Float            @default(0)
+  totalAmount      Float            @default(0)
+  amountPaid       Float            @default(0)
+  remainingAmount  Float            @default(0)
+  currency         String           @default("INR")
+  gstTotalCgst     Float            @default(0)
+  gstTotalSgst     Float            @default(0)
+  gstTotalIgst     Float            @default(0)
+  gstTotalCess     Float            @default(0)
+  notes            String?
+  accountingStatus AccountingStatus @default(PENDING)
+  journalEntryId   String?          @unique
+  postedAt         DateTime?
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+  archivedAt       DateTime?
+
+  organization     Organization      @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  vendor           Vendor?           @relation(fields: [vendorId], references: [id])
+  expenseAccount   GlAccount?        @relation("VendorBillExpenseAccount", fields: [expenseAccountId], references: [id])
+  lines            VendorBillLine[]
+  payments         VendorBillPayment[]
+  paymentRunItems  PaymentRunItem[]
+  attachments      FileAttachment[]  @relation("VendorBillAttachments")
+  journalEntry     JournalEntry?     @relation("VendorBillJournal", fields: [journalEntryId], references: [id])
+  approvalRequests ApprovalRequest[] @relation("VendorBillApprovals")
+
+  @@unique([orgId, billNumber])
+  @@index([orgId, status])
+  @@map("vendor_bill")
+}
+
+model VendorBillLine {
+  id           String  @id @default(cuid())
+  vendorBillId String
+  description  String
+  quantity     Float   @default(1)
+  unitPrice    Float   @default(0)
+  taxRate      Float   @default(0)
+  lineTotal    Float   @default(0)
+  sortOrder    Int     @default(0)
+
+  vendorBill VendorBill @relation(fields: [vendorBillId], references: [id], onDelete: Cascade)
+
+  @@map("vendor_bill_line")
+}
+
+model VendorBillPayment {
+  id                 String                  @id @default(cuid())
+  vendorBillId       String
+  orgId              String
+  paymentRunId       String?
+  amount             Float
+  currency           String                  @default("INR")
+  paidAt             DateTime                @default(now())
+  method             String?
+  note               String?
+  source             String                  @default("admin_manual")
+  status             VendorBillPaymentStatus @default(SETTLED)
+  externalPaymentId  String?
+  externalReferenceId String?
+  externalPayload    Json?
+  recordedByUserId   String?                 @db.Uuid
+  accountingStatus   AccountingStatus        @default(PENDING)
+  journalEntryId     String?                 @unique
+  bankMatchId        String?
+  clearingAccountId  String?
+  accountingPostedAt DateTime?
+  createdAt          DateTime                @default(now())
+
+  organization Organization          @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  vendorBill   VendorBill            @relation(fields: [vendorBillId], references: [id], onDelete: Cascade)
+  paymentRun   PaymentRun?           @relation(fields: [paymentRunId], references: [id], onDelete: SetNull)
+  journalEntry JournalEntry?         @relation("VendorBillPaymentJournal", fields: [journalEntryId], references: [id])
+  bankMatch    BankTransactionMatch? @relation("VendorBillPaymentBankMatch", fields: [bankMatchId], references: [id])
+  paymentRunItem PaymentRunItem?     @relation("PaymentRunItemPayment")
+
+  @@index([vendorBillId])
+  @@index([externalPaymentId])
+  @@map("vendor_bill_payment")
+}
+
+model PaymentRun {
+  id               String            @id @default(cuid())
+  orgId            String
+  runNumber        String
+  scheduledDate    DateTime
+  status           PaymentRunStatus  @default(DRAFT)
+  totalAmount      Float             @default(0)
+  notes            String?
+  requestedByUserId String?          @db.Uuid
+  approvedAt       DateTime?
+  approvedByUserId String?           @db.Uuid
+  executedAt       DateTime?
+  executedByUserId String?           @db.Uuid
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+
+  organization     Organization      @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  items            PaymentRunItem[]
+  payments         VendorBillPayment[]
+  approvalRequests ApprovalRequest[] @relation("PaymentRunApprovals")
+
+  @@unique([orgId, runNumber])
+  @@index([orgId, status])
+  @@map("payment_run")
+}
+
+model PaymentRunItem {
+  id               String               @id @default(cuid())
+  paymentRunId     String
+  vendorBillId     String
+  proposedAmount   Float
+  approvedAmount   Float?
+  status           PaymentRunItemStatus @default(PENDING)
+  executedPaymentId String?            @unique
+  createdAt        DateTime             @default(now())
+  updatedAt        DateTime             @updatedAt
+
+  paymentRun     PaymentRun        @relation(fields: [paymentRunId], references: [id], onDelete: Cascade)
+  vendorBill     VendorBill        @relation(fields: [vendorBillId], references: [id], onDelete: Cascade)
+  executedPayment VendorBillPayment? @relation("PaymentRunItemPayment", fields: [executedPaymentId], references: [id])
+
+  @@unique([paymentRunId, vendorBillId])
+  @@index([vendorBillId, status])
+  @@map("payment_run_item")
+}
+
+model CloseRun {
+  id               String         @id @default(cuid())
+  orgId            String
+  fiscalPeriodId   String
+  status           CloseRunStatus @default(DRAFT)
+  blockerCount     Int            @default(0)
+  summary          Json?
+  notes            String?
+  startedAt        DateTime       @default(now())
+  startedByUserId  String?        @db.Uuid
+  completedAt      DateTime?
+  completedByUserId String?       @db.Uuid
+  reopenedAt       DateTime?
+  reopenedByUserId String?        @db.Uuid
+  reportSnapshotId String?
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+
+  organization Organization  @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  fiscalPeriod FiscalPeriod  @relation(fields: [fiscalPeriodId], references: [id], onDelete: Cascade)
+  tasks        CloseTask[]
+
+  @@unique([orgId, fiscalPeriodId])
+  @@index([orgId, status])
+  @@map("close_run")
+}
+
+model CloseTask {
+  id          String          @id @default(cuid())
+  closeRunId  String
+  orgId       String
+  code        String
+  label       String
+  description String?
+  status      CloseTaskStatus @default(PENDING)
+  severity    String          @default("blocker")
+  blockerReason String?
+  metadata    Json?
+  resolvedAt  DateTime?
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+
+  closeRun      CloseRun      @relation(fields: [closeRunId], references: [id], onDelete: Cascade)
+  organization  Organization  @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@unique([closeRunId, code])
+  @@index([orgId, status])
+  @@map("close_task")
+}
 
 // ─── Master Data Models ─────────────────────────────────────────────────────────
 
@@ -601,6 +855,7 @@ model Vendor {
 
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   vouchers     Voucher[]
+  bills        VendorBill[]
 
   @@index([organizationId])
   @@map("vendor")
@@ -898,6 +1153,7 @@ model FileAttachment {
 
   invoice    Invoice?    @relation("InvoiceAttachments", fields: [entityId], references: [id], map: "file_attachment_invoice_fkey")
   voucher    Voucher?    @relation("VoucherAttachments", fields: [entityId], references: [id], map: "file_attachment_voucher_fkey")
+  vendorBill VendorBill? @relation("VendorBillAttachments", fields: [entityId], references: [id], map: "file_attachment_vendor_bill_fkey")
   salarySlip SalarySlip? @relation("SalarySlipAttachments", fields: [entityId], references: [id], map: "file_attachment_salary_slip_fkey")
 
   @@index([organizationId, entityType, entityId])
@@ -1102,6 +1358,8 @@ model ApprovalRequest {
 
   invoice    Invoice?    @relation("InvoiceApprovals", fields: [docId], references: [id], map: "approval_invoice_fkey")
   voucher    Voucher?    @relation("VoucherApprovals", fields: [docId], references: [id], map: "approval_voucher_fkey")
+  vendorBill VendorBill? @relation("VendorBillApprovals", fields: [docId], references: [id], map: "approval_vendor_bill_fkey")
+  paymentRun PaymentRun? @relation("PaymentRunApprovals", fields: [docId], references: [id], map: "approval_payment_run_fkey")
   salarySlip SalarySlip? @relation("SalarySlipApprovals", fields: [docId], references: [id], map: "approval_salary_slip_fkey")
 
   @@index([orgId, status])
