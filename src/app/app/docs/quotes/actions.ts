@@ -11,6 +11,7 @@ import {
   convertQuoteToInvoice,
 } from "@/lib/quotes";
 import { revalidatePath } from "next/cache";
+import { emitQuoteEvent } from "@/lib/document-events";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -140,6 +141,12 @@ export async function createQuoteAction(
 
     await incrementUsage(orgId, "quotesPerMonth");
 
+    // Phase 19.2: emit normalized document event
+    void emitQuoteEvent(orgId, quote.id, "created", {
+      actorId: userId,
+      metadata: { quoteNumber: quote.quoteNumber },
+    });
+
     revalidatePath("/app/docs/quotes");
     return { success: true, data: { id: quote.id, quoteNumber: quote.quoteNumber } };
   } catch (error) {
@@ -170,6 +177,9 @@ export async function updateQuoteAction(
       discountAmount: data.discountAmount,
       lineItems: data.lineItems,
     });
+
+    // Phase 19.2: emit normalized document event
+    void emitQuoteEvent(orgId, quoteId, "updated", { actorId: userId });
 
     revalidatePath("/app/docs/quotes");
     revalidatePath(`/app/docs/quotes/${quoteId}`);
@@ -217,6 +227,9 @@ export async function sendQuoteAction(quoteId: string): Promise<ActionResult<voi
 
     await sendQuote(quoteId, orgId, userId);
 
+    // Phase 19.2: emit normalized document event
+    void emitQuoteEvent(orgId, quoteId, "sent", { actorId: userId });
+
     revalidatePath("/app/docs/quotes");
     revalidatePath(`/app/docs/quotes/${quoteId}`);
     return { success: true, data: undefined };
@@ -236,6 +249,12 @@ export async function convertQuoteAction(
     const { orgId, userId } = await requireOrgContext();
 
     const invoice = await convertQuoteToInvoice(quoteId, orgId, userId);
+
+    // Phase 19.2: emit quote_converted + invoice created events (first-class quote lifecycle)
+    void emitQuoteEvent(orgId, quoteId, "quote_converted", {
+      actorId: userId,
+      metadata: { invoiceId: invoice.id },
+    });
 
     revalidatePath("/app/docs/quotes");
     revalidatePath(`/app/docs/quotes/${quoteId}`);
@@ -294,6 +313,14 @@ export async function duplicateQuote(
     });
 
     await incrementUsage(orgId, "quotesPerMonth");
+
+    // Phase 19.2: emit normalized document events
+    void emitQuoteEvent(orgId, quote.id, "created", {
+      metadata: { duplicatedFrom: quoteId, quoteNumber: quote.quoteNumber },
+    });
+    void emitQuoteEvent(orgId, quoteId, "duplicated", {
+      metadata: { newQuoteId: quote.id, newQuoteNumber: quote.quoteNumber },
+    });
 
     revalidatePath("/app/docs/quotes");
     return { success: true, data: { id: quote.id, quoteNumber: quote.quoteNumber } };

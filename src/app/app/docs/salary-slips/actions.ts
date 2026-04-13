@@ -6,6 +6,7 @@ import { nextDocumentNumber } from "@/lib/docs";
 import { revalidatePath } from "next/cache";
 import type { Prisma } from "@/generated/prisma/client";
 import { postSalarySlipAccrualTx, postSalarySlipPayoutTx } from "@/lib/accounting";
+import { emitSalarySlipEvent } from "@/lib/document-events";
 
 export type ActionResult<T> = 
   | { success: true; data: T }
@@ -75,6 +76,12 @@ export async function saveSalarySlip(
       return created;
     });
     
+    // Phase 19.2: emit normalized document event
+    void emitSalarySlipEvent(orgId, salarySlip.id, status === "released" ? "released" : "created", {
+      actorId: userId,
+      metadata: { slipNumber },
+    });
+
     revalidatePath("/app/docs/salary-slips");
     return { success: true, data: { id: salarySlip.id, slipNumber } };
   } catch (error) {
@@ -147,6 +154,9 @@ export async function updateSalarySlip(
       });
     }
     
+    // Phase 19.2: emit normalized document event
+    void emitSalarySlipEvent(orgId, id, "updated", { actorId: orgId });
+
     revalidatePath("/app/docs/salary-slips");
     revalidatePath(`/app/docs/salary-slips/${id}`);
     return { success: true, data: { id } };
@@ -173,6 +183,9 @@ export async function releaseSalarySlip(id: string): Promise<ActionResult<void>>
       });
     });
     
+    // Phase 19.2: emit normalized document event
+    void emitSalarySlipEvent(orgId, id, "released", { actorId: userId });
+
     revalidatePath("/app/docs/salary-slips");
     revalidatePath(`/app/docs/salary-slips/${id}`);
     return { success: true, data: undefined };
@@ -194,6 +207,9 @@ export async function payoutSalarySlip(id: string): Promise<ActionResult<void>> 
       });
     });
 
+    // Phase 19.2: emit normalized document event
+    void emitSalarySlipEvent(orgId, id, "paid", { actorId: userId });
+
     revalidatePath("/app/docs/salary-slips");
     revalidatePath(`/app/docs/salary-slips/${id}`);
     return { success: true, data: undefined };
@@ -211,7 +227,10 @@ export async function archiveSalarySlip(id: string): Promise<ActionResult<void>>
       where: { id, organizationId: orgId },
       data: { archivedAt: new Date() },
     });
-    
+
+    // Phase 19.2: emit normalized document event
+    void emitSalarySlipEvent(orgId, id, "archived");
+
     revalidatePath("/app/docs/salary-slips");
     return { success: true, data: undefined };
   } catch (error) {
@@ -258,6 +277,14 @@ export async function duplicateSalarySlip(id: string): Promise<ActionResult<{ id
       },
     });
     
+    // Phase 19.2: emit normalized document events
+    void emitSalarySlipEvent(orgId, duplicate.id, "created", {
+      metadata: { duplicatedFrom: id, slipNumber: newNumber },
+    });
+    void emitSalarySlipEvent(orgId, id, "duplicated", {
+      metadata: { newSlipId: duplicate.id, newSlipNumber: newNumber },
+    });
+
     revalidatePath("/app/docs/salary-slips");
     return { success: true, data: { id: duplicate.id, slipNumber: newNumber } };
   } catch (error) {

@@ -111,6 +111,8 @@ model Organization {
   oauthAuthorizations    OAuthAuthorization[]
   partnerProfile         PartnerProfile?
   partnerManagedOrgs     PartnerManagedOrg[]
+  documentIndexes        DocumentIndex[]
+  documentEvents         DocumentEvent[]
 
   @@map("organization")
 }
@@ -2833,3 +2835,63 @@ model PartnerManagedOrg {
   @@unique([partnerId, orgId])
   @@map("partner_managed_orgs")
 }
+
+// ─── Phase 19: SW Docs Control Plane ──────────────────────────────────────────
+
+/// Normalized unified listing and search layer for all document types.
+/// Source of truth remains the original document models (Invoice, Voucher,
+/// SalarySlip, Quote). This table is the read-optimised vault/listing layer.
+/// Added: Phase 19 Sprint 19.1
+model DocumentIndex {
+  id                String    @id @default(cuid())
+  orgId             String
+  /// "invoice" | "voucher" | "salary_slip" | "quote"
+  docType           String
+  documentId        String
+  documentNumber    String
+  titleOrSummary    String
+  counterpartyLabel String?
+  status            String
+  primaryDate       DateTime
+  amount            Float     @default(0)
+  currency          String    @default("INR")
+  archivedAt        DateTime?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@unique([orgId, docType, documentId])
+  @@index([orgId, docType])
+  @@index([orgId, status])
+  @@index([orgId, archivedAt])
+  @@index([orgId, primaryDate])
+  @@map("document_index")
+}
+
+/// Append-only normalized lifecycle/event history for all document types.
+/// Added: Phase 19 Sprint 19.2
+model DocumentEvent {
+  id          String    @id @default(cuid())
+  orgId       String
+  /// "invoice" | "voucher" | "salary_slip" | "quote"
+  docType     String
+  documentId  String
+  /// e.g. "created" | "updated" | "issued" | "archived" | "restored" |
+  ///       "duplicated" | "approved" | "released" | "paid" |
+  ///       "quote_accepted" | "quote_declined" | "quote_converted" |
+  ///       "sent" | "cancelled"
+  eventType   String
+  actorId     String?
+  actorLabel  String?
+  eventAt     DateTime  @default(now())
+  metadata    Json?
+
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@index([orgId, docType, documentId, eventAt])
+  @@index([orgId, eventType, eventAt])
+  @@index([orgId, docType, eventAt])
+  @@map("document_event")
+}
+
