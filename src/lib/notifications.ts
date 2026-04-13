@@ -2,6 +2,8 @@ import "server-only";
 
 import { db } from "@/lib/db";
 import { isModelMissingTableError } from "@/lib/prisma-errors";
+import { queueEmailDelivery, recordInAppDelivery } from "@/lib/flow/delivery-engine";
+import { buildNotificationEmailHtml } from "@/lib/flow/delivery-templates";
 
 // ─── Notification Utility ─────────────────────────────────────────────────────
 
@@ -12,11 +14,18 @@ export interface CreateNotificationParams {
   title: string;
   body: string;
   link?: string;
+  // Sprint 18.2 delivery options (all optional — backward-compatible)
+  emailRequested?: boolean;
+  recipientEmail?: string;
+  sourceModule?: string;
+  sourceRef?: string;
+  workflowRunId?: string;
+  scheduledActionId?: string;
 }
 
 export async function createNotification(params: CreateNotificationParams) {
   try {
-    return await db.notification.create({
+    const notification = await db.notification.create({
       data: {
         userId: params.userId,
         orgId: params.orgId,
@@ -24,8 +33,44 @@ export async function createNotification(params: CreateNotificationParams) {
         title: params.title,
         body: params.body,
         link: params.link ?? null,
+        emailRequested: params.emailRequested ?? false,
+        recipientEmail: params.recipientEmail ?? null,
+        sourceModule: params.sourceModule ?? null,
+        sourceRef: params.sourceRef ?? null,
       },
     });
+
+    // Record in-app delivery for analytics (idempotent)
+    await recordInAppDelivery(notification.id, params.orgId, params.userId, {
+      sourceModule: params.sourceModule,
+      sourceRef: params.sourceRef,
+    }).catch(() => {}); // never fail the notification itself
+
+    // Queue email delivery if requested and recipient provided
+    if (params.emailRequested && params.recipientEmail) {
+      const subject = `[Slipwise] ${params.title}`;
+      const html = buildNotificationEmailHtml({
+        title: params.title,
+        body: params.body,
+        link: params.link ?? null,
+      });
+      await queueEmailDelivery({
+        notificationId: notification.id,
+        orgId: params.orgId,
+        recipientEmail: params.recipientEmail,
+        subject,
+        html,
+        sourceModule: params.sourceModule,
+        sourceRef: params.sourceRef,
+        workflowRunId: params.workflowRunId,
+        scheduledActionId: params.scheduledActionId,
+      }).catch((err) => {
+        // Log but don't fail notification creation
+        console.error("[createNotification] Email delivery failed:", err);
+      });
+    }
+
+    return notification;
   } catch (error) {
     if (isModelMissingTableError(error, "Notification")) {
       console.warn(
