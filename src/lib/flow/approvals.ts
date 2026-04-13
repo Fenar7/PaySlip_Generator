@@ -1,6 +1,5 @@
 import { db } from "@/lib/db";
 import { notifyOrgAdmins } from "@/lib/notifications";
-import { revalidatePath } from "next/cache";
 
 export async function createApprovalRequest(params: {
   docType: string;
@@ -31,6 +30,5 @@ export async function createApprovalRequest(params: {
     excludeUserId: params.requestedById === "system" ? undefined : params.requestedById,
   });
 
-  revalidatePath("/app/flow/approvals");
   return approval;
 }

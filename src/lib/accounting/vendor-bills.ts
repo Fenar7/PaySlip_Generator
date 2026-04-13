@@ -337,7 +337,7 @@ export async function createVendorBill(input: SaveVendorBillInput) {
   const normalizedLines = normalizeVendorBillLines(input.lines);
   const status = input.status ?? "DRAFT";
 
-  return db.$transaction(async (tx) => {
+  const bill = await db.$transaction(async (tx) => {
     const billNumber = await nextDocumentNumberTx(tx, input.orgId, "vendorBill");
     const subtotalAmount = roundMoney(
       normalizedLines.reduce((sum, line) => sum + line.lineSubtotal, 0),
@@ -358,7 +358,7 @@ export async function createVendorBill(input: SaveVendorBillInput) {
           })
         : status;
 
-    const bill = await tx.vendorBill.create({
+    const created = await tx.vendorBill.create({
       data: {
         orgId: input.orgId,
         vendorId: input.vendorId ?? undefined,
@@ -390,33 +390,16 @@ export async function createVendorBill(input: SaveVendorBillInput) {
           })),
         },
       },
-      include: {
-        lines: true,
-      },
+      include: { lines: true },
     });
 
     if (lifecycleStatus === "APPROVED" || lifecycleStatus === "OVERDUE") {
       await postVendorBillTx(tx, {
         orgId: input.orgId,
-        vendorBillId: bill.id,
+        vendorBillId: created.id,
         actorId: input.actorId,
       });
     }
-    
-    // Phase 17.4: Hook workflow trigger
-    await fireWorkflowTrigger({
-      triggerType: "vendor_bill.submitted",
-      orgId: input.orgId,
-      sourceModule: "books",
-      sourceEntityType: "vendor_bill",
-      sourceEntityId: bill.id,
-      actorId: input.actorId,
-      payload: {
-        billNumber: bill.billNumber,
-        totalAmount: bill.totalAmount,
-        vendorId: bill.vendorId,
-      },
-    });
 
     await tx.auditLog.create({
       data: {
@@ -424,17 +407,30 @@ export async function createVendorBill(input: SaveVendorBillInput) {
         actorId: input.actorId,
         action: "books.vendor_bill.created",
         entityType: "vendor_bill",
-        entityId: bill.id,
-        metadata: {
-          billNumber,
-          status: lifecycleStatus,
-          totalAmount,
-        },
+        entityId: created.id,
+        metadata: { billNumber, status: lifecycleStatus, totalAmount },
       },
     });
 
-    return bill;
+    return created;
   });
+
+  // Phase 17.4: Fire trigger AFTER transaction commits
+  await fireWorkflowTrigger({
+    triggerType: "vendor_bill.submitted",
+    orgId: input.orgId,
+    sourceModule: "books",
+    sourceEntityType: "vendor_bill",
+    sourceEntityId: bill.id,
+    actorId: input.actorId,
+    payload: {
+      billNumber: bill.billNumber,
+      totalAmount: bill.totalAmount,
+      vendorId: bill.vendorId,
+    },
+  });
+
+  return bill;
 }
 
 export async function updateVendorBill(
@@ -907,130 +903,127 @@ export async function executePaymentRun(input: {
 }) {
   await ensureBooksSetup(input.orgId);
 
-  return db.$transaction(async (tx) => {
-    const run = await tx.paymentRun.findFirst({
-      where: {
-        id: input.paymentRunId,
-        orgId: input.orgId,
-      },
-      include: {
-        items: {
-          where: { status: { in: ["PENDING", "APPROVED"] } },
-          orderBy: { createdAt: "asc" },
+  try {
+    const result = await db.$transaction(async (tx) => {
+      const run = await tx.paymentRun.findFirst({
+        where: {
+          id: input.paymentRunId,
+          orgId: input.orgId,
         },
-      },
-    });
-
-    if (!run) {
-      throw new Error("Payment run not found.");
-    }
-
-    if (run.status === "PENDING_APPROVAL") {
-      throw new Error("This payment run is still awaiting approval.");
-    }
-
-    if (run.status === "COMPLETED") {
-      throw new Error("This payment run has already been executed.");
-    }
-
-    if (run.status === "CANCELLED") {
-      throw new Error("Cancelled payment runs cannot be executed.");
-    }
-
-    if (run.items.length === 0) {
-      throw new Error("This payment run has no pending items to execute.");
-    }
-
-    await tx.paymentRun.update({
-      where: { id: run.id },
-      data: {
-        status: "PROCESSING",
-      },
-    });
-
-    for (const item of run.items) {
-      const payment = await createVendorBillPaymentTx(tx, {
-        orgId: input.orgId,
-        actorId: input.actorId,
-        vendorBillId: item.vendorBillId,
-        amount: item.approvedAmount ?? item.proposedAmount,
-        paidAt: input.paidAt,
-        method: input.method,
-        note: cleanText(input.note) ?? `Payment run ${run.runNumber}`,
-        source: "payment_run",
-        paymentRunId: run.id,
-      });
-
-      await tx.paymentRunItem.update({
-        where: { id: item.id },
-        data: {
-          status: "PAID",
-          approvedAmount: item.approvedAmount ?? item.proposedAmount,
-          executedPaymentId: payment.id,
-        },
-      });
-    }
-
-    await tx.paymentRun.update({
-      where: { id: run.id },
-      data: {
-        status: "COMPLETED",
-        executedAt: input.paidAt ?? new Date(),
-        executedByUserId: input.actorId,
-      },
-    });
-
-    await tx.auditLog.create({
-      data: {
-        orgId: input.orgId,
-        actorId: input.actorId,
-        action: "books.payment_run.executed",
-        entityType: "payment_run",
-        entityId: run.id,
-        metadata: {
-          runNumber: run.runNumber,
-          executedItemCount: run.items.length,
-        },
-      },
-    });
-
-    } catch (error) {
-      // Phase 17.4: Hook payment run failure trigger
-      await fireWorkflowTrigger({
-        triggerType: "payment_run.failed",
-        orgId: input.orgId,
-        sourceModule: "books",
-        sourceEntityType: "payment_run",
-        sourceEntityId: input.paymentRunId,
-        actorId: input.actorId,
-        payload: {
-          error: error instanceof Error ? error.message : "Unknown execution failure",
-        },
-      });
-      throw error;
-    }
-
-    return tx.paymentRun.findUniqueOrThrow({
-      where: { id: run.id },
-      include: {
-        items: {
-          include: {
-            vendorBill: {
-              select: {
-                id: true,
-                billNumber: true,
-              },
-            },
-            executedPayment: true,
+        include: {
+          items: {
+            where: { status: { in: ["PENDING", "APPROVED"] } },
+            orderBy: { createdAt: "asc" },
           },
-          orderBy: { createdAt: "asc" },
         },
-        approvalRequests: {
-          orderBy: { createdAt: "desc" },
+      });
+
+      if (!run) {
+        throw new Error("Payment run not found.");
+      }
+
+      if (run.status === "PENDING_APPROVAL") {
+        throw new Error("This payment run is still awaiting approval.");
+      }
+
+      if (run.status === "COMPLETED") {
+        throw new Error("This payment run has already been executed.");
+      }
+
+      if (run.status === "CANCELLED") {
+        throw new Error("Cancelled payment runs cannot be executed.");
+      }
+
+      if (run.items.length === 0) {
+        throw new Error("This payment run has no pending items to execute.");
+      }
+
+      await tx.paymentRun.update({
+        where: { id: run.id },
+        data: { status: "PROCESSING" },
+      });
+
+      for (const item of run.items) {
+        const payment = await createVendorBillPaymentTx(tx, {
+          orgId: input.orgId,
+          actorId: input.actorId,
+          vendorBillId: item.vendorBillId,
+          amount: item.approvedAmount ?? item.proposedAmount,
+          paidAt: input.paidAt,
+          method: input.method,
+          note: cleanText(input.note) ?? `Payment run ${run.runNumber}`,
+          source: "payment_run",
+          paymentRunId: run.id,
+        });
+
+        await tx.paymentRunItem.update({
+          where: { id: item.id },
+          data: {
+            status: "PAID",
+            approvedAmount: item.approvedAmount ?? item.proposedAmount,
+            executedPaymentId: payment.id,
+          },
+        });
+      }
+
+      await tx.paymentRun.update({
+        where: { id: run.id },
+        data: {
+          status: "COMPLETED",
+          executedAt: input.paidAt ?? new Date(),
+          executedByUserId: input.actorId,
         },
+      });
+
+      await tx.auditLog.create({
+        data: {
+          orgId: input.orgId,
+          actorId: input.actorId,
+          action: "books.payment_run.executed",
+          entityType: "payment_run",
+          entityId: run.id,
+          metadata: {
+            runNumber: run.runNumber,
+            executedItemCount: run.items.length,
+          },
+        },
+      });
+
+      return tx.paymentRun.findUniqueOrThrow({
+        where: { id: run.id },
+        include: {
+          items: {
+            include: {
+              vendorBill: {
+                select: { id: true, billNumber: true },
+              },
+              executedPayment: true,
+            },
+            orderBy: { createdAt: "asc" },
+          },
+          approvalRequests: {
+            orderBy: { createdAt: "desc" },
+          },
+        },
+      });
+    });
+
+    return result;
+  } catch (error) {
+    // Phase 17.4: Hook payment run failure trigger (fires after transaction rolls back)
+    await fireWorkflowTrigger({
+      triggerType: "payment_run.failed",
+      orgId: input.orgId,
+      sourceModule: "books",
+      sourceEntityType: "payment_run",
+      sourceEntityId: input.paymentRunId,
+      actorId: input.actorId,
+      payload: {
+        error: error instanceof Error ? error.message : "Unknown execution failure",
       },
     });
-  });
+    throw error;
+  }
 }
 
 export async function getPaymentRun(orgId: string, paymentRunId: string) {
