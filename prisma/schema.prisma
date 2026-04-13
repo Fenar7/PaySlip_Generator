@@ -1296,6 +1296,54 @@ enum TicketStatus {
   RESOLVED
   CLOSED
 }
+enum ApprovalPolicyStatus {
+  ACTIVE
+  INACTIVE
+}
+
+enum ApprovalStepMode {
+  SINGLE
+  SEQUENTIAL
+}
+
+enum TicketPriority {
+  LOW
+  NORMAL
+  HIGH
+  URGENT
+}
+
+enum TicketSeverity {
+  INFORMATIONAL
+  BLOCKING
+  FINANCE_CRITICAL
+  CUSTOMER_ESCALATED
+}
+
+enum WorkflowStatus {
+  DRAFT
+  ACTIVE
+  PAUSED
+  ARCHIVED
+}
+
+enum WorkflowRunStatus {
+  PENDING
+  RUNNING
+  SUCCEEDED
+  FAILED
+  DEAD_LETTERED
+  CANCELLED
+}
+
+enum ScheduledActionStatus {
+  PENDING
+  RUNNING
+  SUCCEEDED
+  FAILED
+  DEAD_LETTERED
+  CANCELLED
+}
 
 model InvoiceTicket {
   id             String         @id @default(cuid())
@@ -1310,6 +1358,16 @@ model InvoiceTicket {
   assigneeId     String?        @db.Uuid
   createdAt      DateTime       @default(now())
   resolvedAt     DateTime?
+  priority            TicketPriority @default(NORMAL)
+  severity            TicketSeverity @default(INFORMATIONAL)
+  dueAt               DateTime?
+  firstResponseDueAt  DateTime?
+  resolutionDueAt     DateTime?
+  firstRespondedAt    DateTime?
+  breachedAt          DateTime?
+  breachType          String?
+  escalationLevel     Int            @default(0)
+  sourceModule        String?
 
   invoice Invoice       @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
   replies TicketReply[]
@@ -1341,6 +1399,40 @@ enum ApprovalStatus {
   APPROVED
   REJECTED
 }
+model ApprovalPolicy {
+  id                String               @id @default(cuid())
+  orgId             String
+  name              String
+  module            String
+  eventType         String
+  status            ApprovalPolicyStatus @default(ACTIVE)
+  stepMode          ApprovalStepMode     @default(SINGLE)
+  escalateAfterMins Int?
+  createdBy         String               @db.Uuid
+  createdAt         DateTime             @default(now())
+  updatedAt         DateTime             @updatedAt
+
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@index([orgId, module, status])
+  @@map("approval_policy")
+}
+
+model ApprovalPolicyRule {
+  id                 String   @id @default(cuid())
+  policyId           String
+  sequence           Int
+  minAmount          Decimal? @db.Decimal(14, 2)
+  maxAmount          Decimal? @db.Decimal(14, 2)
+  approverRole       String?
+  approverUserId     String?  @db.Uuid
+  fallbackRole       String?
+  fallbackUserId     String?  @db.Uuid
+  createdAt          DateTime @default(now())
+
+  @@index([policyId, sequence])
+  @@map("approval_policy_rule")
+}
 
 model ApprovalRequest {
   id              String         @id @default(cuid())
@@ -1355,6 +1447,12 @@ model ApprovalRequest {
   note            String?
   createdAt       DateTime       @default(now())
   decidedAt       DateTime?
+  policyId           String?
+  policyRuleId       String?
+  dueAt              DateTime?
+  escalatedAt        DateTime?
+  escalationLevel    Int            @default(0)
+  lastReminderAt     DateTime?
 
   invoice    Invoice?    @relation("InvoiceApprovals", fields: [docId], references: [id], map: "approval_invoice_fkey")
   voucher    Voucher?    @relation("VoucherApprovals", fields: [docId], references: [id], map: "approval_voucher_fkey")
@@ -1379,6 +1477,10 @@ model Notification {
   link      String?
   isRead    Boolean  @default(false)
   createdAt DateTime @default(now())
+  category      String?
+  severity      String?
+  sourceModule  String?
+  sourceRef     String?
 
   @@index([userId, isRead])
   @@index([orgId])
