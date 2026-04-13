@@ -9,6 +9,7 @@ import {
   Clock,
   Zap,
   PauseCircle,
+  Plus,
 } from "lucide-react";
 
 export const metadata: Metadata = { title: "Workflow Definitions — Flow" };
@@ -51,6 +52,13 @@ export default async function WorkflowsPage() {
           <Zap className="w-3.5 h-3.5" />
           Bounded — approved trigger &amp; action families only
         </span>
+        <Link
+          href="/app/flow/workflows/new"
+          className="flex items-center gap-2 px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium transition-colors"
+        >
+          <Plus className="w-4 h-4" />
+          New Workflow
+        </Link>
       </div>
 
       <div className="rounded-xl border bg-white dark:bg-zinc-950 overflow-hidden shadow-sm">

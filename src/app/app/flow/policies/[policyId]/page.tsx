@@ -3,7 +3,9 @@ import { requireOrgContext } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, ShieldCheck } from "lucide-react";
+import { ArrowLeft, ShieldCheck, Pencil } from "lucide-react";
+import { ApprovalRuleEditor } from "@/components/flow/approval-rule-editor";
+import { toggleApprovalPolicyStatus } from "@/app/app/flow/policies/actions";
 
 export const metadata: Metadata = { title: "Policy Details — Flow" };
 
@@ -15,9 +17,13 @@ export default async function PolicyDetailPage({
   const { orgId } = await requireOrgContext();
   const { policyId } = await params;
 
-  const policy = await db.approvalPolicy.findFirst({
-    where: { id: policyId, orgId },
-  });
+  const [policy, rules] = await Promise.all([
+    db.approvalPolicy.findFirst({ where: { id: policyId, orgId } }),
+    db.approvalPolicyRule.findMany({
+      where: { policyId },
+      orderBy: { sequence: "asc" },
+    }),
+  ]);
 
   if (!policy) notFound();
 
@@ -48,6 +54,21 @@ export default async function PolicyDetailPage({
         }`}>
           {policy.status}
         </span>
+        <form action={async () => { "use server"; await toggleApprovalPolicyStatus(policyId); }}>
+          <button
+            type="submit"
+            className="px-3 py-1 rounded-lg border text-xs font-medium hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-colors"
+          >
+            {policy.status === "ACTIVE" ? "Deactivate" : "Activate"}
+          </button>
+        </form>
+        <Link
+          href={`/app/flow/policies/${policyId}/edit`}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-medium hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-colors"
+        >
+          <Pencil className="w-3 h-3" />
+          Edit Policy
+        </Link>
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -67,12 +88,11 @@ export default async function PolicyDetailPage({
       </div>
 
       <div className="border rounded-xl p-5 bg-white dark:bg-zinc-900 shadow-sm">
-        <p className="text-sm font-medium text-[var(--muted-foreground)] mb-3">
-          Policy Rules
-        </p>
-        <p className="text-sm text-[var(--muted-foreground)] text-center py-6 border border-dashed rounded-lg">
-          Rule editing UI coming in a future release. Configure via API or data migration.
-        </p>
+        <ApprovalRuleEditor policyId={policyId} rules={rules.map(r => ({
+          ...r,
+          minAmount: r.minAmount ? r.minAmount.toString() : null,
+          maxAmount: r.maxAmount ? r.maxAmount.toString() : null,
+        }))} />
       </div>
     </div>
   );

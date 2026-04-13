@@ -1469,7 +1469,9 @@ model TicketEscalationRule {
   targetRole       String?
   targetUserId     String?  @db.Uuid
   notifyOrgAdmins  Boolean  @default(false)
+  enabled          Boolean  @default(true)
   createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
 
   organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
 
