@@ -1,180 +1,100 @@
-import type { Metadata } from "next";
-import { listJobLogs } from "./actions";
+import { requireOrgContext } from "@/lib/auth";
+import { db } from "@/lib/db";
+import { formatDistanceToNow } from "date-fns";
+import { replayAction, cancelAction } from "./actions";
+import { ShieldAlert, RotateCcw, XCircle, Clock } from "lucide-react";
 
-export const metadata: Metadata = { title: "Job Execution Log | Slipwise" };
+export default async function JobsConsolePage() {
+  const { orgId } = await requireOrgContext();
 
-const STATUS_COLORS: Record<string, string> = {
-  pending: "bg-amber-100 text-amber-700",
-  completed: "bg-green-100 text-green-700",
-  failed: "bg-red-100 text-red-700",
-};
-
-const JOB_NAMES = [
-  "mark-overdue",
-  "send-scheduled",
-  "recurring-generate",
-  "send-reminders",
-];
-
-function StatusBadge({ status }: { status: string }) {
-  return (
-    <span
-      className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${STATUS_COLORS[status] ?? "bg-slate-100 text-slate-700"}`}
-    >
-      {status}
-    </span>
-  );
-}
-
-function formatDate(date: Date | string | null) {
-  if (!date) return "—";
-  return new Date(date).toLocaleString("en-IN", {
-    dateStyle: "medium",
-    timeStyle: "short",
+  const actions = await db.scheduledAction.findMany({
+    where: { orgId },
+    orderBy: { createdAt: "desc" },
+    take: 100
   });
-}
-
-export default async function JobsPage({
-  searchParams,
-}: {
-  searchParams: Promise<{ jobName?: string; status?: string; page?: string }>;
-}) {
-  const params = await searchParams;
-  const jobName = params.jobName;
-  const status = params.status;
-  const page = Number(params.page) || 1;
-
-  const { logs, totalPages } = await listJobLogs({ jobName, status, page });
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div>
-        <p className="text-[0.68rem] font-semibold uppercase tracking-[0.34em] text-[var(--muted-foreground)]">
-          SW&gt; Flow
-        </p>
-        <h1 className="text-2xl font-bold tracking-tight">Job Execution Log</h1>
-        <p className="mt-1 text-sm text-[var(--muted-foreground)]">
-          Monitor automated job runs for debugging and audit.
-        </p>
-      </div>
-
-      {/* Filters */}
-      <div className="flex flex-wrap gap-4">
-        {/* Job name filter */}
-        <div className="flex gap-2">
-          <a
-            href="/app/flow/jobs"
-            className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
-              !jobName
-                ? "bg-[var(--accent)] text-white"
-                : "bg-[var(--surface-soft)] text-[var(--muted-foreground)] hover:bg-[var(--border-strong)]"
-            }`}
-          >
-            All Jobs
-          </a>
-          {JOB_NAMES.map((name) => (
-            <a
-              key={name}
-              href={`/app/flow/jobs?jobName=${name}${status ? `&status=${status}` : ""}`}
-              className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
-                jobName === name
-                  ? "bg-[var(--accent)] text-white"
-                  : "bg-[var(--surface-soft)] text-[var(--muted-foreground)] hover:bg-[var(--border-strong)]"
-              }`}
-            >
-              {name}
-            </a>
-          ))}
-        </div>
-
-        {/* Status filter */}
-        <div className="flex gap-2">
-          {["ALL", "pending", "completed", "failed"].map((s) => (
-            <a
-              key={s}
-              href={`/app/flow/jobs?${jobName ? `jobName=${jobName}&` : ""}${s === "ALL" ? "" : `status=${s}`}`}
-              className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
-                (s === "ALL" && !status) || status === s
-                  ? "bg-[var(--accent)] text-white"
-                  : "bg-[var(--surface-soft)] text-[var(--muted-foreground)] hover:bg-[var(--border-strong)]"
-              }`}
-            >
-              {s === "ALL" ? "All Status" : s}
-            </a>
-          ))}
+    <div className="flex flex-col flex-1 p-6 max-w-7xl mx-auto w-full gap-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight">Flow Jobs Console</h1>
+          <p className="text-[var(--muted-foreground)]">Manage scheduled background actions, monitor dead-letters, and replay failures.</p>
         </div>
       </div>
 
-      {/* Table */}
-      {logs.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-20 text-center">
-          <p className="text-[var(--muted-foreground)]">No job logs found.</p>
-        </div>
-      ) : (
-        <div className="overflow-x-auto rounded-xl border border-[var(--border-strong)]">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-[var(--border-strong)] bg-[var(--surface-soft)]">
-                <th className="px-4 py-3 text-left font-medium text-[var(--muted-foreground)]">Job Name</th>
-                <th className="px-4 py-3 text-left font-medium text-[var(--muted-foreground)]">Job ID</th>
-                <th className="px-4 py-3 text-left font-medium text-[var(--muted-foreground)]">Invoice</th>
-                <th className="px-4 py-3 text-left font-medium text-[var(--muted-foreground)]">Status</th>
-                <th className="px-4 py-3 text-left font-medium text-[var(--muted-foreground)]">Triggered At</th>
-                <th className="px-4 py-3 text-left font-medium text-[var(--muted-foreground)]">Completed At</th>
-                <th className="px-4 py-3 text-left font-medium text-[var(--muted-foreground)]">Error</th>
+      <div className="rounded-xl border bg-white dark:bg-zinc-950 overflow-hidden shadow-sm">
+        <table className="w-full text-sm text-left">
+          <thead className="bg-zinc-50 dark:bg-zinc-900 border-b">
+            <tr>
+              <th className="px-4 py-3 font-medium text-[var(--muted-foreground)]">Action</th>
+              <th className="px-4 py-3 font-medium text-[var(--muted-foreground)]">Status</th>
+              <th className="px-4 py-3 font-medium text-[var(--muted-foreground)]">Attempts</th>
+              <th className="px-4 py-3 font-medium text-[var(--muted-foreground)]">Failure Reason</th>
+              <th className="px-4 py-3 font-medium text-[var(--muted-foreground)] text-right">Controls</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y">
+            {actions.map((job) => (
+              <tr key={job.id} className="hover:bg-zinc-50 dark:hover:bg-zinc-900/50">
+                <td className="px-4 py-3">
+                  <div className="font-medium">{job.actionType}</div>
+                  <div className="text-xs text-[var(--muted-foreground)] flex items-center gap-1 mt-1">
+                    <Clock className="w-3 h-3" />
+                    {formatDistanceToNow(job.scheduledAt, { addSuffix: true })}
+                  </div>
+                </td>
+                <td className="px-4 py-3">
+                  <span className={`px-2 py-1 rounded-full text-xs font-semibold ${
+                    job.status === 'DEAD_LETTERED' ? 'bg-red-100 text-red-600 dark:bg-red-900/30' :
+                    job.status === 'SUCCEEDED' ? 'bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30' :
+                    job.status === 'FAILED' ? 'bg-orange-100 text-orange-600 dark:bg-orange-900/30' :
+                    job.status === 'CANCELLED' ? 'bg-zinc-100 text-zinc-600 dark:bg-zinc-800' :
+                    'bg-blue-100 text-blue-600 dark:bg-blue-900/30'
+                  }`}>
+                    {job.status}
+                  </span>
+                </td>
+                <td className="px-4 py-3">
+                  {job.attemptCount} / {job.maxAttempts}
+                </td>
+                <td className="px-4 py-3 text-[var(--muted-foreground)] max-w-xs truncate" title={job.lastError || "None"}>
+                  {job.lastError || "—"}
+                </td>
+                <td className="px-4 py-3 text-right">
+                  <form className="flex items-center justify-end gap-2">
+                    <input type="hidden" name="id" value={job.id} />
+                    {(job.status === 'DEAD_LETTERED' || job.status === 'FAILED') && (
+                      <button formAction={async (fd) => {
+                        "use server";
+                        await replayAction(fd.get("id") as string);
+                      }} className="p-1.5 text-[var(--muted-foreground)] hover:text-blue-500 rounded-md hover:bg-blue-50 dark:hover:bg-blue-900/50" title="Replay Job">
+                        <RotateCcw className="w-4 h-4" />
+                      </button>
+                    )}
+                    {(job.status === 'PENDING' || job.status === 'FAILED' || job.status === 'DEAD_LETTERED') && (
+                      <button formAction={async (fd) => {
+                        "use server";
+                        await cancelAction(fd.get("id") as string);
+                      }} className="p-1.5 text-[var(--muted-foreground)] hover:text-red-500 rounded-md hover:bg-red-50 dark:hover:bg-red-900/50" title="Cancel Job">
+                        <XCircle className="w-4 h-4" />
+                      </button>
+                    )}
+                  </form>
+                </td>
               </tr>
-            </thead>
-            <tbody>
-              {logs.map((log) => (
-                <tr
-                  key={log.id}
-                  className="border-b border-[var(--border-strong)] last:border-0"
-                >
-                  <td className="px-4 py-3 font-medium">{log.jobName}</td>
-                  <td className="px-4 py-3 font-mono text-xs text-[var(--muted-foreground)]">
-                    {log.jobId ? log.jobId.substring(0, 8) : "—"}
-                  </td>
-                  <td className="px-4 py-3 text-[var(--muted-foreground)]">
-                    {log.invoiceId ? log.invoiceId.substring(0, 8) : "—"}
-                  </td>
-                  <td className="px-4 py-3">
-                    <StatusBadge status={log.status} />
-                  </td>
-                  <td className="px-4 py-3 text-[var(--muted-foreground)]">
-                    {formatDate(log.triggeredAt)}
-                  </td>
-                  <td className="px-4 py-3 text-[var(--muted-foreground)]">
-                    {formatDate(log.completedAt)}
-                  </td>
-                  <td className="px-4 py-3 text-xs text-red-600 max-w-xs truncate">
-                    {log.error || "—"}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
+            ))}
 
-      {/* Pagination */}
-      {totalPages > 1 && (
-        <div className="flex items-center justify-center gap-2">
-          {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => (
-            <a
-              key={p}
-              href={`/app/flow/jobs?${jobName ? `jobName=${jobName}&` : ""}${status ? `status=${status}&` : ""}page=${p}`}
-              className={`rounded-lg px-3 py-1.5 text-xs font-medium ${
-                p === page
-                  ? "bg-[var(--accent)] text-white"
-                  : "bg-[var(--surface-soft)] text-[var(--muted-foreground)] hover:bg-[var(--border-strong)]"
-              }`}
-            >
-              {p}
-            </a>
-          ))}
-        </div>
-      )}
+            {actions.length === 0 && (
+              <tr>
+                <td colSpan={5} className="px-4 py-8 text-center text-[var(--muted-foreground)]">
+                  <ShieldAlert className="w-6 h-6 mx-auto mb-2 opacity-50" />
+                  No jobs found in the queue.
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }

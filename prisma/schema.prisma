@@ -99,6 +99,10 @@ model Organization {
   marketplaceTemplates   MarketplaceTemplate[]
   marketplacePurchases   MarketplacePurchase[]
   approvalPolicies       ApprovalPolicy[]
+  ticketSlaPolicies      TicketSlaPolicy[]
+  ticketEscalationRules  TicketEscalationRule[]
+  scheduledActions       ScheduledAction[]
+  deadLetterActions      DeadLetterAction[]
   marketplaceReviews     MarketplaceReview[]
   marketplaceRevenue     MarketplaceRevenue[]
   oauthApps              OAuthApp[]
@@ -1433,6 +1437,85 @@ model ApprovalPolicyRule {
 
   @@index([policyId, sequence])
   @@map("approval_policy_rule")
+}
+
+model TicketSlaPolicy {
+  id                     String   @id @default(cuid())
+  orgId                  String
+  name                   String
+  category               String?
+  priority               String?
+  firstResponseTargetMins Int
+  resolutionTargetMins   Int
+  businessHoursOnly      Boolean  @default(false)
+  isDefault              Boolean  @default(false)
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@index([orgId, isDefault])
+  @@map("ticket_sla_policy")
+}
+
+model TicketEscalationRule {
+  id               String   @id @default(cuid())
+  orgId            String
+  name             String
+  breachType       String
+  afterMins        Int
+  targetRole       String?
+  targetUserId     String?  @db.Uuid
+  notifyOrgAdmins  Boolean  @default(false)
+  createdAt        DateTime @default(now())
+
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@index([orgId, breachType])
+  @@map("ticket_escalation_rule")
+}
+
+model ScheduledAction {
+  id               String                @id @default(cuid())
+  orgId            String
+  actionType       String
+  sourceModule     String
+  sourceEntityType String?
+  sourceEntityId   String?
+  workflowRunId    String?
+  payload          Json
+  status           ScheduledActionStatus @default(PENDING)
+  scheduledAt      DateTime
+  attemptCount     Int                   @default(0)
+  maxAttempts      Int                   @default(3)
+  nextRetryAt      DateTime?
+  lastError        String?
+  createdAt        DateTime              @default(now())
+  completedAt      DateTime?
+
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@index([orgId, status, scheduledAt])
+  @@index([nextRetryAt, status])
+  @@map("scheduled_action")
+}
+
+model DeadLetterAction {
+  id                String   @id @default(cuid())
+  scheduledActionId String   @unique
+  orgId             String
+  actionType        String
+  sourceModule      String
+  failureReason     String
+  payload           Json
+  deadLetteredAt    DateTime @default(now())
+  resolvedAt        DateTime?
+  resolvedBy        String?  @db.Uuid
+
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@index([orgId, deadLetteredAt])
+  @@map("dead_letter_action")
 }
 
 model ApprovalRequest {
