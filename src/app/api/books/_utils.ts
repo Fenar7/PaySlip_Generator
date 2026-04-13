@@ -1,7 +1,8 @@
 import "server-only";
 
 import { NextResponse } from "next/server";
-import { getOrgContext, hasRole, type OrgContext } from "@/lib/auth";
+import { getOrgContext, type OrgContext } from "@/lib/auth";
+import { canReadBooks, canWriteBooks } from "@/lib/books-permissions";
 import { checkFeature } from "@/lib/plans";
 
 const FEATURE_MESSAGES = {
@@ -123,7 +124,17 @@ async function requireBooksApiContext(feature: BooksFeature): Promise<OrgContext
 export async function requireBooksApiRead(
   feature: BooksFeature = "accountingCore",
 ): Promise<OrgContext> {
-  return requireBooksApiContext(feature);
+  const context = await requireBooksApiContext(feature);
+
+  if (!canReadBooks(context.role)) {
+    throw new BooksApiError(
+      BooksApiErrorCode.FORBIDDEN,
+      "Insufficient permissions.",
+      STATUS_MAP[BooksApiErrorCode.FORBIDDEN],
+    );
+  }
+
+  return context;
 }
 
 export async function requireBooksApiWrite(
@@ -131,7 +142,7 @@ export async function requireBooksApiWrite(
 ): Promise<OrgContext> {
   const context = await requireBooksApiContext(feature);
 
-  if (!hasRole(context.role, "admin")) {
+  if (!canWriteBooks(context.role)) {
     throw new BooksApiError(
       BooksApiErrorCode.FORBIDDEN,
       "Insufficient permissions.",

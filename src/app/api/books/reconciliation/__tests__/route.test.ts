@@ -95,7 +95,12 @@ describe("Books reconciliation API routes", () => {
     expect(mockedGetReconciliationWorkspace).not.toHaveBeenCalled();
   });
 
-  it("confirms a reconciliation suggestion for admins", async () => {
+  it("confirms a reconciliation suggestion for finance managers", async () => {
+    mockedGetOrgContext.mockResolvedValue({
+      userId: "user-1",
+      orgId: "org-1",
+      role: "finance_manager",
+    });
     mockedConfirmBankTransactionMatch.mockResolvedValue({
       id: "match-1",
     } as never);
