@@ -1,5 +1,6 @@
 import { db } from "@/lib/db";
 import type { ScheduledAction } from "@/generated/prisma/client";
+import { fireWorkflowTrigger } from "./workflow-engine";
 
 export async function processScheduledActions() {
   const now = new Date();
@@ -85,6 +86,21 @@ async function executeAction(action: ScheduledAction) {
           }
         })
       ]);
+
+      // Phase 17.4: Hook terminal failure trigger
+      await fireWorkflowTrigger({
+        triggerType: "scheduled_action.dead_lettered",
+        orgId: action.orgId,
+        sourceModule: action.sourceModule,
+        sourceEntityType: action.sourceEntityType ?? "unknown",
+        sourceEntityId: action.sourceEntityId ?? "unknown",
+        payload: {
+          actionType: action.actionType,
+          error: errorMsg,
+          attemptCount: incrementedAttempts,
+        },
+      });
+
     } else {
       // Exponential backoff logic (5 mins * 2^(attempts-1))
       const nextRetryAt = new Date();

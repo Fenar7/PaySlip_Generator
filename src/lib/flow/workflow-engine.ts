@@ -1,4 +1,6 @@
 import { db } from "@/lib/db";
+import { createNotification, notifyOrgAdmins } from "@/lib/notifications";
+import { createApprovalRequest } from "./approvals";
 
 // Supported trigger families per PRD 17.3
 export const SUPPORTED_TRIGGERS = [
@@ -37,12 +39,23 @@ export type WorkflowTriggerEvent = {
   sourceEntityId?: string;
   actorId?: string;
   payload: Record<string, unknown>;
+  depth?: number;
 };
+
+const MAX_WORKFLOW_DEPTH = 5;
 
 /**
  * Fire all ACTIVE workflow definitions that match the trigger type for the org.
  */
 export async function fireWorkflowTrigger(event: WorkflowTriggerEvent) {
+  const currentDepth = event.depth ?? 0;
+  if (currentDepth >= MAX_WORKFLOW_DEPTH) {
+    console.warn(
+      `[WorkflowEngine] Max depth reached (${currentDepth}) for org ${event.orgId}. Potential cycle detected for ${event.triggerType}.`
+    );
+    return;
+  }
+
   const matchingWorkflows = await db.workflowDefinition.findMany({
     where: {
       orgId: event.orgId,
@@ -53,7 +66,7 @@ export async function fireWorkflowTrigger(event: WorkflowTriggerEvent) {
   });
 
   for (const workflow of matchingWorkflows) {
-    await executeWorkflow(workflow, event);
+    await executeWorkflow(workflow, { ...event, depth: currentDepth + 1 });
   }
 }
 
@@ -129,17 +142,39 @@ async function executeStep(
   config: Record<string, unknown>,
   event: WorkflowTriggerEvent
 ) {
+  const orgId = event.orgId;
+
   switch (actionType) {
-    case "send_notification":
-    case "notify_org_admins":
-      // Sprint 17.3: stub — will wire to push/email in 17.4
-      console.log(`[WorkflowEngine] ${actionType} → org=${event.orgId}`, config);
+    case "send_notification": {
+      const userId = (config.userId as string) ?? event.actorId;
+      if (userId) {
+        await createNotification({
+          orgId,
+          userId,
+          type: "workflow_notification",
+          title: (config.title as string) ?? "Workflow Update",
+          body: (config.body as string) ?? "A workflow step has been executed.",
+          link: config.link as string | undefined,
+        });
+      }
       break;
+    }
+
+    case "notify_org_admins": {
+      await notifyOrgAdmins({
+        orgId,
+        type: "workflow_admin_notification",
+        title: (config.title as string) ?? "Workflow Admin Alert",
+        body: (config.body as string) ?? "An automated workflow requires attention.",
+        link: config.link as string | undefined,
+      });
+      break;
+    }
 
     case "enqueue_scheduled_action":
       await db.scheduledAction.create({
         data: {
-          orgId: event.orgId,
+          orgId,
           actionType: (config.actionType as string) ?? "send_notification",
           sourceModule: event.sourceModule,
           sourceEntityType: event.sourceEntityType,
@@ -150,13 +185,53 @@ async function executeStep(
       });
       break;
 
-    case "assign_ticket":
-    case "create_approval_request":
-    case "schedule_reminder":
+    case "create_approval_request": {
+      await createApprovalRequest({
+        docType: (config.docType as string) ?? event.sourceEntityType ?? "unknown",
+        docId: (config.docId as string) ?? event.sourceEntityId ?? "unknown",
+        orgId,
+        requestedById: "system",
+        requestedByName: "SW Flow Automation",
+        docNumber: (config.docNumber as string) ?? "Automated Request",
+      });
+      break;
+    }
+
+    case "assign_ticket": {
+      if (event.sourceEntityType === "InvoiceTicket" && event.sourceEntityId) {
+        await db.invoiceTicket.update({
+          where: { id: event.sourceEntityId },
+          data: {
+            assigneeId: config.assigneeId as string | undefined,
+          },
+        });
+      }
+      break;
+    }
+
+    case "schedule_reminder": {
+      const delayMinutes = (config.delayMinutes as number) ?? 60;
+      const scheduledAt = new Date();
+      scheduledAt.setMinutes(scheduledAt.getMinutes() + delayMinutes);
+
+      await db.scheduledAction.create({
+        data: {
+          orgId,
+          actionType: "send_notification",
+          sourceModule: event.sourceModule,
+          sourceEntityType: event.sourceEntityType,
+          sourceEntityId: event.sourceEntityId,
+          payload: config,
+          scheduledAt,
+        },
+      });
+      break;
+    }
+
     case "escalate_to_role":
     case "create_follow_up":
-      // Sprint 17.3: stub — integration hooks for 17.4
-      console.log(`[WorkflowEngine] ${actionType} → org=${event.orgId}`, config);
+      // These are specialized and will be wired to their respective modules in the future.
+      console.log(`[WorkflowEngine] ${actionType} → org=${orgId} (Staged)`, config);
       break;
 
     default:

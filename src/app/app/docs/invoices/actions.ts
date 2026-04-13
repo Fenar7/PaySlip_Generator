@@ -8,6 +8,7 @@ import { revalidatePath } from "next/cache";
 import type { Prisma } from "@/generated/prisma/client";
 import { reconcileInvoicePayment, validatePaymentAmount } from "@/lib/invoice-reconciliation";
 import { postInvoiceIssueTx, postInvoicePaymentTx, reverseJournalEntryTx } from "@/lib/accounting";
+import { fireWorkflowTrigger } from "@/lib/flow/workflow-engine";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -158,6 +159,23 @@ export async function saveInvoice(
 
       return created;
     });
+
+    // Phase 17.4: Hook workflow trigger
+    if (status === "ISSUED") {
+      await fireWorkflowTrigger({
+        triggerType: "invoice.issued",
+        orgId,
+        sourceModule: "invoices",
+        sourceEntityType: "Invoice",
+        sourceEntityId: invoice.id,
+        actorId: userId,
+        payload: {
+          invoiceNumber: invoice.invoiceNumber,
+          totalAmount: invoice.totalAmount,
+          customerId: invoice.customerId,
+        },
+      });
+    }
 
     revalidatePath("/app/docs/invoices");
     return { success: true, data: { id: invoice.id, invoiceNumber } };
@@ -473,6 +491,21 @@ export async function issueInvoice(id: string): Promise<ActionResult<void>> {
         invoiceId: id,
         actorId: userId,
       });
+    });
+
+    // Phase 17.4: Hook workflow trigger
+    await fireWorkflowTrigger({
+      triggerType: "invoice.issued",
+      orgId,
+      sourceModule: "invoices",
+      sourceEntityType: "Invoice",
+      sourceEntityId: id,
+      actorId: userId,
+      payload: {
+        invoiceNumber: existing.invoiceNumber,
+        totalAmount: existing.totalAmount,
+        customerId: existing.customerId,
+      },
     });
 
     revalidatePath("/app/docs/invoices");

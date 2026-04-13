@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { requireOrgContext } from "@/lib/auth";
 import { getFlowMetrics } from "@/lib/flow/metrics";
+import { db } from "@/lib/db";
 import Link from "next/link";
 import {
   AlertCircle,
@@ -26,6 +27,20 @@ function ms(val: number | null): string {
 export default async function FlowPage() {
   const { orgId } = await requireOrgContext();
   const m = await getFlowMetrics(orgId);
+
+  const [recentRuns, workflows] = await Promise.all([
+    db.workflowRun.findMany({
+      where: { orgId },
+      orderBy: { startedAt: "desc" },
+      take: 5,
+      include: { workflow: true },
+    }),
+    db.workflowDefinition.findMany({
+      where: { orgId, status: "ACTIVE" },
+      orderBy: { updatedAt: "desc" },
+      take: 5,
+    }),
+  ]);
 
   return (
     <div className="flex flex-col flex-1 p-6 gap-6 max-w-7xl mx-auto w-full">
@@ -136,10 +151,42 @@ export default async function FlowPage() {
             <Activity className="w-5 h-5 text-blue-600 dark:text-blue-400" />
             Workflow Activity
           </div>
-          <div className="text-sm text-[var(--muted-foreground)]">
-            <p className="py-10 text-center border-dashed border rounded-lg bg-zinc-50/50 dark:bg-zinc-900/50">
-              No recent flow activity.
-            </p>
+          <div className="text-sm">
+            {recentRuns.length > 0 ? (
+              <div className="flex flex-col gap-3">
+                {recentRuns.map((run) => (
+                  <Link
+                    key={run.id}
+                    href={`/app/flow/workflows/${run.workflowId}/runs`}
+                    className="flex items-center justify-between p-3 rounded-lg border bg-zinc-50/50 dark:bg-zinc-800/30 hover:border-blue-300 transition-colors"
+                  >
+                    <div className="flex flex-col gap-0.5">
+                      <span className="font-medium">{run.workflow.name}</span>
+                      <span className="text-xs text-[var(--muted-foreground)]">
+                        {run.triggerType.replace(/\./g, " ").toUpperCase()}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <div className="flex flex-col items-end gap-0.5 text-xs">
+                        <span className={`font-semibold ${
+                          run.status === "COMPLETED" ? "text-emerald-600" : 
+                          run.status === "FAILED" ? "text-red-600" : "text-amber-600"
+                        }`}>
+                          {run.status}
+                        </span>
+                        <span className="text-[var(--muted-foreground)]">
+                          {new Date(run.startedAt).toLocaleTimeString()}
+                        </span>
+                      </div>
+                    </div>
+                  </Link>
+                ))}
+              </div>
+            ) : (
+              <p className="py-10 text-center border-dashed border rounded-lg bg-zinc-50/50 dark:bg-zinc-900/50 text-[var(--muted-foreground)]">
+                No recent flow activity.
+              </p>
+            )}
           </div>
         </div>
 
@@ -153,10 +200,31 @@ export default async function FlowPage() {
               View All →
             </Link>
           </div>
-          <div className="text-sm text-[var(--muted-foreground)]">
-            <p className="py-10 text-center border-dashed border rounded-lg bg-zinc-50/50 dark:bg-zinc-900/50">
-              No active workflows configured.
-            </p>
+          <div className="text-sm">
+            {workflows.length > 0 ? (
+              <div className="flex flex-col gap-3">
+                {workflows.map((wf) => (
+                  <div
+                    key={wf.id}
+                    className="flex items-center justify-between p-3 rounded-lg border bg-zinc-50/50 dark:bg-zinc-800/30"
+                  >
+                    <div className="flex flex-col gap-0.5">
+                      <span className="font-medium">{wf.name}</span>
+                      <span className="text-xs text-[var(--muted-foreground)]">
+                        Trigger: {wf.triggerType}
+                      </span>
+                    </div>
+                    <div className="bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 text-[10px] uppercase font-bold px-2 py-0.5 rounded">
+                      Active
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="py-10 text-center border-dashed border rounded-lg bg-zinc-50/50 dark:bg-zinc-900/50 text-[var(--muted-foreground)]">
+                No active workflows configured.
+              </p>
+            )}
           </div>
         </div>
       </div>

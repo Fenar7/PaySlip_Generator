@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { validateCronSecret } from "@/lib/cron";
+import { fireWorkflowTrigger } from "@/lib/flow/workflow-engine";
 
 export const dynamic = "force-dynamic";
 
@@ -42,6 +43,22 @@ export async function GET(request: Request) {
           },
         }),
       ]);
+
+      // Phase 17.4: Hook workflow trigger
+      await fireWorkflowTrigger({
+        triggerType: "invoice.overdue",
+        orgId: inv.organizationId,
+        sourceModule: "invoices",
+        sourceEntityType: "Invoice",
+        sourceEntityId: inv.id,
+        actorId: "system",
+        payload: {
+          invoiceNumber: inv.invoiceNumber,
+          totalAmount: inv.totalAmount,
+          dueDate: inv.dueDate,
+        },
+      });
+
       markedCount++;
     }
 

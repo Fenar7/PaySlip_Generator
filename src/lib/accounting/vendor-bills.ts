@@ -11,6 +11,7 @@ import { nextDocumentNumberTx } from "@/lib/docs";
 import { ensureBooksSetup } from "./accounts";
 import { postVendorBillPaymentTx, postVendorBillTx } from "./posting";
 import { cleanText, roundMoney } from "./utils";
+import { fireWorkflowTrigger } from "../flow/workflow-engine";
 
 type TxClient = Prisma.TransactionClient;
 
@@ -401,6 +402,21 @@ export async function createVendorBill(input: SaveVendorBillInput) {
         actorId: input.actorId,
       });
     }
+    
+    // Phase 17.4: Hook workflow trigger
+    await fireWorkflowTrigger({
+      triggerType: "vendor_bill.submitted",
+      orgId: input.orgId,
+      sourceModule: "books",
+      sourceEntityType: "vendor_bill",
+      sourceEntityId: bill.id,
+      actorId: input.actorId,
+      payload: {
+        billNumber: bill.billNumber,
+        totalAmount: bill.totalAmount,
+        vendorId: bill.vendorId,
+      },
+    });
 
     await tx.auditLog.create({
       data: {
@@ -977,6 +993,22 @@ export async function executePaymentRun(input: {
         },
       },
     });
+
+    } catch (error) {
+      // Phase 17.4: Hook payment run failure trigger
+      await fireWorkflowTrigger({
+        triggerType: "payment_run.failed",
+        orgId: input.orgId,
+        sourceModule: "books",
+        sourceEntityType: "payment_run",
+        sourceEntityId: input.paymentRunId,
+        actorId: input.actorId,
+        payload: {
+          error: error instanceof Error ? error.message : "Unknown execution failure",
+        },
+      });
+      throw error;
+    }
 
     return tx.paymentRun.findUniqueOrThrow({
       where: { id: run.id },
