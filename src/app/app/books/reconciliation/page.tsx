@@ -268,7 +268,8 @@ export default async function BooksReconciliationPage({
           <h2 className="text-lg font-semibold text-slate-900">Reconciliation queue</h2>
           <p className="mt-1 text-sm text-slate-500">
             Confirm suggestions, split matches by editing the amount prompt, or post an adjusting
-            journal for suspense and write-offs.
+            journal for suspense and write-offs. Partially matched lines stay in review until the
+            remaining balance is resolved or explicitly cleared.
           </p>
         </CardHeader>
         <CardContent className="px-0 py-0">

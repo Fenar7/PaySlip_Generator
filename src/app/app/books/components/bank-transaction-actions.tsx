@@ -54,7 +54,10 @@ export function BankTransactionActions({
   }
 
   function confirmSuggestion(matchId: string, defaultAmount: number) {
-    const rawAmount = prompt("Confirm matched amount", defaultAmount.toFixed(2));
+    const rawAmount = prompt(
+      "Confirm matched amount. Reduce the amount to keep the remaining balance in review.",
+      defaultAmount.toFixed(2),
+    );
     if (rawAmount === null) {
       return;
     }
@@ -203,6 +206,11 @@ export function BankTransactionActions({
 
       {status !== "IGNORED" && (
         <div className="space-y-2 rounded-lg border border-dashed border-slate-200 px-3 py-3">
+          {status === "PARTIALLY_MATCHED" && (
+            <div className="rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800">
+              Partially matched lines remain in review until the remaining balance is either matched or cleared with an adjusting journal.
+            </div>
+          )}
           <div className="flex flex-wrap items-center gap-2">
             <select
               value={offsetAccountId}
