@@ -57,7 +57,8 @@ async function executeAction(action: ScheduledAction) {
       }
     });
 
-  } catch (error: any) {
+  } catch (error: unknown) {
+    const errorMsg = error instanceof Error ? error.message : "Unknown execution error";
     console.error(`[FlowScheduler] Action ${action.id} failed:`, error);
     
     const incrementedAttempts = action.attemptCount + 1;
@@ -70,7 +71,7 @@ async function executeAction(action: ScheduledAction) {
           data: {
             status: "DEAD_LETTERED",
             attemptCount: incrementedAttempts,
-            lastError: error.message || "Unknown execution error"
+            lastError: errorMsg
           }
         }),
         db.deadLetterAction.create({
@@ -79,7 +80,7 @@ async function executeAction(action: ScheduledAction) {
             orgId: action.orgId,
             actionType: action.actionType,
             sourceModule: action.sourceModule,
-            failureReason: error.message || "Unknown execution error",
+            failureReason: errorMsg,
             payload: action.payload !== null ? action.payload : {},
           }
         })
@@ -92,10 +93,10 @@ async function executeAction(action: ScheduledAction) {
       await db.scheduledAction.update({
         where: { id: action.id },
         data: {
-          status: "PENDING", // Keep it pending for the queue to snag again
+          status: "PENDING",
           attemptCount: incrementedAttempts,
           nextRetryAt,
-          lastError: error.message || "Unknown transient error"
+          lastError: errorMsg
         }
       });
     }
