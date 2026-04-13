@@ -157,6 +157,24 @@ export async function submitPortalTicketReply(
       return { success: false, error: "Ticket not found or access denied" };
     }
 
+    if (ticket.status === "CLOSED") {
+      return { success: false, error: "Cannot reply to a closed ticket." };
+    }
+
+    // Idempotency: avoid double-submit within 1 min
+    const existing = await db.ticketReply.findFirst({
+      where: {
+        ticketId,
+        portalCustomerId: customerId,
+        message: data.message.trim(),
+        createdAt: { gte: new Date(Date.now() - 60000) },
+      },
+    });
+
+    if (existing) {
+      return { success: true, data: { replyId: existing.id } };
+    }
+
     const customer = await db.customer.findUnique({
       where: { id: customerId },
       select: { name: true },

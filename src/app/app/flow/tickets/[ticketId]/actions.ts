@@ -45,6 +45,24 @@ export async function replyToTicket(
       return { success: false, error: "Ticket not found" };
     }
 
+    if (ticket.status === "CLOSED") {
+      return { success: false, error: "Cannot reply to a closed ticket" };
+    }
+
+    // Idempotency check against double submit
+    const existing = await db.ticketReply.findFirst({
+      where: {
+        ticketId,
+        authorId: userId,
+        message: data.message.trim(),
+        createdAt: { gte: new Date(Date.now() - 60000) },
+      },
+    });
+
+    if (existing) {
+      return { success: true, data: { replyId: existing.id } };
+    }
+
     const member = await db.member.findFirst({
       where: { userId, organizationId: orgId },
       include: { user: { select: { email: true } } },
@@ -102,10 +120,14 @@ export async function assignTicket(
       updateData.status = "IN_PROGRESS";
     }
 
-    await db.invoiceTicket.update({
-      where: { id: ticketId },
+    const updated = await db.invoiceTicket.updateMany({
+      where: { id: ticketId, status: ticket.status },
       data: updateData,
     });
+
+    if (updated.count === 0) {
+      return { success: false, error: "Ticket status was updated concurrently. Please try again." };
+    }
 
     const member = await db.member.findFirst({
       where: { userId, organizationId: orgId },
@@ -168,13 +190,17 @@ export async function updateTicketStatus(
 
     const resolvedAt = status === "RESOLVED" ? new Date() : undefined;
 
-    await db.invoiceTicket.update({
-      where: { id: ticketId },
+    const updated = await db.invoiceTicket.updateMany({
+      where: { id: ticketId, status: ticket.status },
       data: {
         status: status as "OPEN" | "IN_PROGRESS" | "RESOLVED" | "CLOSED",
         ...(resolvedAt ? { resolvedAt } : {}),
       },
     });
+
+    if (updated.count === 0) {
+      return { success: false, error: "Ticket status was changed by another user." };
+    }
 
     const member = await db.member.findFirst({
       where: { userId, organizationId: orgId },
