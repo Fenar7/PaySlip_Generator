@@ -52,3 +52,4 @@ gha-creds-*.json
 Icon
 Icon?
 .venv
+graphify-out/
