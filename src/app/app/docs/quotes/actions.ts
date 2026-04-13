@@ -209,6 +209,56 @@ export async function deleteQuote(quoteId: string): Promise<ActionResult<void>> 
   }
 }
 
+export async function archiveQuote(quoteId: string): Promise<ActionResult<void>> {
+  try {
+    const { orgId } = await requireOrgContext();
+
+    const existing = await db.quote.findFirst({
+      where: { id: quoteId, orgId },
+    });
+
+    if (!existing) {
+      return { success: false, error: "Quote not found" };
+    }
+
+    await db.quote.update({
+      where: { id: quoteId },
+      data: { archivedAt: new Date() },
+    });
+
+    revalidatePath("/app/docs/quotes");
+    return { success: true, data: undefined };
+  } catch (error) {
+    console.error("archiveQuote error:", error);
+    return { success: false, error: "Failed to archive quote" };
+  }
+}
+
+export async function restoreQuote(quoteId: string): Promise<ActionResult<void>> {
+  try {
+    const { orgId } = await requireOrgContext();
+
+    const existing = await db.quote.findFirst({
+      where: { id: quoteId, orgId },
+    });
+
+    if (!existing) {
+      return { success: false, error: "Quote not found" };
+    }
+
+    await db.quote.update({
+      where: { id: quoteId },
+      data: { archivedAt: null },
+    });
+
+    revalidatePath("/app/docs/quotes");
+    return { success: true, data: undefined };
+  } catch (error) {
+    console.error("restoreQuote error:", error);
+    return { success: false, error: "Failed to restore quote" };
+  }
+}
+
 // ─── Send Quote Action ───────────────────────────────────────────────────────
 
 export async function sendQuoteAction(quoteId: string): Promise<ActionResult<void>> {

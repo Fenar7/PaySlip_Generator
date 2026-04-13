@@ -1,6 +1,8 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { getSalarySlip, releaseSalarySlip, archiveSalarySlip } from "../actions";
+import { DocumentAttachments } from "@/components/docs/document-attachments";
+import { getDocAttachments } from "@/app/app/docs/attachment-actions";
 
 export const metadata = {
   title: "Salary Slip Details | Slipwise",
@@ -25,7 +27,10 @@ export default async function SalarySlipDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const slip = await getSalarySlip(id);
+  const [slip, attachments] = await Promise.all([
+    getSalarySlip(id),
+    getDocAttachments(id, "salary_slip"),
+  ]);
 
   if (!slip) {
     notFound();
@@ -152,6 +157,10 @@ export default async function SalarySlipDetailPage({
               </>
             )}
           </div>
+        </div>
+
+        <div className="mt-8">
+          <DocumentAttachments docId={slip.id} docType="salary_slip" attachments={attachments} />
         </div>
       </div>
     </div>

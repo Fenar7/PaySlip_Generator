@@ -1,6 +1,8 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { getQuote, sendQuoteAction, convertQuoteAction, duplicateQuote, deleteQuote } from "../actions";
+import { DocumentAttachments } from "@/components/docs/document-attachments";
+import { getDocAttachments } from "@/app/app/docs/attachment-actions";
 
 export const metadata = {
   title: "Quote Detail | Slipwise",
@@ -37,7 +39,10 @@ export default async function QuoteDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const quote = await getQuote(id);
+  const [quote, attachments] = await Promise.all([
+    getQuote(id),
+    getDocAttachments(id, "quote"),
+  ]);
 
   if (!quote) {
     notFound();
@@ -308,6 +313,10 @@ export default async function QuoteDetailPage({
                   </p>
                 </div>
               )}
+            </div>
+            
+            <div className="mt-4">
+              <DocumentAttachments docId={quote.id} docType="quote" attachments={attachments} />
             </div>
           </aside>
         </div>
