@@ -1,5 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+vi.mock("next/cache", () => ({
+  revalidatePath: vi.fn(),
+}));
+
 vi.mock("@/lib/db", () => ({
   db: {
     reportSnapshot: {
@@ -25,12 +29,20 @@ vi.mock("@/lib/db", () => ({
       findFirst: vi.fn(),
       create: vi.fn(),
     },
+    vendorBill: {
+      findFirst: vi.fn(),
+      update: vi.fn(),
+    },
   },
 }));
 
 vi.mock("@/lib/auth", () => ({
   requireOrgContext: vi.fn(),
-  requireRole: vi.fn(),
+}));
+
+vi.mock("@/lib/books-permissions", () => ({
+  canReadBooks: vi.fn(),
+  canWriteBooks: vi.fn(),
 }));
 
 vi.mock("@/lib/plans", () => ({
@@ -92,21 +104,18 @@ vi.mock("@/lib/storage/upload-server", () => ({
   getSignedUrlServer: vi.fn(),
   uploadFileServer: vi.fn(),
 }));
-
-vi.mock("next/cache", () => ({
-  revalidatePath: vi.fn(),
-}));
-
 vi.mock("../../flow/approvals/actions", () => ({
   requestApproval: vi.fn(),
 }));
 
-import { requireOrgContext, requireRole } from "@/lib/auth";
+import { requireOrgContext } from "@/lib/auth";
+import { canReadBooks, canWriteBooks } from "@/lib/books-permissions";
 import { db } from "@/lib/db";
 import { checkFeature } from "@/lib/plans";
 import {
   createAndPostJournal,
   ensureBooksSetup,
+  createGlAccount,
   getTrialBalance,
   listFiscalPeriods,
   listGlAccounts,
@@ -114,14 +123,18 @@ import {
 } from "@/lib/accounting";
 import { getSignedUrlServer, uploadFileServer } from "@/lib/storage/upload-server";
 import { revalidatePath } from "next/cache";
+import { requestApproval } from "../../flow/approvals/actions";
 import {
+  createChartAccount,
   exportBooksJournalRegisterCsv,
   exportBooksTrialBalanceCsv,
   exportChartOfAccountsCsv,
   getBooksSettings,
   getBooksJournalAttachmentDownloadUrl,
+  createManualJournal,
   updateBooksSettingsDefaultMappings,
   uploadBooksJournalAttachment,
+  requestBooksVendorBillApproval,
 } from "../actions";
 
 const ORG_ID = "org-1";
@@ -147,14 +160,11 @@ function mockReadAccess() {
     userId: USER_ID,
     role: "admin",
   });
+  vi.mocked(canReadBooks).mockReturnValue(true);
 }
 
 function mockWriteAccess() {
-  vi.mocked(requireRole).mockResolvedValue({
-    orgId: ORG_ID,
-    userId: USER_ID,
-    role: "admin",
-  });
+  vi.mocked(canWriteBooks).mockReturnValue(true);
 }
 
 function buildValidAccounts() {
@@ -611,7 +621,7 @@ describe("Books actions", () => {
     });
     expect(result.success).toBe(true);
     if (result.success) {
-      expect(result.data).toContain('"Entry Number","Entry Date","Source"');
+      expect(result.data).toContain('"Entry Number","Entry Date","Source","Source Ref"');
       expect(result.data).toContain(
         '"JRN-20260401-ABCD1234","2026-04-01","INVOICE","INV-001","POSTED","Invoice issue","2026-04","1180.00","1180.00","2"',
       );
@@ -676,21 +686,120 @@ describe("Books actions", () => {
       entryNumber: "JRN-20260412-XYZ12345",
     } as never);
 
-    const result = await import("../actions").then(({ createManualJournal }) =>
-      createManualJournal({
-        entryDate: "2026-04-12",
-        memo: "Manual adjustment",
-        lines: [
-          { accountId: "expense", debit: 100 },
-          { accountId: "bank", credit: 100 },
-        ],
-      }),
-    );
+    const result = await createManualJournal({
+      entryDate: "2026-04-12",
+      memo: "Manual adjustment",
+      lines: [
+        { accountId: "expense", debit: 100 },
+        { accountId: "bank", credit: 100 },
+      ],
+    });
 
     expect(result.success).toBe(true);
     if (result.success) {
       expect(result.data.id).toBe("journal-9");
       expect(result.data.entryNumber).toBe("JRN-20260412-XYZ12345");
     }
+  });
+
+  it("allows finance managers to perform Books write actions", async () => {
+    vi.mocked(requireOrgContext).mockResolvedValue({
+      orgId: ORG_ID,
+      userId: USER_ID,
+      role: "finance_manager",
+    });
+    vi.mocked(canWriteBooks).mockReturnValue(true);
+    vi.mocked(createGlAccount).mockResolvedValue({
+      id: "acct-1",
+    } as never);
+
+    const result = await createChartAccount({
+      code: "5100",
+      name: "Office Supplies",
+      accountType: "EXPENSE",
+    });
+
+    expect(result).toEqual({
+      success: true,
+      data: { id: "acct-1" },
+    });
+    expect(createGlAccount).toHaveBeenCalledWith({
+      orgId: ORG_ID,
+      code: "5100",
+      name: "Office Supplies",
+      accountType: "EXPENSE",
+      parentId: null,
+      normalBalance: undefined,
+      description: undefined,
+    });
+  });
+
+  it("blocks Books reads for non-finance roles", async () => {
+    vi.mocked(requireOrgContext).mockResolvedValue({
+      orgId: ORG_ID,
+      userId: USER_ID,
+      role: "viewer",
+    });
+    vi.mocked(canReadBooks).mockReturnValue(false);
+
+    const result = await exportChartOfAccountsCsv();
+
+    expect(result).toEqual({
+      success: false,
+      error: "Insufficient permissions.",
+    });
+    expect(listGlAccounts).not.toHaveBeenCalled();
+  });
+
+  it("resubmits a draft vendor bill with a fresh approval request", async () => {
+    vi.mocked(requireOrgContext).mockResolvedValue({
+      orgId: ORG_ID,
+      userId: USER_ID,
+      role: "finance_manager",
+    });
+    vi.mocked(canWriteBooks).mockReturnValue(true);
+    vi.mocked(db.vendorBill.findFirst).mockResolvedValue({
+      id: "bill-1",
+      status: "DRAFT",
+    } as never);
+    vi.mocked(db.vendorBill.update).mockResolvedValue({} as never);
+    vi.mocked(requestApproval)
+      .mockResolvedValueOnce({
+        success: true,
+        data: { id: "approval-1" },
+      } as never)
+      .mockResolvedValueOnce({
+        success: true,
+        data: { id: "approval-2" },
+      } as never);
+
+    const first = await requestBooksVendorBillApproval("bill-1");
+    const second = await requestBooksVendorBillApproval("bill-1");
+
+    expect(first).toEqual({
+      success: true,
+      data: { id: "approval-1" },
+    });
+    expect(second).toEqual({
+      success: true,
+      data: { id: "approval-2" },
+    });
+    expect(requestApproval).toHaveBeenNthCalledWith(
+      1,
+      "vendor-bill",
+      "bill-1",
+    );
+    expect(requestApproval).toHaveBeenNthCalledWith(
+      2,
+      "vendor-bill",
+      "bill-1",
+    );
+    expect(db.vendorBill.update).toHaveBeenCalledTimes(2);
+    expect(db.vendorBill.update).toHaveBeenCalledWith({
+      where: { id: "bill-1" },
+      data: {
+        status: "PENDING_APPROVAL",
+      },
+    });
   });
 });

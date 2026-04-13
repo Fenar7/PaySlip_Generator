@@ -74,6 +74,23 @@ describe("Books reporting API routes", () => {
     });
   });
 
+  it("blocks Books report reads for non-finance roles", async () => {
+    mockedGetOrgContext.mockResolvedValue({
+      userId: "user-2",
+      orgId: "org-1",
+      role: "viewer",
+    });
+
+    const response = await getTrialBalanceRoute(
+      makeRequest("http://localhost/api/books/trial-balance"),
+    );
+    const body = await response.json();
+
+    expect(response.status).toBe(403);
+    expect(body.error.message).toBe("Insufficient permissions.");
+    expect(mockedGetTrialBalance).not.toHaveBeenCalled();
+  });
+
   it("loads general ledger data for a selected account", async () => {
     mockedGetGeneralLedger.mockResolvedValue([] as never);
 

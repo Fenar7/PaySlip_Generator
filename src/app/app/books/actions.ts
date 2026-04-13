@@ -12,7 +12,8 @@ import type {
   Prisma,
   VendorBillStatus,
 } from "@/generated/prisma/client";
-import { requireOrgContext, requireRole } from "@/lib/auth";
+import { requireOrgContext } from "@/lib/auth";
+import { canReadBooks, canWriteBooks } from "@/lib/books-permissions";
 import { db } from "@/lib/db";
 import { generateCSV } from "@/lib/csv";
 import { isCsvUpload, isUploadedFile } from "@/lib/server/form-data";
@@ -299,6 +300,10 @@ async function requireBooksRead() {
 
   if (!allowed) {
     throw new Error("SW Books requires the Starter plan or above.");
+  }
+
+  if (!canReadBooks(context.role)) {
+    throw new Error("Insufficient permissions.");
   }
 
   return context;
@@ -687,11 +692,15 @@ async function loadBooksJournalDetail(
 }
 
 async function requireBooksWrite() {
-  const context = await requireRole("admin");
+  const context = await requireOrgContext();
   const allowed = await checkFeature(context.orgId, "accountingCore");
 
   if (!allowed) {
     throw new Error("SW Books requires the Starter plan or above.");
+  }
+
+  if (!canWriteBooks(context.role)) {
+    throw new Error("Insufficient permissions.");
   }
 
   return context;
@@ -709,11 +718,15 @@ async function requireBankingRead() {
 }
 
 async function requireBankingWrite() {
-  const context = await requireRole("admin");
+  const context = await requireOrgContext();
   const allowed = await checkFeature(context.orgId, "bankReconciliation");
 
   if (!allowed) {
     throw new Error("Bank reconciliation requires the Pro plan or above.");
+  }
+
+  if (!canWriteBooks(context.role)) {
+    throw new Error("Insufficient permissions.");
   }
 
   return context;
@@ -731,11 +744,15 @@ async function requireVendorBillsRead() {
 }
 
 async function requireVendorBillsWrite() {
-  const context = await requireRole("admin");
+  const context = await requireOrgContext();
   const allowed = await checkFeature(context.orgId, "vendorBills");
 
   if (!allowed) {
     throw new Error("Vendor bills require the Starter plan or above.");
+  }
+
+  if (!canWriteBooks(context.role)) {
+    throw new Error("Insufficient permissions.");
   }
 
   return context;
@@ -764,11 +781,15 @@ async function requireCloseWorkflowRead() {
 }
 
 async function requireCloseWorkflowWrite() {
-  const context = await requireRole("admin");
+  const context = await requireOrgContext();
   const allowed = await checkFeature(context.orgId, "closeWorkflow");
 
   if (!allowed) {
     throw new Error("Financial close requires the Pro plan or above.");
+  }
+
+  if (!canWriteBooks(context.role)) {
+    throw new Error("Insufficient permissions.");
   }
 
   return context;
