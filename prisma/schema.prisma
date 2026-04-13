@@ -103,6 +103,8 @@ model Organization {
   ticketEscalationRules  TicketEscalationRule[]
   scheduledActions       ScheduledAction[]
   deadLetterActions      DeadLetterAction[]
+  workflowDefinitions    WorkflowDefinition[]
+  workflowRuns           WorkflowRun[]
   marketplaceReviews     MarketplaceReview[]
   marketplaceRevenue     MarketplaceRevenue[]
   oauthApps              OAuthApp[]
@@ -1516,6 +1518,83 @@ model DeadLetterAction {
 
   @@index([orgId, deadLetteredAt])
   @@map("dead_letter_action")
+}
+
+model WorkflowDefinition {
+  id          String         @id @default(cuid())
+  orgId       String
+  name        String
+  description String?
+  triggerType String
+  status      WorkflowStatus @default(DRAFT)
+  version     Int            @default(1)
+  config      Json
+  createdBy   String         @db.Uuid
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  organization Organization   @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  steps        WorkflowStep[]
+  runs         WorkflowRun[]
+
+  @@index([orgId, status])
+  @@map("workflow_definition")
+}
+
+model WorkflowStep {
+  id         String   @id @default(cuid())
+  workflowId String
+  sequence   Int
+  actionType String
+  config     Json
+  createdAt  DateTime @default(now())
+
+  workflow WorkflowDefinition @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+  stepRuns WorkflowStepRun[]
+
+  @@index([workflowId, sequence])
+  @@map("workflow_step")
+}
+
+model WorkflowRun {
+  id               String            @id @default(cuid())
+  workflowId       String
+  orgId            String
+  triggerType      String
+  sourceModule     String
+  sourceEntityType String?
+  sourceEntityId   String?
+  actorId          String?           @db.Uuid
+  status           WorkflowRunStatus @default(PENDING)
+  startedAt        DateTime          @default(now())
+  completedAt      DateTime?
+  failureReason    String?
+
+  workflow     WorkflowDefinition @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+  organization Organization       @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  stepRuns     WorkflowStepRun[]
+
+  @@index([orgId, status, startedAt])
+  @@index([sourceModule, sourceEntityId])
+  @@map("workflow_run")
+}
+
+model WorkflowStepRun {
+  id              String            @id @default(cuid())
+  workflowRunId   String
+  workflowStepId  String
+  status          WorkflowRunStatus @default(PENDING)
+  attemptCount    Int               @default(0)
+  startedAt       DateTime?
+  completedAt     DateTime?
+  failureReason   String?
+  outputPayload   Json?
+
+  workflowRun  WorkflowRun  @relation(fields: [workflowRunId], references: [id], onDelete: Cascade)
+  workflowStep WorkflowStep @relation(fields: [workflowStepId], references: [id], onDelete: Cascade)
+
+  @@index([workflowRunId, status])
+  @@map("workflow_step_run")
 }
 
 model ApprovalRequest {

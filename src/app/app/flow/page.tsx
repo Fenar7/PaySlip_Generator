@@ -1,83 +1,162 @@
 import type { Metadata } from "next";
+import { requireOrgContext } from "@/lib/auth";
+import { getFlowMetrics } from "@/lib/flow/metrics";
 import Link from "next/link";
-import { AlertCircle, FileCheck2, Activity, ShieldAlert, Clock } from "lucide-react";
+import {
+  AlertCircle,
+  FileCheck2,
+  Activity,
+  ShieldAlert,
+  Clock,
+  CheckCircle2,
+  XCircle,
+  TrendingUp,
+  GitBranch,
+} from "lucide-react";
 
 export const metadata: Metadata = { title: "SW Flow Control Center" };
 
-export default function FlowPage() {
+function ms(val: number | null): string {
+  if (val === null) return "—";
+  if (val < 60_000) return `${Math.round(val / 1000)}s`;
+  if (val < 3_600_000) return `${Math.round(val / 60_000)}m`;
+  return `${Math.round(val / 3_600_000)}h`;
+}
+
+export default async function FlowPage() {
+  const { orgId } = await requireOrgContext();
+  const m = await getFlowMetrics(orgId);
+
   return (
     <div className="flex flex-col flex-1 p-6 gap-6 max-w-7xl mx-auto w-full">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Flow Control Center</h1>
           <p className="text-[var(--muted-foreground)] mt-2">
-            Manage approvals, SLAs, escalations, and automated jobs.
+            Manage approvals, SLAs, escalations, and automated workflows.
           </p>
         </div>
       </div>
 
+      {/* Queue Health Row */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        {/* Approvals */}
         <div className="border rounded-xl p-4 flex flex-col gap-2 bg-white dark:bg-zinc-900 shadow-sm">
           <div className="flex items-center gap-2 text-[var(--muted-foreground)] font-medium">
             <FileCheck2 className="w-4 h-4" />
             <span>Pending Approvals</span>
           </div>
-          <div className="text-3xl font-bold">0</div>
-          <p className="text-xs text-[var(--muted-foreground)]"><Link href="/app/flow/approvals" className="hover:underline text-blue-600 dark:text-blue-400">View Queue →</Link></p>
+          <div className="text-3xl font-bold">{m.pendingApprovals}</div>
+          {m.overdueApprovals > 0 && (
+            <p className="text-xs text-red-500 font-medium">{m.overdueApprovals} overdue</p>
+          )}
+          <p className="text-xs text-[var(--muted-foreground)]">
+            <Link href="/app/flow/approvals" className="hover:underline text-blue-600 dark:text-blue-400">
+              View Queue →
+            </Link>
+          </p>
         </div>
 
-        {/* Tickets */}
         <div className="border rounded-xl p-4 flex flex-col gap-2 bg-white dark:bg-zinc-900 shadow-sm">
           <div className="flex items-center gap-2 text-[var(--muted-foreground)] font-medium">
             <AlertCircle className="w-4 h-4" />
             <span>Open Tickets</span>
           </div>
-          <div className="text-3xl font-bold">0</div>
-          <p className="text-xs text-[var(--muted-foreground)]"><Link href="/app/flow/tickets" className="hover:underline text-blue-600 dark:text-blue-400">View Tickets →</Link></p>
+          <div className="text-3xl font-bold">{m.openTickets}</div>
+          <p className="text-xs text-[var(--muted-foreground)]">
+            <Link href="/app/flow/tickets" className="hover:underline text-blue-600 dark:text-blue-400">
+              View Tickets →
+            </Link>
+          </p>
         </div>
 
-        {/* Overdue/SLA Breach */}
         <div className="border rounded-xl p-4 flex flex-col gap-2 bg-white dark:bg-zinc-900 shadow-sm border-rose-100 dark:border-rose-900">
           <div className="flex items-center gap-2 text-rose-600 dark:text-rose-500 font-medium">
             <Clock className="w-4 h-4" />
             <span>SLA Breaches</span>
           </div>
-          <div className="text-3xl font-bold">0</div>
+          <div className="text-3xl font-bold">{m.slaBreachCount}</div>
           <p className="text-xs text-[var(--muted-foreground)]">Requires intervention</p>
         </div>
 
-        {/* Dead Letter/Failed Jobs */}
         <div className="border rounded-xl p-4 flex flex-col gap-2 bg-white dark:bg-zinc-900 shadow-sm border-orange-100 dark:border-orange-900">
           <div className="flex items-center gap-2 text-orange-600 dark:text-orange-500 font-medium">
             <ShieldAlert className="w-4 h-4" />
             <span>Dead-Lettered Actions</span>
           </div>
-          <div className="text-3xl font-bold">0</div>
-          <p className="text-xs text-[var(--muted-foreground)]"><Link href="/app/flow/jobs" className="hover:underline text-orange-600 dark:text-orange-500">View Jobs →</Link></p>
+          <div className="text-3xl font-bold">{m.deadLetterCount}</div>
+          <p className="text-xs text-[var(--muted-foreground)]">
+            <Link href="/app/flow/jobs" className="hover:underline text-orange-600 dark:text-orange-500">
+              View Jobs →
+            </Link>
+          </p>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-4">
-        {/* Recent Activity */}
+      {/* Workflow Metrics Row */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="border rounded-xl p-4 flex flex-col gap-2 bg-white dark:bg-zinc-900 shadow-sm">
+          <div className="flex items-center gap-2 text-emerald-600 font-medium">
+            <CheckCircle2 className="w-4 h-4" />
+            <span>Workflow Successes</span>
+          </div>
+          <div className="text-3xl font-bold">{m.workflowSuccessCount}</div>
+        </div>
+
+        <div className="border rounded-xl p-4 flex flex-col gap-2 bg-white dark:bg-zinc-900 shadow-sm">
+          <div className="flex items-center gap-2 text-red-500 font-medium">
+            <XCircle className="w-4 h-4" />
+            <span>Workflow Failures</span>
+          </div>
+          <div className="text-3xl font-bold">{m.workflowFailureCount}</div>
+        </div>
+
+        <div className="border rounded-xl p-4 flex flex-col gap-2 bg-white dark:bg-zinc-900 shadow-sm">
+          <div className="flex items-center gap-2 text-[var(--muted-foreground)] font-medium">
+            <TrendingUp className="w-4 h-4" />
+            <span>Median Approval TAT</span>
+          </div>
+          <div className="text-3xl font-bold">{ms(m.medianApprovalTurnaroundMs)}</div>
+          <p className="text-xs text-[var(--muted-foreground)]">Last 30 days</p>
+        </div>
+
+        <div className="border rounded-xl p-4 flex flex-col gap-2 bg-white dark:bg-zinc-900 shadow-sm">
+          <div className="flex items-center gap-2 text-[var(--muted-foreground)] font-medium">
+            <TrendingUp className="w-4 h-4" />
+            <span>Median Ticket Resolution</span>
+          </div>
+          <div className="text-3xl font-bold">{ms(m.medianTicketResolutionMs)}</div>
+          <p className="text-xs text-[var(--muted-foreground)]">Last 30 days</p>
+        </div>
+      </div>
+
+      {/* Activity + Workflows */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-2">
         <div className="border rounded-xl p-5 flex flex-col gap-4 bg-white dark:bg-zinc-900 shadow-sm">
           <div className="flex items-center gap-2 font-semibold text-lg border-b pb-2">
             <Activity className="w-5 h-5 text-blue-600 dark:text-blue-400" />
             Workflow Activity
           </div>
-          <div className="text-sm text-[var(--muted-foreground)] h-full flex flex-col justify-center">
-            <p className="py-12 text-center border-dashed border rounded-lg bg-zinc-50/50 dark:bg-zinc-900/50">No recent flow activity.</p>
+          <div className="text-sm text-[var(--muted-foreground)]">
+            <p className="py-10 text-center border-dashed border rounded-lg bg-zinc-50/50 dark:bg-zinc-900/50">
+              No recent flow activity.
+            </p>
           </div>
         </div>
 
-        {/* Recent Escalations */}
         <div className="border rounded-xl p-5 flex flex-col gap-4 bg-white dark:bg-zinc-900 shadow-sm">
-          <div className="flex items-center gap-2 font-semibold text-lg border-b pb-2">
-            <ShieldAlert className="w-5 h-5 text-orange-600 dark:text-orange-500" />
-            Recent Escalations
+          <div className="flex items-center justify-between border-b pb-2">
+            <div className="flex items-center gap-2 font-semibold text-lg">
+              <GitBranch className="w-5 h-5 text-purple-500" />
+              Active Workflows
+            </div>
+            <Link href="/app/flow/workflows" className="text-xs text-blue-600 dark:text-blue-400 hover:underline">
+              View All →
+            </Link>
           </div>
-          <div className="text-sm text-[var(--muted-foreground)] h-full flex flex-col justify-center">
-            <p className="py-12 text-center border-dashed border rounded-lg bg-zinc-50/50 dark:bg-zinc-900/50">No active escalations.</p>
+          <div className="text-sm text-[var(--muted-foreground)]">
+            <p className="py-10 text-center border-dashed border rounded-lg bg-zinc-50/50 dark:bg-zinc-900/50">
+              No active workflows configured.
+            </p>
           </div>
         </div>
       </div>
