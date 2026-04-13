@@ -2,8 +2,8 @@
 
 import { useState, useRef } from "react";
 import { useRouter } from "next/navigation";
-import { submitPortalTicketReply } from "./actions";
-import { uploadPortalAttachmentAction } from "./attachment-actions";
+import { submitPortalTicketReply } from "../actions";
+import { uploadPortalAttachmentAction } from "../attachment-actions";
 import { Paperclip, Send, X, FileIcon, Loader2 } from "lucide-react";
 
 interface PortalReplyBoxProps {

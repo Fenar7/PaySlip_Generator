@@ -1,9 +1,9 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { requireOrgContext } from "@/lib/auth";
+import { requireRole } from "@/lib/auth";
 import { revalidatePath } from "next/cache";
-import { SUPPORTED_TRIGGERS, SUPPORTED_ACTIONS } from "@/lib/flow/workflow-engine";
+import { SUPPORTED_TRIGGERS, SUPPORTED_ACTIONS } from "@/lib/flow/catalog";
 import { validateActionType, validateTriggerType } from "@/lib/flow/workflow-validation";
 import { logFlowConfigChange } from "@/lib/flow/audit";
 import { Prisma } from "@/generated/prisma/client";
@@ -22,7 +22,7 @@ export async function createWorkflow(input: {
   triggerType: string;
   steps: WorkflowStepInput[];
 }): Promise<ActionResult<{ id: string }>> {
-  const { orgId, userId } = await requireOrgContext();
+  const { orgId, userId } = await requireRole("admin");
 
   if (!SUPPORTED_TRIGGERS.includes(input.triggerType as never)) {
     return { success: false, error: `Unsupported trigger: ${input.triggerType}` };
@@ -67,7 +67,7 @@ export async function createWorkflow(input: {
 export async function activateWorkflow(
   workflowId: string
 ): Promise<ActionResult<void>> {
-  const { orgId, userId } = await requireOrgContext();
+  const { orgId, userId } = await requireRole("admin");
 
   const workflow = await db.workflowDefinition.findFirst({
     where: { id: workflowId, orgId },
@@ -99,7 +99,7 @@ export async function activateWorkflow(
 export async function pauseWorkflow(
   workflowId: string
 ): Promise<ActionResult<void>> {
-  const { orgId, userId } = await requireOrgContext();
+  const { orgId, userId } = await requireRole("admin");
 
   await db.workflowDefinition.update({
     where: { id: workflowId, orgId },
@@ -121,7 +121,7 @@ export async function pauseWorkflow(
 export async function archiveWorkflow(
   workflowId: string
 ): Promise<ActionResult<void>> {
-  const { orgId, userId } = await requireOrgContext();
+  const { orgId, userId } = await requireRole("admin");
 
   await db.workflowDefinition.update({
     where: { id: workflowId, orgId },
@@ -144,7 +144,7 @@ export async function updateWorkflow(
   workflowId: string,
   input: { name?: string; description?: string; triggerType?: string }
 ): Promise<ActionResult<{ id: string }>> {
-  const { orgId, userId } = await requireOrgContext();
+  const { orgId, userId } = await requireRole("admin");
 
   const existing = await db.workflowDefinition.findFirst({
     where: { id: workflowId, orgId },
@@ -189,7 +189,7 @@ export async function updateWorkflowSteps(
   workflowId: string,
   steps: { actionType: string; config: Record<string, unknown> }[]
 ): Promise<ActionResult<{ count: number }>> {
-  const { orgId, userId } = await requireOrgContext();
+  const { orgId, userId } = await requireRole("admin");
 
   const existing = await db.workflowDefinition.findFirst({
     where: { id: workflowId, orgId },
@@ -233,7 +233,7 @@ export async function updateWorkflowSteps(
 }
 
 export async function getWorkflowWithRuns(workflowId: string) {
-  const { orgId } = await requireOrgContext();
+  const { orgId } = await requireRole("admin");
 
   return db.workflowDefinition.findFirst({
     where: { id: workflowId, orgId },

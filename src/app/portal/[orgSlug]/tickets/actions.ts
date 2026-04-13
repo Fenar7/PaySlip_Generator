@@ -205,9 +205,7 @@ export async function submitPortalTicketReply(
       });
     }
 
-    // Note: In a real system, we'd trigger a notification to staff here.
-    // Sprint 18.2 engine can be used for this.
-
+    revalidatePath(`/portal/${orgSlug}/tickets`);
     revalidatePath(`/portal/${orgSlug}/tickets/${ticketId}`);
     return { success: true, data: { replyId: reply.id } };
   } catch (error) {

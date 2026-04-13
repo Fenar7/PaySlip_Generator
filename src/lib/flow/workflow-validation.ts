@@ -1,4 +1,4 @@
-import { SUPPORTED_TRIGGERS, SUPPORTED_ACTIONS } from "./workflow-engine";
+import { SUPPORTED_TRIGGERS, SUPPORTED_ACTIONS } from "./catalog";
 
 export function validateTriggerType(trigger: string): { valid: boolean; error?: string } {
   if (!SUPPORTED_TRIGGERS.includes(trigger as never)) {

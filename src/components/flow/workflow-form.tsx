@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { SUPPORTED_TRIGGERS } from "@/lib/flow/workflow-engine";
+import { SUPPORTED_TRIGGERS } from "@/lib/flow/catalog";
 import { WorkflowStepEditor } from "./workflow-step-editor";
 import {
   createWorkflow,

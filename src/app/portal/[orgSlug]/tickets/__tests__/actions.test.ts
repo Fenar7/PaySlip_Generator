@@ -11,6 +11,7 @@ vi.mock("@/lib/db", () => ({
       findFirst: vi.fn(),
     },
     ticketReply: {
+      findFirst: vi.fn(),
       create: vi.fn(),
     },
     customer: {
@@ -63,6 +64,9 @@ describe("Portal Ticket Actions", () => {
       const result = await submitPortalTicketReply("ticket_000", { message: "Hello" });
 
       expect(result.success).toBe(false);
+      if (result.success) {
+        throw new Error("Expected portal reply to be rejected for unauthorized ticket access");
+      }
       expect(result.error).toBe("Ticket not found or access denied");
       expect(db.ticketReply.create).not.toHaveBeenCalled();
     });
@@ -70,6 +74,7 @@ describe("Portal Ticket Actions", () => {
     it("creates a reply with portalCustomerId when authorized", async () => {
       (db.invoiceTicket.findFirst as any).mockResolvedValue({ id: "ticket_000" });
       (db.customer.findUnique as any).mockResolvedValue({ name: "John Doe" });
+      (db.ticketReply.findFirst as any).mockResolvedValue(null);
       (db.ticketReply.create as any).mockResolvedValue({ id: "reply_123" });
 
       const result = await submitPortalTicketReply("ticket_000", { message: "Authorized reply" });
@@ -89,6 +94,8 @@ describe("Portal Ticket Actions", () => {
 
     it("links attachments if IDs are provided", async () => {
       (db.invoiceTicket.findFirst as any).mockResolvedValue({ id: "ticket_000" });
+      (db.customer.findUnique as any).mockResolvedValue({ name: "John Doe" });
+      (db.ticketReply.findFirst as any).mockResolvedValue(null);
       (db.ticketReply.create as any).mockResolvedValue({ id: "reply_123" });
 
       await submitPortalTicketReply("ticket_000", { 

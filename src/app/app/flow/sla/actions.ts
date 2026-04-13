@@ -1,7 +1,7 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { requireOrgContext } from "@/lib/auth";
+import { requireRole } from "@/lib/auth";
 import { revalidatePath } from "next/cache";
 import { logFlowConfigChange } from "@/lib/flow/audit";
 
@@ -18,7 +18,7 @@ export async function createSlaPolicy(input: {
   businessHoursOnly?: boolean;
   isDefault?: boolean;
 }): Promise<ActionResult<{ id: string }>> {
-  const { orgId, userId } = await requireOrgContext();
+  const { orgId, userId } = await requireRole("admin");
 
   if (!input.name?.trim()) {
     return { success: false, error: "Policy name is required" };
@@ -75,7 +75,7 @@ export async function updateSlaPolicy(
     isDefault?: boolean;
   }
 ): Promise<ActionResult<void>> {
-  const { orgId, userId } = await requireOrgContext();
+  const { orgId, userId } = await requireRole("admin");
 
   const existing = await db.ticketSlaPolicy.findFirst({ where: { id: policyId, orgId } });
   if (!existing) return { success: false, error: "SLA policy not found" };
@@ -129,7 +129,7 @@ export async function updateSlaPolicy(
 }
 
 export async function setDefaultSlaPolicy(policyId: string): Promise<ActionResult<void>> {
-  const { orgId, userId } = await requireOrgContext();
+  const { orgId, userId } = await requireRole("admin");
 
   const policy = await db.ticketSlaPolicy.findFirst({ where: { id: policyId, orgId } });
   if (!policy) return { success: false, error: "SLA policy not found" };
@@ -160,7 +160,7 @@ export async function setDefaultSlaPolicy(policyId: string): Promise<ActionResul
 }
 
 export async function deleteSlaPolicy(policyId: string): Promise<ActionResult<void>> {
-  const { orgId, userId } = await requireOrgContext();
+  const { orgId, userId } = await requireRole("admin");
 
   const policy = await db.ticketSlaPolicy.findFirst({ where: { id: policyId, orgId } });
   if (!policy) return { success: false, error: "SLA policy not found" };

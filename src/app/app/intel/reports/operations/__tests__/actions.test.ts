@@ -85,13 +85,13 @@ describe("Operational Analytics Actions", () => {
     it("filters workflow runs by orgId and status", async () => {
       (db.workflowRun.findMany as any).mockResolvedValue([]);
       
-      await getWorkflowRunAnalytics({ status: "COMPLETED" });
+      await getWorkflowRunAnalytics({ status: "SUCCEEDED" });
       
       expect(db.workflowRun.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
           where: expect.objectContaining({
             workflow: { orgId: mockOrgId },
-            status: "COMPLETED",
+            status: "SUCCEEDED",
           }),
         })
       );
@@ -102,13 +102,13 @@ describe("Operational Analytics Actions", () => {
     it("filters notification deliveries by orgId and channel", async () => {
       (db.notificationDelivery.findMany as any).mockResolvedValue([]);
       
-      await getNotificationDeliveryAnalytics({ channel: "EMAIL" });
+      await getNotificationDeliveryAnalytics({ channel: "email" });
       
       expect(db.notificationDelivery.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
           where: expect.objectContaining({
-            notification: { organizationId: mockOrgId },
-            channel: "EMAIL",
+            orgId: mockOrgId,
+            channel: "email",
           }),
         })
       );

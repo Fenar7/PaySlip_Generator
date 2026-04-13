@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { requireOrgContext } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { formatDistanceToNow } from "date-fns";
+import { formatRelativeTime } from "@/lib/format-relative-time";
 import { resolveDeadLetterAction } from "./actions";
 import { Skull, RotateCcw, CheckCircle2 } from "lucide-react";
 
@@ -9,6 +9,11 @@ export const metadata: Metadata = { title: "Dead-Letter Queue — Flow" };
 
 export default async function DeadLetterPage() {
   const { orgId } = await requireOrgContext();
+
+  const markResolved = async (deadLetterId: string) => {
+    "use server";
+    await resolveDeadLetterAction(deadLetterId);
+  };
 
   const deadLetters = await db.deadLetterAction.findMany({
     where: { orgId },
@@ -71,7 +76,7 @@ export default async function DeadLetterPage() {
                     </p>
                   </td>
                   <td className="px-4 py-3 text-xs text-[var(--muted-foreground)]">
-                    {formatDistanceToNow(dl.deadLetteredAt, { addSuffix: true })}
+                    {formatRelativeTime(dl.deadLetteredAt)}
                   </td>
                   <td className="px-4 py-3">
                     {dl.resolvedAt ? (
@@ -86,7 +91,7 @@ export default async function DeadLetterPage() {
                   </td>
                   <td className="px-4 py-3 text-right">
                     {!dl.resolvedAt && (
-                      <form action={resolveDeadLetterAction.bind(null, dl.id)}>
+                      <form action={markResolved.bind(null, dl.id)}>
                         <button
                           type="submit"
                           className="inline-flex items-center gap-1 text-xs text-blue-600 dark:text-blue-400 hover:underline"

@@ -1,23 +1,14 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { requireOrgContext } from "@/lib/auth";
+import { requireRole } from "@/lib/auth";
 import { revalidatePath } from "next/cache";
 import { logFlowConfigChange } from "@/lib/flow/audit";
+import { SUPPORTED_BREACH_TYPES, type SupportedBreachType } from "./catalog";
 
 export type ActionResult<T> =
   | { success: true; data: T }
   | { success: false; error: string };
-
-export const SUPPORTED_BREACH_TYPES = [
-  "approval_breach",
-  "first_response_breach",
-  "resolution_breach",
-  "delivery_failure",
-  "dead_letter_summary",
-] as const;
-
-export type SupportedBreachType = (typeof SUPPORTED_BREACH_TYPES)[number];
 
 export type EscalationRuleInput = {
   name: string;
@@ -44,7 +35,7 @@ function validateEscalationInput(input: EscalationRuleInput): string | null {
 export async function createEscalationRule(
   input: EscalationRuleInput
 ): Promise<ActionResult<{ id: string }>> {
-  const { orgId, userId } = await requireOrgContext();
+  const { orgId, userId } = await requireRole("admin");
 
   const validationError = validateEscalationInput(input);
   if (validationError) {
@@ -81,7 +72,7 @@ export async function updateEscalationRule(
   ruleId: string,
   input: EscalationRuleInput
 ): Promise<ActionResult<{ id: string }>> {
-  const { orgId, userId } = await requireOrgContext();
+  const { orgId, userId } = await requireRole("admin");
 
   const existing = await db.ticketEscalationRule.findFirst({
     where: { id: ruleId, orgId },
@@ -124,7 +115,7 @@ export async function updateEscalationRule(
 export async function deleteEscalationRule(
   ruleId: string
 ): Promise<ActionResult<void>> {
-  const { orgId, userId } = await requireOrgContext();
+  const { orgId, userId } = await requireRole("admin");
 
   const existing = await db.ticketEscalationRule.findFirst({
     where: { id: ruleId, orgId },
@@ -152,7 +143,7 @@ export async function deleteEscalationRule(
 export async function toggleEscalationRule(
   ruleId: string
 ): Promise<ActionResult<{ enabled: boolean }>> {
-  const { orgId, userId } = await requireOrgContext();
+  const { orgId, userId } = await requireRole("admin");
 
   const existing = await db.ticketEscalationRule.findFirst({
     where: { id: ruleId, orgId },

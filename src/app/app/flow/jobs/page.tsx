@@ -1,6 +1,6 @@
 import { requireOrgContext } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { formatDistanceToNow } from "date-fns";
+import { formatRelativeTime } from "@/lib/format-relative-time";
 import { replayAction, cancelAction } from "./actions";
 import { ShieldAlert, RotateCcw, XCircle, Clock } from "lucide-react";
 
@@ -40,7 +40,7 @@ export default async function JobsConsolePage() {
                   <div className="font-medium">{job.actionType}</div>
                   <div className="text-xs text-[var(--muted-foreground)] flex items-center gap-1 mt-1">
                     <Clock className="w-3 h-3" />
-                    {formatDistanceToNow(job.scheduledAt, { addSuffix: true })}
+                    {formatRelativeTime(job.scheduledAt)}
                   </div>
                 </td>
                 <td className="px-4 py-3">

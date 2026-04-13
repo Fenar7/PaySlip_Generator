@@ -1,7 +1,7 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { requireOrgContext } from "@/lib/auth";
+import { requireRole } from "@/lib/auth";
 import { revalidatePath } from "next/cache";
 import { logFlowConfigChange } from "@/lib/flow/audit";
 
@@ -18,7 +18,7 @@ export async function createApprovalPolicy(input: {
   stepMode: "SINGLE" | "SEQUENTIAL";
   escalateAfterMins?: number;
 }): Promise<ActionResult<{ id: string }>> {
-  const { orgId, userId } = await requireOrgContext();
+  const { orgId, userId } = await requireRole("admin");
 
   if (!input.name?.trim()) {
     return { success: false, error: "Policy name is required" };
@@ -63,7 +63,7 @@ export async function updateApprovalPolicy(
     escalateAfterMins?: number | null;
   }
 ): Promise<ActionResult<void>> {
-  const { orgId, userId } = await requireOrgContext();
+  const { orgId, userId } = await requireRole("admin");
 
   const existing = await db.approvalPolicy.findFirst({ where: { id: policyId, orgId } });
   if (!existing) return { success: false, error: "Policy not found" };
@@ -103,7 +103,7 @@ export async function updateApprovalPolicy(
 export async function toggleApprovalPolicyStatus(
   policyId: string
 ): Promise<ActionResult<{ newStatus: string }>> {
-  const { orgId, userId } = await requireOrgContext();
+  const { orgId, userId } = await requireRole("admin");
 
   const policy = await db.approvalPolicy.findFirst({ where: { id: policyId, orgId } });
   if (!policy) return { success: false, error: "Policy not found" };
@@ -140,7 +140,7 @@ export async function addApprovalPolicyRule(
     fallbackUserId?: string;
   }
 ): Promise<ActionResult<{ id: string }>> {
-  const { orgId, userId } = await requireOrgContext();
+  const { orgId, userId } = await requireRole("admin");
 
   const policy = await db.approvalPolicy.findFirst({ where: { id: policyId, orgId } });
   if (!policy) return { success: false, error: "Policy not found" };
@@ -196,7 +196,7 @@ export async function updateApprovalPolicyRule(
     fallbackUserId?: string | null;
   }
 ): Promise<ActionResult<void>> {
-  const { orgId, userId } = await requireOrgContext();
+  const { orgId, userId } = await requireRole("admin");
 
   const rule = await db.approvalPolicyRule.findFirst({ where: { id: ruleId } });
   if (!rule) return { success: false, error: "Rule not found" };
@@ -242,7 +242,7 @@ export async function updateApprovalPolicyRule(
 }
 
 export async function removeApprovalPolicyRule(ruleId: string): Promise<ActionResult<void>> {
-  const { orgId, userId } = await requireOrgContext();
+  const { orgId, userId } = await requireRole("admin");
 
   const rule = await db.approvalPolicyRule.findFirst({ where: { id: ruleId } });
   if (!rule) return { success: false, error: "Rule not found" };
@@ -269,7 +269,7 @@ export async function reorderApprovalPolicyRules(
   policyId: string,
   ruleIds: string[]
 ): Promise<ActionResult<void>> {
-  const { orgId, userId } = await requireOrgContext();
+  const { orgId, userId } = await requireRole("admin");
 
   const policy = await db.approvalPolicy.findFirst({ where: { id: policyId, orgId } });
   if (!policy) return { success: false, error: "Policy not found" };

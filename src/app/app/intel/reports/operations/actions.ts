@@ -2,7 +2,14 @@
 
 import { db } from "@/lib/db";
 import { requireOrgContext } from "@/lib/auth";
-import type { Prisma } from "@/generated/prisma/client";
+import type {
+  NotificationDeliveryChannel,
+  NotificationDeliveryStatus,
+  Prisma,
+  TicketCategory,
+  TicketPriority,
+  WorkflowRunStatus,
+} from "@/generated/prisma/client";
 
 import { logActivity } from "@/lib/activity";
 
@@ -74,13 +81,13 @@ export async function getQueueSummary() {
     terminalDeliveries
   ] = await Promise.all([
     db.approvalRequest.count({ where: { orgId, status: "PENDING" } }),
-    db.approvalRequest.count({ where: { orgId, status: "PENDING", timeoutAt: { lt: now } } }),
+    db.approvalRequest.count({ where: { orgId, status: "PENDING", dueAt: { lt: now } } }),
     db.invoiceTicket.count({ where: { orgId, status: { in: ["OPEN", "IN_PROGRESS"] } } }),
     db.invoiceTicket.count({ where: { orgId, status: { not: "RESOLVED" }, breachedAt: { not: null } } }),
     db.scheduledAction.count({ where: { orgId, status: "PENDING" } }),
     db.deadLetterAction.count({ where: { orgId } }), // Dead letters accumulate until manually retried
-    db.notificationDelivery.count({ where: { notification: { organizationId: orgId }, status: "FAILED" } }),
-    db.notificationDelivery.count({ where: { notification: { organizationId: orgId }, status: "TERMINAL_FAILURE" } }),
+    db.notificationDelivery.count({ where: { orgId, status: "FAILED" } }),
+    db.notificationDelivery.count({ where: { orgId, status: "TERMINAL_FAILURE" } }),
   ]);
 
   return {
@@ -118,8 +125,8 @@ export async function getSlaBreachAnalytics(filters: SlaBreachFilters) {
       ...(filters.dateTo ? { lte: new Date(filters.dateTo) } : {}),
     };
   }
-  if (filters.category) where.category = filters.category;
-  if (filters.priority) where.priority = filters.priority;
+  if (filters.category) where.category = filters.category as TicketCategory;
+  if (filters.priority) where.priority = filters.priority as TicketPriority;
 
   const tickets = await db.invoiceTicket.findMany({
     where,
@@ -161,13 +168,13 @@ export async function getWorkflowRunAnalytics(filters: WorkflowRunFilters) {
       ...(filters.dateTo ? { lte: new Date(filters.dateTo) } : {}),
     };
   }
-  if (filters.status) where.status = filters.status;
+  if (filters.status) where.status = filters.status as WorkflowRunStatus;
   if (filters.workflowId) where.workflowId = filters.workflowId;
 
   const runs = await db.workflowRun.findMany({
     where,
     include: {
-      workflow: { select: { name: true, triggerType: true, sourceModule: true } },
+      workflow: { select: { name: true, triggerType: true } },
     },
     orderBy: { startedAt: "desc" },
     take: 500, // Reasonable bound for UI/reports
@@ -190,24 +197,24 @@ export async function getNotificationDeliveryAnalytics(filters: NotificationDeli
   const { orgId } = await requireOrgContext();
 
   const where: Prisma.NotificationDeliveryWhereInput = {
-    notification: { organizationId: orgId }
+    orgId,
   };
 
   if (filters.dateFrom || filters.dateTo) {
-    where.createdAt = {
+    where.queuedAt = {
       ...(filters.dateFrom ? { gte: new Date(filters.dateFrom) } : {}),
       ...(filters.dateTo ? { lte: new Date(filters.dateTo) } : {}),
     };
   }
-  if (filters.channel) where.channel = filters.channel;
-  if (filters.status) where.status = filters.status;
+  if (filters.channel) where.channel = filters.channel as NotificationDeliveryChannel;
+  if (filters.status) where.status = filters.status as NotificationDeliveryStatus;
 
   const deliveries = await db.notificationDelivery.findMany({
     where,
     include: {
-      notification: { select: { type: true, entityType: true } }
+      notification: { select: { type: true, sourceModule: true, sourceRef: true } }
     },
-    orderBy: { createdAt: "desc" },
+    orderBy: { queuedAt: "desc" },
     take: 500,
   });
 

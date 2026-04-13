@@ -1,6 +1,6 @@
 "use client";
 
-import { SUPPORTED_ACTIONS } from "@/lib/flow/workflow-engine";
+import { SUPPORTED_ACTIONS } from "@/lib/flow/catalog";
 import { validateActionType } from "@/lib/flow/workflow-validation";
 import { ChevronUp, ChevronDown, Trash2 } from "lucide-react";
 

@@ -25,7 +25,7 @@ export async function GET(request: Request) {
     // Find open tickets with SLA deadlines that have not yet been marked breached
     const breachingTickets = await db.invoiceTicket.findMany({
       where: {
-        status: { in: ["OPEN", "IN_PROGRESS", "AWAITING_REPLY"] },
+        status: { in: ["OPEN", "IN_PROGRESS"] },
         breachedAt: null,
         OR: [
           { firstResponseDueAt: { not: null, lte: now }, firstRespondedAt: null },
@@ -83,7 +83,7 @@ export async function GET(request: Request) {
               orgId,
               type: "ticket_escalated",
               title: "Ticket Escalated",
-              body: `Ticket #${ticket.ticketNumber} has been escalated due to SLA breach (${rule.breachType}).`,
+              body: `Ticket ${ticket.id.slice(-6).toUpperCase()} has been escalated due to SLA breach (${rule.breachType}).`,
               link: `/app/flow/tickets/${ticket.id}`,
             });
           }

@@ -5,8 +5,8 @@ import { useRouter } from "next/navigation";
 import {
   createEscalationRule,
   updateEscalationRule,
-  SUPPORTED_BREACH_TYPES,
 } from "@/app/app/flow/escalations/actions";
+import { SUPPORTED_BREACH_TYPES } from "@/app/app/flow/escalations/catalog";
 
 export type EscalationRule = {
   id: string;

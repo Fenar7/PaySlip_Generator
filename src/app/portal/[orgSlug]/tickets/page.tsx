@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { formatDistanceToNow } from "date-fns";
+import { formatRelativeTime } from "@/lib/format-relative-time";
 import { listPortalTickets } from "./actions";
 
 export const metadata: Metadata = {
@@ -104,11 +104,11 @@ export default async function PortalTicketsPage({
                   </h4>
                   <div className="mt-1 flex items-center gap-3 text-xs text-slate-500">
                     <span>
-                      Opened {formatDistanceToNow(ticket.createdAt, { addSuffix: true })}
+                      Opened {formatRelativeTime(ticket.createdAt)}
                     </span>
                     <span className="text-slate-300">•</span>
                     <span>
-                      Last active {formatDistanceToNow(ticket.lastActivityAt, { addSuffix: true })}
+                      Last active {formatRelativeTime(ticket.lastActivityAt)}
                     </span>
                   </div>
                 </div>
