@@ -98,6 +98,7 @@ model Organization {
   tdsRecords             TdsRecord[]
   marketplaceTemplates   MarketplaceTemplate[]
   marketplacePurchases   MarketplacePurchase[]
+  approvalPolicies       ApprovalPolicy[]
   marketplaceReviews     MarketplaceReview[]
   marketplaceRevenue     MarketplaceRevenue[]
   oauthApps              OAuthApp[]
