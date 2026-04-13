@@ -94,14 +94,25 @@ export async function attemptEmailDelivery(
     };
   }
 
-  // Mark as SENDING
-  await db.notificationDelivery.update({
-    where: { id: deliveryId },
+  // Mark as SENDING atomically
+  const updatedDelivery = await db.notificationDelivery.updateMany({
+    where: { 
+      id: deliveryId,
+      status: { in: ["QUEUED", "FAILED"] }
+    },
     data: {
       status: "SENDING",
       attemptCount: { increment: 1 },
     },
   });
+
+  if (updatedDelivery.count === 0) {
+    return {
+      deliveryId,
+      status: delivery.status as "SENT" | "TERMINAL_FAILURE" | "FAILED",
+      attemptCount: delivery.attemptCount,
+    };
+  }
 
   try {
     await sendEmail({
@@ -176,15 +187,22 @@ export async function replayDelivery(
 
   if (!original) throw new Error(`Original delivery ${originalDeliveryId} not found`);
 
-  // Stamp replay timestamp on original
-  await db.notificationDelivery.update({
-    where: { id: originalDeliveryId },
+  // Stamp replay timestamp on original atomically
+  const updateResult = await db.notificationDelivery.updateMany({
+    where: { 
+      id: originalDeliveryId,
+      status: { in: ["FAILED", "TERMINAL_FAILURE"] }
+    },
     data: {
       status: "REPLAYED",
       replayedAt: new Date(),
       replayedBy: replayedByUserId,
     },
   });
+
+  if (updateResult.count === 0) {
+    throw new Error(`Original delivery is no longer in a replayable state`);
+  }
 
   // Create fresh delivery linked to original
   const replayDelivery = await db.notificationDelivery.create({

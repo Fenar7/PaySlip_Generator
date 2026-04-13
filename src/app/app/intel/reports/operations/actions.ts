@@ -4,6 +4,8 @@ import { db } from "@/lib/db";
 import { requireOrgContext } from "@/lib/auth";
 import type { Prisma } from "@/generated/prisma/client";
 
+import { logActivity } from "@/lib/activity";
+
 // --- Report Snapshot Helper ---
 export async function createIntelReportSnapshot(input: {
   orgId: string;
@@ -12,7 +14,20 @@ export async function createIntelReportSnapshot(input: {
   filters: Prisma.InputJsonValue;
   rowCount: number;
 }) {
-  await db.reportSnapshot.create({
+  const recentSnapshot = await db.reportSnapshot.findFirst({
+    where: {
+      orgId: input.orgId,
+      reportType: input.reportType,
+      createdBy: input.userId,
+      downloadedAt: { gte: new Date(Date.now() - 60000) }
+    }
+  });
+
+  if (recentSnapshot) {
+    return { success: true, data: recentSnapshot.id };
+  }
+
+  const snapshot = await db.reportSnapshot.create({
     data: {
       orgId: input.orgId,
       reportType: input.reportType,
@@ -22,6 +37,23 @@ export async function createIntelReportSnapshot(input: {
       createdBy: input.userId,
     },
   });
+
+  const member = await db.member.findFirst({
+    where: { userId: input.userId, organizationId: input.orgId },
+    include: { user: { select: { email: true } } },
+  });
+
+  await logActivity({
+    orgId: input.orgId,
+    actorId: input.userId,
+    actorName: member?.user?.email ?? "Staff",
+    event: "report_snapshot_generated",
+    docType: "snapshot",
+    docId: snapshot.id,
+    meta: { reportType: input.reportType },
+  });
+
+  return { success: true, data: snapshot.id };
 }
 
 // ==========================================
