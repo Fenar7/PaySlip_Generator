@@ -51,3 +51,4 @@ gha-creds-*.json
 /src/generated/prisma
 Icon
 Icon?
+.venv
