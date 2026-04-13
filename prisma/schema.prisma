@@ -1644,10 +1644,69 @@ model Notification {
   severity      String?
   sourceModule  String?
   sourceRef     String?
+  // Sprint 18.2 delivery extensions
+  emailRequested Boolean @default(false)
+  recipientEmail String?
+
+  deliveries NotificationDelivery[]
 
   @@index([userId, isRead])
   @@index([orgId])
   @@map("notification")
+}
+
+// ─── Phase 18 Sprint 18.2: Notification Delivery ─────────────────────────────
+
+enum NotificationDeliveryStatus {
+  QUEUED
+  SENDING
+  SENT
+  DELIVERED
+  FAILED
+  TERMINAL_FAILURE
+  REPLAYED
+}
+
+enum NotificationDeliveryChannel {
+  in_app
+  email
+}
+
+model NotificationDelivery {
+  id                String                      @id @default(cuid())
+  notificationId    String
+  orgId             String
+  channel           NotificationDeliveryChannel
+  recipientTarget   String
+  status            NotificationDeliveryStatus  @default(QUEUED)
+  attemptCount      Int                         @default(0)
+  maxAttempts       Int                         @default(3)
+  provider          String?
+  providerRef       String?
+  sourceModule      String?
+  sourceRef         String?
+  workflowRunId     String?
+  scheduledActionId String?
+  queuedAt          DateTime                    @default(now())
+  sentAt            DateTime?
+  deliveredAt       DateTime?
+  failedAt          DateTime?
+  nextRetryAt       DateTime?
+  failureReason     String?
+  replayedFromId    String?
+  replayedAt        DateTime?
+  replayedBy        String?                     @db.Uuid
+
+  notification  Notification         @relation(fields: [notificationId], references: [id], onDelete: Cascade)
+  replayedFrom  NotificationDelivery?  @relation("DeliveryReplay", fields: [replayedFromId], references: [id], onDelete: SetNull)
+  replays       NotificationDelivery[] @relation("DeliveryReplay")
+
+  @@index([orgId, status])
+  @@index([orgId, channel])
+  @@index([notificationId])
+  @@index([nextRetryAt, status])
+  @@index([orgId, sourceModule])
+  @@map("notification_delivery")
 }
 
 // ─── Phase 5: SW Flow — Activity Feed ─────────────────────────────────────────
