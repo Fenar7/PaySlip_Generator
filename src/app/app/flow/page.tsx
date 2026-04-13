@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { AlertCircle, FileCheck2, Activity, ShieldAlert, CheckCircle2, Clock } from "lucide-react";
+import { AlertCircle, FileCheck2, Activity, ShieldAlert, Clock } from "lucide-react";
 
 export const metadata: Metadata = { title: "SW Flow Control Center" };
 
