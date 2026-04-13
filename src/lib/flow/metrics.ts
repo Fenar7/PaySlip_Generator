@@ -42,10 +42,10 @@ export async function getFlowMetrics(orgId: string): Promise<FlowMetrics> {
       where: {
         orgId,
         status: { in: ["APPROVED", "REJECTED"] },
-        resolvedAt: { not: null },
+        decidedAt: { not: null },
         createdAt: { gte: thirtyDaysAgo },
       },
-      select: { createdAt: true, resolvedAt: true },
+      select: { createdAt: true, decidedAt: true },
       take: 200,
     }),
     db.invoiceTicket.findMany({
@@ -70,8 +70,8 @@ export async function getFlowMetrics(orgId: string): Promise<FlowMetrics> {
   };
 
   const approvalTurnarounds = resolvedApprovals
-    .filter((a) => a.resolvedAt)
-    .map((a) => a.resolvedAt!.getTime() - a.createdAt.getTime());
+    .filter((a) => a.decidedAt)
+    .map((a) => a.decidedAt!.getTime() - a.createdAt.getTime());
 
   const ticketResolutions = resolvedTickets
     .filter((t) => t.resolvedAt)

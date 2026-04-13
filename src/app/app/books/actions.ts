@@ -12,7 +12,7 @@ import type {
   Prisma,
   VendorBillStatus,
 } from "@/generated/prisma/client";
-import { requireOrgContext } from "@/lib/auth";
+import { requireOrgContext, requireRole } from "@/lib/auth";
 import { canReadBooks, canWriteBooks } from "@/lib/books-permissions";
 import { db } from "@/lib/db";
 import { generateCSV } from "@/lib/csv";

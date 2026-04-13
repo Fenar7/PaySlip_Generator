@@ -3,7 +3,7 @@ import { requireOrgContext } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { formatDistanceToNow } from "date-fns";
+import { formatRelativeTime } from "@/lib/format-relative-time";
 import {
   ArrowLeft,
   CheckCircle2,
@@ -88,7 +88,7 @@ export default async function WorkflowRunsPage({ params }: PageProps) {
                 <span className="text-xs font-mono text-[var(--muted-foreground)]">{run.id}</span>
               </div>
               <span className="text-xs text-[var(--muted-foreground)]">
-                {formatDistanceToNow(run.startedAt, { addSuffix: true })}
+                {formatRelativeTime(run.startedAt)}
               </span>
             </div>
 

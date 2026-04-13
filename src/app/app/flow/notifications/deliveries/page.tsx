@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { requireOrgContext } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { formatDistanceToNow } from "date-fns";
+import { formatRelativeTime } from "@/lib/format-relative-time";
 import { replayDeliveryAction } from "../delivery-actions";
 import {
   Mail,
@@ -56,6 +56,11 @@ interface PageProps {
 export default async function DeliveryConsolePage({ searchParams }: PageProps) {
   const { orgId } = await requireOrgContext();
   const params = await searchParams;
+
+  const replayDelivery = async (deliveryId: string) => {
+    "use server";
+    await replayDeliveryAction(deliveryId);
+  };
 
   const page = parseInt(params.page ?? "0", 10);
   const PAGE_SIZE = 25;
@@ -269,13 +274,13 @@ export default async function DeliveryConsolePage({ searchParams }: PageProps) {
 
                   <td className="px-4 py-3 text-xs text-[var(--muted-foreground)]">
                     {d.failedAt
-                      ? formatDistanceToNow(d.failedAt, { addSuffix: true })
+                      ? formatRelativeTime(d.failedAt)
                       : d.sentAt
-                      ? formatDistanceToNow(d.sentAt, { addSuffix: true })
-                      : formatDistanceToNow(d.queuedAt, { addSuffix: true })}
+                      ? formatRelativeTime(d.sentAt)
+                      : formatRelativeTime(d.queuedAt)}
                     {d.nextRetryAt && d.status === "FAILED" && (
                       <div className="text-blue-500 mt-0.5">
-                        retry {formatDistanceToNow(d.nextRetryAt, { addSuffix: true })}
+                        retry {formatRelativeTime(d.nextRetryAt)}
                       </div>
                     )}
                   </td>
@@ -305,7 +310,7 @@ export default async function DeliveryConsolePage({ searchParams }: PageProps) {
                         </a>
                       )}
                       {canReplay(d.status) && (
-                        <form action={replayDeliveryAction.bind(null, d.id)}>
+                        <form action={replayDelivery.bind(null, d.id)}>
                           <button
                             type="submit"
                             className="inline-flex items-center gap-1 text-xs text-blue-600 dark:text-blue-400 hover:underline font-medium"

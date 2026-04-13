@@ -1,7 +1,7 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { requireOrgContext } from "@/lib/auth";
+import { requireRole } from "@/lib/auth";
 import { revalidatePath } from "next/cache";
 import { logFlowConfigChange } from "@/lib/flow/audit";
 import { replayDelivery } from "@/lib/flow/delivery-engine";
@@ -31,7 +31,7 @@ export async function listDeliveries(
     page: number;
   }>
 > {
-  const { orgId } = await requireOrgContext();
+  const { orgId } = await requireRole("admin");
   const page = filter.page ?? 0;
   const skip = page * PAGE_SIZE;
 
@@ -88,7 +88,7 @@ function fetchDeliveries(where: object, skip: number) {
 export async function replayDeliveryAction(
   deliveryId: string
 ): Promise<ActionResult<{ newDeliveryId: string; status: string }>> {
-  const { orgId, userId } = await requireOrgContext();
+  const { orgId, userId } = await requireRole("admin");
 
   const delivery = await db.notificationDelivery.findFirst({
     where: { id: deliveryId, orgId },
@@ -156,7 +156,7 @@ export async function getDeliveryStats(): Promise<
     replayed: number;
   }>
 > {
-  const { orgId } = await requireOrgContext();
+  const { orgId } = await requireRole("admin");
 
   const [total, queued, sent, failed, terminal, replayed] = await Promise.all([
     db.notificationDelivery.count({ where: { orgId } }),

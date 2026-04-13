@@ -1,35 +1,13 @@
+import type { Prisma } from "@/generated/prisma/client";
 import { db } from "@/lib/db";
 import { createNotification, notifyOrgAdmins } from "@/lib/notifications";
 import { createApprovalRequest } from "./approvals";
-
-// Supported trigger families per PRD 17.3
-export const SUPPORTED_TRIGGERS = [
-  "invoice.issued",
-  "invoice.overdue",
-  "payment_proof.submitted",
-  "ticket.opened",
-  "approval.requested",
-  "approval.breached",
-  "vendor_bill.submitted",
-  "payment_run.failed",
-  "close_task.blocked",
-  "scheduled_action.dead_lettered",
-] as const;
-
-// Supported action families per PRD 17.3
-export const SUPPORTED_ACTIONS = [
-  "assign_ticket",
-  "create_approval_request",
-  "send_notification",
-  "schedule_reminder",
-  "escalate_to_role",
-  "enqueue_scheduled_action",
-  "create_follow_up",
-  "notify_org_admins",
-] as const;
-
-export type SupportedTrigger = (typeof SUPPORTED_TRIGGERS)[number];
-export type SupportedAction = (typeof SUPPORTED_ACTIONS)[number];
+import {
+  SUPPORTED_TRIGGERS,
+  SUPPORTED_ACTIONS,
+  type SupportedTrigger,
+  type SupportedAction,
+} from "./catalog";
 
 export type WorkflowTriggerEvent = {
   triggerType: SupportedTrigger;
@@ -179,7 +157,7 @@ async function executeStep(
           sourceModule: event.sourceModule,
           sourceEntityType: event.sourceEntityType,
           sourceEntityId: event.sourceEntityId,
-          payload: config,
+          payload: config as Prisma.InputJsonValue,
           scheduledAt: new Date(),
         },
       });
@@ -221,7 +199,7 @@ async function executeStep(
           sourceModule: event.sourceModule,
           sourceEntityType: event.sourceEntityType,
           sourceEntityId: event.sourceEntityId,
-          payload: config,
+          payload: config as Prisma.InputJsonValue,
           scheduledAt,
         },
       });

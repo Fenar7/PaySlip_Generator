@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { formatDistanceToNow } from "date-fns";
+import { formatRelativeTime } from "@/lib/format-relative-time";
 import { getPortalTicketDetail } from "../actions";
 import { PortalReplyBox } from "./reply-box";
 import { FileIcon, Paperclip } from "lucide-react";
@@ -54,7 +54,7 @@ export default async function PortalTicketDetailPage({ params }: PageProps) {
                 <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
-                Opened {formatDistanceToNow(ticket.createdAt, { addSuffix: true })}
+                Opened {formatRelativeTime(ticket.createdAt)}
               </span>
             </div>
           </div>
@@ -84,7 +84,7 @@ export default async function PortalTicketDetailPage({ params }: PageProps) {
                   reply.portalCustomerId ? "text-blue-100" : "text-slate-400"
                 }`}>
                   <span>{reply.authorName}</span>
-                  <span>{formatDistanceToNow(reply.createdAt, { addSuffix: true })}</span>
+                  <span>{formatRelativeTime(reply.createdAt)}</span>
                 </div>
                 <p className="whitespace-pre-wrap text-sm leading-relaxed">
                   {reply.message}

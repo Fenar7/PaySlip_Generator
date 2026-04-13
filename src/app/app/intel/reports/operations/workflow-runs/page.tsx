@@ -64,10 +64,10 @@ export default async function WorkflowRunsReport(
                   {new Date(run.startedAt).toLocaleString()}
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-900">{run.workflow.name}</td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500">{run.workflow.sourceModule}</td>
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500">{run.sourceModule}</td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500">{run.workflow.triggerType}</td>
                 <td className="px-6 py-4 whitespace-nowrap">
-                  <span className={`inline-flex rounded-full px-2 text-xs font-semibold leading-5 ${run.status === 'COMPLETED' ? 'bg-green-100 text-green-800' : run.status === 'FAILED' ? 'bg-red-100 text-red-800' : 'bg-blue-100 text-blue-800'}`}>
+                  <span className={`inline-flex rounded-full px-2 text-xs font-semibold leading-5 ${run.status === 'SUCCEEDED' ? 'bg-green-100 text-green-800' : run.status === 'FAILED' ? 'bg-red-100 text-red-800' : 'bg-blue-100 text-blue-800'}`}>
                     {run.status}
                   </span>
                 </td>

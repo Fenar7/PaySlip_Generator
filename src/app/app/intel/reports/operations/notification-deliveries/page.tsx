@@ -61,14 +61,17 @@ export default async function NotificationDeliveriesReport(
                   {delivery.id.slice(0, 8)}...
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500">
-                  {new Date(delivery.createdAt).toLocaleString()}
+                  {new Date(delivery.queuedAt).toLocaleString()}
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-900">
                   <span className="inline-flex rounded-md bg-slate-100 px-2.5 py-0.5 text-xs font-semibold text-slate-700">
                     {delivery.channel}
                   </span>
                 </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500">{delivery.notification.entityType || 'UNKNOWN'}</td>
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500">
+                  {delivery.notification.sourceModule ?? delivery.notification.type}
+                  {delivery.notification.sourceRef ? ` · ${delivery.notification.sourceRef}` : ""}
+                </td>
                 <td className="px-6 py-4 whitespace-nowrap">
                   <span className={`inline-flex rounded-full px-2 text-xs font-semibold leading-5 ${delivery.status === 'SENT' ? 'bg-green-100 text-green-800' : delivery.status === 'FAILED' || delivery.status === 'TERMINAL_FAILURE' ? 'bg-red-100 text-red-800' : 'bg-amber-100 text-amber-800'}`}>
                     {delivery.status}

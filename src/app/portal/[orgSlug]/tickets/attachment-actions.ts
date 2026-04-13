@@ -3,6 +3,15 @@
 import { db } from "@/lib/db";
 import { requirePortalSession } from "@/lib/portal-auth";
 
+const MAX_ATTACHMENT_SIZE = 5 * 1024 * 1024;
+const ALLOWED_MIME_TYPES = new Set([
+  "image/png",
+  "image/jpeg",
+  "image/webp",
+  "application/pdf",
+  "text/plain",
+]);
+
 export async function uploadPortalAttachmentAction(
   fileName: string,
   fileSize: number,
@@ -12,10 +21,24 @@ export async function uploadPortalAttachmentAction(
   try {
     const { orgId } = await requirePortalSession();
 
+    const trimmedName = fileName.trim();
+    if (!trimmedName) {
+      return { success: false, error: "File name is required" };
+    }
+    if (fileSize <= 0 || fileSize > MAX_ATTACHMENT_SIZE) {
+      return { success: false, error: "Invalid file size" };
+    }
+    if (!ALLOWED_MIME_TYPES.has(mimeType)) {
+      return { success: false, error: "Unsupported file type" };
+    }
+    if (!storageKey.startsWith("portal/attachments/")) {
+      return { success: false, error: "Invalid attachment storage path" };
+    }
+
     const attachment = await db.fileAttachment.create({
       data: {
         organizationId: orgId,
-        fileName,
+        fileName: trimmedName,
         size: fileSize,
         mimeType,
         storageKey,
