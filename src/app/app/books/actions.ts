@@ -103,7 +103,196 @@ type BooksJournalRegisterRow = {
   totalCredit: number;
   periodLabel: string;
   lineCount: number;
+  attachmentCount: number;
 };
+
+type BooksDefaultMappingField =
+  | "defaultReceivableAccountId"
+  | "defaultPayableAccountId"
+  | "defaultBankAccountId"
+  | "defaultRevenueAccountId"
+  | "defaultExpenseAccountId"
+  | "defaultPayrollExpenseAccountId"
+  | "defaultPayrollPayableAccountId"
+  | "defaultGstOutputAccountId"
+  | "defaultTdsPayableAccountId"
+  | "defaultGatewayClearingAccountId"
+  | "defaultSuspenseAccountId";
+
+type BooksSettingsAccountOption = {
+  id: string;
+  code: string;
+  name: string;
+  accountType: GlAccountType;
+  normalBalance: NormalBalance;
+  isActive: boolean;
+  isSystem: boolean;
+  isProtected: boolean;
+  systemKey: string | null;
+};
+
+type BooksSettingsMapping = {
+  field: BooksDefaultMappingField;
+  label: string;
+  description: string;
+  expectedAccountTypes: GlAccountType[];
+  expectedNormalBalance: NormalBalance;
+  account: BooksSettingsAccountOption | null;
+};
+
+type BooksSettingsReadModel = {
+  metadata: {
+    booksEnabled: boolean;
+    templateKey: string;
+    seededAt: Date | null;
+    country: string;
+    baseCurrency: string;
+    fiscalYearStart: number;
+    activeAccountCount: number;
+  };
+  defaultMappings: BooksSettingsMapping[];
+  systemAccounts: Array<{
+    key: string;
+    label: string;
+    description: string;
+    account: BooksSettingsAccountOption | null;
+  }>;
+  accountOptions: BooksSettingsAccountOption[];
+  periods: Awaited<ReturnType<typeof listFiscalPeriods>>;
+};
+
+type BooksJournalDetail = {
+  id: string;
+  entryNumber: string;
+  entryDate: Date;
+  source: JournalSource;
+  sourceRef: string | null;
+  status: JournalEntryStatus;
+  memo: string | null;
+  totalDebit: number;
+  totalCredit: number;
+  period: {
+    id: string;
+    label: string;
+    status: string;
+  };
+  lines: Array<{
+    id: string;
+    lineNumber: number;
+    description: string | null;
+    debit: number;
+    credit: number;
+    account: {
+      id: string;
+      code: string;
+      name: string;
+      normalBalance: NormalBalance;
+      accountType: GlAccountType;
+    };
+  }>;
+  attachments: Array<{
+    id: string;
+    fileName: string;
+    mimeType: string;
+    size: number;
+    createdAt: Date;
+  }>;
+};
+
+const BOOKS_DEFAULT_MAPPING_CONFIG: Record<
+  BooksDefaultMappingField,
+  {
+    label: string;
+    description: string;
+    expectedAccountTypes: GlAccountType[];
+    expectedNormalBalance: NormalBalance;
+  }
+> = {
+  defaultReceivableAccountId: {
+    label: "Receivable control account",
+    description: "Used for invoice and receivable postings.",
+    expectedAccountTypes: ["ASSET"],
+    expectedNormalBalance: "DEBIT",
+  },
+  defaultPayableAccountId: {
+    label: "Payable control account",
+    description: "Used for vendor bill and AP postings.",
+    expectedAccountTypes: ["LIABILITY"],
+    expectedNormalBalance: "CREDIT",
+  },
+  defaultBankAccountId: {
+    label: "Primary bank account",
+    description: "Default bank-side ledger used for finance postings.",
+    expectedAccountTypes: ["ASSET"],
+    expectedNormalBalance: "DEBIT",
+  },
+  defaultRevenueAccountId: {
+    label: "Revenue account",
+    description: "Default income account used for operational revenue postings.",
+    expectedAccountTypes: ["INCOME"],
+    expectedNormalBalance: "CREDIT",
+  },
+  defaultExpenseAccountId: {
+    label: "Expense account",
+    description: "Default expense account used for operating charges and payables.",
+    expectedAccountTypes: ["EXPENSE"],
+    expectedNormalBalance: "DEBIT",
+  },
+  defaultPayrollExpenseAccountId: {
+    label: "Payroll expense account",
+    description: "Used when payroll accrual journals are created.",
+    expectedAccountTypes: ["EXPENSE"],
+    expectedNormalBalance: "DEBIT",
+  },
+  defaultPayrollPayableAccountId: {
+    label: "Payroll payable account",
+    description: "Used for payroll liability postings prior to payout.",
+    expectedAccountTypes: ["LIABILITY"],
+    expectedNormalBalance: "CREDIT",
+  },
+  defaultGstOutputAccountId: {
+    label: "GST output control account",
+    description: "Used for output tax liability postings.",
+    expectedAccountTypes: ["LIABILITY"],
+    expectedNormalBalance: "CREDIT",
+  },
+  defaultTdsPayableAccountId: {
+    label: "TDS payable account",
+    description: "Used for TDS liability postings.",
+    expectedAccountTypes: ["LIABILITY"],
+    expectedNormalBalance: "CREDIT",
+  },
+  defaultGatewayClearingAccountId: {
+    label: "Gateway clearing account",
+    description: "Used for payment processor clearing and settlement timing differences.",
+    expectedAccountTypes: ["ASSET"],
+    expectedNormalBalance: "DEBIT",
+  },
+  defaultSuspenseAccountId: {
+    label: "Suspense account",
+    description: "Used for unmatched reconciliation and temporary exception handling.",
+    expectedAccountTypes: ["ASSET"],
+    expectedNormalBalance: "DEBIT",
+  },
+};
+
+const BOOKS_SYSTEM_ACCOUNT_CONFIG = [
+  {
+    key: "GST_INPUT_TAX",
+    label: "GST input tax",
+    description: "Seeded system account used for input-tax recoveries.",
+  },
+  {
+    key: "TDS_RECEIVABLE",
+    label: "TDS receivable",
+    description: "Seeded system account used for TDS receivable tracking.",
+  },
+  {
+    key: "BANK_CHARGES",
+    label: "Bank charges",
+    description: "Seeded system account used for settlement fees and bank charges.",
+  },
+] as const;
 
 async function requireBooksRead() {
   const context = await requireOrgContext();
@@ -181,6 +370,15 @@ function generateVendorBillAttachmentStoragePath(
   return `books/vendor-bills/${orgId}/${vendorBillId}/${Date.now()}-${crypto.randomUUID()}-${safeName}`;
 }
 
+function generateJournalAttachmentStoragePath(
+  orgId: string,
+  journalEntryId: string,
+  fileName: string,
+): string {
+  const safeName = sanitizeStorageSegment(fileName);
+  return `books/journals/${orgId}/${journalEntryId}/${Date.now()}-${crypto.randomUUID()}-${safeName}`;
+}
+
 async function loadChartOfAccountsData(orgId: string): Promise<ChartOfAccountsRow[]> {
   const [accounts, trialBalance, lineUsage] = await Promise.all([
     listGlAccounts(orgId),
@@ -237,6 +435,22 @@ async function loadBooksJournalRegisterData(
   } = {},
 ): Promise<BooksJournalRegisterRow[]> {
   const journals = await listJournalEntries(orgId, input);
+  const attachmentCounts =
+    journals.length === 0
+      ? new Map<string, number>()
+      : (
+          await db.fileAttachment.findMany({
+            where: {
+              organizationId: orgId,
+              entityType: "journal_entry",
+              entityId: { in: journals.map((journal) => journal.id) },
+            },
+            select: { entityId: true },
+          })
+        ).reduce<Map<string, number>>((acc, attachment) => {
+          acc.set(attachment.entityId, (acc.get(attachment.entityId) ?? 0) + 1);
+          return acc;
+        }, new Map());
 
   return journals.map((journal) => ({
     id: journal.id,
@@ -250,7 +464,231 @@ async function loadBooksJournalRegisterData(
     totalCredit: journal.totalCredit,
     periodLabel: journal.fiscalPeriod.label,
     lineCount: journal.lines.length,
+    attachmentCount: attachmentCounts.get(journal.id) ?? 0,
   }));
+}
+
+function toBooksSettingsAccountOption(account: {
+  id: string;
+  code: string;
+  name: string;
+  accountType: GlAccountType;
+  normalBalance: NormalBalance;
+  isActive: boolean;
+  isSystem: boolean;
+  isProtected: boolean;
+  systemKey: string | null;
+}): BooksSettingsAccountOption {
+  return {
+    id: account.id,
+    code: account.code,
+    name: account.name,
+    accountType: account.accountType,
+    normalBalance: account.normalBalance,
+    isActive: account.isActive,
+    isSystem: account.isSystem,
+    isProtected: account.isProtected,
+    systemKey: account.systemKey,
+  };
+}
+
+async function loadBooksSettingsReadModel(orgId: string): Promise<BooksSettingsReadModel> {
+  const setup = await ensureBooksSetup(orgId);
+  const [accounts, defaults, periods] = await Promise.all([
+    db.glAccount.findMany({
+      where: { orgId },
+      select: {
+        id: true,
+        code: true,
+        name: true,
+        accountType: true,
+        normalBalance: true,
+        isActive: true,
+        isSystem: true,
+        isProtected: true,
+        systemKey: true,
+      },
+      orderBy: [{ sortOrder: "asc" }, { code: "asc" }],
+    }),
+    db.orgDefaults.findUnique({
+      where: { organizationId: orgId },
+      select: {
+        booksEnabled: true,
+        coaTemplate: true,
+        coaSeededAt: true,
+        country: true,
+        baseCurrency: true,
+        fiscalYearStart: true,
+        defaultReceivableAccountId: true,
+        defaultPayableAccountId: true,
+        defaultBankAccountId: true,
+        defaultRevenueAccountId: true,
+        defaultExpenseAccountId: true,
+        defaultPayrollExpenseAccountId: true,
+        defaultPayrollPayableAccountId: true,
+        defaultGstOutputAccountId: true,
+        defaultTdsPayableAccountId: true,
+        defaultGatewayClearingAccountId: true,
+        defaultSuspenseAccountId: true,
+      },
+    }),
+    listFiscalPeriods(orgId),
+  ]);
+
+  if (!defaults) {
+    throw new Error("Books settings are unavailable.");
+  }
+
+  const accountById = new Map(
+    accounts.map((account) => [account.id, toBooksSettingsAccountOption(account)]),
+  );
+
+  const defaultMappings = (Object.entries(BOOKS_DEFAULT_MAPPING_CONFIG) as Array<
+    [BooksDefaultMappingField, (typeof BOOKS_DEFAULT_MAPPING_CONFIG)[BooksDefaultMappingField]]
+  >).map(([field, config]) => ({
+    field,
+    label: config.label,
+    description: config.description,
+    expectedAccountTypes: config.expectedAccountTypes,
+    expectedNormalBalance: config.expectedNormalBalance,
+    account: defaults[field] ? accountById.get(defaults[field]) ?? null : null,
+  }));
+
+  const systemAccounts = BOOKS_SYSTEM_ACCOUNT_CONFIG.map((config) => ({
+    key: config.key,
+    label: config.label,
+    description: config.description,
+    account:
+      accounts
+        .map((account) => toBooksSettingsAccountOption(account))
+        .find((account) => account.systemKey === config.key) ?? null,
+  }));
+
+  return {
+    metadata: {
+      booksEnabled: defaults.booksEnabled,
+      templateKey: defaults.coaTemplate ?? setup.templateKey,
+      seededAt: defaults.coaSeededAt,
+      country: defaults.country,
+      baseCurrency: defaults.baseCurrency,
+      fiscalYearStart: defaults.fiscalYearStart,
+      activeAccountCount: accounts.filter((account) => account.isActive).length,
+    },
+    defaultMappings,
+    systemAccounts,
+    accountOptions: accounts
+      .filter((account) => account.isActive)
+      .map((account) => toBooksSettingsAccountOption(account)),
+    periods,
+  };
+}
+
+function validateBooksDefaultMappingAccount(
+  field: BooksDefaultMappingField,
+  account: BooksSettingsAccountOption,
+) {
+  const config = BOOKS_DEFAULT_MAPPING_CONFIG[field];
+
+  if (!account.isActive) {
+    throw new Error(`${config.label} must reference an active account.`);
+  }
+
+  if (!config.expectedAccountTypes.includes(account.accountType)) {
+    throw new Error(
+      `${config.label} must use a ${config.expectedAccountTypes.join(" / ").toLowerCase()} account.`,
+    );
+  }
+
+  if (account.normalBalance !== config.expectedNormalBalance) {
+    throw new Error(
+      `${config.label} must use a ${config.expectedNormalBalance.toLowerCase()}-balance account.`,
+    );
+  }
+}
+
+async function loadBooksJournalDetail(
+  orgId: string,
+  journalEntryId: string,
+): Promise<BooksJournalDetail | null> {
+  const [journal, attachments] = await Promise.all([
+    db.journalEntry.findFirst({
+      where: {
+        id: journalEntryId,
+        orgId,
+      },
+      select: {
+        id: true,
+        entryNumber: true,
+        entryDate: true,
+        source: true,
+        sourceRef: true,
+        status: true,
+        memo: true,
+        totalDebit: true,
+        totalCredit: true,
+        fiscalPeriod: {
+          select: {
+            id: true,
+            label: true,
+            status: true,
+          },
+        },
+        lines: {
+          orderBy: { lineNumber: "asc" },
+          select: {
+            id: true,
+            lineNumber: true,
+            description: true,
+            debit: true,
+            credit: true,
+            account: {
+              select: {
+                id: true,
+                code: true,
+                name: true,
+                normalBalance: true,
+                accountType: true,
+              },
+            },
+          },
+        },
+      },
+    }),
+    db.fileAttachment.findMany({
+      where: {
+        organizationId: orgId,
+        entityType: "journal_entry",
+        entityId: journalEntryId,
+      },
+      orderBy: { createdAt: "desc" },
+      select: {
+        id: true,
+        fileName: true,
+        mimeType: true,
+        size: true,
+        createdAt: true,
+      },
+    }),
+  ]);
+
+  if (!journal) {
+    return null;
+  }
+
+  return {
+    id: journal.id,
+    entryNumber: journal.entryNumber,
+    entryDate: journal.entryDate,
+    source: journal.source,
+    sourceRef: journal.sourceRef,
+    status: journal.status,
+    memo: journal.memo,
+    totalDebit: journal.totalDebit,
+    totalCredit: journal.totalCredit,
+    period: journal.fiscalPeriod,
+    lines: journal.lines,
+    attachments,
+  };
 }
 
 async function requireBooksWrite() {
@@ -390,6 +828,19 @@ function revalidateBooksReports() {
   revalidatePath("/app/books/reports/ap-aging");
 }
 
+function revalidateBooksSettings() {
+  revalidatePath("/app/books");
+  revalidatePath("/app/books/settings");
+}
+
+function revalidateBooksJournals(journalEntryId?: string) {
+  revalidatePath("/app/books");
+  revalidatePath("/app/books/journals");
+  if (journalEntryId) {
+    revalidatePath(`/app/books/journals/${journalEntryId}`);
+  }
+}
+
 export async function getBooksOverview(): Promise<
   ActionResult<{
     setup: { templateKey: string; accountsCreated: number; periodsCreated: number };
@@ -497,6 +948,96 @@ export async function getBooksOverview(): Promise<
   }
 }
 
+export async function getBooksSettings(): Promise<ActionResult<BooksSettingsReadModel>> {
+  try {
+    const { orgId } = await requireBooksRead();
+    const settings = await loadBooksSettingsReadModel(orgId);
+
+    return {
+      success: true,
+      data: settings,
+    };
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Failed to load Books settings.",
+    };
+  }
+}
+
+export async function updateBooksSettingsDefaultMappings(input: Record<
+  BooksDefaultMappingField,
+  string
+>): Promise<ActionResult> {
+  try {
+    const { orgId } = await requireBooksWrite();
+    await ensureBooksSetup(orgId);
+
+    const mappings = (
+      Object.keys(BOOKS_DEFAULT_MAPPING_CONFIG) as BooksDefaultMappingField[]
+    ).reduce<Record<BooksDefaultMappingField, string>>((acc, field) => {
+      const value = String(input[field] ?? "").trim();
+      if (!value) {
+        throw new Error(`${BOOKS_DEFAULT_MAPPING_CONFIG[field].label} is required.`);
+      }
+      acc[field] = value;
+      return acc;
+    }, {} as Record<BooksDefaultMappingField, string>);
+
+    const accounts = await db.glAccount.findMany({
+      where: {
+        orgId,
+        id: {
+          in: Array.from(new Set(Object.values(mappings))),
+        },
+      },
+      select: {
+        id: true,
+        code: true,
+        name: true,
+        accountType: true,
+        normalBalance: true,
+        isActive: true,
+        isSystem: true,
+        isProtected: true,
+        systemKey: true,
+      },
+    });
+
+    if (accounts.length !== new Set(Object.values(mappings)).size) {
+      throw new Error("One or more selected accounts were not found.");
+    }
+
+    const accountById = new Map(
+      accounts.map((account) => [account.id, toBooksSettingsAccountOption(account)]),
+    );
+
+    for (const [field, accountId] of Object.entries(mappings) as Array<
+      [BooksDefaultMappingField, string]
+    >) {
+      const account = accountById.get(accountId);
+      if (!account) {
+        throw new Error(`${BOOKS_DEFAULT_MAPPING_CONFIG[field].label} could not be resolved.`);
+      }
+      validateBooksDefaultMappingAccount(field, account);
+    }
+
+    await db.orgDefaults.update({
+      where: { organizationId: orgId },
+      data: mappings,
+    });
+
+    revalidateBooksSettings();
+
+    return { success: true, data: null };
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Failed to update Books mappings.",
+    };
+  }
+}
+
 export async function getChartOfAccounts(): Promise<
   ActionResult<ChartOfAccountsRow[]>
 > {
@@ -588,6 +1129,29 @@ export async function getBooksJournalRegister(input: {
   }
 }
 
+export async function getBooksJournal(
+  journalEntryId: string,
+): Promise<ActionResult<BooksJournalDetail>> {
+  try {
+    const { orgId } = await requireBooksRead();
+    const journal = await loadBooksJournalDetail(orgId, journalEntryId);
+
+    if (!journal) {
+      return { success: false, error: "Journal entry not found." };
+    }
+
+    return {
+      success: true,
+      data: journal,
+    };
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Failed to load journal entry.",
+    };
+  }
+}
+
 export async function createManualJournal(input: {
   entryDate: string;
   memo?: string;
@@ -630,6 +1194,118 @@ export async function createManualJournal(input: {
   }
 }
 
+export async function uploadBooksJournalAttachment(
+  formData: FormData,
+): Promise<ActionResult<{ id: string; fileName: string }>> {
+  try {
+    const { orgId } = await requireBooksWrite();
+    const journalEntryId = String(formData.get("journalEntryId") ?? "").trim();
+    const file = formData.get("file");
+
+    if (!journalEntryId) {
+      return { success: false, error: "Journal entry is required." };
+    }
+
+    if (!isUploadedFile(file)) {
+      return { success: false, error: "Attachment file is required." };
+    }
+
+    const journal = await db.journalEntry.findFirst({
+      where: {
+        id: journalEntryId,
+        orgId,
+      },
+      select: {
+        id: true,
+        status: true,
+      },
+    });
+
+    if (!journal) {
+      return { success: false, error: "Journal entry not found." };
+    }
+
+    if (journal.status === "REVERSED") {
+      return {
+        success: false,
+        error: "Reversed journals are closed and cannot accept new attachments.",
+      };
+    }
+
+    const uploaded = await uploadFileServer(
+      "attachments",
+      generateJournalAttachmentStoragePath(orgId, journalEntryId, file.name),
+      Buffer.from(await file.arrayBuffer()),
+      file.type || "application/octet-stream",
+    );
+
+    const attachment = await db.fileAttachment.create({
+      data: {
+        organizationId: orgId,
+        entityType: "journal_entry",
+        entityId: journalEntryId,
+        fileName: file.name,
+        storageKey: uploaded.storageKey,
+        mimeType: file.type || "application/octet-stream",
+        size: file.size,
+      },
+    });
+
+    revalidateBooksJournals(journalEntryId);
+
+    return {
+      success: true,
+      data: {
+        id: attachment.id,
+        fileName: attachment.fileName,
+      },
+    };
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Failed to upload journal attachment.",
+    };
+  }
+}
+
+export async function getBooksJournalAttachmentDownloadUrl(
+  attachmentId: string,
+): Promise<ActionResult<{ url: string; fileName: string }>> {
+  try {
+    const { orgId } = await requireBooksRead();
+    const attachment = await db.fileAttachment.findFirst({
+      where: {
+        id: attachmentId,
+        organizationId: orgId,
+        entityType: "journal_entry",
+      },
+      select: {
+        fileName: true,
+        storageKey: true,
+      },
+    });
+
+    if (!attachment) {
+      return { success: false, error: "Attachment not found." };
+    }
+
+    const url = await getSignedUrlServer("attachments", attachment.storageKey);
+
+    return {
+      success: true,
+      data: {
+        url,
+        fileName: attachment.fileName,
+      },
+    };
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Failed to prepare attachment download.",
+    };
+  }
+}
+
 export async function postBooksJournal(journalEntryId: string): Promise<ActionResult> {
   try {
     const { orgId, userId } = await requireBooksWrite();
@@ -643,6 +1319,7 @@ export async function postBooksJournal(journalEntryId: string): Promise<ActionRe
     revalidatePath("/app/books/journals");
     revalidatePath("/app/books/ledger");
     revalidatePath("/app/books/trial-balance");
+    revalidatePath(`/app/books/journals/${journalEntryId}`);
 
     return { success: true, data: null };
   } catch (error) {
@@ -670,6 +1347,7 @@ export async function reverseBooksJournal(
     revalidatePath("/app/books/journals");
     revalidatePath("/app/books/ledger");
     revalidatePath("/app/books/trial-balance");
+    revalidatePath(`/app/books/journals/${journalEntryId}`);
 
     return {
       success: true,

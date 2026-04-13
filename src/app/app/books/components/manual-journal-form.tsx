@@ -76,7 +76,7 @@ export function ManualJournalForm({ accounts }: ManualJournalFormProps) {
         return;
       }
 
-      router.push("/app/books/journals");
+      router.push(`/app/books/journals/${result.data.id}`);
       router.refresh();
     });
   }
