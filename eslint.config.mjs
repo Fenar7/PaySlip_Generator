@@ -21,6 +21,8 @@ const eslintConfig = defineConfig([
     "tmp-foundation/**",
     "playwright-report/**",
     "test-results/**",
+    // One-off migration/utility scripts
+    "patch_schema.js",
   ]),
 ]);
 

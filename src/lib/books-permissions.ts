@@ -80,10 +80,10 @@ export function canRequestApprovalForDoc(role: string, docType: ApprovalDocType)
     return canWriteBooks(role);
   }
 
-  const module = APPROVAL_MODULE_BY_DOC_TYPE[docType];
+  const permModule = APPROVAL_MODULE_BY_DOC_TYPE[docType];
   const allowedActions = APPROVAL_REQUEST_ACTIONS_BY_DOC_TYPE[docType];
 
-  return allowedActions.some((action) => hasPermission(role, module, action));
+  return allowedActions.some((action) => hasPermission(role, permModule, action));
 }
 
 export function canViewApprovalForDoc(input: {
@@ -110,9 +110,9 @@ export function canDecideApprovalForDoc(
     return canDecideFinanceApproval(role);
   }
 
-  const module = APPROVAL_MODULE_BY_DOC_TYPE[docType];
+  const permModule = APPROVAL_MODULE_BY_DOC_TYPE[docType];
   return (
-    hasPermission(role, module, "approve") ||
+    hasPermission(role, permModule, "approve") ||
     hasPermission(role, "flow_approvals", "approve")
   );
 }

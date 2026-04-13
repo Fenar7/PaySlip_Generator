@@ -1,37 +1,41 @@
 "use server";
 
-import { db } from "@/lib/db";
 import { requireOrgContext } from "@/lib/auth";
+import { db } from "@/lib/db";
+import { revalidatePath } from "next/cache";
 
-export async function listJobLogs(params?: {
-  jobName?: string;
-  status?: string;
-  page?: number;
-}) {
-  await requireOrgContext();
-  const page = params?.page ?? 1;
-  const limit = 20;
-  const skip = (page - 1) * limit;
+export async function replayAction(id: string) {
+  const { orgId } = await requireOrgContext();
 
-  const where = {
-    ...(params?.jobName ? { jobName: params.jobName } : {}),
-    ...(params?.status ? { status: params.status } : {}),
-  };
+  const action = await db.scheduledAction.findUnique({
+    where: { id, orgId }
+  });
 
-  const [logs, total] = await Promise.all([
-    db.jobLog.findMany({
-      where,
-      orderBy: { triggeredAt: "desc" },
-      skip,
-      take: limit,
-    }),
-    db.jobLog.count({ where }),
-  ]);
+  if (!action) throw new Error("Action not found");
 
-  return {
-    logs,
-    total,
-    totalPages: Math.ceil(total / limit),
-    page,
-  };
+  await db.scheduledAction.update({
+    where: { id },
+    data: {
+      status: "PENDING",
+      attemptCount: 0,
+      nextRetryAt: new Date(),
+    }
+  });
+
+  revalidatePath("/app/flow/jobs");
+  return { success: true };
+}
+
+export async function cancelAction(id: string) {
+  const { orgId } = await requireOrgContext();
+
+  await db.scheduledAction.update({
+    where: { id, orgId },
+    data: {
+      status: "CANCELLED",
+    }
+  });
+
+  revalidatePath("/app/flow/jobs");
+  return { success: true };
 }

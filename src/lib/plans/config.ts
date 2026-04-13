@@ -15,6 +15,11 @@ export interface PlanLimits {
   // Feature flags
   customBranding: boolean;
   approvalWorkflows: boolean;
+  approvalPolicies: boolean;
+  ticketSla: boolean;
+  workflowAutomation: boolean;
+  workflowRunHistory: boolean;
+  opsControlCenter: boolean;
   proxyAccess: boolean;
   apiAccess: boolean;
   prioritySupport: boolean;
@@ -84,6 +89,11 @@ export const PLAN_LIMITS: Record<PlanId, PlanLimits> = {
     reportSnapshots: 5,
     customBranding: false,
     approvalWorkflows: false,
+    approvalPolicies: false,
+    ticketSla: false,
+    workflowAutomation: false,
+    workflowRunHistory: false,
+    opsControlCenter: false,
     proxyAccess: false,
     apiAccess: false,
     prioritySupport: false,
@@ -131,6 +141,11 @@ export const PLAN_LIMITS: Record<PlanId, PlanLimits> = {
     reportSnapshots: 20,
     customBranding: true,
     approvalWorkflows: false,
+    approvalPolicies: false,
+    ticketSla: false,
+    workflowAutomation: false,
+    workflowRunHistory: false,
+    opsControlCenter: false,
     proxyAccess: false,
     apiAccess: false,
     prioritySupport: false,
@@ -178,6 +193,11 @@ export const PLAN_LIMITS: Record<PlanId, PlanLimits> = {
     reportSnapshots: 100,
     customBranding: true,
     approvalWorkflows: true,
+    approvalPolicies: true,
+    ticketSla: true,
+    workflowAutomation: false,
+    workflowRunHistory: false,
+    opsControlCenter: false,
     proxyAccess: true,
     apiAccess: true,
     prioritySupport: true,
@@ -225,6 +245,11 @@ export const PLAN_LIMITS: Record<PlanId, PlanLimits> = {
     reportSnapshots: -1,
     customBranding: true,
     approvalWorkflows: true,
+    approvalPolicies: true,
+    ticketSla: true,
+    workflowAutomation: true,
+    workflowRunHistory: true,
+    opsControlCenter: true,
     proxyAccess: true,
     apiAccess: true,
     prioritySupport: true,
