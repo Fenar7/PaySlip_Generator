@@ -1162,6 +1162,7 @@ model FileAttachment {
   voucher    Voucher?    @relation("VoucherAttachments", fields: [entityId], references: [id], map: "file_attachment_voucher_fkey")
   vendorBill VendorBill? @relation("VendorBillAttachments", fields: [entityId], references: [id], map: "file_attachment_vendor_bill_fkey")
   salarySlip SalarySlip? @relation("SalarySlipAttachments", fields: [entityId], references: [id], map: "file_attachment_salary_slip_fkey")
+  ticketReply TicketReply? @relation("TicketReplyAttachments", fields: [entityId], references: [id], map: "file_attachment_ticket_reply_fkey")
 
   @@index([organizationId, entityType, entityId])
   @@map("file_attachment")
@@ -1385,17 +1386,20 @@ model InvoiceTicket {
 }
 
 model TicketReply {
-  id         String   @id @default(cuid())
-  ticketId   String
-  authorId   String?  @db.Uuid
-  authorName String
-  isInternal Boolean  @default(false)
-  message    String
-  createdAt  DateTime @default(now())
+  id               String          @id @default(cuid())
+  ticketId         String
+  authorId         String?         @db.Uuid
+  authorName       String
+  portalCustomerId String?         // Link to Customer.id if reply is from portal
+  isInternal       Boolean         @default(false)
+  message          String
+  createdAt        DateTime        @default(now())
 
-  ticket InvoiceTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  ticket      InvoiceTicket    @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  attachments FileAttachment[] @relation("TicketReplyAttachments")
 
   @@index([ticketId])
+  @@index([portalCustomerId])
   @@map("ticket_reply")
 }
 

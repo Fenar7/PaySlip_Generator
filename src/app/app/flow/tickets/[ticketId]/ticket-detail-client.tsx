@@ -19,6 +19,7 @@ interface TicketDetailClientProps {
       isInternal: boolean;
       message: string;
       createdAt: Date;
+      attachments?: { id: string; fileName: string; size: number }[];
     }[];
   };
 }
@@ -186,6 +187,17 @@ export function TicketDetailClient({ ticket }: TicketDetailClientProps) {
               <span className="text-xs text-slate-500">{timeAgo(reply.createdAt)}</span>
             </div>
             <p className="whitespace-pre-wrap text-sm text-slate-700">{reply.message}</p>
+            {reply.attachments && reply.attachments.length > 0 && (
+              <div className="mt-3 flex flex-wrap gap-2 border-t border-slate-100 pt-3">
+                {reply.attachments.map((file) => (
+                  <div key={file.id} className="flex items-center gap-1.5 rounded bg-white px-2 py-1 text-xs border border-slate-200">
+                    <span className="text-slate-400">📎</span>
+                    <span className="font-medium text-slate-700">{file.fileName}</span>
+                    <span className="text-slate-400">({(file.size / 1024).toFixed(0)} KB)</span>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         ))}
       </div>

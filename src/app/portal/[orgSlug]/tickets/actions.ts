@@ -1,0 +1,199 @@
+"use server";
+
+import { db } from "@/lib/db";
+import { requirePortalSession } from "@/lib/portal-auth";
+import { revalidatePath } from "next/cache";
+
+export type ActionResult<T> =
+  | { success: true; data: T }
+  | { success: false; error: string };
+
+const PAGE_SIZE = 20;
+
+// ─── List Portal Tickets ──────────────────────────────────────────────────────
+
+export interface PortalTicketItem {
+  id: string;
+  category: string;
+  description: string;
+  status: string;
+  createdAt: Date;
+  lastActivityAt: Date;
+  invoiceNumber: string;
+  unreadCount?: number;
+}
+
+export async function listPortalTickets(params?: {
+  status?: string;
+  search?: string;
+  page?: number;
+}): Promise<ActionResult<{ tickets: PortalTicketItem[]; total: number }>> {
+  try {
+    const { customerId, orgId } = await requirePortalSession();
+    const page = params?.page ?? 1;
+    const skip = (page - 1) * PAGE_SIZE;
+
+    // Security: Only tickets related to invoices owned by this customer
+    const where = {
+      orgId,
+      invoice: {
+        customerId,
+      },
+      ...(params?.status ? { status: params.status as "OPEN" | "IN_PROGRESS" | "RESOLVED" | "CLOSED" } : {}),
+      ...(params?.search
+        ? {
+            OR: [
+              { description: { contains: params.search, mode: "insensitive" as const } },
+              { invoice: { invoiceNumber: { contains: params.search, mode: "insensitive" as const } } },
+            ],
+          }
+        : {}),
+    };
+
+    const [tickets, total] = await Promise.all([
+      db.invoiceTicket.findMany({
+        where,
+        include: {
+          invoice: { select: { invoiceNumber: true } },
+          replies: {
+            orderBy: { createdAt: "desc" },
+            take: 1,
+            select: { createdAt: true },
+          },
+        },
+        orderBy: { createdAt: "desc" },
+        skip,
+        take: PAGE_SIZE,
+      }),
+      db.invoiceTicket.count({ where }),
+    ]);
+
+    const formatted = tickets.map((t) => ({
+      id: t.id,
+      category: t.category,
+      description: t.description,
+      status: t.status,
+      createdAt: t.createdAt,
+      lastActivityAt: t.replies[0]?.createdAt ?? t.createdAt,
+      invoiceNumber: t.invoice.invoiceNumber,
+    }));
+
+    return { success: true, data: { tickets: formatted, total } };
+  } catch (error) {
+    console.error("[portal-tickets] listPortalTickets error:", error);
+    return { success: false, error: "Failed to load tickets" };
+  }
+}
+
+// ─── Get Ticket Detail ────────────────────────────────────────────────────────
+
+export async function getPortalTicketDetail(ticketId: string) {
+  try {
+    const { customerId, orgId } = await requirePortalSession();
+
+    const ticket = await db.invoiceTicket.findFirst({
+      where: {
+        id: ticketId,
+        orgId,
+        invoice: {
+          customerId,
+        },
+      },
+      include: {
+        invoice: { select: { id: true, invoiceNumber: true } },
+        replies: {
+          where: { isInternal: false },
+          orderBy: { createdAt: "asc" },
+          include: {
+            attachments: {
+              select: {
+                id: true,
+                fileName: true,
+                size: true,
+                mimeType: true,
+                storageKey: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (!ticket) return null;
+
+    return ticket;
+  } catch (error) {
+    console.error("[portal-tickets] getPortalTicketDetail error:", error);
+    return null;
+  }
+}
+
+// ─── Submit Portal Reply ─────────────────────────────────────────────────────
+
+export async function submitPortalTicketReply(
+  ticketId: string,
+  data: { message: string, attachmentIds?: string[] }
+): Promise<ActionResult<{ replyId: string }>> {
+  try {
+    const { customerId, orgId, orgSlug } = await requirePortalSession();
+
+    if (!data.message.trim()) {
+      return { success: false, error: "Message is required" };
+    }
+
+    // Security check: Verify ticket belongs to customer
+    const ticket = await db.invoiceTicket.findFirst({
+      where: {
+        id: ticketId,
+        orgId,
+        invoice: { customerId },
+      },
+      include: {
+        invoice: { select: { customerId: true } },
+      },
+    });
+
+    if (!ticket) {
+      return { success: false, error: "Ticket not found or access denied" };
+    }
+
+    const customer = await db.customer.findUnique({
+      where: { id: customerId },
+      select: { name: true },
+    });
+
+    const reply = await db.ticketReply.create({
+      data: {
+        ticketId,
+        portalCustomerId: customerId,
+        authorName: customer?.name ?? "Customer",
+        isInternal: false,
+        message: data.message.trim(),
+      },
+    });
+
+    // Link attachments if provided
+    if (data.attachmentIds && data.attachmentIds.length > 0) {
+      await db.fileAttachment.updateMany({
+        where: {
+          id: { in: data.attachmentIds },
+          organizationId: orgId,
+          entityId: "temp", // Usually uploaded with temp entityId
+        },
+        data: {
+          entityType: "ticket_reply",
+          entityId: reply.id,
+        },
+      });
+    }
+
+    // Note: In a real system, we'd trigger a notification to staff here.
+    // Sprint 18.2 engine can be used for this.
+
+    revalidatePath(`/portal/${orgSlug}/tickets/${ticketId}`);
+    return { success: true, data: { replyId: reply.id } };
+  } catch (error) {
+    console.error("[portal-tickets] submitPortalTicketReply error:", error);
+    return { success: false, error: "Failed to send reply" };
+  }
+}

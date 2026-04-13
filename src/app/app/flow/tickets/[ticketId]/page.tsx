@@ -117,6 +117,7 @@ export default async function TicketDetailPage({
               isInternal: r.isInternal,
               message: r.message,
               createdAt: r.createdAt,
+              attachments: r.attachments?.map(a => ({ id: a.id, fileName: a.fileName, size: a.size })),
             })),
           }}
         />
