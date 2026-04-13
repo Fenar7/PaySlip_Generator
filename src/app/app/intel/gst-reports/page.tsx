@@ -61,10 +61,14 @@ function Gstr1Tab({
   data,
   loading,
   onExportCsv,
+  onExportJson,
+  canExportJson,
 }: {
   data: Gstr1Data | null;
   loading: boolean;
   onExportCsv: () => void;
+  onExportJson: () => void;
+  canExportJson: boolean;
 }) {
   if (loading) {
     return (
@@ -113,7 +117,15 @@ function Gstr1Tab({
       )}
 
       {/* Export Button */}
-      <div className="flex justify-end">
+      <div className="flex flex-wrap items-center justify-end gap-3">
+        {!canExportJson && (
+          <p className="text-xs text-slate-500">
+            GSTR-1 JSON export is available for a single filing month only.
+          </p>
+        )}
+        <Button variant="secondary" onClick={onExportJson} disabled={!canExportJson}>
+          Export JSON
+        </Button>
         <Button variant="primary" onClick={onExportCsv}>
           Export CSV
         </Button>
@@ -491,6 +503,19 @@ export default function GstReportsPage() {
     }
   }, [startYear, startMonth, endYear, endMonth]);
 
+  const canExportJson = startYear === endYear && startMonth === endMonth;
+
+  const handleExportJson = useCallback(() => {
+    if (!canExportJson) {
+      setError("GSTR-1 JSON export requires the start and end month to match.");
+      return;
+    }
+
+    setError("");
+    const period = `${startYear}-${String(startMonth).padStart(2, "0")}`;
+    window.open(`/api/export/gstr1?period=${period}`, "_blank", "noopener,noreferrer");
+  }, [canExportJson, startYear, startMonth]);
+
   const months = Array.from({ length: 12 }, (_, i) => ({
     value: i + 1,
     label: new Date(2000, i).toLocaleString("en-IN", { month: "short" }),
@@ -588,7 +613,13 @@ export default function GstReportsPage() {
 
           {/* Tab Content */}
           {activeTab === "gstr1" && (
-            <Gstr1Tab data={gstr1Data} loading={loading} onExportCsv={handleExportCsv} />
+            <Gstr1Tab
+              data={gstr1Data}
+              loading={loading}
+              onExportCsv={handleExportCsv}
+              onExportJson={handleExportJson}
+              canExportJson={canExportJson}
+            />
           )}
           {activeTab === "gstr3b" && (
             <Gstr3bTab data={gstr3bData} loading={loading} />

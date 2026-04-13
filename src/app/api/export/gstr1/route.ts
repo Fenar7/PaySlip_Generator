@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getOrgContext } from "@/lib/auth";
+import { checkFeature } from "@/lib/plans/enforcement";
 import { generateGSTR1 } from "@/lib/gstr1-generator";
 
 export const runtime = "nodejs";
@@ -10,6 +11,14 @@ export async function GET(request: NextRequest) {
     const ctx = await getOrgContext();
     if (!ctx) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const allowed = await checkFeature(ctx.orgId, "gstrExport");
+    if (!allowed) {
+      return NextResponse.json(
+        { error: "GSTR Export requires a Pro plan or above." },
+        { status: 403 },
+      );
     }
 
     const period = request.nextUrl.searchParams.get("period");
