@@ -16,8 +16,11 @@ export interface PlanLimits {
   customBranding: boolean;
   approvalWorkflows: boolean;
   approvalPolicies: boolean;
+  approvalPolicyManager: boolean;
   ticketSla: boolean;
+  slaPolicyManager: boolean;
   workflowAutomation: boolean;
+  workflowBuilderUi: boolean;
   workflowRunHistory: boolean;
   opsControlCenter: boolean;
   proxyAccess: boolean;
@@ -90,8 +93,11 @@ export const PLAN_LIMITS: Record<PlanId, PlanLimits> = {
     customBranding: false,
     approvalWorkflows: false,
     approvalPolicies: false,
+    approvalPolicyManager: false,
     ticketSla: false,
+    slaPolicyManager: false,
     workflowAutomation: false,
+    workflowBuilderUi: false,
     workflowRunHistory: false,
     opsControlCenter: false,
     proxyAccess: false,
@@ -142,8 +148,11 @@ export const PLAN_LIMITS: Record<PlanId, PlanLimits> = {
     customBranding: true,
     approvalWorkflows: false,
     approvalPolicies: false,
+    approvalPolicyManager: false,
     ticketSla: false,
+    slaPolicyManager: false,
     workflowAutomation: false,
+    workflowBuilderUi: false,
     workflowRunHistory: false,
     opsControlCenter: false,
     proxyAccess: false,
@@ -194,8 +203,11 @@ export const PLAN_LIMITS: Record<PlanId, PlanLimits> = {
     customBranding: true,
     approvalWorkflows: true,
     approvalPolicies: true,
+    approvalPolicyManager: true,
     ticketSla: true,
+    slaPolicyManager: true,
     workflowAutomation: false,
+    workflowBuilderUi: false,
     workflowRunHistory: false,
     opsControlCenter: false,
     proxyAccess: true,
@@ -246,8 +258,11 @@ export const PLAN_LIMITS: Record<PlanId, PlanLimits> = {
     customBranding: true,
     approvalWorkflows: true,
     approvalPolicies: true,
+    approvalPolicyManager: true,
     ticketSla: true,
+    slaPolicyManager: true,
     workflowAutomation: true,
+    workflowBuilderUi: true,
     workflowRunHistory: true,
     opsControlCenter: true,
     proxyAccess: true,

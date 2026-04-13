@@ -13,6 +13,7 @@ import {
   XCircle,
   TrendingUp,
   GitBranch,
+  Shield,
 } from "lucide-react";
 
 export const metadata: Metadata = { title: "SW Flow Control Center" };
@@ -144,6 +145,27 @@ export default async function FlowPage() {
         </div>
       </div>
 
+      {/* Escalation Rules Quick Link */}
+      <div className="border rounded-xl p-5 flex items-center justify-between bg-white dark:bg-zinc-900 shadow-sm">
+        <div className="flex items-center gap-3">
+          <div className="p-2 rounded-lg bg-orange-50 dark:bg-orange-900/20">
+            <Shield className="w-5 h-5 text-orange-600 dark:text-orange-400" />
+          </div>
+          <div>
+            <p className="font-semibold text-sm">Escalation Rules</p>
+            <p className="text-xs text-[var(--muted-foreground)] mt-0.5">
+              Configure automatic escalation for SLA breaches and approval timeouts.
+            </p>
+          </div>
+        </div>
+        <Link
+          href="/app/flow/escalations"
+          className="text-xs text-blue-600 dark:text-blue-400 hover:underline whitespace-nowrap"
+        >
+          Manage Rules →
+        </Link>
+      </div>
+
       {/* Activity + Workflows */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-2">
         <div className="border rounded-xl p-5 flex flex-col gap-4 bg-white dark:bg-zinc-900 shadow-sm">
@@ -169,7 +191,7 @@ export default async function FlowPage() {
                     <div className="flex items-center gap-3">
                       <div className="flex flex-col items-end gap-0.5 text-xs">
                         <span className={`font-semibold ${
-                          run.status === "COMPLETED" ? "text-emerald-600" : 
+                          run.status === "SUCCEEDED" ? "text-emerald-600" :
                           run.status === "FAILED" ? "text-red-600" : "text-amber-600"
                         }`}>
                           {run.status}
