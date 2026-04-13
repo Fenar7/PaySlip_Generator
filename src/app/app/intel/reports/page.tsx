@@ -44,6 +44,56 @@ const REPORTS = [
       </svg>
     ),
   },
+  {
+    title: "Queue Summary Report",
+    description: "Real-time health of operational queues, pending items, and failures.",
+    href: "/app/intel/reports/operations/queue-summary",
+    icon: (
+      <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+        <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 12h16.5m-16.5 3.75h16.5M3.75 19.5h16.5M5.625 4.5h12.75a1.875 1.875 0 0 1 0 3.75H5.625a1.875 1.875 0 0 1 0-3.75Z" />
+      </svg>
+    ),
+  },
+  {
+    title: "SLA Breach Analytics",
+    description: "Analysis of ticket SLA breaches by category and priority.",
+    href: "/app/intel/reports/operations/sla-breaches",
+    icon: (
+      <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+        <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2.25m0 0v2.25m0-2.25h2.25m-2.25 0H9.75M21 12A9 9 0 1 1 3 12a9 9 0 0 1 18 0Z" />
+      </svg>
+    ),
+  },
+  {
+    title: "Workflow Run Analytics",
+    description: "Insights into workflow executions, status, and volumes.",
+    href: "/app/intel/reports/operations/workflow-runs",
+    icon: (
+      <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+        <path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182m0-4.991v4.99" />
+      </svg>
+    ),
+  },
+  {
+    title: "Notification Delivery Analytics",
+    description: "Message deliverability analysis across channels.",
+    href: "/app/intel/reports/operations/notification-deliveries",
+    icon: (
+      <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+        <path strokeLinecap="round" strokeLinejoin="round" d="M21.75 6.75v10.5a2.25 2.25 0 0 1-2.25 2.25h-15a2.25 2.25 0 0 1-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0 0 19.5 4.5h-15a2.25 2.25 0 0 0-2.25 2.25m19.5 0v.243a2.25 2.25 0 0 1-1.07 1.916l-7.5 4.615a2.25 2.25 0 0 1-2.36 0L3.32 8.909A2.25 2.25 0 0 1 2.25 8.643V6.75m19.5 0 1.07-1.916" />
+      </svg>
+    ),
+  },
+  {
+    title: "Portal Ticket Operations",
+    description: "Customer portal ticketing performance and usage.",
+    href: "/app/intel/reports/operations/portal-tickets",
+    icon: (
+      <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+        <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 6v.75m0 3v.75m0 3v.75m0 3V18m-9-5.25h5.25M7.5 15h3M3.375 5.25c-.621 0-1.125.504-1.125 1.125v3.026a2.999 2.999 0 0 1 0 5.198v3.026c0 .621.504 1.125 1.125 1.125h17.25c.621 0 1.125-.504 1.125-1.125v-3.026a2.999 2.999 0 0 1 0-5.198V6.375c0-.621-.504-1.125-1.125-1.125H3.375Z" />
+      </svg>
+    ),
+  },
 ] as const;
 
 export default function ReportsHubPage() {
