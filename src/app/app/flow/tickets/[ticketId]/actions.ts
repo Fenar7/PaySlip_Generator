@@ -16,7 +16,10 @@ export async function getTicketDetail(ticketId: string) {
     where: { id: ticketId, orgId },
     include: {
       invoice: { select: { id: true, invoiceNumber: true } },
-      replies: { orderBy: { createdAt: "asc" } },
+      replies: {
+        orderBy: { createdAt: "asc" },
+        include: { attachments: true },
+      },
     },
   });
 
