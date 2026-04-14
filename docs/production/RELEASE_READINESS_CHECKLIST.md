@@ -21,7 +21,8 @@ Use this checklist before claiming a release candidate is ready for production.
 | Area | Check |
 | --- | --- |
 | Core auth/db | Supabase + PostgreSQL values set; migrations applied |
-| Secrets | `CRON_SECRET`, `PORTAL_JWT_SECRET`, `DUNNING_OPT_OUT_SECRET`, and `MARKETPLACE_MODERATOR_USER_IDS` set intentionally |
+| Secrets | `CRON_SECRET`, `PORTAL_JWT_SECRET`, `DUNNING_OPT_OUT_SECRET`, `MARKETPLACE_MODERATOR_USER_IDS`, `MARKETPLACE_FINANCE_USER_IDS`, and `PAYOUT_DETAILS_ENCRYPTION_KEY` set intentionally |
+| Marketplace payouts | `MARKETPLACE_PAYOUT_PROVIDER` intentionally set, settlement hold days reviewed, beneficiary verification + finance operator ownership confirmed before enabling payout runs |
 | Billing | Razorpay keys and webhook secret configured |
 | Compliance | IRP/exchange-rate credentials configured if those features are being launched |
 | Integrations | QuickBooks/Zoho credentials configured only if those integrations are enabled |
@@ -54,6 +55,7 @@ Use this checklist before claiming a release candidate is ready for production.
 | Phase 19 SW Docs Vault | Unified index `/app/docs/vault` accurately lists all doc types, applies text search and archive toggles |
 | Phase 19 Timeline | `DocumentEvent` timeline correctly tracks append-only lifecycle events across all documents |
 | Phase 19 Templates | Marketplace moderation is limited to configured moderators, public detail reads expose only `PUBLISHED` templates, installed-template reads are revision-bound, and `scripts/backfill-template-revisions.ts` verification passes without degradations |
+| Phase 20 Marketplace payouts | Beneficiaries are verified before revenue becomes eligible, payout runs remain operator-visible through approval/execution/manual resolution, and reconciliation/export views preserve traceability instead of silently marking revenue paid |
 | Pay flows | Dunning, payment arrangements, portal payment path |
 | Global/compliance | GST/IRP/TDS/GSTR/i18n/multi-currency smoke coverage as applicable |
 

@@ -16,6 +16,12 @@ export interface MarketplaceModeratorContext {
   role: string | null;
 }
 
+export interface MarketplaceFinanceContext {
+  userId: string;
+  orgId: string | null;
+  role: string | null;
+}
+
 export type AuthRoutingContext =
   | { isAuthenticated: false }
   | { isAuthenticated: true; userId: string; hasOrg: false }
@@ -127,8 +133,19 @@ function getMarketplaceModeratorUserIds(): string[] {
     .filter(Boolean);
 }
 
+function getMarketplaceFinanceUserIds(): string[] {
+  return (process.env.MARKETPLACE_FINANCE_USER_IDS ?? "")
+    .split(",")
+    .map((value) => value.trim())
+    .filter(Boolean);
+}
+
 export function isMarketplaceModeratorUser(userId: string): boolean {
   return getMarketplaceModeratorUserIds().includes(userId);
+}
+
+export function isMarketplaceFinanceUser(userId: string): boolean {
+  return getMarketplaceFinanceUserIds().includes(userId);
 }
 
 /**
@@ -153,6 +170,49 @@ export async function requireMarketplaceModerator(): Promise<MarketplaceModerato
 
   if (!isMarketplaceModeratorUser(context.userId)) {
     throw new Error("Marketplace moderation access denied");
+  }
+
+  return {
+    userId: context.userId,
+    orgId: context.hasOrg ? context.orgId : null,
+    role: context.hasOrg ? context.role : null,
+  };
+}
+
+export async function requireMarketplaceFinance(): Promise<MarketplaceFinanceContext> {
+  const context = await getAuthRoutingContext();
+
+  if (!context.isAuthenticated) {
+    redirect("/auth/login");
+  }
+
+  if (!isMarketplaceFinanceUser(context.userId)) {
+    throw new Error("Marketplace finance access denied");
+  }
+
+  return {
+    userId: context.userId,
+    orgId: context.hasOrg ? context.orgId : null,
+    role: context.hasOrg ? context.role : null,
+  };
+}
+
+export async function requireMarketplacePublisherAdmin(): Promise<OrgContext> {
+  return requireRole("admin");
+}
+
+export async function requireMarketplaceFinanceOrModerator(): Promise<MarketplaceFinanceContext> {
+  const context = await getAuthRoutingContext();
+
+  if (!context.isAuthenticated) {
+    redirect("/auth/login");
+  }
+
+  if (
+    !isMarketplaceFinanceUser(context.userId) &&
+    !isMarketplaceModeratorUser(context.userId)
+  ) {
+    throw new Error("Marketplace payout operator access denied");
   }
 
   return {
