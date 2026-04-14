@@ -9,6 +9,7 @@ import type { Prisma } from "@/generated/prisma/client";
 import { reconcileInvoicePayment, validatePaymentAmount } from "@/lib/invoice-reconciliation";
 import { postInvoiceIssueTx, postInvoicePaymentTx, reverseJournalEntryTx } from "@/lib/accounting";
 import { fireWorkflowTrigger } from "@/lib/flow/workflow-engine";
+import { syncInvoiceToIndex } from "@/lib/docs-vault";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -177,6 +178,17 @@ export async function saveInvoice(
       });
     }
 
+    // Phase 19.1: Sync to DocumentIndex
+    void syncInvoiceToIndex(orgId, {
+      id: invoice.id,
+      invoiceNumber: invoice.invoiceNumber,
+      status: invoice.status,
+      invoiceDate: invoice.invoiceDate,
+      totalAmount: invoice.totalAmount,
+      displayCurrency: null,
+      archivedAt: invoice.archivedAt,
+    });
+
     revalidatePath("/app/docs/invoices");
     return { success: true, data: { id: invoice.id, invoiceNumber } };
   } catch (error) {
@@ -252,6 +264,24 @@ export async function updateInvoice(
       });
     }
 
+    // Phase 19.1: Sync updated invoice to DocumentIndex
+    const updated = await db.invoice.findUnique({
+      where: { id },
+      include: { customer: true },
+    });
+    if (updated) {
+      void syncInvoiceToIndex(orgId, {
+        id: updated.id,
+        invoiceNumber: updated.invoiceNumber,
+        status: updated.status,
+        invoiceDate: updated.invoiceDate,
+        totalAmount: updated.totalAmount,
+        displayCurrency: updated.displayCurrency,
+        archivedAt: updated.archivedAt,
+        customer: updated.customer ?? undefined,
+      });
+    }
+
     revalidatePath("/app/docs/invoices");
     revalidatePath(`/app/docs/invoices/${id}`);
     return { success: true, data: { id } };
@@ -282,9 +312,22 @@ export async function archiveInvoice(id: string): Promise<ActionResult<void>> {
       return { success: false, error: "Invoice not found" };
     }
 
-    await db.invoice.update({
+    const archived = await db.invoice.update({
       where: { id },
       data: { archivedAt: new Date() },
+      include: { customer: true },
+    });
+
+    // Phase 19.1: Sync archive state to DocumentIndex
+    void syncInvoiceToIndex(orgId, {
+      id: archived.id,
+      invoiceNumber: archived.invoiceNumber,
+      status: archived.status,
+      invoiceDate: archived.invoiceDate,
+      totalAmount: archived.totalAmount,
+      displayCurrency: archived.displayCurrency,
+      archivedAt: archived.archivedAt,
+      customer: archived.customer ?? undefined,
     });
 
     revalidatePath("/app/docs/invoices");
