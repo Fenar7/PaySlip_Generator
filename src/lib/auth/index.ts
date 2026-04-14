@@ -6,7 +6,12 @@ export {
   requireRole,
   isMarketplaceModeratorUser,
   requireMarketplaceModerator,
+  isMarketplaceFinanceUser,
+  requireMarketplaceFinance,
+  requireMarketplaceFinanceOrModerator,
+  requireMarketplacePublisherAdmin,
   type AuthRoutingContext,
   type OrgContext,
   type MarketplaceModeratorContext,
+  type MarketplaceFinanceContext,
 } from "./require-org";
