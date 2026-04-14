@@ -3,6 +3,8 @@ import Link from "next/link";
 import { getSalarySlip, releaseSalarySlip, archiveSalarySlip } from "../actions";
 import { DocumentAttachments } from "@/components/docs/document-attachments";
 import { getDocAttachments } from "@/app/app/docs/attachment-actions";
+import { getDocumentTimelineForPage } from "@/lib/document-events";
+import { DocumentTimeline } from "@/components/docs/document-timeline";
 
 export const metadata = {
   title: "Salary Slip Details | Slipwise",
@@ -27,9 +29,10 @@ export default async function SalarySlipDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const [slip, attachments] = await Promise.all([
+  const [slip, attachments, events] = await Promise.all([
     getSalarySlip(id),
     getDocAttachments(id, "salary_slip"),
+    getDocumentTimelineForPage("salary_slip", id).catch(() => []),
   ]);
 
   if (!slip) {
@@ -162,7 +165,12 @@ export default async function SalarySlipDetailPage({
         <div className="mt-8">
           <DocumentAttachments docId={slip.id} docType="salary_slip" attachments={attachments} />
         </div>
+
+        {/* Timeline */}
+        <div className="mt-6 rounded-lg border border-slate-200 bg-white p-6">
+          <DocumentTimeline events={events} title="History" />
+        </div>
+        </div>
       </div>
-    </div>
   );
 }

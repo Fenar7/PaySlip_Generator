@@ -3,6 +3,8 @@ import Link from "next/link";
 import { getQuote, sendQuoteAction, convertQuoteAction, duplicateQuote, deleteQuote } from "../actions";
 import { DocumentAttachments } from "@/components/docs/document-attachments";
 import { getDocAttachments } from "@/app/app/docs/attachment-actions";
+import { getDocumentTimelineForPage } from "@/lib/document-events";
+import { DocumentTimeline } from "@/components/docs/document-timeline";
 
 export const metadata = {
   title: "Quote Detail | Slipwise",
@@ -39,9 +41,10 @@ export default async function QuoteDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const [quote, attachments] = await Promise.all([
+  const [quote, attachments, events] = await Promise.all([
     getQuote(id),
     getDocAttachments(id, "quote"),
+    getDocumentTimelineForPage("quote", id).catch(() => []),
   ]);
 
   if (!quote) {
@@ -320,7 +323,13 @@ export default async function QuoteDetailPage({
             </div>
           </aside>
         </div>
+
+        {/* Phase 19.2: Quote lifecycle timeline */}
+        <div className="mt-6 rounded-lg border border-slate-200 bg-white p-6">
+          <DocumentTimeline events={events} title="History" />
+        </div>
       </div>
     </div>
   );
 }
+

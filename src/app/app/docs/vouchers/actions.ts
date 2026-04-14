@@ -6,6 +6,8 @@ import { nextDocumentNumber } from "@/lib/docs";
 import { revalidatePath } from "next/cache";
 import type { Prisma } from "@/generated/prisma/client";
 import { postVoucherTx } from "@/lib/accounting";
+import { emitVoucherEvent } from "@/lib/document-events";
+import { syncVoucherToIndex } from "@/lib/docs-vault";
 
 export type ActionResult<T> = 
   | { success: true; data: T }
@@ -76,6 +78,22 @@ export async function saveVoucher(
       return created;
     });
     
+    // Phase 19.2: emit normalized document event
+    void emitVoucherEvent(orgId, voucher.id, status === "approved" ? "approved" : "created", {
+      actorId: userId,
+      metadata: { voucherNumber },
+    });
+    // Phase 19.1: Sync to DocumentIndex
+    void syncVoucherToIndex(orgId, {
+      id: voucher.id,
+      voucherNumber,
+      status,
+      voucherDate: input.voucherDate,
+      totalAmount: voucher.totalAmount,
+      type: voucher.type,
+      archivedAt: null,
+    });
+
     revalidatePath("/app/docs/vouchers");
     return { success: true, data: { id: voucher.id, voucherNumber } };
   } catch (error) {
@@ -153,6 +171,26 @@ export async function updateVoucher(
       }
     });
     
+    // Phase 19.2: emit normalized document event
+    void emitVoucherEvent(orgId, id, "updated", { actorId: userId });
+    // Phase 19.1: Sync updated voucher to DocumentIndex
+    const updated = await db.voucher.findUnique({
+      where: { id },
+      include: { vendor: true },
+    });
+    if (updated) {
+      void syncVoucherToIndex(orgId, {
+        id: updated.id,
+        voucherNumber: updated.voucherNumber,
+        status: updated.status,
+        voucherDate: updated.voucherDate,
+        totalAmount: updated.totalAmount,
+        type: updated.type,
+        archivedAt: updated.archivedAt,
+        vendor: updated.vendor ?? undefined,
+      });
+    }
+
     revalidatePath("/app/docs/vouchers");
     revalidatePath(`/app/docs/vouchers/${id}`);
     return { success: true, data: { id } };
@@ -166,11 +204,27 @@ export async function archiveVoucher(id: string): Promise<ActionResult<void>> {
   try {
     const { orgId } = await requireOrgContext();
     
-    await db.voucher.update({
+    const archived = await db.voucher.update({
       where: { id, organizationId: orgId },
       data: { archivedAt: new Date() },
+      include: { vendor: true },
     });
-    
+
+    // Phase 19.1: Sync archive state to DocumentIndex
+    void syncVoucherToIndex(orgId, {
+      id: archived.id,
+      voucherNumber: archived.voucherNumber,
+      status: archived.status,
+      voucherDate: archived.voucherDate,
+      totalAmount: archived.totalAmount,
+      type: archived.type,
+      archivedAt: archived.archivedAt,
+      vendor: archived.vendor ?? undefined,
+    });
+
+    // Phase 19.2: emit normalized document event
+    void emitVoucherEvent(orgId, id, "archived");
+
     revalidatePath("/app/docs/vouchers");
     return { success: true, data: undefined };
   } catch (error) {
@@ -218,6 +272,14 @@ export async function duplicateVoucher(id: string): Promise<ActionResult<{ id: s
       },
     });
     
+    // Phase 19.2: emit normalized document events
+    void emitVoucherEvent(orgId, duplicate.id, "created", {
+      metadata: { duplicatedFrom: id, voucherNumber: newNumber },
+    });
+    void emitVoucherEvent(orgId, id, "duplicated", {
+      metadata: { newVoucherId: duplicate.id, newVoucherNumber: newNumber },
+    });
+
     revalidatePath("/app/docs/vouchers");
     return { success: true, data: { id: duplicate.id, voucherNumber: newNumber } };
   } catch (error) {
