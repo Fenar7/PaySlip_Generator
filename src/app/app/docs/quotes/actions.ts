@@ -12,6 +12,7 @@ import {
 } from "@/lib/quotes";
 import { revalidatePath } from "next/cache";
 import { emitQuoteEvent } from "@/lib/document-events";
+import { syncQuoteToIndex } from "@/lib/docs-vault";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -147,6 +148,18 @@ export async function createQuoteAction(
       metadata: { quoteNumber: quote.quoteNumber },
     });
 
+    // Phase 19.1: Sync to DocumentIndex (quotes are first-class docs)
+    void syncQuoteToIndex(orgId, {
+      id: quote.id,
+      quoteNumber: quote.quoteNumber,
+      title: quote.title,
+      status: quote.status,
+      issueDate: quote.issueDate,
+      totalAmount: quote.totalAmount,
+      currency: quote.currency,
+      archivedAt: null,
+    });
+
     revalidatePath("/app/docs/quotes");
     return { success: true, data: { id: quote.id, quoteNumber: quote.quoteNumber } };
   } catch (error) {
@@ -180,6 +193,25 @@ export async function updateQuoteAction(
 
     // Phase 19.2: emit normalized document event
     void emitQuoteEvent(orgId, quoteId, "updated", { actorId: userId });
+
+    // Phase 19.1: Sync updated quote to DocumentIndex
+    const updated = await db.quote.findUnique({
+      where: { id: quoteId },
+      include: { customer: true },
+    });
+    if (updated) {
+      void syncQuoteToIndex(orgId, {
+        id: updated.id,
+        quoteNumber: updated.quoteNumber,
+        title: updated.title,
+        status: updated.status,
+        issueDate: updated.issueDate,
+        totalAmount: updated.totalAmount,
+        currency: updated.currency,
+        archivedAt: updated.archivedAt,
+        customer: updated.customer ?? undefined,
+      });
+    }
 
     revalidatePath("/app/docs/quotes");
     revalidatePath(`/app/docs/quotes/${quoteId}`);
@@ -219,6 +251,93 @@ export async function deleteQuote(quoteId: string): Promise<ActionResult<void>> 
   }
 }
 
+// ─── Archive Quote (Phase 19.1 — first-class vault support) ───────────────────
+
+export async function archiveQuote(quoteId: string): Promise<ActionResult<void>> {
+  try {
+    const { orgId, userId } = await requireOrgContext();
+
+    const existing = await db.quote.findFirst({
+      where: { id: quoteId, orgId },
+    });
+
+    if (!existing) {
+      return { success: false, error: "Quote not found" };
+    }
+
+    const archived = await db.quote.update({
+      where: { id: quoteId },
+      data: { archivedAt: new Date() },
+      include: { customer: true },
+    });
+
+    // Phase 19.1: Sync archive state to DocumentIndex
+    void syncQuoteToIndex(orgId, {
+      id: archived.id,
+      quoteNumber: archived.quoteNumber,
+      title: archived.title,
+      status: archived.status,
+      issueDate: archived.issueDate,
+      totalAmount: archived.totalAmount,
+      currency: archived.currency,
+      archivedAt: archived.archivedAt,
+      customer: archived.customer ?? undefined,
+    });
+
+    // Phase 19.2: emit normalized document event
+    void emitQuoteEvent(orgId, quoteId, "archived", { actorId: userId });
+
+    revalidatePath("/app/docs/quotes");
+    revalidatePath("/app/docs/vault");
+    return { success: true, data: undefined };
+  } catch (error) {
+    console.error("archiveQuote error:", error);
+    return { success: false, error: "Failed to archive quote" };
+  }
+}
+
+export async function restoreQuote(quoteId: string): Promise<ActionResult<void>> {
+  try {
+    const { orgId, userId } = await requireOrgContext();
+
+    const existing = await db.quote.findFirst({
+      where: { id: quoteId, orgId },
+    });
+
+    if (!existing) {
+      return { success: false, error: "Quote not found" };
+    }
+
+    const restored = await db.quote.update({
+      where: { id: quoteId },
+      data: { archivedAt: null },
+      include: { customer: true },
+    });
+
+    // Phase 19.1: Sync restore state to DocumentIndex
+    void syncQuoteToIndex(orgId, {
+      id: restored.id,
+      quoteNumber: restored.quoteNumber,
+      title: restored.title,
+      status: restored.status,
+      issueDate: restored.issueDate,
+      totalAmount: restored.totalAmount,
+      currency: restored.currency,
+      archivedAt: restored.archivedAt,
+      customer: restored.customer ?? undefined,
+    });
+
+    // Phase 19.2: emit normalized document event
+    void emitQuoteEvent(orgId, quoteId, "restored", { actorId: userId });
+
+    revalidatePath("/app/docs/quotes");
+    revalidatePath("/app/docs/vault");
+    return { success: true, data: undefined };
+  } catch (error) {
+    console.error("restoreQuote error:", error);
+    return { success: false, error: "Failed to restore quote" };
+  }
+}
 // ─── Send Quote Action ───────────────────────────────────────────────────────
 
 export async function sendQuoteAction(quoteId: string): Promise<ActionResult<void>> {
@@ -229,6 +348,25 @@ export async function sendQuoteAction(quoteId: string): Promise<ActionResult<voi
 
     // Phase 19.2: emit normalized document event
     void emitQuoteEvent(orgId, quoteId, "sent", { actorId: userId });
+
+    // Sync status change to DocumentIndex
+    const updated = await db.quote.findUnique({
+      where: { id: quoteId },
+      include: { customer: true },
+    });
+    if (updated) {
+      void syncQuoteToIndex(orgId, {
+        id: updated.id,
+        quoteNumber: updated.quoteNumber,
+        title: updated.title,
+        status: updated.status,
+        issueDate: updated.issueDate,
+        totalAmount: updated.totalAmount,
+        currency: updated.currency,
+        archivedAt: updated.archivedAt,
+        customer: updated.customer ?? undefined,
+      });
+    }
 
     revalidatePath("/app/docs/quotes");
     revalidatePath(`/app/docs/quotes/${quoteId}`);
@@ -255,6 +393,25 @@ export async function convertQuoteAction(
       actorId: userId,
       metadata: { invoiceId: invoice.id },
     });
+
+    // Sync status change (CONVERTED) to DocumentIndex
+    const updated = await db.quote.findUnique({
+      where: { id: quoteId },
+      include: { customer: true },
+    });
+    if (updated) {
+      void syncQuoteToIndex(orgId, {
+        id: updated.id,
+        quoteNumber: updated.quoteNumber,
+        title: updated.title,
+        status: updated.status,
+        issueDate: updated.issueDate,
+        totalAmount: updated.totalAmount,
+        currency: updated.currency,
+        archivedAt: updated.archivedAt,
+        customer: updated.customer ?? undefined,
+      });
+    }
 
     revalidatePath("/app/docs/quotes");
     revalidatePath(`/app/docs/quotes/${quoteId}`);
@@ -320,6 +477,18 @@ export async function duplicateQuote(
     });
     void emitQuoteEvent(orgId, quoteId, "duplicated", {
       metadata: { newQuoteId: quote.id, newQuoteNumber: quote.quoteNumber },
+    });
+
+    // Phase 19.1: Sync the new duplicate to DocumentIndex
+    void syncQuoteToIndex(orgId, {
+      id: quote.id,
+      quoteNumber: quote.quoteNumber,
+      title: quote.title,
+      status: quote.status,
+      issueDate: quote.issueDate,
+      totalAmount: quote.totalAmount,
+      currency: quote.currency,
+      archivedAt: null,
     });
 
     revalidatePath("/app/docs/quotes");

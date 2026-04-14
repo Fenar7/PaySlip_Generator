@@ -7,6 +7,7 @@ import { revalidatePath } from "next/cache";
 import type { Prisma } from "@/generated/prisma/client";
 import { postSalarySlipAccrualTx, postSalarySlipPayoutTx } from "@/lib/accounting";
 import { emitSalarySlipEvent } from "@/lib/document-events";
+import { syncSalarySlipToIndex } from "@/lib/docs-vault";
 
 export type ActionResult<T> = 
   | { success: true; data: T }
@@ -80,6 +81,17 @@ export async function saveSalarySlip(
     void emitSalarySlipEvent(orgId, salarySlip.id, status === "released" ? "released" : "created", {
       actorId: userId,
       metadata: { slipNumber },
+    });
+
+    // Phase 19.1: Sync to DocumentIndex
+    void syncSalarySlipToIndex(orgId, {
+      id: salarySlip.id,
+      slipNumber,
+      status,
+      month: input.month,
+      year: input.year,
+      netPay: salarySlip.netPay,
+      archivedAt: null,
     });
 
     revalidatePath("/app/docs/salary-slips");
@@ -156,6 +168,24 @@ export async function updateSalarySlip(
     
     // Phase 19.2: emit normalized document event
     void emitSalarySlipEvent(orgId, id, "updated", { actorId: orgId });
+
+    // Phase 19.1: Sync updated slip to DocumentIndex
+    const updated = await db.salarySlip.findUnique({
+      where: { id },
+      include: { employee: true },
+    });
+    if (updated) {
+      void syncSalarySlipToIndex(orgId, {
+        id: updated.id,
+        slipNumber: updated.slipNumber,
+        status: updated.status,
+        month: updated.month,
+        year: updated.year,
+        netPay: updated.netPay,
+        archivedAt: updated.archivedAt,
+        employee: updated.employee ?? undefined,
+      });
+    }
 
     revalidatePath("/app/docs/salary-slips");
     revalidatePath(`/app/docs/salary-slips/${id}`);
