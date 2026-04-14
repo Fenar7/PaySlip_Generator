@@ -82,6 +82,7 @@ export async function saveSalarySlip(
       actorId: userId,
       metadata: { slipNumber },
     });
+
     // Phase 19.1: Sync to DocumentIndex
     void syncSalarySlipToIndex(orgId, {
       id: salarySlip.id,
@@ -167,6 +168,7 @@ export async function updateSalarySlip(
     
     // Phase 19.2: emit normalized document event
     void emitSalarySlipEvent(orgId, id, "updated", { actorId: orgId });
+
     // Phase 19.1: Sync updated slip to DocumentIndex
     const updated = await db.salarySlip.findUnique({
       where: { id },
@@ -251,22 +253,9 @@ export async function archiveSalarySlip(id: string): Promise<ActionResult<void>>
   try {
     const { orgId } = await requireOrgContext();
     
-    const archived = await db.salarySlip.update({
+    await db.salarySlip.update({
       where: { id, organizationId: orgId },
       data: { archivedAt: new Date() },
-      include: { employee: true },
-    });
-
-    // Phase 19.1: Sync archive state to DocumentIndex
-    void syncSalarySlipToIndex(orgId, {
-      id: archived.id,
-      slipNumber: archived.slipNumber,
-      status: archived.status,
-      month: archived.month,
-      year: archived.year,
-      netPay: archived.netPay,
-      archivedAt: archived.archivedAt,
-      employee: archived.employee ?? undefined,
     });
 
     // Phase 19.2: emit normalized document event

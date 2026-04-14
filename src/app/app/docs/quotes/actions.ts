@@ -147,6 +147,7 @@ export async function createQuoteAction(
       actorId: userId,
       metadata: { quoteNumber: quote.quoteNumber },
     });
+
     // Phase 19.1: Sync to DocumentIndex (quotes are first-class docs)
     void syncQuoteToIndex(orgId, {
       id: quote.id,
@@ -192,6 +193,7 @@ export async function updateQuoteAction(
 
     // Phase 19.2: emit normalized document event
     void emitQuoteEvent(orgId, quoteId, "updated", { actorId: userId });
+
     // Phase 19.1: Sync updated quote to DocumentIndex
     const updated = await db.quote.findUnique({
       where: { id: quoteId },
@@ -242,7 +244,6 @@ export async function deleteQuote(quoteId: string): Promise<ActionResult<void>> 
     await db.quote.delete({ where: { id: quoteId } });
 
     revalidatePath("/app/docs/quotes");
-    revalidatePath("/app/docs/vault");
     return { success: true, data: undefined };
   } catch (error) {
     console.error("deleteQuote error:", error);
@@ -347,6 +348,7 @@ export async function sendQuoteAction(quoteId: string): Promise<ActionResult<voi
 
     // Phase 19.2: emit normalized document event
     void emitQuoteEvent(orgId, quoteId, "sent", { actorId: userId });
+
     // Sync status change to DocumentIndex
     const updated = await db.quote.findUnique({
       where: { id: quoteId },
@@ -391,6 +393,7 @@ export async function convertQuoteAction(
       actorId: userId,
       metadata: { invoiceId: invoice.id },
     });
+
     // Sync status change (CONVERTED) to DocumentIndex
     const updated = await db.quote.findUnique({
       where: { id: quoteId },
@@ -475,6 +478,7 @@ export async function duplicateQuote(
     void emitQuoteEvent(orgId, quoteId, "duplicated", {
       metadata: { newQuoteId: quote.id, newQuoteNumber: quote.quoteNumber },
     });
+
     // Phase 19.1: Sync the new duplicate to DocumentIndex
     void syncQuoteToIndex(orgId, {
       id: quote.id,

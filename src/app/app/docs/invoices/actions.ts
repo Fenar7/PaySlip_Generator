@@ -184,6 +184,7 @@ export async function saveInvoice(
       actorId: userId,
       metadata: { invoiceNumber },
     });
+
     // Phase 19.1: Sync to DocumentIndex
     void syncInvoiceToIndex(orgId, {
       id: invoice.id,
@@ -272,6 +273,7 @@ export async function updateInvoice(
 
     // Phase 19.2: emit normalized document event
     void emitInvoiceEvent(orgId, id, "updated", { actorId: userId });
+
     // Phase 19.1: Sync updated invoice to DocumentIndex
     const updated = await db.invoice.findUnique({
       where: { id },
@@ -320,22 +322,9 @@ export async function archiveInvoice(id: string): Promise<ActionResult<void>> {
       return { success: false, error: "Invoice not found" };
     }
 
-    const archived = await db.invoice.update({
+    await db.invoice.update({
       where: { id },
       data: { archivedAt: new Date() },
-      include: { customer: true },
-    });
-
-    // Phase 19.1: Sync archive state to DocumentIndex
-    void syncInvoiceToIndex(orgId, {
-      id: archived.id,
-      invoiceNumber: archived.invoiceNumber,
-      status: archived.status,
-      invoiceDate: archived.invoiceDate,
-      totalAmount: archived.totalAmount,
-      displayCurrency: archived.displayCurrency,
-      archivedAt: archived.archivedAt,
-      customer: archived.customer ?? undefined,
     });
 
     // Phase 19.2: emit normalized document event

@@ -83,6 +83,7 @@ export async function saveVoucher(
       actorId: userId,
       metadata: { voucherNumber },
     });
+
     // Phase 19.1: Sync to DocumentIndex
     void syncVoucherToIndex(orgId, {
       id: voucher.id,
@@ -173,6 +174,7 @@ export async function updateVoucher(
     
     // Phase 19.2: emit normalized document event
     void emitVoucherEvent(orgId, id, "updated", { actorId: userId });
+
     // Phase 19.1: Sync updated voucher to DocumentIndex
     const updated = await db.voucher.findUnique({
       where: { id },
@@ -204,22 +206,9 @@ export async function archiveVoucher(id: string): Promise<ActionResult<void>> {
   try {
     const { orgId } = await requireOrgContext();
     
-    const archived = await db.voucher.update({
+    await db.voucher.update({
       where: { id, organizationId: orgId },
       data: { archivedAt: new Date() },
-      include: { vendor: true },
-    });
-
-    // Phase 19.1: Sync archive state to DocumentIndex
-    void syncVoucherToIndex(orgId, {
-      id: archived.id,
-      voucherNumber: archived.voucherNumber,
-      status: archived.status,
-      voucherDate: archived.voucherDate,
-      totalAmount: archived.totalAmount,
-      type: archived.type,
-      archivedAt: archived.archivedAt,
-      vendor: archived.vendor ?? undefined,
     });
 
     // Phase 19.2: emit normalized document event
