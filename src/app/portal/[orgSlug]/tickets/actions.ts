@@ -1,6 +1,7 @@
 "use server";
 
 import { db } from "@/lib/db";
+import { listAttachmentsByEntityIds } from "@/lib/polymorphic-relations";
 import { requirePortalSession } from "@/lib/portal-auth";
 import { revalidatePath } from "next/cache";
 
@@ -104,24 +105,31 @@ export async function getPortalTicketDetail(ticketId: string) {
         replies: {
           where: { isInternal: false },
           orderBy: { createdAt: "asc" },
-          include: {
-            attachments: {
-              select: {
-                id: true,
-                fileName: true,
-                size: true,
-                mimeType: true,
-                storageKey: true,
-              },
-            },
-          },
         },
       },
     });
 
     if (!ticket) return null;
 
-    return ticket;
+    const attachmentsByEntityId = await listAttachmentsByEntityIds({
+      orgId,
+      entityType: "ticket_reply",
+      entityIds: ticket.replies.map((reply) => reply.id),
+    });
+
+    return {
+      ...ticket,
+      replies: ticket.replies.map((reply) => ({
+        ...reply,
+        attachments: (attachmentsByEntityId.get(reply.id) ?? []).map((attachment) => ({
+          id: attachment.id,
+          fileName: attachment.fileName,
+          size: attachment.size,
+          mimeType: attachment.mimeType,
+          storageKey: attachment.storageKey,
+        })),
+      })),
+    };
   } catch (error) {
     console.error("[portal-tickets] getPortalTicketDetail error:", error);
     return null;

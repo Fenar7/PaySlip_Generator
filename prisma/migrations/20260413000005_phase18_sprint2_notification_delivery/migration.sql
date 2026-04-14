@@ -2,24 +2,32 @@
 -- Adds NotificationDelivery model for outbound delivery attempt tracking
 
 -- Enum for delivery status lifecycle
-CREATE TYPE "NotificationDeliveryStatus" AS ENUM (
-  'QUEUED',
-  'SENDING',
-  'SENT',
-  'DELIVERED',
-  'FAILED',
-  'TERMINAL_FAILURE',
-  'REPLAYED'
-);
+DO $$ BEGIN
+  CREATE TYPE "NotificationDeliveryStatus" AS ENUM (
+    'QUEUED',
+    'SENDING',
+    'SENT',
+    'DELIVERED',
+    'FAILED',
+    'TERMINAL_FAILURE',
+    'REPLAYED'
+  );
+EXCEPTION
+  WHEN duplicate_object THEN NULL;
+END $$;
 
 -- Enum for delivery channel
-CREATE TYPE "NotificationDeliveryChannel" AS ENUM (
-  'in_app',
-  'email'
-);
+DO $$ BEGIN
+  CREATE TYPE "NotificationDeliveryChannel" AS ENUM (
+    'in_app',
+    'email'
+  );
+EXCEPTION
+  WHEN duplicate_object THEN NULL;
+END $$;
 
 -- NotificationDelivery — one record per outbound attempt
-CREATE TABLE "notification_delivery" (
+CREATE TABLE IF NOT EXISTS "notification_delivery" (
   "id"              TEXT NOT NULL,
   "notificationId"  TEXT NOT NULL,
   "orgId"           TEXT NOT NULL,
@@ -47,31 +55,56 @@ CREATE TABLE "notification_delivery" (
 );
 
 -- Indexes for operator console queries
-CREATE INDEX "notification_delivery_orgId_status_idx"
+CREATE INDEX IF NOT EXISTS "notification_delivery_orgId_status_idx"
   ON "notification_delivery"("orgId", "status");
-CREATE INDEX "notification_delivery_orgId_channel_idx"
+CREATE INDEX IF NOT EXISTS "notification_delivery_orgId_channel_idx"
   ON "notification_delivery"("orgId", "channel");
-CREATE INDEX "notification_delivery_notificationId_idx"
+CREATE INDEX IF NOT EXISTS "notification_delivery_notificationId_idx"
   ON "notification_delivery"("notificationId");
-CREATE INDEX "notification_delivery_nextRetryAt_status_idx"
+CREATE INDEX IF NOT EXISTS "notification_delivery_nextRetryAt_status_idx"
   ON "notification_delivery"("nextRetryAt", "status")
   WHERE "nextRetryAt" IS NOT NULL;
-CREATE INDEX "notification_delivery_sourceModule_idx"
+CREATE INDEX IF NOT EXISTS "notification_delivery_sourceModule_idx"
   ON "notification_delivery"("orgId", "sourceModule");
 
 -- FK to Organization (cascade delete)
-ALTER TABLE "notification_delivery"
-  ADD CONSTRAINT "notification_delivery_orgId_fkey"
-  FOREIGN KEY ("orgId") REFERENCES "organizations"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint WHERE conname = 'notification_delivery_orgId_fkey'
+  ) THEN
+    ALTER TABLE "notification_delivery"
+      ADD CONSTRAINT "notification_delivery_orgId_fkey"
+      FOREIGN KEY ("orgId") REFERENCES "organization"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+END $$;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint WHERE conname = 'notification_delivery_notificationId_fkey'
+  ) THEN
+    ALTER TABLE "notification_delivery"
+      ADD CONSTRAINT "notification_delivery_notificationId_fkey"
+      FOREIGN KEY ("notificationId") REFERENCES "notification"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+END $$;
 
 -- Self-referential FK for replay chain
-ALTER TABLE "notification_delivery"
-  ADD CONSTRAINT "notification_delivery_replayedFromId_fkey"
-  FOREIGN KEY ("replayedFromId") REFERENCES "notification_delivery"("id")
-  ON DELETE SET NULL ON UPDATE CASCADE;
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint WHERE conname = 'notification_delivery_replayedFromId_fkey'
+  ) THEN
+    ALTER TABLE "notification_delivery"
+      ADD CONSTRAINT "notification_delivery_replayedFromId_fkey"
+      FOREIGN KEY ("replayedFromId") REFERENCES "notification_delivery"("id")
+      ON DELETE SET NULL ON UPDATE CASCADE;
+  END IF;
+END $$;
 
 -- Add email opt-in flag to Notification for delivery gate
-ALTER TABLE "notifications" ADD COLUMN IF NOT EXISTS "emailRequested" BOOLEAN NOT NULL DEFAULT false;
-ALTER TABLE "notifications" ADD COLUMN IF NOT EXISTS "recipientEmail"  TEXT;
-ALTER TABLE "notifications" ADD COLUMN IF NOT EXISTS "sourceModule"    TEXT;
-ALTER TABLE "notifications" ADD COLUMN IF NOT EXISTS "sourceRef"       TEXT;
+ALTER TABLE "notification" ADD COLUMN IF NOT EXISTS "emailRequested" BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE "notification" ADD COLUMN IF NOT EXISTS "recipientEmail"  TEXT;
+ALTER TABLE "notification" ADD COLUMN IF NOT EXISTS "sourceModule"    TEXT;
+ALTER TABLE "notification" ADD COLUMN IF NOT EXISTS "sourceRef"       TEXT;

@@ -14,6 +14,7 @@
     "db:deploy": "prisma migrate deploy",
     "db:status": "prisma migrate status",
     "db:check": "bash scripts/check-db-migrations.sh",
+    "phase19:backfills": "bash scripts/run-phase19-backfills.sh",
     "postinstall": "prisma generate",
     "supabase:start": "bash scripts/supabase-start.sh",
     "supabase:stop": "bash scripts/supabase-stop.sh",
@@ -87,6 +88,7 @@
     "eslint-config-next": "16.2.1",
     "jsdom": "^29.0.1",
     "tailwindcss": "^4",
+    "tsx": "^4.21.0",
     "typescript": "^5",
     "vitest": "^4.1.1"
   }

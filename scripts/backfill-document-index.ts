@@ -5,9 +5,7 @@
  * salary slips, and quotes in the database.
  *
  * Usage:
- *   npx ts-node --project tsconfig.json scripts/backfill-document-index.ts
- *   # or, via the dev server's node runtime:
- *   node -r tsconfig-paths/register -r ts-node/register scripts/backfill-document-index.ts
+ *   npm run phase19:backfills
  *
  * Rules:
  *   - idempotent (safe to re-run)
@@ -16,10 +14,17 @@
  *   - reports counts on completion
  */
 
+import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "../src/generated/prisma/client";
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const db = new (PrismaClient as any)();
+const connectionString = process.env.DIRECT_URL ?? process.env.DATABASE_URL;
+
+if (!connectionString) {
+  throw new Error("DIRECT_URL or DATABASE_URL must be set to run document index backfill");
+}
+
+const adapter = new PrismaPg({ connectionString });
+const db = new PrismaClient({ adapter });
 
 const PAGE_SIZE = 100;
 

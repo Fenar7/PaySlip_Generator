@@ -1,6 +1,7 @@
 "use server";
 
 import { db } from "@/lib/db";
+import { listAttachmentsByEntityIds } from "@/lib/polymorphic-relations";
 import { requireOrgContext } from "@/lib/auth";
 import type {
   NotificationDeliveryChannel,
@@ -252,9 +253,9 @@ export async function getPortalTicketOperationsAnalytics(filters: PortalTicketOp
       resolvedAt: true,
       replies: {
         select: {
+          id: true,
           isInternal: true,
           portalCustomerId: true,
-          attachments: { select: { id: true } }
         }
       }
     },
@@ -262,5 +263,19 @@ export async function getPortalTicketOperationsAnalytics(filters: PortalTicketOp
     take: 500,
   });
 
-  return tickets;
+  const attachmentsByEntityId = await listAttachmentsByEntityIds({
+    orgId,
+    entityType: "ticket_reply",
+    entityIds: tickets.flatMap((ticket) => ticket.replies.map((reply) => reply.id)),
+  });
+
+  return tickets.map((ticket) => ({
+    ...ticket,
+    replies: ticket.replies.map((reply) => ({
+      ...reply,
+      attachments: (attachmentsByEntityId.get(reply.id) ?? []).map((attachment) => ({
+        id: attachment.id,
+      })),
+    })),
+  }));
 }

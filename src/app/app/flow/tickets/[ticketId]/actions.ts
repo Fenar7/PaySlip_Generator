@@ -1,6 +1,7 @@
 "use server";
 
 import { db } from "@/lib/db";
+import { listAttachmentsByEntityIds } from "@/lib/polymorphic-relations";
 import { requireOrgContext } from "@/lib/auth";
 import { logActivity } from "@/lib/activity";
 import { revalidatePath } from "next/cache";
@@ -18,12 +19,27 @@ export async function getTicketDetail(ticketId: string) {
       invoice: { select: { id: true, invoiceNumber: true } },
       replies: {
         orderBy: { createdAt: "asc" },
-        include: { attachments: true },
       },
     },
   });
 
-  return ticket;
+  if (!ticket) {
+    return null;
+  }
+
+  const attachmentsByEntityId = await listAttachmentsByEntityIds({
+    orgId,
+    entityType: "ticket_reply",
+    entityIds: ticket.replies.map((reply) => reply.id),
+  });
+
+  return {
+    ...ticket,
+    replies: ticket.replies.map((reply) => ({
+      ...reply,
+      attachments: attachmentsByEntityId.get(reply.id) ?? [],
+    })),
+  };
 }
 
 export async function replyToTicket(

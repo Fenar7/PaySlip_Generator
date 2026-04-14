@@ -2,8 +2,8 @@
 -- Adds portalCustomerId and attachments to TicketReply, and links FileAttachment
 
 -- Update ticket_reply table
-ALTER TABLE "ticket_reply" ADD COLUMN "portalCustomerId" TEXT;
-CREATE INDEX "ticket_reply_portalCustomerId_idx" ON "ticket_reply"("portalCustomerId");
+ALTER TABLE "ticket_reply" ADD COLUMN IF NOT EXISTS "portalCustomerId" TEXT;
+CREATE INDEX IF NOT EXISTS "ticket_reply_portalCustomerId_idx" ON "ticket_reply"("portalCustomerId");
 
 -- FileAttachment mapping for ticket_reply
 -- The relation logic is handled via app-level constraints and entityId/entityType

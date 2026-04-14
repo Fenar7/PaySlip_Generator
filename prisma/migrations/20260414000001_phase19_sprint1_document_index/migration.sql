@@ -3,7 +3,7 @@
 -- Source of truth remains the original document models (Invoice, Voucher,
 -- SalarySlip, Quote). This table is the read-optimised vault/listing layer.
 
-CREATE TABLE "document_index" (
+CREATE TABLE IF NOT EXISTS "document_index" (
     "id"                TEXT NOT NULL,
     "orgId"             TEXT NOT NULL,
     "docType"           TEXT NOT NULL,
@@ -23,25 +23,32 @@ CREATE TABLE "document_index" (
 );
 
 -- Unique constraint: one row per document per org
-CREATE UNIQUE INDEX "document_index_orgId_docType_documentId_key"
+CREATE UNIQUE INDEX IF NOT EXISTS "document_index_orgId_docType_documentId_key"
     ON "document_index"("orgId", "docType", "documentId");
 
 -- Query-performance indexes
-CREATE INDEX "document_index_orgId_docType_idx"
+CREATE INDEX IF NOT EXISTS "document_index_orgId_docType_idx"
     ON "document_index"("orgId", "docType");
 
-CREATE INDEX "document_index_orgId_status_idx"
+CREATE INDEX IF NOT EXISTS "document_index_orgId_status_idx"
     ON "document_index"("orgId", "status");
 
-CREATE INDEX "document_index_orgId_archivedAt_idx"
+CREATE INDEX IF NOT EXISTS "document_index_orgId_archivedAt_idx"
     ON "document_index"("orgId", "archivedAt");
 
-CREATE INDEX "document_index_orgId_primaryDate_idx"
+CREATE INDEX IF NOT EXISTS "document_index_orgId_primaryDate_idx"
     ON "document_index"("orgId", "primaryDate");
 
 -- Foreign key to organization
-ALTER TABLE "document_index"
-    ADD CONSTRAINT "document_index_orgId_fkey"
-    FOREIGN KEY ("orgId")
-    REFERENCES "organization"("id")
-    ON DELETE CASCADE ON UPDATE CASCADE;
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint WHERE conname = 'document_index_orgId_fkey'
+    ) THEN
+        ALTER TABLE "document_index"
+            ADD CONSTRAINT "document_index_orgId_fkey"
+            FOREIGN KEY ("orgId")
+            REFERENCES "organization"("id")
+            ON DELETE CASCADE ON UPDATE CASCADE;
+    END IF;
+END $$;

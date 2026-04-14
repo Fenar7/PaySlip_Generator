@@ -1,4 +1,4 @@
-import { Prisma, type MarketplaceTemplateStatus } from "@/generated/prisma/client";
+import { Prisma, type MarketplaceTemplateStatus } from "../generated/prisma/client";
 
 type PublisherDisplaySource = {
   publisherName: string;

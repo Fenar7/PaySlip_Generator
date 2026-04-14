@@ -664,9 +664,7 @@ model VendorBill {
   lines            VendorBillLine[]
   payments         VendorBillPayment[]
   paymentRunItems  PaymentRunItem[]
-  attachments      FileAttachment[]    @relation("VendorBillAttachments")
   journalEntry     JournalEntry?       @relation("VendorBillJournal", fields: [journalEntryId], references: [id])
-  approvalRequests ApprovalRequest[]   @relation("VendorBillApprovals")
 
   @@unique([orgId, billNumber])
   @@index([orgId, status])
@@ -742,7 +740,6 @@ model PaymentRun {
   organization     Organization        @relation(fields: [orgId], references: [id], onDelete: Cascade)
   items            PaymentRunItem[]
   payments         VendorBillPayment[]
-  approvalRequests ApprovalRequest[]   @relation("PaymentRunApprovals")
 
   @@unique([orgId, runNumber])
   @@index([orgId, status])
@@ -1008,7 +1005,6 @@ model Invoice {
   original            Invoice?              @relation("InvoiceReissue", fields: [originalId], references: [id])
   reissues            Invoice[]             @relation("InvoiceReissue")
   lineItems           InvoiceLineItem[]
-  attachments         FileAttachment[]      @relation("InvoiceAttachments")
   stateEvents         InvoiceStateEvent[]
   payments            InvoicePayment[]
   proofs              InvoiceProof[]
@@ -1018,7 +1014,6 @@ model Invoice {
   recurringRule       RecurringInvoiceRule? @relation("RecurringBase")
   generatedFrom       RecurringInvoiceRule? @relation("RecurringGenerated", fields: [generatedFromRuleId], references: [id])
   generatedFromRuleId String?
-  approvalRequests    ApprovalRequest[]     @relation("InvoiceApprovals")
   dunningLogs         DunningLog[]
   arrangement         PaymentArrangement?
   postedJournalEntry  JournalEntry?         @relation("InvoicePostedJournal", fields: [postedJournalEntryId], references: [id])
@@ -1076,9 +1071,7 @@ model Voucher {
   organization     Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   vendor           Vendor?           @relation(fields: [vendorId], references: [id])
   lines            VoucherLine[]
-  attachments      FileAttachment[]  @relation("VoucherAttachments")
   journalEntry     JournalEntry?     @relation("VoucherPostedJournal", fields: [journalEntryId], references: [id])
-  approvalRequests ApprovalRequest[] @relation("VoucherApprovals")
 
   @@unique([organizationId, voucherNumber])
   @@index([organizationId, status])
@@ -1124,10 +1117,8 @@ model SalarySlip {
   organization       Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   employee           Employee?         @relation(fields: [employeeId], references: [id])
   components         SalaryComponent[]
-  attachments        FileAttachment[]  @relation("SalarySlipAttachments")
   journalEntry       JournalEntry?     @relation("SalarySlipJournal", fields: [journalEntryId], references: [id])
   payoutJournalEntry JournalEntry?     @relation("SalarySlipPayoutJournal", fields: [payoutJournalEntryId], references: [id])
-  approvalRequests   ApprovalRequest[] @relation("SalarySlipApprovals")
 
   @@unique([organizationId, slipNumber])
   @@index([organizationId, status])
@@ -1159,13 +1150,6 @@ model FileAttachment {
   createdAt      DateTime @default(now())
 
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-
-  invoice     Invoice?     @relation("InvoiceAttachments", fields: [entityId], references: [id], map: "file_attachment_invoice_fkey")
-  voucher     Voucher?     @relation("VoucherAttachments", fields: [entityId], references: [id], map: "file_attachment_voucher_fkey")
-  vendorBill  VendorBill?  @relation("VendorBillAttachments", fields: [entityId], references: [id], map: "file_attachment_vendor_bill_fkey")
-  salarySlip  SalarySlip?  @relation("SalarySlipAttachments", fields: [entityId], references: [id], map: "file_attachment_salary_slip_fkey")
-  quote       Quote?       @relation("QuoteAttachments", fields: [entityId], references: [id], map: "file_attachment_quote_fkey")
-  ticketReply TicketReply? @relation("TicketReplyAttachments", fields: [entityId], references: [id], map: "file_attachment_ticket_reply_fkey")
 
   @@index([organizationId, entityType, entityId])
   @@map("file_attachment")
@@ -1400,8 +1384,6 @@ model TicketReply {
   createdAt        DateTime @default(now())
 
   ticket      InvoiceTicket    @relation(fields: [ticketId], references: [id], onDelete: Cascade)
-  attachments FileAttachment[] @relation("TicketReplyAttachments")
-
   @@index([ticketId])
   @@index([portalCustomerId])
   @@map("ticket_reply")
@@ -1627,12 +1609,6 @@ model ApprovalRequest {
   escalatedAt     DateTime?
   escalationLevel Int            @default(0)
   lastReminderAt  DateTime?
-
-  invoice    Invoice?    @relation("InvoiceApprovals", fields: [docId], references: [id], map: "approval_invoice_fkey")
-  voucher    Voucher?    @relation("VoucherApprovals", fields: [docId], references: [id], map: "approval_voucher_fkey")
-  vendorBill VendorBill? @relation("VendorBillApprovals", fields: [docId], references: [id], map: "approval_vendor_bill_fkey")
-  paymentRun PaymentRun? @relation("PaymentRunApprovals", fields: [docId], references: [id], map: "approval_payment_run_fkey")
-  salarySlip SalarySlip? @relation("SalarySlipApprovals", fields: [docId], references: [id], map: "approval_salary_slip_fkey")
 
   @@index([orgId, status])
   @@index([docType, docId])
@@ -2532,8 +2508,6 @@ model Quote {
   customer    Customer         @relation(fields: [customerId], references: [id])
   creator     Profile          @relation(fields: [createdBy], references: [id])
   lineItems   QuoteLineItem[]
-  attachments FileAttachment[] @relation("QuoteAttachments")
-
   @@unique([orgId, quoteNumber])
   @@index([orgId, status])
   @@map("quote")
