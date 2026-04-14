@@ -111,6 +111,7 @@ model Organization {
   oauthAuthorizations    OAuthAuthorization[]
   partnerProfile         PartnerProfile?
   partnerManagedOrgs     PartnerManagedOrg[]
+  documentIndex          DocumentIndex[]
 
   @@map("organization")
 }
@@ -2832,4 +2833,36 @@ model PartnerManagedOrg {
 
   @@unique([partnerId, orgId])
   @@map("partner_managed_orgs")
+}
+
+// ─── Phase 19: SW Docs Control Plane ──────────────────────────────────────────
+
+/// Normalized unified listing and search layer for all document types.
+/// Source of truth remains the original document models (Invoice, Voucher,
+/// SalarySlip, Quote). This table is the read-optimised vault/listing layer.
+model DocumentIndex {
+  id               String    @id @default(cuid())
+  orgId            String
+  /// "invoice" | "voucher" | "salary_slip" | "quote"
+  docType          String
+  documentId       String
+  documentNumber   String
+  titleOrSummary   String
+  counterpartyLabel String?
+  status           String
+  primaryDate      DateTime
+  amount           Float     @default(0)
+  currency         String    @default("INR")
+  archivedAt       DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@unique([orgId, docType, documentId])
+  @@index([orgId, docType])
+  @@index([orgId, status])
+  @@index([orgId, archivedAt])
+  @@index([orgId, primaryDate])
+  @@map("document_index")
 }

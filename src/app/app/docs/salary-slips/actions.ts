@@ -6,6 +6,7 @@ import { nextDocumentNumber } from "@/lib/docs";
 import { revalidatePath } from "next/cache";
 import type { Prisma } from "@/generated/prisma/client";
 import { postSalarySlipAccrualTx, postSalarySlipPayoutTx } from "@/lib/accounting";
+import { syncSalarySlipToIndex } from "@/lib/docs-vault";
 
 export type ActionResult<T> = 
   | { success: true; data: T }
@@ -75,6 +76,17 @@ export async function saveSalarySlip(
       return created;
     });
     
+    // Phase 19.1: Sync to DocumentIndex
+    void syncSalarySlipToIndex(orgId, {
+      id: salarySlip.id,
+      slipNumber,
+      status,
+      month: input.month,
+      year: input.year,
+      netPay: salarySlip.netPay,
+      archivedAt: null,
+    });
+
     revalidatePath("/app/docs/salary-slips");
     return { success: true, data: { id: salarySlip.id, slipNumber } };
   } catch (error) {
@@ -147,6 +159,24 @@ export async function updateSalarySlip(
       });
     }
     
+    // Phase 19.1: Sync updated slip to DocumentIndex
+    const updated = await db.salarySlip.findUnique({
+      where: { id },
+      include: { employee: true },
+    });
+    if (updated) {
+      void syncSalarySlipToIndex(orgId, {
+        id: updated.id,
+        slipNumber: updated.slipNumber,
+        status: updated.status,
+        month: updated.month,
+        year: updated.year,
+        netPay: updated.netPay,
+        archivedAt: updated.archivedAt,
+        employee: updated.employee ?? undefined,
+      });
+    }
+
     revalidatePath("/app/docs/salary-slips");
     revalidatePath(`/app/docs/salary-slips/${id}`);
     return { success: true, data: { id } };
@@ -207,9 +237,22 @@ export async function archiveSalarySlip(id: string): Promise<ActionResult<void>>
   try {
     const { orgId } = await requireOrgContext();
     
-    await db.salarySlip.update({
+    const archived = await db.salarySlip.update({
       where: { id, organizationId: orgId },
       data: { archivedAt: new Date() },
+      include: { employee: true },
+    });
+
+    // Phase 19.1: Sync archive state to DocumentIndex
+    void syncSalarySlipToIndex(orgId, {
+      id: archived.id,
+      slipNumber: archived.slipNumber,
+      status: archived.status,
+      month: archived.month,
+      year: archived.year,
+      netPay: archived.netPay,
+      archivedAt: archived.archivedAt,
+      employee: archived.employee ?? undefined,
     });
     
     revalidatePath("/app/docs/salary-slips");
