@@ -2894,4 +2894,3 @@ model DocumentEvent {
   @@index([orgId, docType, eventAt])
   @@map("document_event")
 }
-

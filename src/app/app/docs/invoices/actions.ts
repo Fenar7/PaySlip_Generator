@@ -10,6 +10,7 @@ import { reconcileInvoicePayment, validatePaymentAmount } from "@/lib/invoice-re
 import { postInvoiceIssueTx, postInvoicePaymentTx, reverseJournalEntryTx } from "@/lib/accounting";
 import { fireWorkflowTrigger } from "@/lib/flow/workflow-engine";
 import { emitInvoiceEvent } from "@/lib/document-events";
+import { syncInvoiceToIndex } from "@/lib/docs-vault";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -183,6 +184,16 @@ export async function saveInvoice(
       actorId: userId,
       metadata: { invoiceNumber },
     });
+    // Phase 19.1: Sync to DocumentIndex
+    void syncInvoiceToIndex(orgId, {
+      id: invoice.id,
+      invoiceNumber: invoice.invoiceNumber,
+      status: invoice.status,
+      invoiceDate: invoice.invoiceDate,
+      totalAmount: invoice.totalAmount,
+      displayCurrency: null,
+      archivedAt: invoice.archivedAt,
+    });
 
     revalidatePath("/app/docs/invoices");
     return { success: true, data: { id: invoice.id, invoiceNumber } };
@@ -206,7 +217,7 @@ export async function updateInvoice(
   input: Partial<InvoiceInput>
 ): Promise<ActionResult<{ id: string }>> {
   try {
-    const { orgId } = await requireOrgContext();
+    const { orgId, userId } = await requireOrgContext();
 
     const existing = await db.invoice.findFirst({
       where: { id, organizationId: orgId },
@@ -261,6 +272,23 @@ export async function updateInvoice(
 
     // Phase 19.2: emit normalized document event
     void emitInvoiceEvent(orgId, id, "updated", { actorId: userId });
+    // Phase 19.1: Sync updated invoice to DocumentIndex
+    const updated = await db.invoice.findUnique({
+      where: { id },
+      include: { customer: true },
+    });
+    if (updated) {
+      void syncInvoiceToIndex(orgId, {
+        id: updated.id,
+        invoiceNumber: updated.invoiceNumber,
+        status: updated.status,
+        invoiceDate: updated.invoiceDate,
+        totalAmount: updated.totalAmount,
+        displayCurrency: updated.displayCurrency,
+        archivedAt: updated.archivedAt,
+        customer: updated.customer ?? undefined,
+      });
+    }
 
     revalidatePath("/app/docs/invoices");
     revalidatePath(`/app/docs/invoices/${id}`);
@@ -292,9 +320,22 @@ export async function archiveInvoice(id: string): Promise<ActionResult<void>> {
       return { success: false, error: "Invoice not found" };
     }
 
-    await db.invoice.update({
+    const archived = await db.invoice.update({
       where: { id },
       data: { archivedAt: new Date() },
+      include: { customer: true },
+    });
+
+    // Phase 19.1: Sync archive state to DocumentIndex
+    void syncInvoiceToIndex(orgId, {
+      id: archived.id,
+      invoiceNumber: archived.invoiceNumber,
+      status: archived.status,
+      invoiceDate: archived.invoiceDate,
+      totalAmount: archived.totalAmount,
+      displayCurrency: archived.displayCurrency,
+      archivedAt: archived.archivedAt,
+      customer: archived.customer ?? undefined,
     });
 
     // Phase 19.2: emit normalized document event
