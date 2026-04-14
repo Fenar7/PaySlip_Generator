@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState, useCallback } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -118,6 +119,9 @@ function Gstr1Tab({
 
       {/* Export Button */}
       <div className="flex flex-wrap items-center justify-end gap-3">
+        <Link href="/app/intel/gst-filings">
+          <Button variant="secondary">Open Filing Workspace</Button>
+        </Link>
         {!canExportJson && (
           <p className="text-xs text-slate-500">
             GSTR-1 JSON export is available for a single filing month only.

@@ -116,7 +116,11 @@ model Organization {
   partnerManagedOrgs           PartnerManagedOrg[]
   documentIndexes              DocumentIndex[]
   documentEvents               DocumentEvent[]
-
+  gstFilingRuns            GstFilingRun[]
+  gstFilingIssues          GstFilingValidationIssue[]
+  gstFilingSubmissions     GstFilingSubmission[]
+  gstFilingReconciliations GstFilingReconciliation[]
+  gstFilingEvents          GstFilingEvent[]
   @@map("organization")
 }
 
@@ -917,6 +921,56 @@ enum GstType {
   INTRASTATE
   INTERSTATE
   EXEMPT
+}
+
+enum GstFilingReturnType {
+  GSTR1
+}
+
+enum GstFilingRunStatus {
+  DRAFT
+  BLOCKED
+  READY
+  SUBMISSION_PENDING
+  RECONCILING
+  RECONCILED
+  FAILED
+}
+
+enum GstFilingValidationSeverity {
+  ERROR
+  WARNING
+  INFO
+}
+
+enum GstFilingSubmissionStatus {
+  INTENT_RECORDED
+  SUBMITTED
+  ACKNOWLEDGED
+  FAILED
+  CANCELLED
+}
+
+enum GstFilingProvider {
+  MANUAL
+}
+
+enum GstFilingReconciliationStatus {
+  PENDING
+  MATCHED
+  VARIANCE
+  ACTION_REQUIRED
+}
+
+enum GstFilingEventType {
+  RUN_CREATED
+  VALIDATION_COMPLETED
+  STATUS_CHANGED
+  PACKAGE_EXPORTED
+  SUBMISSION_INTENT_RECORDED
+  SUBMISSION_RECORDED
+  SUBMISSION_FAILED
+  RECONCILIATION_RECORDED
 }
 
 // ─── Document Models ────────────────────────────────────────────────────────────
@@ -1842,6 +1896,126 @@ model ReportSnapshot {
 
   @@index([orgId, reportType])
   @@map("report_snapshot")
+}
+
+model GstFilingRun {
+  id                    String              @id @default(cuid())
+  orgId                 String
+  periodMonth           String
+  returnType            GstFilingReturnType @default(GSTR1)
+  status                GstFilingRunStatus  @default(DRAFT)
+  sourceSnapshotHash    String?
+  validatedSnapshotHash String?
+  blockerCount          Int                 @default(0)
+  warningCount          Int                 @default(0)
+  summary               Json?
+  createdByUserId       String?             @db.Uuid
+  updatedByUserId       String?             @db.Uuid
+  submittedByUserId     String?             @db.Uuid
+  submittedAt           DateTime?
+  filedAt               DateTime?
+  reconciledAt          DateTime?
+  lastValidatedAt       DateTime?
+  notes                 String?
+  createdAt             DateTime            @default(now())
+  updatedAt             DateTime            @updatedAt
+
+  organization     Organization               @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  validationIssues GstFilingValidationIssue[]
+  submissions      GstFilingSubmission[]
+  reconciliations  GstFilingReconciliation[]
+  events           GstFilingEvent[]
+
+  @@unique([orgId, periodMonth, returnType])
+  @@index([orgId, status, periodMonth])
+  @@map("gst_filing_run")
+}
+
+model GstFilingValidationIssue {
+  id            String                      @id @default(cuid())
+  filingRunId   String
+  orgId         String
+  code          String
+  severity      GstFilingValidationSeverity
+  message       String
+  invoiceId     String?
+  invoiceNumber String?
+  metadata      Json?
+  createdAt     DateTime                    @default(now())
+
+  filingRun    GstFilingRun @relation(fields: [filingRunId], references: [id], onDelete: Cascade)
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@index([filingRunId, severity])
+  @@index([orgId, createdAt])
+  @@map("gst_filing_validation_issue")
+}
+
+model GstFilingSubmission {
+  id                    String                    @id @default(cuid())
+  filingRunId           String
+  orgId                 String
+  status                GstFilingSubmissionStatus @default(INTENT_RECORDED)
+  provider              GstFilingProvider         @default(MANUAL)
+  attempt               Int
+  requestHash           String
+  externalReference     String?
+  acknowledgementNumber String?
+  responsePayload       Json?
+  errorMessage          String?
+  initiatedByUserId     String?                   @db.Uuid
+  completedByUserId     String?                   @db.Uuid
+  initiatedAt           DateTime                  @default(now())
+  completedAt           DateTime?
+  createdAt             DateTime                  @default(now())
+  updatedAt             DateTime                  @updatedAt
+
+  filingRun    GstFilingRun @relation(fields: [filingRunId], references: [id], onDelete: Cascade)
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@unique([filingRunId, attempt])
+  @@index([orgId, status, initiatedAt])
+  @@map("gst_filing_submission")
+}
+
+model GstFilingReconciliation {
+  id               String                        @id @default(cuid())
+  filingRunId      String
+  orgId            String
+  status           GstFilingReconciliationStatus @default(PENDING)
+  matchedCount     Int                           @default(0)
+  varianceCount    Int                           @default(0)
+  delta            Json?
+  note             String?
+  resolvedByUserId String?                       @db.Uuid
+  resolvedAt       DateTime?
+  createdAt        DateTime                      @default(now())
+  updatedAt        DateTime                      @updatedAt
+
+  filingRun    GstFilingRun @relation(fields: [filingRunId], references: [id], onDelete: Cascade)
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@index([orgId, status, createdAt])
+  @@index([filingRunId, createdAt])
+  @@map("gst_filing_reconciliation")
+}
+
+model GstFilingEvent {
+  id          String             @id @default(cuid())
+  filingRunId String
+  orgId       String
+  eventType   GstFilingEventType
+  actorId     String?            @db.Uuid
+  note        String?
+  metadata    Json?
+  createdAt   DateTime           @default(now())
+
+  filingRun    GstFilingRun @relation(fields: [filingRunId], references: [id], onDelete: Cascade)
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@index([filingRunId, createdAt])
+  @@index([orgId, createdAt])
+  @@map("gst_filing_event")
 }
 
 // ─── Phase 7: Proxy & Audit ───────────────────────────────────────────────────

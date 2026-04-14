@@ -91,7 +91,7 @@ export async function generateGSTR1(
   });
 
   const gstin = orgDefaults?.gstin ?? "";
-  const orgStateCode = orgDefaults?.gstStateCode ?? "27"; // default Maharashtra
+  const orgStateCode = orgDefaults?.gstStateCode ?? extractStateCode(orgDefaults?.gstin) ?? "";
 
   // 2. Fetch invoices for the period
   const startDate = `${year}-${String(month).padStart(2, "0")}-01`;
@@ -102,7 +102,7 @@ export async function generateGSTR1(
   const invoices = await db.invoice.findMany({
     where: {
       organizationId: orgId,
-      status: { in: ["PAID", "ISSUED"] },
+      status: { in: ["PAID", "ISSUED", "PARTIALLY_PAID"] },
       invoiceDate: { gte: startDate, lt: endDate },
     },
     include: {
@@ -124,23 +124,43 @@ export async function generateGSTR1(
 
   for (const invoice of invoices) {
     const customerGstin = invoice.customer?.gstin;
-    const customerState = customerGstin
-      ? customerGstin.substring(0, 2)
-      : orgStateCode;
+    const customerState =
+      extractStateCode(customerGstin) ??
+      extractStateCode(invoice.placeOfSupply) ??
+      orgStateCode;
 
     const isB2B = !!customerGstin;
     const isLarge = invoice.totalAmount >= 250000;
 
-    // Calculate per-item GST
+    const invoiceLevelTaxable = round(
+      invoice.totalAmount -
+        invoice.gstTotalCgst -
+        invoice.gstTotalSgst -
+        invoice.gstTotalIgst -
+        invoice.gstTotalCess,
+    );
+
     const items = invoice.lineItems.length > 0
       ? invoice.lineItems
       : [
           {
-            description: "Invoice total",
-            quantity: 1,
-            unitPrice: invoice.totalAmount,
-            taxRate: 18,
-            amount: invoice.totalAmount,
+            gstRate:
+              invoiceLevelTaxable > 0
+                ? round(
+                    ((invoice.gstTotalCgst +
+                      invoice.gstTotalSgst +
+                      invoice.gstTotalIgst +
+                      invoice.gstTotalCess) /
+                      invoiceLevelTaxable) *
+                      100,
+                  )
+                : 0,
+            amount: invoiceLevelTaxable,
+            cgstAmount: invoice.gstTotalCgst,
+            sgstAmount: invoice.gstTotalSgst,
+            igstAmount: invoice.gstTotalIgst,
+            cessAmount: invoice.gstTotalCess,
+            gstType: invoice.gstTotalIgst > 0 ? "INTERSTATE" : "INTRASTATE",
           },
         ];
 
@@ -158,33 +178,36 @@ export async function generateGSTR1(
 
     for (let i = 0; i < items.length; i++) {
       const item = items[i];
-      const taxableValue = item.amount ?? item.quantity * item.unitPrice;
-      const rate = item.taxRate ?? 18;
-
-      // Override rate to match actual line-item rate
-      const actualCgst = round((taxableValue * rate) / 100 / 2);
-      const actualSgst = round((taxableValue * rate) / 100 / 2);
-      const actualIgst = round((taxableValue * rate) / 100);
-
-      const isIntra = orgStateCode === customerState;
-
+      const taxableValue =
+        item.amount ??
+        ("quantity" in item && "unitPrice" in item ? item.quantity * item.unitPrice : 0);
+      const rate =
+        ("gstRate" in item && typeof item.gstRate === "number" && item.gstRate > 0
+          ? item.gstRate
+          : "taxRate" in item && typeof item.taxRate === "number"
+            ? item.taxRate
+            : 0);
+      const actualCgst = round("cgstAmount" in item ? item.cgstAmount ?? 0 : 0);
+      const actualSgst = round("sgstAmount" in item ? item.sgstAmount ?? 0 : 0);
+      const actualIgst = round("igstAmount" in item ? item.igstAmount ?? 0 : 0);
+      const actualCess = round("cessAmount" in item ? item.cessAmount ?? 0 : 0);
       invoiceItems.push({
         num: i + 1,
         itm_det: {
           rt: rate,
           txval: round(taxableValue),
-          camt: isIntra ? actualCgst : 0,
-          samt: isIntra ? actualSgst : 0,
-          iamt: isIntra ? 0 : actualIgst,
-          csamt: 0,
+          camt: actualCgst,
+          samt: actualSgst,
+          iamt: actualIgst,
+          csamt: actualCess,
         },
       });
 
       totalTaxableValue += taxableValue;
-      totalCgst += isIntra ? actualCgst : 0;
-      totalSgst += isIntra ? actualSgst : 0;
-      totalIgst += isIntra ? 0 : actualIgst;
-      totalValue += taxableValue + (isIntra ? actualCgst + actualSgst : actualIgst);
+      totalCgst += actualCgst;
+      totalSgst += actualSgst;
+      totalIgst += actualIgst;
+      totalValue += taxableValue + actualCgst + actualSgst + actualIgst + actualCess;
     }
 
     const invoiceDateFormatted = formatDateDDMMYYYY(invoice.invoiceDate);
@@ -223,8 +246,8 @@ export async function generateGSTR1(
       b2clMap.set(pos, entry);
     } else {
       // B2CS: no GSTIN, amount < 2.5 lakh
-      const isIntra = orgStateCode === customerState;
       for (const item of invoiceItems) {
+        const isIntra = item.itm_det.iamt === 0;
         const key = `${isIntra ? "INTRA" : "INTER"}_${customerState}_${item.itm_det.rt}`;
         const existing = b2csAgg.get(key);
         if (existing) {
@@ -232,6 +255,7 @@ export async function generateGSTR1(
           existing.camt = round(existing.camt + item.itm_det.camt);
           existing.samt = round(existing.samt + item.itm_det.samt);
           existing.iamt = round(existing.iamt + item.itm_det.iamt);
+          existing.csamt = round(existing.csamt + item.itm_det.csamt);
         } else {
           b2csAgg.set(key, {
             sply_ty: isIntra ? "INTRA" : "INTER",
@@ -241,7 +265,7 @@ export async function generateGSTR1(
             camt: item.itm_det.camt,
             samt: item.itm_det.samt,
             iamt: item.itm_det.iamt,
-            csamt: 0,
+            csamt: item.itm_det.csamt,
           });
         }
       }
@@ -262,10 +286,19 @@ export async function generateGSTR1(
       totalCgst: round(totalCgst),
       totalSgst: round(totalSgst),
       totalIgst: round(totalIgst),
-      totalCess: 0,
+      totalCess: round(
+        invoices.reduce((sum, invoice) => sum + invoice.gstTotalCess, 0),
+      ),
       totalValue: round(totalValue),
     },
   };
+}
+
+function extractStateCode(value: string | null | undefined): string | null {
+  if (!value) return null;
+
+  const match = value.match(/^(\d{2})/);
+  return match ? match[1] : null;
 }
 
 function formatDateDDMMYYYY(dateStr: string): string {

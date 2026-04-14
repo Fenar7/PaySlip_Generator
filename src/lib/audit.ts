@@ -80,8 +80,13 @@ export const AUDIT_ACTION_LABELS: Record<string, string> = {
   "marketplace.payout_item.release": "Released marketplace payout item",
   "marketplace.payout_item.paid": "Marked marketplace payout item paid",
   "marketplace.payout_item.failed": "Marked marketplace payout item failed",
+  "gst.filing.created": "Created GST filing run",
+  "gst.filing.validated": "Validated GST filing run",
+  "gst.filing.exported": "Exported GST filing package",
+  "gst.filing.submission_intent": "Recorded GST filing submission intent",
+  "gst.filing.submission_result": "Recorded GST filing submission result",
+  "gst.filing.reconciled": "Recorded GST filing reconciliation",
 };
-
 export function getAuditCategory(action: string): string {
   if (action.startsWith("member.") || action.startsWith("proxy."))
     return "Access";
@@ -93,6 +98,7 @@ export function getAuditCategory(action: string): string {
     action.startsWith("quote_")
   )
     return "Documents";
+  if (action.startsWith("gst.")) return "Compliance";
   if (action.startsWith("org.")) return "Settings";
   if (action.startsWith("marketplace.")) return "Marketplace";
   if (
