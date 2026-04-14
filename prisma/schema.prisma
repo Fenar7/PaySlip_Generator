@@ -414,19 +414,19 @@ model JournalEntry {
   createdAt      DateTime           @default(now())
   updatedAt      DateTime           @updatedAt
 
-  organization         Organization    @relation(fields: [orgId], references: [id], onDelete: Cascade)
-  fiscalPeriod         FiscalPeriod    @relation(fields: [fiscalPeriodId], references: [id], onDelete: Restrict)
-  reversalOf           JournalEntry?   @relation("JournalReversal", fields: [reversalOfId], references: [id])
-  reversals            JournalEntry[]  @relation("JournalReversal")
-  lines                JournalLine[]
-  invoicePosted        Invoice?        @relation("InvoicePostedJournal")
-  invoicePaymentPosted InvoicePayment? @relation("InvoicePaymentJournal")
-  voucherPosted        Voucher?        @relation("VoucherPostedJournal")
-  vendorBillPosted     VendorBill?     @relation("VendorBillJournal")
+  organization            Organization       @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  fiscalPeriod            FiscalPeriod       @relation(fields: [fiscalPeriodId], references: [id], onDelete: Restrict)
+  reversalOf              JournalEntry?      @relation("JournalReversal", fields: [reversalOfId], references: [id])
+  reversals               JournalEntry[]     @relation("JournalReversal")
+  lines                   JournalLine[]
+  invoicePosted           Invoice?           @relation("InvoicePostedJournal")
+  invoicePaymentPosted    InvoicePayment?    @relation("InvoicePaymentJournal")
+  voucherPosted           Voucher?           @relation("VoucherPostedJournal")
+  vendorBillPosted        VendorBill?        @relation("VendorBillJournal")
   vendorBillPaymentPosted VendorBillPayment? @relation("VendorBillPaymentJournal")
-  salarySlipAccrual    SalarySlip?     @relation("SalarySlipJournal")
-  salarySlipPayout     SalarySlip?     @relation("SalarySlipPayoutJournal")
-  bankAccountOpening   BankAccount?    @relation("BankAccountOpeningJournal")
+  salarySlipAccrual       SalarySlip?        @relation("SalarySlipJournal")
+  salarySlipPayout        SalarySlip?        @relation("SalarySlipPayoutJournal")
+  bankAccountOpening      BankAccount?       @relation("BankAccountOpeningJournal")
 
   @@unique([orgId, entryNumber])
   @@index([orgId, entryDate, status])
@@ -567,9 +567,9 @@ model BankTransactionMatch {
   createdAt       DateTime        @default(now())
   updatedAt       DateTime        @updatedAt
 
-  organization    Organization     @relation(fields: [orgId], references: [id], onDelete: Cascade)
-  bankTransaction BankTransaction  @relation(fields: [bankTxnId], references: [id], onDelete: Cascade)
-  invoicePayments InvoicePayment[] @relation("InvoicePaymentBankMatch")
+  organization       Organization        @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  bankTransaction    BankTransaction     @relation(fields: [bankTxnId], references: [id], onDelete: Cascade)
+  invoicePayments    InvoicePayment[]    @relation("InvoicePaymentBankMatch")
   vendorBillPayments VendorBillPayment[] @relation("VendorBillPaymentBankMatch")
 
   @@unique([bankTxnId, entityType, entityId])
@@ -656,15 +656,15 @@ model VendorBill {
   updatedAt        DateTime         @updatedAt
   archivedAt       DateTime?
 
-  organization     Organization      @relation(fields: [orgId], references: [id], onDelete: Cascade)
-  vendor           Vendor?           @relation(fields: [vendorId], references: [id])
-  expenseAccount   GlAccount?        @relation("VendorBillExpenseAccount", fields: [expenseAccountId], references: [id])
+  organization     Organization        @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  vendor           Vendor?             @relation(fields: [vendorId], references: [id])
+  expenseAccount   GlAccount?          @relation("VendorBillExpenseAccount", fields: [expenseAccountId], references: [id])
   lines            VendorBillLine[]
   payments         VendorBillPayment[]
   paymentRunItems  PaymentRunItem[]
-  attachments      FileAttachment[]  @relation("VendorBillAttachments")
-  journalEntry     JournalEntry?     @relation("VendorBillJournal", fields: [journalEntryId], references: [id])
-  approvalRequests ApprovalRequest[] @relation("VendorBillApprovals")
+  attachments      FileAttachment[]    @relation("VendorBillAttachments")
+  journalEntry     JournalEntry?       @relation("VendorBillJournal", fields: [journalEntryId], references: [id])
+  approvalRequests ApprovalRequest[]   @relation("VendorBillApprovals")
 
   @@unique([orgId, billNumber])
   @@index([orgId, status])
@@ -672,14 +672,14 @@ model VendorBill {
 }
 
 model VendorBillLine {
-  id           String  @id @default(cuid())
+  id           String @id @default(cuid())
   vendorBillId String
   description  String
-  quantity     Float   @default(1)
-  unitPrice    Float   @default(0)
-  taxRate      Float   @default(0)
-  lineTotal    Float   @default(0)
-  sortOrder    Int     @default(0)
+  quantity     Float  @default(1)
+  unitPrice    Float  @default(0)
+  taxRate      Float  @default(0)
+  lineTotal    Float  @default(0)
+  sortOrder    Int    @default(0)
 
   vendorBill VendorBill @relation(fields: [vendorBillId], references: [id], onDelete: Cascade)
 
@@ -687,34 +687,34 @@ model VendorBillLine {
 }
 
 model VendorBillPayment {
-  id                 String                  @id @default(cuid())
-  vendorBillId       String
-  orgId              String
-  paymentRunId       String?
-  amount             Float
-  currency           String                  @default("INR")
-  paidAt             DateTime                @default(now())
-  method             String?
-  note               String?
-  source             String                  @default("admin_manual")
-  status             VendorBillPaymentStatus @default(SETTLED)
-  externalPaymentId  String?
+  id                  String                  @id @default(cuid())
+  vendorBillId        String
+  orgId               String
+  paymentRunId        String?
+  amount              Float
+  currency            String                  @default("INR")
+  paidAt              DateTime                @default(now())
+  method              String?
+  note                String?
+  source              String                  @default("admin_manual")
+  status              VendorBillPaymentStatus @default(SETTLED)
+  externalPaymentId   String?
   externalReferenceId String?
-  externalPayload    Json?
-  recordedByUserId   String?                 @db.Uuid
-  accountingStatus   AccountingStatus        @default(PENDING)
-  journalEntryId     String?                 @unique
-  bankMatchId        String?
-  clearingAccountId  String?
-  accountingPostedAt DateTime?
-  createdAt          DateTime                @default(now())
+  externalPayload     Json?
+  recordedByUserId    String?                 @db.Uuid
+  accountingStatus    AccountingStatus        @default(PENDING)
+  journalEntryId      String?                 @unique
+  bankMatchId         String?
+  clearingAccountId   String?
+  accountingPostedAt  DateTime?
+  createdAt           DateTime                @default(now())
 
-  organization Organization          @relation(fields: [orgId], references: [id], onDelete: Cascade)
-  vendorBill   VendorBill            @relation(fields: [vendorBillId], references: [id], onDelete: Cascade)
-  paymentRun   PaymentRun?           @relation(fields: [paymentRunId], references: [id], onDelete: SetNull)
-  journalEntry JournalEntry?         @relation("VendorBillPaymentJournal", fields: [journalEntryId], references: [id])
-  bankMatch    BankTransactionMatch? @relation("VendorBillPaymentBankMatch", fields: [bankMatchId], references: [id])
-  paymentRunItem PaymentRunItem?     @relation("PaymentRunItemPayment")
+  organization   Organization          @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  vendorBill     VendorBill            @relation(fields: [vendorBillId], references: [id], onDelete: Cascade)
+  paymentRun     PaymentRun?           @relation(fields: [paymentRunId], references: [id], onDelete: SetNull)
+  journalEntry   JournalEntry?         @relation("VendorBillPaymentJournal", fields: [journalEntryId], references: [id])
+  bankMatch      BankTransactionMatch? @relation("VendorBillPaymentBankMatch", fields: [bankMatchId], references: [id])
+  paymentRunItem PaymentRunItem?       @relation("PaymentRunItemPayment")
 
   @@index([vendorBillId])
   @@index([externalPaymentId])
@@ -722,25 +722,25 @@ model VendorBillPayment {
 }
 
 model PaymentRun {
-  id               String            @id @default(cuid())
-  orgId            String
-  runNumber        String
-  scheduledDate    DateTime
-  status           PaymentRunStatus  @default(DRAFT)
-  totalAmount      Float             @default(0)
-  notes            String?
+  id                String           @id @default(cuid())
+  orgId             String
+  runNumber         String
+  scheduledDate     DateTime
+  status            PaymentRunStatus @default(DRAFT)
+  totalAmount       Float            @default(0)
+  notes             String?
   requestedByUserId String?          @db.Uuid
-  approvedAt       DateTime?
-  approvedByUserId String?           @db.Uuid
-  executedAt       DateTime?
-  executedByUserId String?           @db.Uuid
-  createdAt        DateTime          @default(now())
-  updatedAt        DateTime          @updatedAt
+  approvedAt        DateTime?
+  approvedByUserId  String?          @db.Uuid
+  executedAt        DateTime?
+  executedByUserId  String?          @db.Uuid
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
 
-  organization     Organization      @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  organization     Organization        @relation(fields: [orgId], references: [id], onDelete: Cascade)
   items            PaymentRunItem[]
   payments         VendorBillPayment[]
-  approvalRequests ApprovalRequest[] @relation("PaymentRunApprovals")
+  approvalRequests ApprovalRequest[]   @relation("PaymentRunApprovals")
 
   @@unique([orgId, runNumber])
   @@index([orgId, status])
@@ -748,18 +748,18 @@ model PaymentRun {
 }
 
 model PaymentRunItem {
-  id               String               @id @default(cuid())
-  paymentRunId     String
-  vendorBillId     String
-  proposedAmount   Float
-  approvedAmount   Float?
-  status           PaymentRunItemStatus @default(PENDING)
-  executedPaymentId String?            @unique
-  createdAt        DateTime             @default(now())
-  updatedAt        DateTime             @updatedAt
+  id                String               @id @default(cuid())
+  paymentRunId      String
+  vendorBillId      String
+  proposedAmount    Float
+  approvedAmount    Float?
+  status            PaymentRunItemStatus @default(PENDING)
+  executedPaymentId String?              @unique
+  createdAt         DateTime             @default(now())
+  updatedAt         DateTime             @updatedAt
 
-  paymentRun     PaymentRun        @relation(fields: [paymentRunId], references: [id], onDelete: Cascade)
-  vendorBill     VendorBill        @relation(fields: [vendorBillId], references: [id], onDelete: Cascade)
+  paymentRun      PaymentRun         @relation(fields: [paymentRunId], references: [id], onDelete: Cascade)
+  vendorBill      VendorBill         @relation(fields: [vendorBillId], references: [id], onDelete: Cascade)
   executedPayment VendorBillPayment? @relation("PaymentRunItemPayment", fields: [executedPaymentId], references: [id])
 
   @@unique([paymentRunId, vendorBillId])
@@ -768,25 +768,25 @@ model PaymentRunItem {
 }
 
 model CloseRun {
-  id               String         @id @default(cuid())
-  orgId            String
-  fiscalPeriodId   String
-  status           CloseRunStatus @default(DRAFT)
-  blockerCount     Int            @default(0)
-  summary          Json?
-  notes            String?
-  startedAt        DateTime       @default(now())
-  startedByUserId  String?        @db.Uuid
-  completedAt      DateTime?
-  completedByUserId String?       @db.Uuid
-  reopenedAt       DateTime?
-  reopenedByUserId String?        @db.Uuid
-  reportSnapshotId String?
-  createdAt        DateTime       @default(now())
-  updatedAt        DateTime       @updatedAt
+  id                String         @id @default(cuid())
+  orgId             String
+  fiscalPeriodId    String
+  status            CloseRunStatus @default(DRAFT)
+  blockerCount      Int            @default(0)
+  summary           Json?
+  notes             String?
+  startedAt         DateTime       @default(now())
+  startedByUserId   String?        @db.Uuid
+  completedAt       DateTime?
+  completedByUserId String?        @db.Uuid
+  reopenedAt        DateTime?
+  reopenedByUserId  String?        @db.Uuid
+  reportSnapshotId  String?
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
 
-  organization Organization  @relation(fields: [orgId], references: [id], onDelete: Cascade)
-  fiscalPeriod FiscalPeriod  @relation(fields: [fiscalPeriodId], references: [id], onDelete: Cascade)
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  fiscalPeriod FiscalPeriod @relation(fields: [fiscalPeriodId], references: [id], onDelete: Cascade)
   tasks        CloseTask[]
 
   @@unique([orgId, fiscalPeriodId])
@@ -795,22 +795,22 @@ model CloseRun {
 }
 
 model CloseTask {
-  id          String          @id @default(cuid())
-  closeRunId  String
-  orgId       String
-  code        String
-  label       String
-  description String?
-  status      CloseTaskStatus @default(PENDING)
-  severity    String          @default("blocker")
+  id            String          @id @default(cuid())
+  closeRunId    String
+  orgId         String
+  code          String
+  label         String
+  description   String?
+  status        CloseTaskStatus @default(PENDING)
+  severity      String          @default("blocker")
   blockerReason String?
-  metadata    Json?
-  resolvedAt  DateTime?
-  createdAt   DateTime        @default(now())
-  updatedAt   DateTime        @updatedAt
+  metadata      Json?
+  resolvedAt    DateTime?
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
 
-  closeRun      CloseRun      @relation(fields: [closeRunId], references: [id], onDelete: Cascade)
-  organization  Organization  @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  closeRun     CloseRun     @relation(fields: [closeRunId], references: [id], onDelete: Cascade)
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
 
   @@unique([closeRunId, code])
   @@index([orgId, status])
@@ -1158,10 +1158,10 @@ model FileAttachment {
 
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
-  invoice    Invoice?    @relation("InvoiceAttachments", fields: [entityId], references: [id], map: "file_attachment_invoice_fkey")
-  voucher    Voucher?    @relation("VoucherAttachments", fields: [entityId], references: [id], map: "file_attachment_voucher_fkey")
-  vendorBill VendorBill? @relation("VendorBillAttachments", fields: [entityId], references: [id], map: "file_attachment_vendor_bill_fkey")
-  salarySlip SalarySlip? @relation("SalarySlipAttachments", fields: [entityId], references: [id], map: "file_attachment_salary_slip_fkey")
+  invoice     Invoice?     @relation("InvoiceAttachments", fields: [entityId], references: [id], map: "file_attachment_invoice_fkey")
+  voucher     Voucher?     @relation("VoucherAttachments", fields: [entityId], references: [id], map: "file_attachment_voucher_fkey")
+  vendorBill  VendorBill?  @relation("VendorBillAttachments", fields: [entityId], references: [id], map: "file_attachment_vendor_bill_fkey")
+  salarySlip  SalarySlip?  @relation("SalarySlipAttachments", fields: [entityId], references: [id], map: "file_attachment_salary_slip_fkey")
   ticketReply TicketReply? @relation("TicketReplyAttachments", fields: [entityId], references: [id], map: "file_attachment_ticket_reply_fkey")
 
   @@index([organizationId, entityType, entityId])
@@ -1304,6 +1304,7 @@ enum TicketStatus {
   RESOLVED
   CLOSED
 }
+
 enum ApprovalPolicyStatus {
   ACTIVE
   INACTIVE
@@ -1354,28 +1355,28 @@ enum ScheduledActionStatus {
 }
 
 model InvoiceTicket {
-  id             String         @id @default(cuid())
-  invoiceId      String
-  orgId          String
-  submitterToken String?
-  submitterName  String
-  submitterEmail String
-  category       TicketCategory @default(OTHER)
-  description    String
-  status         TicketStatus   @default(OPEN)
-  assigneeId     String?        @db.Uuid
-  createdAt      DateTime       @default(now())
-  resolvedAt     DateTime?
-  priority            TicketPriority @default(NORMAL)
-  severity            TicketSeverity @default(INFORMATIONAL)
-  dueAt               DateTime?
-  firstResponseDueAt  DateTime?
-  resolutionDueAt     DateTime?
-  firstRespondedAt    DateTime?
-  breachedAt          DateTime?
-  breachType          String?
-  escalationLevel     Int            @default(0)
-  sourceModule        String?
+  id                 String         @id @default(cuid())
+  invoiceId          String
+  orgId              String
+  submitterToken     String?
+  submitterName      String
+  submitterEmail     String
+  category           TicketCategory @default(OTHER)
+  description        String
+  status             TicketStatus   @default(OPEN)
+  assigneeId         String?        @db.Uuid
+  createdAt          DateTime       @default(now())
+  resolvedAt         DateTime?
+  priority           TicketPriority @default(NORMAL)
+  severity           TicketSeverity @default(INFORMATIONAL)
+  dueAt              DateTime?
+  firstResponseDueAt DateTime?
+  resolutionDueAt    DateTime?
+  firstRespondedAt   DateTime?
+  breachedAt         DateTime?
+  breachType         String?
+  escalationLevel    Int            @default(0)
+  sourceModule       String?
 
   invoice Invoice       @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
   replies TicketReply[]
@@ -1386,14 +1387,14 @@ model InvoiceTicket {
 }
 
 model TicketReply {
-  id               String          @id @default(cuid())
+  id               String   @id @default(cuid())
   ticketId         String
-  authorId         String?         @db.Uuid
+  authorId         String?  @db.Uuid
   authorName       String
-  portalCustomerId String?         // Link to Customer.id if reply is from portal
-  isInternal       Boolean         @default(false)
+  portalCustomerId String? // Link to Customer.id if reply is from portal
+  isInternal       Boolean  @default(false)
   message          String
-  createdAt        DateTime        @default(now())
+  createdAt        DateTime @default(now())
 
   ticket      InvoiceTicket    @relation(fields: [ticketId], references: [id], onDelete: Cascade)
   attachments FileAttachment[] @relation("TicketReplyAttachments")
@@ -1410,6 +1411,7 @@ enum ApprovalStatus {
   APPROVED
   REJECTED
 }
+
 model ApprovalPolicy {
   id                String               @id @default(cuid())
   orgId             String
@@ -1430,33 +1432,33 @@ model ApprovalPolicy {
 }
 
 model ApprovalPolicyRule {
-  id                 String   @id @default(cuid())
-  policyId           String
-  sequence           Int
-  minAmount          Decimal? @db.Decimal(14, 2)
-  maxAmount          Decimal? @db.Decimal(14, 2)
-  approverRole       String?
-  approverUserId     String?  @db.Uuid
-  fallbackRole       String?
-  fallbackUserId     String?  @db.Uuid
-  createdAt          DateTime @default(now())
+  id             String   @id @default(cuid())
+  policyId       String
+  sequence       Int
+  minAmount      Decimal? @db.Decimal(14, 2)
+  maxAmount      Decimal? @db.Decimal(14, 2)
+  approverRole   String?
+  approverUserId String?  @db.Uuid
+  fallbackRole   String?
+  fallbackUserId String?  @db.Uuid
+  createdAt      DateTime @default(now())
 
   @@index([policyId, sequence])
   @@map("approval_policy_rule")
 }
 
 model TicketSlaPolicy {
-  id                     String   @id @default(cuid())
-  orgId                  String
-  name                   String
-  category               String?
-  priority               String?
+  id                      String   @id @default(cuid())
+  orgId                   String
+  name                    String
+  category                String?
+  priority                String?
   firstResponseTargetMins Int
-  resolutionTargetMins   Int
-  businessHoursOnly      Boolean  @default(false)
-  isDefault              Boolean  @default(false)
-  createdAt              DateTime @default(now())
-  updatedAt              DateTime @updatedAt
+  resolutionTargetMins    Int
+  businessHoursOnly       Boolean  @default(false)
+  isDefault               Boolean  @default(false)
+  createdAt               DateTime @default(now())
+  updatedAt               DateTime @updatedAt
 
   organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
 
@@ -1465,17 +1467,17 @@ model TicketSlaPolicy {
 }
 
 model TicketEscalationRule {
-  id               String   @id @default(cuid())
-  orgId            String
-  name             String
-  breachType       String
-  afterMins        Int
-  targetRole       String?
-  targetUserId     String?  @db.Uuid
-  notifyOrgAdmins  Boolean  @default(false)
-  enabled          Boolean  @default(true)
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
+  id              String   @id @default(cuid())
+  orgId           String
+  name            String
+  breachType      String
+  afterMins       Int
+  targetRole      String?
+  targetUserId    String?  @db.Uuid
+  notifyOrgAdmins Boolean  @default(false)
+  enabled         Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 
   organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
 
@@ -1509,16 +1511,16 @@ model ScheduledAction {
 }
 
 model DeadLetterAction {
-  id                String   @id @default(cuid())
-  scheduledActionId String   @unique
+  id                String    @id @default(cuid())
+  scheduledActionId String    @unique
   orgId             String
   actionType        String
   sourceModule      String
   failureReason     String
   payload           Json
-  deadLetteredAt    DateTime @default(now())
+  deadLetteredAt    DateTime  @default(now())
   resolvedAt        DateTime?
-  resolvedBy        String?  @db.Uuid
+  resolvedBy        String?   @db.Uuid
 
   organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
 
@@ -1586,15 +1588,15 @@ model WorkflowRun {
 }
 
 model WorkflowStepRun {
-  id              String            @id @default(cuid())
-  workflowRunId   String
-  workflowStepId  String
-  status          WorkflowRunStatus @default(PENDING)
-  attemptCount    Int               @default(0)
-  startedAt       DateTime?
-  completedAt     DateTime?
-  failureReason   String?
-  outputPayload   Json?
+  id             String            @id @default(cuid())
+  workflowRunId  String
+  workflowStepId String
+  status         WorkflowRunStatus @default(PENDING)
+  attemptCount   Int               @default(0)
+  startedAt      DateTime?
+  completedAt    DateTime?
+  failureReason  String?
+  outputPayload  Json?
 
   workflowRun  WorkflowRun  @relation(fields: [workflowRunId], references: [id], onDelete: Cascade)
   workflowStep WorkflowStep @relation(fields: [workflowStepId], references: [id], onDelete: Cascade)
@@ -1616,12 +1618,12 @@ model ApprovalRequest {
   note            String?
   createdAt       DateTime       @default(now())
   decidedAt       DateTime?
-  policyId           String?
-  policyRuleId       String?
-  dueAt              DateTime?
-  escalatedAt        DateTime?
-  escalationLevel    Int            @default(0)
-  lastReminderAt     DateTime?
+  policyId        String?
+  policyRuleId    String?
+  dueAt           DateTime?
+  escalatedAt     DateTime?
+  escalationLevel Int            @default(0)
+  lastReminderAt  DateTime?
 
   invoice    Invoice?    @relation("InvoiceApprovals", fields: [docId], references: [id], map: "approval_invoice_fkey")
   voucher    Voucher?    @relation("VoucherApprovals", fields: [docId], references: [id], map: "approval_voucher_fkey")
@@ -1637,21 +1639,21 @@ model ApprovalRequest {
 // ─── Phase 5: SW Flow — Notifications ─────────────────────────────────────────
 
 model Notification {
-  id        String   @id @default(cuid())
-  userId    String   @db.Uuid
-  orgId     String
-  type      String
-  title     String
-  body      String
-  link      String?
-  isRead    Boolean  @default(false)
-  createdAt DateTime @default(now())
-  category      String?
-  severity      String?
-  sourceModule  String?
-  sourceRef     String?
+  id             String   @id @default(cuid())
+  userId         String   @db.Uuid
+  orgId          String
+  type           String
+  title          String
+  body           String
+  link           String?
+  isRead         Boolean  @default(false)
+  createdAt      DateTime @default(now())
+  category       String?
+  severity       String?
+  sourceModule   String?
+  sourceRef      String?
   // Sprint 18.2 delivery extensions
-  emailRequested Boolean @default(false)
+  emailRequested Boolean  @default(false)
   recipientEmail String?
 
   deliveries NotificationDelivery[]
@@ -1703,9 +1705,9 @@ model NotificationDelivery {
   replayedAt        DateTime?
   replayedBy        String?                     @db.Uuid
 
-  notification  Notification         @relation(fields: [notificationId], references: [id], onDelete: Cascade)
-  replayedFrom  NotificationDelivery?  @relation("DeliveryReplay", fields: [replayedFromId], references: [id], onDelete: SetNull)
-  replays       NotificationDelivery[] @relation("DeliveryReplay")
+  notification Notification           @relation(fields: [notificationId], references: [id], onDelete: Cascade)
+  replayedFrom NotificationDelivery?  @relation("DeliveryReplay", fields: [replayedFromId], references: [id], onDelete: SetNull)
+  replays      NotificationDelivery[] @relation("DeliveryReplay")
 
   @@index([orgId, status])
   @@index([orgId, channel])
@@ -2681,11 +2683,44 @@ model MarketplaceTemplate {
   createdAt       DateTime                  @default(now())
   updatedAt       DateTime                  @updatedAt
 
-  publisherOrg Organization?         @relation(fields: [publisherOrgId], references: [id])
+  reviewedBy      String?   @db.Uuid
+  reviewedAt      DateTime?
+  rejectionReason String?
+  reviewNotes     String?
+  publishedAt     DateTime?
+  archivedAt      DateTime?
+
+  publisherOrg Organization?                 @relation(fields: [publisherOrgId], references: [id])
   purchases    MarketplacePurchase[]
   reviews      MarketplaceReview[]
+  revisions    MarketplaceTemplateRevision[]
 
   @@map("marketplace_templates")
+}
+
+model MarketplaceTemplateRevision {
+  id              String                    @id @default(cuid())
+  templateId      String
+  version         String                    @default("1.0.0")
+  templateData    Json
+  previewImageUrl String
+  previewPdfUrl   String?
+  status          MarketplaceTemplateStatus @default(DRAFT)
+
+  createdBy String?  @db.Uuid
+  createdAt DateTime @default(now())
+
+  reviewedBy      String?   @db.Uuid
+  reviewedAt      DateTime?
+  reviewNotes     String?
+  rejectionReason String?
+  publishedAt     DateTime?
+
+  template  MarketplaceTemplate   @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  purchases MarketplacePurchase[]
+
+  @@index([templateId])
+  @@map("marketplace_template_revisions")
 }
 
 model MarketplacePurchase {
@@ -2700,8 +2735,11 @@ model MarketplacePurchase {
   installedAt       DateTime @default(now())
   createdAt         DateTime @default(now())
 
-  org      Organization        @relation(fields: [orgId], references: [id])
-  template MarketplaceTemplate @relation(fields: [templateId], references: [id])
+  revisionId String?
+
+  org      Organization                 @relation(fields: [orgId], references: [id])
+  template MarketplaceTemplate          @relation(fields: [templateId], references: [id])
+  revision MarketplaceTemplateRevision? @relation(fields: [revisionId], references: [id])
   revenue  MarketplaceRevenue?
 
   @@unique([orgId, templateId])
