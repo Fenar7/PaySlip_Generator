@@ -14,6 +14,15 @@ vi.mock("@/lib/db", () => ({
   },
 }));
 
+// Phase 19.2: mock document-events so fire-and-forget emits don't error
+vi.mock("@/lib/document-events", () => ({
+  emitInvoiceEvent: vi.fn().mockResolvedValue(undefined),
+  emitVoucherEvent: vi.fn().mockResolvedValue(undefined),
+  emitSalarySlipEvent: vi.fn().mockResolvedValue(undefined),
+  emitQuoteEvent: vi.fn().mockResolvedValue(undefined),
+  createDocEvent: vi.fn().mockResolvedValue(undefined),
+}));
+
 vi.mock("@/lib/auth", () => ({
   requireOrgContext: vi.fn(),
 }));

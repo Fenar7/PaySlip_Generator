@@ -9,6 +9,7 @@ import type { Prisma } from "@/generated/prisma/client";
 import { reconcileInvoicePayment, validatePaymentAmount } from "@/lib/invoice-reconciliation";
 import { postInvoiceIssueTx, postInvoicePaymentTx, reverseJournalEntryTx } from "@/lib/accounting";
 import { fireWorkflowTrigger } from "@/lib/flow/workflow-engine";
+import { emitInvoiceEvent } from "@/lib/document-events";
 import { syncInvoiceToIndex } from "@/lib/docs-vault";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -178,6 +179,11 @@ export async function saveInvoice(
       });
     }
 
+    // Phase 19.2: emit normalized document event
+    void emitInvoiceEvent(orgId, invoice.id, status === "ISSUED" ? "issued" : "created", {
+      actorId: userId,
+      metadata: { invoiceNumber },
+    });
     // Phase 19.1: Sync to DocumentIndex
     void syncInvoiceToIndex(orgId, {
       id: invoice.id,
@@ -211,7 +217,7 @@ export async function updateInvoice(
   input: Partial<InvoiceInput>
 ): Promise<ActionResult<{ id: string }>> {
   try {
-    const { orgId } = await requireOrgContext();
+    const { orgId, userId } = await requireOrgContext();
 
     const existing = await db.invoice.findFirst({
       where: { id, organizationId: orgId },
@@ -264,6 +270,8 @@ export async function updateInvoice(
       });
     }
 
+    // Phase 19.2: emit normalized document event
+    void emitInvoiceEvent(orgId, id, "updated", { actorId: userId });
     // Phase 19.1: Sync updated invoice to DocumentIndex
     const updated = await db.invoice.findUnique({
       where: { id },
@@ -330,6 +338,9 @@ export async function archiveInvoice(id: string): Promise<ActionResult<void>> {
       customer: archived.customer ?? undefined,
     });
 
+    // Phase 19.2: emit normalized document event
+    void emitInvoiceEvent(orgId, id, "archived", { actorId: orgId });
+
     revalidatePath("/app/docs/invoices");
     return { success: true, data: undefined };
   } catch (error) {
@@ -378,6 +389,14 @@ export async function duplicateInvoice(
           })),
         },
       },
+    });
+
+    // Phase 19.2: emit normalized document event on both original and new
+    void emitInvoiceEvent(orgId, duplicate.id, "created", {
+      metadata: { duplicatedFrom: id, invoiceNumber: newNumber },
+    });
+    void emitInvoiceEvent(orgId, id, "duplicated", {
+      metadata: { newInvoiceId: duplicate.id, newInvoiceNumber: newNumber },
     });
 
     revalidatePath("/app/docs/invoices");
@@ -840,6 +859,12 @@ export async function cancelInvoice(
       });
     });
 
+    // Phase 19.2: emit normalized document event
+    void emitInvoiceEvent(orgId, invoiceId, "cancelled", {
+      actorId: userId,
+      metadata: { reason },
+    });
+
     revalidatePath("/app/docs/invoices");
     revalidatePath(`/app/docs/invoices/${invoiceId}`);
     return { success: true, data: undefined };
@@ -939,6 +964,16 @@ export async function reissueInvoice(
       });
 
       return newInvoice;
+    });
+
+    // Phase 19.2: emit normalized document events — reissued original + created new
+    void emitInvoiceEvent(orgId, invoiceId, "reissued", {
+      actorId: userId,
+      metadata: { newInvoiceId: result.id, newInvoiceNumber: newNumber, reason },
+    });
+    void emitInvoiceEvent(orgId, result.id, "created", {
+      actorId: userId,
+      metadata: { reissuedFromId: invoiceId, invoiceNumber: newNumber },
     });
 
     revalidatePath("/app/docs/invoices");

@@ -11,6 +11,7 @@ import {
   convertQuoteToInvoice,
 } from "@/lib/quotes";
 import { revalidatePath } from "next/cache";
+import { emitQuoteEvent } from "@/lib/document-events";
 import { syncQuoteToIndex } from "@/lib/docs-vault";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -141,6 +142,11 @@ export async function createQuoteAction(
 
     await incrementUsage(orgId, "quotesPerMonth");
 
+    // Phase 19.2: emit normalized document event
+    void emitQuoteEvent(orgId, quote.id, "created", {
+      actorId: userId,
+      metadata: { quoteNumber: quote.quoteNumber },
+    });
     // Phase 19.1: Sync to DocumentIndex (quotes are first-class docs)
     void syncQuoteToIndex(orgId, {
       id: quote.id,
@@ -184,6 +190,8 @@ export async function updateQuoteAction(
       lineItems: data.lineItems,
     });
 
+    // Phase 19.2: emit normalized document event
+    void emitQuoteEvent(orgId, quoteId, "updated", { actorId: userId });
     // Phase 19.1: Sync updated quote to DocumentIndex
     const updated = await db.quote.findUnique({
       where: { id: quoteId },
@@ -292,6 +300,8 @@ export async function sendQuoteAction(quoteId: string): Promise<ActionResult<voi
 
     await sendQuote(quoteId, orgId, userId);
 
+    // Phase 19.2: emit normalized document event
+    void emitQuoteEvent(orgId, quoteId, "sent", { actorId: userId });
     // Sync status change to DocumentIndex
     const updated = await db.quote.findUnique({
       where: { id: quoteId },
@@ -331,6 +341,11 @@ export async function convertQuoteAction(
 
     const invoice = await convertQuoteToInvoice(quoteId, orgId, userId);
 
+    // Phase 19.2: emit quote_converted + invoice created events (first-class quote lifecycle)
+    void emitQuoteEvent(orgId, quoteId, "quote_converted", {
+      actorId: userId,
+      metadata: { invoiceId: invoice.id },
+    });
     // Sync status change (CONVERTED) to DocumentIndex
     const updated = await db.quote.findUnique({
       where: { id: quoteId },
@@ -408,6 +423,13 @@ export async function duplicateQuote(
 
     await incrementUsage(orgId, "quotesPerMonth");
 
+    // Phase 19.2: emit normalized document events
+    void emitQuoteEvent(orgId, quote.id, "created", {
+      metadata: { duplicatedFrom: quoteId, quoteNumber: quote.quoteNumber },
+    });
+    void emitQuoteEvent(orgId, quoteId, "duplicated", {
+      metadata: { newQuoteId: quote.id, newQuoteNumber: quote.quoteNumber },
+    });
     // Phase 19.1: Sync the new duplicate to DocumentIndex
     void syncQuoteToIndex(orgId, {
       id: quote.id,

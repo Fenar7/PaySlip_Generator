@@ -6,6 +6,7 @@ import { nextDocumentNumber } from "@/lib/docs";
 import { revalidatePath } from "next/cache";
 import type { Prisma } from "@/generated/prisma/client";
 import { postVoucherTx } from "@/lib/accounting";
+import { emitVoucherEvent } from "@/lib/document-events";
 import { syncVoucherToIndex } from "@/lib/docs-vault";
 
 export type ActionResult<T> = 
@@ -77,6 +78,11 @@ export async function saveVoucher(
       return created;
     });
     
+    // Phase 19.2: emit normalized document event
+    void emitVoucherEvent(orgId, voucher.id, status === "approved" ? "approved" : "created", {
+      actorId: userId,
+      metadata: { voucherNumber },
+    });
     // Phase 19.1: Sync to DocumentIndex
     void syncVoucherToIndex(orgId, {
       id: voucher.id,
@@ -165,6 +171,8 @@ export async function updateVoucher(
       }
     });
     
+    // Phase 19.2: emit normalized document event
+    void emitVoucherEvent(orgId, id, "updated", { actorId: userId });
     // Phase 19.1: Sync updated voucher to DocumentIndex
     const updated = await db.voucher.findUnique({
       where: { id },
@@ -213,7 +221,10 @@ export async function archiveVoucher(id: string): Promise<ActionResult<void>> {
       archivedAt: archived.archivedAt,
       vendor: archived.vendor ?? undefined,
     });
-    
+
+    // Phase 19.2: emit normalized document event
+    void emitVoucherEvent(orgId, id, "archived");
+
     revalidatePath("/app/docs/vouchers");
     return { success: true, data: undefined };
   } catch (error) {
@@ -261,6 +272,14 @@ export async function duplicateVoucher(id: string): Promise<ActionResult<{ id: s
       },
     });
     
+    // Phase 19.2: emit normalized document events
+    void emitVoucherEvent(orgId, duplicate.id, "created", {
+      metadata: { duplicatedFrom: id, voucherNumber: newNumber },
+    });
+    void emitVoucherEvent(orgId, id, "duplicated", {
+      metadata: { newVoucherId: duplicate.id, newVoucherNumber: newNumber },
+    });
+
     revalidatePath("/app/docs/vouchers");
     return { success: true, data: { id: duplicate.id, voucherNumber: newNumber } };
   } catch (error) {
