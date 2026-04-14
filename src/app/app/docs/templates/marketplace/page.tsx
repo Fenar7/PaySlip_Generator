@@ -21,7 +21,7 @@ interface TemplateItem {
   rating: number;
   reviewCount: number;
   downloadCount: number;
-  publisherId: string;
+  publisherDisplayName: string;
   previewImageUrl: string;
 }
 
@@ -51,7 +51,7 @@ export default function MarketplacePage() {
 
       const result = await browseTemplates(filters);
       if (result.success) {
-        setTemplates(result.data.templates as unknown as TemplateItem[]);
+        setTemplates(result.data.templates);
         setTotal(result.data.total);
       }
     }
@@ -244,6 +244,9 @@ function TemplateCard({ template }: { template: TemplateItem }) {
 
         <div className="text-muted-foreground text-xs">
           {template.templateType}
+        </div>
+        <div className="text-muted-foreground text-xs">
+          By {template.publisherDisplayName}
         </div>
       </div>
     </div>

@@ -15,7 +15,7 @@ export default async function AdminReviewQueuePage() {
     );
   }
 
-  const templates = result.data as any[];
+  const templates = result.data;
 
   return (
     <div className="p-6 max-w-5xl mx-auto">
@@ -50,14 +50,14 @@ export default async function AdminReviewQueuePage() {
                     <div className="text-xs text-muted-foreground mt-0.5">{tpl.id}</div>
                   </td>
                   <td className="px-6 py-4">
-                    <div>{tpl.publisherOrg?.name || tpl.publisherName}</div>
+                    <div>{tpl.publisherDisplayName}</div>
                   </td>
                   <td className="px-6 py-4 capitalize">{tpl.templateType?.toLowerCase()}</td>
                   <td className="px-6 py-4 text-muted-foreground">
-                    {new Date(tpl.createdAt).toLocaleDateString("en-US", { 
-                      month: "short", 
-                      day: "numeric", 
-                      year: "numeric" 
+                    {new Date(tpl.submittedAt).toLocaleDateString("en-US", {
+                      month: "short",
+                      day: "numeric",
+                      year: "numeric",
                     })}
                   </td>
                   <td className="px-6 py-4 text-right">

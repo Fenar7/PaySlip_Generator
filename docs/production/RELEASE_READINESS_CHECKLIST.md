@@ -9,6 +9,7 @@ Use this checklist before claiming a release candidate is ready for production.
 | Item | Required state |
 | --- | --- |
 | Remediation lanes | PR-01 through PR-05 reviewed and merged in the intended release stack |
+| Phase 19 branch baseline | Verification is run on `feature/phase-19` or its remediation PR branch; explicit diff to `master` reviewed before merge |
 | Working tree | Clean; no unreviewed local changes |
 | Release docs | README, product summary, status report, QA handover, and this checklist updated |
 | Accepted risks | Explicitly reviewed and signed off |
@@ -20,13 +21,13 @@ Use this checklist before claiming a release candidate is ready for production.
 | Area | Check |
 | --- | --- |
 | Core auth/db | Supabase + PostgreSQL values set; migrations applied |
-| Secrets | `CRON_SECRET`, `PORTAL_JWT_SECRET`, `DUNNING_OPT_OUT_SECRET` set |
+| Secrets | `CRON_SECRET`, `PORTAL_JWT_SECRET`, `DUNNING_OPT_OUT_SECRET`, and `MARKETPLACE_MODERATOR_USER_IDS` set intentionally |
 | Billing | Razorpay keys and webhook secret configured |
 | Compliance | IRP/exchange-rate credentials configured if those features are being launched |
 | Integrations | QuickBooks/Zoho credentials configured only if those integrations are enabled |
 | Observability | Sentry/PostHog/Redis decisions documented for target environment |
 | Feature flags | `FEATURE_SSO_ENABLED` intentionally set (default should remain `false` unless explicitly approved) |
-| Phase 19 Backfills | Ensure `scripts/backfill-document-index.ts` and `scripts/backfill-template-revisions.ts` are run post-migration |
+| Phase 19 Backfills | Run `scripts/backfill-document-index.ts` and `scripts/backfill-template-revisions.ts` post-migration, then capture zero-count verification for completed purchases with `revisionId IS NULL`, templates without revisions, and duplicate published revisions |
 
 ---
 
@@ -52,7 +53,7 @@ Use this checklist before claiming a release candidate is ready for production.
 | Core documents | Invoice, voucher, salary slip, quote critical flows |
 | Phase 19 SW Docs Vault | Unified index `/app/docs/vault` accurately lists all doc types, applies text search and archive toggles |
 | Phase 19 Timeline | `DocumentEvent` timeline correctly tracks append-only lifecycle events across all documents |
-| Phase 19 Templates | Sandbox review logic handles legacy `revisionId=null` degradations, ensures lock bounding |
+| Phase 19 Templates | Marketplace moderation is limited to configured moderators, public detail reads expose only `PUBLISHED` templates, installed-template reads are revision-bound, and `scripts/backfill-template-revisions.ts` verification passes without degradations |
 | Pay flows | Dunning, payment arrangements, portal payment path |
 | Global/compliance | GST/IRP/TDS/GSTR/i18n/multi-currency smoke coverage as applicable |
 

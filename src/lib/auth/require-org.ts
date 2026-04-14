@@ -10,6 +10,12 @@ export interface OrgContext {
   role: string;
 }
 
+export interface MarketplaceModeratorContext {
+  userId: string;
+  orgId: string | null;
+  role: string | null;
+}
+
 export type AuthRoutingContext =
   | { isAuthenticated: false }
   | { isAuthenticated: true; userId: string; hasOrg: false }
@@ -114,6 +120,17 @@ export function hasRole(userRole: string, requiredRole: string): boolean {
   return userLevel >= requiredLevel;
 }
 
+function getMarketplaceModeratorUserIds(): string[] {
+  return (process.env.MARKETPLACE_MODERATOR_USER_IDS ?? "")
+    .split(",")
+    .map((value) => value.trim())
+    .filter(Boolean);
+}
+
+export function isMarketplaceModeratorUser(userId: string): boolean {
+  return getMarketplaceModeratorUserIds().includes(userId);
+}
+
 /**
  * Require a specific role, throw if insufficient permissions.
  */
@@ -125,4 +142,22 @@ export async function requireRole(requiredRole: string): Promise<OrgContext> {
   }
   
   return context;
+}
+
+export async function requireMarketplaceModerator(): Promise<MarketplaceModeratorContext> {
+  const context = await getAuthRoutingContext();
+
+  if (!context.isAuthenticated) {
+    redirect("/auth/login");
+  }
+
+  if (!isMarketplaceModeratorUser(context.userId)) {
+    throw new Error("Marketplace moderation access denied");
+  }
+
+  return {
+    userId: context.userId,
+    orgId: context.hasOrg ? context.orgId : null,
+    role: context.hasOrg ? context.role : null,
+  };
 }

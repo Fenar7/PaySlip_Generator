@@ -4,6 +4,9 @@ export {
   getOrgContext, 
   hasRole, 
   requireRole,
+  isMarketplaceModeratorUser,
+  requireMarketplaceModerator,
   type AuthRoutingContext,
-  type OrgContext 
+  type OrgContext,
+  type MarketplaceModeratorContext,
 } from "./require-org";
