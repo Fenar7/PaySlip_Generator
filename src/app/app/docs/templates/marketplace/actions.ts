@@ -1,16 +1,237 @@
 "use server";
 
 import crypto from "crypto";
+import { MarketplaceTemplateStatus, Prisma } from "@/generated/prisma/client";
 import { db } from "@/lib/db";
-import { requireOrgContext, requireRole } from "@/lib/auth";
+import {
+  getAuthRoutingContext,
+  isMarketplaceModeratorUser,
+  requireOrgContext,
+  requireRole,
+} from "@/lib/auth";
+import { resolveMarketplacePublisherDisplayName } from "@/lib/marketplace-template-revisions";
 import { checkFeature } from "@/lib/plans/enforcement";
 import { revalidatePath } from "next/cache";
-import { Prisma } from "@/generated/prisma/client";
 import Razorpay from "razorpay";
 
 type ActionResult<T> =
   | { success: true; data: T }
   | { success: false; error: string };
+
+type MarketplaceTemplateCard = {
+  id: string;
+  name: string;
+  description: string;
+  templateType: string;
+  category: string[];
+  price: number;
+  rating: number;
+  reviewCount: number;
+  downloadCount: number;
+  publisherDisplayName: string;
+  previewImageUrl: string;
+};
+
+type MarketplaceTemplateReview = {
+  id: string;
+  rating: number;
+  review: string | null;
+  createdAt: string;
+};
+
+type MarketplaceTemplateDetail = {
+  id: string;
+  name: string;
+  description: string;
+  templateType: string;
+  category: string[];
+  tags: string[];
+  price: number;
+  currency: string;
+  version: string;
+  status: MarketplaceTemplateStatus;
+  publisherDisplayName: string;
+  previewImageUrl: string;
+  previewPdfUrl: string | null;
+  rating: number;
+  reviewCount: number;
+  downloadCount: number;
+  reviews: MarketplaceTemplateReview[];
+  rejectionReason?: string | null;
+  reviewNotes?: string | null;
+};
+
+type InstalledTemplateCard = {
+  purchaseId: string;
+  templateId: string;
+  revisionId: string;
+  revisionVersion: string;
+  displayName: string;
+  description: string;
+  templateType: string;
+  publisherDisplayName: string;
+  previewImageUrl: string;
+  installedAt: string;
+};
+
+type TemplateDetailActor = "public" | "publisher" | "moderator";
+
+function serializeMarketplaceTemplateCard(template: {
+  id: string;
+  name: string;
+  description: string;
+  templateType: string;
+  category: string[];
+  price: Prisma.Decimal | number;
+  rating: Prisma.Decimal | number | null;
+  ratingCount: number;
+  downloadCount: number;
+  publisherName: string;
+  previewImageUrl: string;
+  publisherOrg: { name: string } | null;
+}): MarketplaceTemplateCard {
+  return {
+    id: template.id,
+    name: template.name,
+    description: template.description,
+    templateType: template.templateType,
+    category: template.category,
+    price: Number(template.price),
+    rating: Number(template.rating ?? 0),
+    reviewCount: template.ratingCount,
+    downloadCount: template.downloadCount,
+    publisherDisplayName: resolveMarketplacePublisherDisplayName(template),
+    previewImageUrl: template.previewImageUrl,
+  };
+}
+
+function serializeTemplateDetail(
+  template: {
+    id: string;
+    name: string;
+    description: string;
+    templateType: string;
+    category: string[];
+    tags: string[];
+    price: Prisma.Decimal | number;
+    currency: string;
+    version: string;
+    status: MarketplaceTemplateStatus;
+    publisherName: string;
+    previewImageUrl: string;
+    previewPdfUrl: string | null;
+    rating: Prisma.Decimal | number | null;
+    ratingCount: number;
+    downloadCount: number;
+    rejectionReason: string | null;
+    reviewNotes: string | null;
+    publisherOrg: { name: string } | null;
+    reviews: Array<{
+      id: string;
+      rating: number;
+      review: string | null;
+      createdAt: Date;
+    }>;
+  },
+  actor: TemplateDetailActor,
+): MarketplaceTemplateDetail {
+  return {
+    id: template.id,
+    name: template.name,
+    description: template.description,
+    templateType: template.templateType,
+    category: template.category,
+    tags: template.tags,
+    price: Number(template.price),
+    currency: template.currency,
+    version: template.version,
+    status: template.status,
+    publisherDisplayName: resolveMarketplacePublisherDisplayName(template),
+    previewImageUrl: template.previewImageUrl,
+    previewPdfUrl: template.previewPdfUrl ?? null,
+    rating: Number(template.rating ?? 0),
+    reviewCount: template.ratingCount,
+    downloadCount: template.downloadCount,
+    reviews: template.reviews.map((review) => ({
+      id: review.id,
+      rating: review.rating,
+      review: review.review ?? null,
+      createdAt: review.createdAt.toISOString(),
+    })),
+    ...(actor === "public"
+      ? {}
+      : {
+          rejectionReason: template.rejectionReason ?? null,
+          reviewNotes: template.reviewNotes ?? null,
+        }),
+  };
+}
+
+function serializeInstalledTemplate(purchase: {
+  id: string;
+  templateId: string;
+  revisionId: string | null;
+  installedAt: Date;
+  revision: {
+    id: string;
+    version: string;
+    name: string;
+    description: string;
+    templateType: string;
+    publisherDisplayName: string;
+    previewImageUrl: string;
+  } | null;
+}): InstalledTemplateCard {
+  if (!purchase.revisionId || !purchase.revision) {
+    throw new Error(
+      "Installed template data is incomplete. Run scripts/backfill-template-revisions.ts before using installed templates.",
+    );
+  }
+
+  return {
+    purchaseId: purchase.id,
+    templateId: purchase.templateId,
+    revisionId: purchase.revisionId,
+    revisionVersion: purchase.revision.version,
+    displayName: purchase.revision.name,
+    description: purchase.revision.description,
+    templateType: purchase.revision.templateType,
+    publisherDisplayName: purchase.revision.publisherDisplayName,
+    previewImageUrl: purchase.revision.previewImageUrl,
+    installedAt: purchase.installedAt.toISOString(),
+  };
+}
+
+async function getTemplateDetailActor(
+  templatePublisherOrgId: string | null,
+): Promise<TemplateDetailActor> {
+  const authContext = await getAuthRoutingContext();
+
+  if (!authContext.isAuthenticated) {
+    return "public";
+  }
+
+  if (isMarketplaceModeratorUser(authContext.userId)) {
+    return "moderator";
+  }
+
+  if (authContext.hasOrg && templatePublisherOrgId && authContext.orgId === templatePublisherOrgId) {
+    return "publisher";
+  }
+
+  return "public";
+}
+
+function canViewTemplateDetail(
+  status: MarketplaceTemplateStatus,
+  actor: TemplateDetailActor,
+): boolean {
+  if (actor === "moderator" || actor === "publisher") {
+    return true;
+  }
+
+  return status === "PUBLISHED";
+}
 
 // ─── Browse marketplace templates ─────────────────────────────────────────────
 
@@ -22,13 +243,13 @@ export async function browseTemplates(filters?: {
   sort?: "popular" | "newest" | "top-rated";
   page?: number;
   pageSize?: number;
-}): Promise<ActionResult<{ templates: Record<string, unknown>[]; total: number }>> {
+}): Promise<ActionResult<{ templates: MarketplaceTemplateCard[]; total: number }>> {
   try {
     const page = filters?.page ?? 1;
     const pageSize = filters?.pageSize ?? 12;
     const skip = (page - 1) * pageSize;
 
-    const where: Record<string, unknown> = { status: "PUBLISHED" };
+    const where: Prisma.MarketplaceTemplateWhereInput = { status: "PUBLISHED" };
 
     if (filters?.category) {
       where.category = { has: filters.category };
@@ -51,7 +272,7 @@ export async function browseTemplates(filters?: {
       where.price = { gt: 0 };
     }
 
-    let orderBy: Record<string, string> = { createdAt: "desc" };
+    let orderBy: Prisma.MarketplaceTemplateOrderByWithRelationInput = { createdAt: "desc" };
     if (filters?.sort === "popular") {
       orderBy = { downloadCount: "desc" };
     } else if (filters?.sort === "top-rated") {
@@ -64,11 +285,22 @@ export async function browseTemplates(filters?: {
         orderBy,
         skip,
         take: pageSize,
+        include: {
+          publisherOrg: {
+            select: { name: true },
+          },
+        },
       }),
       db.marketplaceTemplate.count({ where }),
     ]);
 
-    return { success: true, data: { templates, total } };
+    return {
+      success: true,
+      data: {
+        templates: templates.map(serializeMarketplaceTemplateCard),
+        total,
+      },
+    };
   } catch (error) {
     console.error("browseTemplates error:", error);
     return {
@@ -81,19 +313,38 @@ export async function browseTemplates(filters?: {
 // ─── Get single template detail ───────────────────────────────────────────────
 
 export async function getTemplateDetail(
-  templateId: string
-): Promise<ActionResult<Record<string, unknown>>> {
+  templateId: string,
+): Promise<ActionResult<MarketplaceTemplateDetail>> {
   try {
     const template = await db.marketplaceTemplate.findUnique({
       where: { id: templateId },
-      include: { reviews: true },
+      include: {
+        publisherOrg: {
+          select: { name: true },
+        },
+        reviews: {
+          orderBy: { createdAt: "desc" },
+          select: {
+            id: true,
+            rating: true,
+            review: true,
+            createdAt: true,
+          },
+        },
+      },
     });
 
     if (!template) {
       return { success: false, error: "Template not found" };
     }
 
-    return { success: true, data: template };
+    const actor = await getTemplateDetailActor(template.publisherOrgId ?? null);
+
+    if (!canViewTemplateDetail(template.status, actor)) {
+      return { success: false, error: "Template not found" };
+    }
+
+    return { success: true, data: serializeTemplateDetail(template, actor) };
   } catch (error) {
     console.error("getTemplateDetail error:", error);
     return {
@@ -106,7 +357,7 @@ export async function getTemplateDetail(
 // ─── Install free template ────────────────────────────────────────────────────
 
 export async function installFreeTemplate(
-  templateId: string
+  templateId: string,
 ): Promise<ActionResult<{ purchaseId: string }>> {
   try {
     const { orgId, userId } = await requireOrgContext();
@@ -115,6 +366,7 @@ export async function installFreeTemplate(
       where: { id: templateId },
       include: {
         revisions: {
+          where: { status: "PUBLISHED" },
           orderBy: { createdAt: "desc" },
           take: 1,
         },
@@ -133,23 +385,41 @@ export async function installFreeTemplate(
       return { success: false, error: "This template requires payment" };
     }
 
+    const latestRevision = template.revisions[0];
+    if (!latestRevision) {
+      return {
+        success: false,
+        error: "Template is not ready for installation until revision backfill completes",
+      };
+    }
+
     const existing = await db.marketplacePurchase.findUnique({
       where: {
         orgId_templateId: { orgId, templateId },
       },
+      select: {
+        id: true,
+        revisionId: true,
+        status: true,
+      },
     });
 
     if (existing) {
+      if (!existing.revisionId) {
+        await db.marketplacePurchase.update({
+          where: { id: existing.id },
+          data: { revisionId: latestRevision.id },
+        });
+      }
+
       return { success: true, data: { purchaseId: existing.id } };
     }
-
-    const latestRevision = template.revisions?.[0];
 
     const purchase = await db.marketplacePurchase.create({
       data: {
         orgId,
         templateId,
-        revisionId: latestRevision?.id,
+        revisionId: latestRevision.id,
         userId,
         amount: 0,
         status: "COMPLETED",
@@ -177,13 +447,20 @@ export async function installFreeTemplate(
 // ─── Create Razorpay order for paid template ──────────────────────────────────
 
 export async function createTemplatePurchaseOrder(
-  templateId: string
+  templateId: string,
 ): Promise<ActionResult<{ orderId: string; amount: number; currency: string }>> {
   try {
     const { orgId } = await requireOrgContext();
 
     const template = await db.marketplaceTemplate.findUnique({
       where: { id: templateId },
+      include: {
+        revisions: {
+          where: { status: "PUBLISHED" },
+          orderBy: { createdAt: "desc" },
+          take: 1,
+        },
+      },
     });
 
     if (!template) {
@@ -196,6 +473,13 @@ export async function createTemplatePurchaseOrder(
 
     if (Number(template.price) === 0) {
       return { success: false, error: "This template is free — use install instead" };
+    }
+
+    if (!template.revisions[0]) {
+      return {
+        success: false,
+        error: "Template is not ready for purchase until revision backfill completes",
+      };
     }
 
     const existing = await db.marketplacePurchase.findUnique({
@@ -262,6 +546,7 @@ export async function verifyTemplatePurchase(data: {
       where: { id: data.templateId },
       include: {
         revisions: {
+          where: { status: "PUBLISHED" },
           orderBy: { createdAt: "desc" },
           take: 1,
         },
@@ -276,13 +561,32 @@ export async function verifyTemplatePurchase(data: {
       return { success: false, error: "Template is not available" };
     }
 
+    const latestRevision = template.revisions[0];
+    if (!latestRevision) {
+      return {
+        success: false,
+        error: "Template is not ready for purchase until revision backfill completes",
+      };
+    }
+
     const existing = await db.marketplacePurchase.findUnique({
       where: {
         orgId_templateId: { orgId, templateId: data.templateId },
       },
+      select: {
+        id: true,
+        revisionId: true,
+      },
     });
 
     if (existing) {
+      if (!existing.revisionId) {
+        await db.marketplacePurchase.update({
+          where: { id: existing.id },
+          data: { revisionId: latestRevision.id },
+        });
+      }
+
       return { success: true, data: { purchaseId: existing.id } };
     }
 
@@ -290,14 +594,12 @@ export async function verifyTemplatePurchase(data: {
     const publisherShare = Math.round(amount * 70) / 100;
     const platformShare = Math.round(amount * 30) / 100;
 
-    const latestRevision = template.revisions?.[0];
-
     const purchase = await db.$transaction(async (tx) => {
       const p = await tx.marketplacePurchase.create({
         data: {
           orgId,
           templateId: data.templateId,
-          revisionId: latestRevision?.id,
+          revisionId: latestRevision.id,
           userId,
           amount,
           razorpayPaymentId: data.razorpayPaymentId,
@@ -342,7 +644,7 @@ export async function verifyTemplatePurchase(data: {
 export async function submitReview(
   templateId: string,
   rating: number,
-  review?: string
+  review?: string,
 ): Promise<ActionResult<{ reviewId: string }>> {
   try {
     const { orgId, userId } = await requireOrgContext();
@@ -402,17 +704,29 @@ export async function submitReview(
 
 // ─── Get installed templates for current org ──────────────────────────────────
 
-export async function getInstalledTemplates(): Promise<ActionResult<Record<string, unknown>[]>> {
+export async function getInstalledTemplates(): Promise<ActionResult<InstalledTemplateCard[]>> {
   try {
     const { orgId } = await requireOrgContext();
 
     const purchases = await db.marketplacePurchase.findMany({
       where: { orgId, status: "COMPLETED" },
-      include: { template: true },
-      orderBy: { createdAt: "desc" },
+      include: {
+        revision: {
+          select: {
+            id: true,
+            version: true,
+            name: true,
+            description: true,
+            templateType: true,
+            publisherDisplayName: true,
+            previewImageUrl: true,
+          },
+        },
+      },
+      orderBy: { installedAt: "desc" },
     });
 
-    return { success: true, data: purchases };
+    return { success: true, data: purchases.map(serializeInstalledTemplate) };
   } catch (error) {
     console.error("getInstalledTemplates error:", error);
     return {
@@ -445,6 +759,15 @@ export async function publishTemplate(data: {
       };
     }
 
+    const organization = await db.organization.findUnique({
+      where: { id: orgId },
+      select: { name: true },
+    });
+
+    if (!organization) {
+      throw new Error("Organization not found");
+    }
+
     const template = await db.marketplaceTemplate.create({
       data: {
         name: data.name,
@@ -456,7 +779,7 @@ export async function publishTemplate(data: {
         templateData: data.templateData as Prisma.InputJsonValue,
         previewImageUrl: data.previewImageUrl,
         publisherOrgId: orgId,
-        publisherName: "Publisher",
+        publisherName: organization.name,
         status: "PENDING_REVIEW",
         downloadCount: 0,
         rating: 0,

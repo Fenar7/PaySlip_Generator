@@ -23,7 +23,7 @@ export default async function ReviewDetailPage({
     );
   }
 
-  const template = result.data as any;
+  const template = result.data;
 
   return (
     <div className="p-6 max-w-4xl mx-auto space-y-6">
@@ -57,7 +57,7 @@ export default async function ReviewDetailPage({
               </div>
               <div className="flex justify-between">
                 <dt className="text-muted-foreground">Publisher</dt>
-                <dd className="font-medium">{template.publisherOrg?.name || template.publisherName}</dd>
+                <dd className="font-medium">{template.publisherDisplayName}</dd>
               </div>
               <div className="flex justify-between">
                 <dt className="text-muted-foreground">Price</dt>

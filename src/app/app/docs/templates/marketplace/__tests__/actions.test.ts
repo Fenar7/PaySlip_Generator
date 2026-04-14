@@ -1,9 +1,10 @@
-import { describe, it, expect, beforeEach, vi } from "vitest";
-
-// ─── Mocks ───────────────────────────────────────────────────────────────────
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/lib/db", () => ({
   db: {
+    organization: {
+      findUnique: vi.fn(),
+    },
     marketplaceTemplate: {
       findUnique: vi.fn(),
       findMany: vi.fn(),
@@ -15,6 +16,7 @@ vi.mock("@/lib/db", () => ({
       findUnique: vi.fn(),
       findMany: vi.fn(),
       create: vi.fn(),
+      update: vi.fn(),
     },
     marketplaceReview: {
       create: vi.fn(),
@@ -28,6 +30,8 @@ vi.mock("@/lib/db", () => ({
 }));
 
 vi.mock("@/lib/auth", () => ({
+  getAuthRoutingContext: vi.fn(),
+  isMarketplaceModeratorUser: vi.fn(),
   requireOrgContext: vi.fn(),
   requireRole: vi.fn(),
 }));
@@ -52,22 +56,25 @@ vi.mock("razorpay", () => {
 });
 
 import { db } from "@/lib/db";
-import { requireOrgContext, requireRole } from "@/lib/auth";
-import { checkFeature } from "@/lib/plans/enforcement";
-
 import {
-  browseTemplates,
-  installFreeTemplate,
+  getAuthRoutingContext,
+  isMarketplaceModeratorUser,
+  requireOrgContext,
+  requireRole,
+} from "@/lib/auth";
+import { checkFeature } from "@/lib/plans/enforcement";
+import {
   createTemplatePurchaseOrder,
-  verifyTemplatePurchase,
+  getInstalledTemplates,
+  getTemplateDetail,
+  installFreeTemplate,
   publishTemplate,
+  verifyTemplatePurchase,
 } from "../actions";
-
-// ─── Helpers ─────────────────────────────────────────────────────────────────
 
 const mockOrg = { orgId: "org-1", userId: "user-1", role: "admin" };
 
-function mockTemplate(overrides = {}) {
+function mockTemplate(overrides: Record<string, unknown> = {}) {
   return {
     id: "tpl-1",
     name: "Test Template",
@@ -76,38 +83,44 @@ function mockTemplate(overrides = {}) {
     category: ["Invoice"],
     tags: ["professional"],
     price: 0,
+    currency: "INR",
     status: "PUBLISHED",
     publisherOrgId: "org-pub-1",
     publisherName: "Test Publisher",
+    publisherOrg: { name: "Test Publisher Org" },
     downloadCount: 10,
     rating: 4.5,
     ratingCount: 3,
     previewImageUrl: "https://example.com/img.png",
+    previewPdfUrl: null,
     templateData: {},
-    createdAt: new Date(),
-    updatedAt: new Date(),
+    version: "1.0.0",
+    reviewNotes: null,
+    rejectionReason: null,
+    publishedAt: new Date("2026-04-01T00:00:00.000Z"),
+    reviews: [],
+    revisions: [{ id: "rev-1", version: "1.0.0", status: "PUBLISHED" }],
+    createdAt: new Date("2026-04-01T00:00:00.000Z"),
+    updatedAt: new Date("2026-04-01T00:00:00.000Z"),
     ...overrides,
   };
 }
-
-// ─── Setup ───────────────────────────────────────────────────────────────────
 
 beforeEach(() => {
   vi.clearAllMocks();
 
   vi.mocked(requireOrgContext).mockResolvedValue(mockOrg);
   vi.mocked(requireRole).mockResolvedValue(mockOrg);
+  vi.mocked(getAuthRoutingContext).mockResolvedValue({ isAuthenticated: false } as never);
+  vi.mocked(isMarketplaceModeratorUser).mockReturnValue(false);
   vi.mocked(checkFeature).mockResolvedValue(true);
+  vi.mocked(db.organization.findUnique).mockResolvedValue({ name: "Org One" } as never);
 });
-
-// ─── TC-15-026: Free template installs immediately ────────────────────────────
 
 describe("TC-15-026: Free template installs immediately", () => {
   it("creates MarketplacePurchase with amount=0 for free template", async () => {
     const template = mockTemplate({ price: 0 });
-    vi.mocked(db.marketplaceTemplate.findUnique).mockResolvedValue(
-      template as never
-    );
+    vi.mocked(db.marketplaceTemplate.findUnique).mockResolvedValue(template as never);
     vi.mocked(db.marketplacePurchase.findUnique).mockResolvedValue(null as never);
     vi.mocked(db.marketplacePurchase.create).mockResolvedValue({
       id: "purchase-1",
@@ -126,29 +139,45 @@ describe("TC-15-026: Free template installs immediately", () => {
         data: expect.objectContaining({
           orgId: "org-1",
           templateId: "tpl-1",
+          revisionId: "rev-1",
           amount: 0,
           status: "COMPLETED",
         }),
-      })
+      }),
     );
 
     expect(db.marketplaceTemplate.update).toHaveBeenCalledWith(
       expect.objectContaining({
         where: { id: "tpl-1" },
         data: { downloadCount: { increment: 1 } },
-      })
+      }),
     );
   });
-});
 
-// ─── TC-15-027: Paid template requires Razorpay checkout ──────────────────────
+  it("repairs legacy installs that are missing revision bindings", async () => {
+    const template = mockTemplate({ price: 0 });
+    vi.mocked(db.marketplaceTemplate.findUnique).mockResolvedValue(template as never);
+    vi.mocked(db.marketplacePurchase.findUnique).mockResolvedValue({
+      id: "existing-purchase-1",
+      revisionId: null,
+      status: "COMPLETED",
+    } as never);
+    vi.mocked(db.marketplacePurchase.update).mockResolvedValue({} as never);
+
+    const result = await installFreeTemplate("tpl-1");
+
+    expect(result.success).toBe(true);
+    expect(db.marketplacePurchase.update).toHaveBeenCalledWith({
+      where: { id: "existing-purchase-1" },
+      data: { revisionId: "rev-1" },
+    });
+  });
+});
 
 describe("TC-15-027: Paid template requires Razorpay checkout", () => {
   it("returns orderId for paid template", async () => {
     const template = mockTemplate({ price: 499 });
-    vi.mocked(db.marketplaceTemplate.findUnique).mockResolvedValue(
-      template as never
-    );
+    vi.mocked(db.marketplaceTemplate.findUnique).mockResolvedValue(template as never);
     vi.mocked(db.marketplacePurchase.findUnique).mockResolvedValue(null as never);
 
     const result = await createTemplatePurchaseOrder("tpl-1");
@@ -163,9 +192,7 @@ describe("TC-15-027: Paid template requires Razorpay checkout", () => {
 
   it("rejects free template from Razorpay checkout", async () => {
     const template = mockTemplate({ price: 0 });
-    vi.mocked(db.marketplaceTemplate.findUnique).mockResolvedValue(
-      template as never
-    );
+    vi.mocked(db.marketplaceTemplate.findUnique).mockResolvedValue(template as never);
 
     const result = await createTemplatePurchaseOrder("tpl-1");
 
@@ -176,18 +203,16 @@ describe("TC-15-027: Paid template requires Razorpay checkout", () => {
   });
 });
 
-// ─── TC-15-028: Re-installing already-installed template is idempotent ────────
-
 describe("TC-15-028: Idempotent install", () => {
   it("returns existing purchaseId when template already installed", async () => {
     const template = mockTemplate({ price: 0 });
-    vi.mocked(db.marketplaceTemplate.findUnique).mockResolvedValue(
-      template as never
-    );
+    vi.mocked(db.marketplaceTemplate.findUnique).mockResolvedValue(template as never);
     vi.mocked(db.marketplacePurchase.findUnique).mockResolvedValue({
       id: "existing-purchase-1",
       orgId: "org-1",
       templateId: "tpl-1",
+      revisionId: "rev-1",
+      status: "COMPLETED",
     } as never);
 
     const result = await installFreeTemplate("tpl-1");
@@ -197,13 +222,10 @@ describe("TC-15-028: Idempotent install", () => {
       expect(result.data.purchaseId).toBe("existing-purchase-1");
     }
 
-    // Should NOT create a new purchase
     expect(db.marketplacePurchase.create).not.toHaveBeenCalled();
     expect(db.marketplaceTemplate.update).not.toHaveBeenCalled();
   });
 });
-
-// ─── TC-15-029: Publisher submits template → status = PENDING_REVIEW ──────────
 
 describe("TC-15-029: Publisher submits template", () => {
   it("creates template with status PENDING_REVIEW", async () => {
@@ -233,9 +255,9 @@ describe("TC-15-029: Publisher submits template", () => {
           name: "My Template",
           status: "PENDING_REVIEW",
           publisherOrgId: "org-1",
-          publisherName: "Publisher",
+          publisherName: "Org One",
         }),
-      })
+      }),
     );
   });
 
@@ -260,14 +282,10 @@ describe("TC-15-029: Publisher submits template", () => {
   });
 });
 
-// ─── TC-15-030: Cannot install template with status !== PUBLISHED ─────────────
-
 describe("TC-15-030: Cannot install unpublished template", () => {
   it("rejects install of PENDING_REVIEW template", async () => {
     const template = mockTemplate({ status: "PENDING_REVIEW", price: 0 });
-    vi.mocked(db.marketplaceTemplate.findUnique).mockResolvedValue(
-      template as never
-    );
+    vi.mocked(db.marketplaceTemplate.findUnique).mockResolvedValue(template as never);
 
     const result = await installFreeTemplate("tpl-1");
 
@@ -279,9 +297,7 @@ describe("TC-15-030: Cannot install unpublished template", () => {
 
   it("rejects install of REJECTED template", async () => {
     const template = mockTemplate({ status: "REJECTED", price: 0 });
-    vi.mocked(db.marketplaceTemplate.findUnique).mockResolvedValue(
-      template as never
-    );
+    vi.mocked(db.marketplaceTemplate.findUnique).mockResolvedValue(template as never);
 
     const result = await installFreeTemplate("tpl-1");
 
@@ -293,9 +309,7 @@ describe("TC-15-030: Cannot install unpublished template", () => {
 
   it("rejects Razorpay order for unpublished paid template", async () => {
     const template = mockTemplate({ status: "DRAFT", price: 499 });
-    vi.mocked(db.marketplaceTemplate.findUnique).mockResolvedValue(
-      template as never
-    );
+    vi.mocked(db.marketplaceTemplate.findUnique).mockResolvedValue(template as never);
 
     const result = await createTemplatePurchaseOrder("tpl-1");
 
@@ -306,18 +320,13 @@ describe("TC-15-030: Cannot install unpublished template", () => {
   });
 });
 
-// ─── TC-15-031: Revenue split: 70% publisher, 30% platform ───────────────────
-
 describe("TC-15-031: Revenue split 70/30", () => {
   it("creates MarketplaceRevenue with correct split", async () => {
     const template = mockTemplate({ price: 1000, publisherOrgId: "org-pub-1" });
-    vi.mocked(db.marketplaceTemplate.findUnique).mockResolvedValue(
-      template as never
-    );
+    vi.mocked(db.marketplaceTemplate.findUnique).mockResolvedValue(template as never);
     vi.mocked(db.marketplacePurchase.findUnique).mockResolvedValue(null as never);
 
-    // Mock $transaction to execute the callback
-    vi.mocked(db.$transaction).mockImplementation(async (cb: any) => {
+    vi.mocked(db.$transaction).mockImplementation(async (callback) => {
       const mockTx = {
         marketplacePurchase: {
           create: vi.fn().mockResolvedValue({ id: "purchase-paid-1" }),
@@ -329,20 +338,18 @@ describe("TC-15-031: Revenue split 70/30", () => {
           update: vi.fn().mockResolvedValue({}),
         },
       };
-      return cb(mockTx);
+      return callback(mockTx as never);
     });
 
-    // Create a valid HMAC signature for testing
-    const crypto = await import("crypto");
+    const cryptoModule = await import("crypto");
     const orderId = "order_razorpay_1";
     const paymentId = "pay_razorpay_1";
     const secret = "test_secret";
 
-    // Set env var for the test
     const originalSecret = process.env.RAZORPAY_KEY_SECRET;
     process.env.RAZORPAY_KEY_SECRET = secret;
 
-    const expectedSig = crypto
+    const expectedSig = cryptoModule
       .createHmac("sha256", secret)
       .update(`${orderId}|${paymentId}`)
       .digest("hex");
@@ -359,11 +366,15 @@ describe("TC-15-031: Revenue split 70/30", () => {
       expect(result.data.purchaseId).toBe("purchase-paid-1");
     }
 
-    // Verify the $transaction callback was called
     expect(db.$transaction).toHaveBeenCalled();
 
-    // Verify revenue split by inspecting the transaction callback
-    const txCallback = vi.mocked(db.$transaction).mock.calls[0][0] as any;
+    const txCallback = vi.mocked(db.$transaction).mock.calls[0][0] as (
+      tx: {
+        marketplacePurchase: { create: ReturnType<typeof vi.fn> };
+        marketplaceRevenue: { create: ReturnType<typeof vi.fn> };
+        marketplaceTemplate: { update: ReturnType<typeof vi.fn> };
+      },
+    ) => Promise<unknown>;
     const mockTx = {
       marketplacePurchase: {
         create: vi.fn().mockResolvedValue({ id: "purchase-paid-1" }),
@@ -385,10 +396,159 @@ describe("TC-15-031: Revenue split 70/30", () => {
           platformShare: 300,
           publisherOrgId: "org-pub-1",
         }),
-      })
+      }),
     );
 
-    // Restore env
     process.env.RAZORPAY_KEY_SECRET = originalSecret;
+  });
+});
+
+describe("template detail visibility", () => {
+  it("allows public access to published templates and strips moderation-only fields", async () => {
+    vi.mocked(db.marketplaceTemplate.findUnique).mockResolvedValue(
+      mockTemplate({
+        status: "PUBLISHED",
+        reviewNotes: "Internal moderation notes",
+        rejectionReason: "No longer relevant",
+        reviews: [
+          {
+            id: "review-1",
+            rating: 5,
+            review: "Great",
+            createdAt: new Date("2026-04-01T00:00:00.000Z"),
+          },
+        ],
+      }) as never,
+    );
+
+    const result = await getTemplateDetail("tpl-1");
+
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.publisherDisplayName).toBe("Test Publisher Org");
+      expect(result.data.reviewNotes).toBeUndefined();
+      expect(result.data.rejectionReason).toBeUndefined();
+      expect(result.data.reviews).toEqual([
+        expect.objectContaining({
+          id: "review-1",
+          rating: 5,
+          review: "Great",
+        }),
+      ]);
+    }
+  });
+
+  it("blocks public access to draft templates", async () => {
+    vi.mocked(db.marketplaceTemplate.findUnique).mockResolvedValue(
+      mockTemplate({ status: "DRAFT" }) as never,
+    );
+
+    const result = await getTemplateDetail("tpl-1");
+
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error).toBe("Template not found");
+    }
+  });
+
+  it("allows publishers to access their own rejected templates", async () => {
+    vi.mocked(getAuthRoutingContext).mockResolvedValue({
+      isAuthenticated: true,
+      userId: "user-1",
+      hasOrg: true,
+      orgId: "org-pub-1",
+      role: "admin",
+    } as never);
+    vi.mocked(db.marketplaceTemplate.findUnique).mockResolvedValue(
+      mockTemplate({
+        status: "REJECTED",
+        publisherOrgId: "org-pub-1",
+        rejectionReason: "Needs improvement",
+      }) as never,
+    );
+
+    const result = await getTemplateDetail("tpl-1");
+
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.rejectionReason).toBe("Needs improvement");
+    }
+  });
+
+  it("allows marketplace moderators to access pending templates", async () => {
+    vi.mocked(getAuthRoutingContext).mockResolvedValue({
+      isAuthenticated: true,
+      userId: "moderator-1",
+      hasOrg: false,
+    } as never);
+    vi.mocked(isMarketplaceModeratorUser).mockReturnValue(true);
+    vi.mocked(db.marketplaceTemplate.findUnique).mockResolvedValue(
+      mockTemplate({ status: "PENDING_REVIEW" }) as never,
+    );
+
+    const result = await getTemplateDetail("tpl-1");
+
+    expect(result.success).toBe(true);
+  });
+});
+
+describe("installed template contract", () => {
+  it("returns revision-bound installed template data", async () => {
+    vi.mocked(db.marketplacePurchase.findMany).mockResolvedValue([
+      {
+        id: "purchase-1",
+        templateId: "tpl-1",
+        revisionId: "rev-1",
+        installedAt: new Date("2026-04-02T00:00:00.000Z"),
+        revision: {
+          id: "rev-1",
+          version: "1.0.0",
+          name: "Locked Invoice",
+          description: "Revision snapshot",
+          templateType: "Invoice",
+          publisherDisplayName: "Snapshot Publisher",
+          previewImageUrl: "https://example.com/revision.png",
+        },
+      },
+    ] as never);
+
+    const result = await getInstalledTemplates();
+
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data).toEqual([
+        {
+          purchaseId: "purchase-1",
+          templateId: "tpl-1",
+          revisionId: "rev-1",
+          revisionVersion: "1.0.0",
+          displayName: "Locked Invoice",
+          description: "Revision snapshot",
+          templateType: "Invoice",
+          publisherDisplayName: "Snapshot Publisher",
+          previewImageUrl: "https://example.com/revision.png",
+          installedAt: "2026-04-02T00:00:00.000Z",
+        },
+      ]);
+    }
+  });
+
+  it("fails loudly when a completed purchase is missing a revision binding", async () => {
+    vi.mocked(db.marketplacePurchase.findMany).mockResolvedValue([
+      {
+        id: "purchase-1",
+        templateId: "tpl-1",
+        revisionId: null,
+        installedAt: new Date(),
+        revision: null,
+      },
+    ] as never);
+
+    const result = await getInstalledTemplates();
+
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error).toContain("backfill-template-revisions");
+    }
   });
 });

@@ -1,18 +1,53 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { requireRole } from "@/lib/auth";
+import { MarketplaceTemplateStatus } from "@/generated/prisma/client";
+import { requireMarketplaceModerator } from "@/lib/auth";
+import {
+  buildMarketplaceRevisionSnapshot,
+  resolveMarketplacePublisherDisplayName,
+} from "@/lib/marketplace-template-revisions";
 import { revalidatePath } from "next/cache";
 
 type ActionResult<T> =
   | { success: true; data: T }
   | { success: false; error: string };
 
+type ReviewQueueItem = {
+  id: string;
+  name: string;
+  templateType: string;
+  status: MarketplaceTemplateStatus;
+  submittedAt: string;
+  publisherDisplayName: string;
+};
+
+type ReviewTemplateDetail = {
+  id: string;
+  name: string;
+  description: string;
+  status: MarketplaceTemplateStatus;
+  templateType: string;
+  publisherDisplayName: string;
+  price: number;
+  currency: string;
+  version: string;
+  category: string[];
+  tags: string[];
+  previewImageUrl: string;
+  previewPdfUrl: string | null;
+  rejectionReason: string | null;
+};
+
+function formatTemplateStatus(status: MarketplaceTemplateStatus): string {
+  return status.toLowerCase().replaceAll("_", " ");
+}
+
 // ─── Get pending review queue ──────────────────────────────────────────────────
 
-export async function getReviewQueue(): Promise<ActionResult<Record<string, unknown>[]>> {
+export async function getReviewQueue(): Promise<ActionResult<ReviewQueueItem[]>> {
   try {
-    await requireRole("admin");
+    await requireMarketplaceModerator();
 
     const templates = await db.marketplaceTemplate.findMany({
       where: { status: "PENDING_REVIEW" },
@@ -24,7 +59,17 @@ export async function getReviewQueue(): Promise<ActionResult<Record<string, unkn
       },
     });
 
-    return { success: true, data: templates };
+    return {
+      success: true,
+      data: templates.map((template) => ({
+        id: template.id,
+        name: template.name,
+        templateType: template.templateType,
+        status: template.status,
+        submittedAt: template.createdAt.toISOString(),
+        publisherDisplayName: resolveMarketplacePublisherDisplayName(template),
+      })),
+    };
   } catch (error) {
     console.error("getReviewQueue error:", error);
     return {
@@ -38,16 +83,15 @@ export async function getReviewQueue(): Promise<ActionResult<Record<string, unkn
 
 export async function getTemplateForReview(
   templateId: string
-): Promise<ActionResult<Record<string, unknown>>> {
+): Promise<ActionResult<ReviewTemplateDetail>> {
   try {
-    await requireRole("admin");
+    await requireMarketplaceModerator();
 
     const template = await db.marketplaceTemplate.findUnique({
       where: { id: templateId },
       include: {
-        publisherOrg: true,
-        revisions: {
-          orderBy: { createdAt: "desc" },
+        publisherOrg: {
+          select: { name: true },
         },
       },
     });
@@ -56,7 +100,25 @@ export async function getTemplateForReview(
       return { success: false, error: "Template not found" };
     }
 
-    return { success: true, data: template };
+    return {
+      success: true,
+      data: {
+        id: template.id,
+        name: template.name,
+        description: template.description,
+        status: template.status,
+        templateType: template.templateType,
+        publisherDisplayName: resolveMarketplacePublisherDisplayName(template),
+        price: Number(template.price),
+        currency: template.currency,
+        version: template.version,
+        category: template.category,
+        tags: template.tags,
+        previewImageUrl: template.previewImageUrl,
+        previewPdfUrl: template.previewPdfUrl ?? null,
+        rejectionReason: template.rejectionReason ?? null,
+      },
+    };
   } catch (error) {
     console.error("getTemplateForReview error:", error);
     return {
@@ -70,48 +132,98 @@ export async function getTemplateForReview(
 
 export async function approveTemplate(templateId: string): Promise<ActionResult<boolean>> {
   try {
-    const { userId } = await requireRole("admin");
+    const { userId } = await requireMarketplaceModerator();
 
-    return await db.$transaction(async (tx) => {
-      const template = await tx.marketplaceTemplate.findUnique({ where: { id: templateId } });
+    const result = await db.$transaction(async (tx): Promise<ActionResult<boolean>> => {
+      const template = await tx.marketplaceTemplate.findUnique({
+        where: { id: templateId },
+        include: {
+          publisherOrg: {
+            select: { name: true },
+          },
+        },
+      });
       if (!template) throw new Error("Template not found");
+
+      if (template.status === "PUBLISHED") {
+        return { success: true, data: true };
+      }
+
+      if (template.status !== "PENDING_REVIEW") {
+        return {
+          success: false,
+          error: `Cannot approve a template from ${formatTemplateStatus(template.status)}`,
+        };
+      }
 
       const now = new Date();
 
-      // Create a stable revision for this version
-      const revision = await tx.marketplaceTemplateRevision.create({
-        data: {
-          templateId,
-          version: template.version,
-          templateData: template.templateData as object,
-          previewImageUrl: template.previewImageUrl,
-          previewPdfUrl: template.previewPdfUrl,
-          status: "PUBLISHED",
-          createdBy: template.publisherOrgId,
-          reviewedBy: userId,
-          reviewedAt: now,
-          publishedAt: now,
-        },
-      });
-
-      // Update the main template
-      await tx.marketplaceTemplate.update({
-        where: { id: templateId },
+      const claimed = await tx.marketplaceTemplate.updateMany({
+        where: { id: templateId, status: "PENDING_REVIEW" },
         data: {
           status: "PUBLISHED",
-          reviewedBy: userId,
+          reviewedByUserId: userId,
           reviewedAt: now,
           publishedAt: now,
           rejectionReason: null,
+          reviewNotes: null,
         },
       });
 
-      revalidatePath("/app/docs/templates/review");
-      revalidatePath(`/app/docs/templates/review/${templateId}`);
-      revalidatePath("/app/docs/templates/marketplace");
+      if (claimed.count === 0) {
+        const current = await tx.marketplaceTemplate.findUnique({
+          where: { id: templateId },
+          select: { status: true },
+        });
+
+        if (current?.status === "PUBLISHED") {
+          return { success: true, data: true };
+        }
+
+        return {
+          success: false,
+          error: current
+            ? `Cannot approve a template from ${formatTemplateStatus(current.status)}`
+            : "Template not found",
+        };
+      }
+
+      const revision = await tx.marketplaceTemplateRevision.create({
+        data: {
+          templateId,
+          ...buildMarketplaceRevisionSnapshot({
+            name: template.name,
+            description: template.description,
+            templateType: template.templateType,
+            version: template.version,
+            templateData: template.templateData,
+            previewImageUrl: template.previewImageUrl,
+            previewPdfUrl: template.previewPdfUrl ?? null,
+            status: "PUBLISHED",
+            publisherOrgId: template.publisherOrgId ?? null,
+            publisherName: template.publisherName,
+            publisherOrg: template.publisherOrg,
+            reviewedByUserId: userId,
+            reviewedAt: now,
+            publishedAt: now,
+          }),
+        },
+      });
+
+      if (!revision) {
+        throw new Error("Failed to create published revision");
+      }
 
       return { success: true, data: true };
     });
+
+    if (result.success) {
+      revalidatePath("/app/docs/templates/review");
+      revalidatePath(`/app/docs/templates/review/${templateId}`);
+      revalidatePath("/app/docs/templates/marketplace");
+    }
+
+    return result;
   } catch (error) {
     console.error("approveTemplate error:", error);
     return {
@@ -127,21 +239,44 @@ export async function rejectTemplate(
   notes?: string
 ): Promise<ActionResult<boolean>> {
   try {
-    const { userId } = await requireRole("admin");
+    const { userId } = await requireMarketplaceModerator();
+    const normalizedReason = reason.trim();
 
-    await db.marketplaceTemplate.update({
-      where: { id: templateId },
+    if (!normalizedReason) {
+      return { success: false, error: "Rejection reason is required" };
+    }
+
+    const reviewedAt = new Date();
+    const result = await db.marketplaceTemplate.updateMany({
+      where: { id: templateId, status: "PENDING_REVIEW" },
       data: {
         status: "REJECTED",
-        rejectionReason: reason,
-        reviewNotes: notes,
-        reviewedBy: userId,
-        reviewedAt: new Date(),
+        rejectionReason: normalizedReason,
+        reviewNotes: notes?.trim() || null,
+        reviewedByUserId: userId,
+        reviewedAt,
+        publishedAt: null,
+        archivedAt: null,
       },
     });
 
+    if (result.count === 0) {
+      const current = await db.marketplaceTemplate.findUnique({
+        where: { id: templateId },
+        select: { status: true },
+      });
+
+      return {
+        success: false,
+        error: current
+          ? `Cannot reject a template from ${formatTemplateStatus(current.status)}`
+          : "Template not found",
+      };
+    }
+
     revalidatePath("/app/docs/templates/review");
     revalidatePath(`/app/docs/templates/review/${templateId}`);
+    revalidatePath("/app/docs/templates/marketplace");
 
     return { success: true, data: true };
   } catch (error) {
@@ -155,17 +290,39 @@ export async function rejectTemplate(
 
 export async function archiveTemplate(templateId: string): Promise<ActionResult<boolean>> {
   try {
-    const { userId } = await requireRole("admin");
+    const { userId } = await requireMarketplaceModerator();
+    const reviewedAt = new Date();
 
-    await db.marketplaceTemplate.update({
-      where: { id: templateId },
+    const result = await db.marketplaceTemplate.updateMany({
+      where: {
+        id: templateId,
+        status: { in: ["PUBLISHED", "REJECTED"] },
+      },
       data: {
         status: "ARCHIVED",
-        archivedAt: new Date(),
-        reviewedBy: userId,
-        reviewedAt: new Date(),
+        archivedAt: reviewedAt,
+        reviewedByUserId: userId,
+        reviewedAt,
       },
     });
+
+    if (result.count === 0) {
+      const current = await db.marketplaceTemplate.findUnique({
+        where: { id: templateId },
+        select: { status: true },
+      });
+
+      if (current?.status === "ARCHIVED") {
+        return { success: true, data: true };
+      }
+
+      return {
+        success: false,
+        error: current
+          ? `Cannot archive a template from ${formatTemplateStatus(current.status)}`
+          : "Template not found",
+      };
+    }
 
     revalidatePath("/app/docs/templates/review");
     revalidatePath(`/app/docs/templates/review/${templateId}`);

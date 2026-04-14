@@ -1,8 +1,7 @@
-import { describe, expect, it, vi, beforeEach } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
-// Mocks
 vi.mock("@/lib/auth", () => ({
-  requireRole: vi.fn(),
+  requireMarketplaceModerator: vi.fn(),
   requireOrgContext: vi.fn(),
 }));
 
@@ -11,7 +10,7 @@ vi.mock("@/lib/db", () => ({
     marketplaceTemplate: {
       findMany: vi.fn(),
       findUnique: vi.fn(),
-      update: vi.fn(),
+      updateMany: vi.fn(),
     },
     marketplaceTemplateRevision: {
       create: vi.fn(),
@@ -24,12 +23,16 @@ vi.mock("next/cache", () => ({
   revalidatePath: vi.fn(),
 }));
 
-// We'll import after mocks
-import { requireRole } from "@/lib/auth";
+import { requireMarketplaceModerator } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { approveTemplate, rejectTemplate } from "../../review/actions";
+import {
+  approveTemplate,
+  archiveTemplate,
+  getReviewQueue,
+  rejectTemplate,
+} from "../../review/actions";
 
-describe("Template Governance Actions", () => {
+describe("template governance actions", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     globalThis.__mockDbTransaction = {
@@ -38,74 +41,181 @@ describe("Template Governance Actions", () => {
     };
   });
 
-  describe("approveTemplate", () => {
-    it("should require admin role", async () => {
-      (requireRole as any).mockRejectedValue(new Error("Unauthorized"));
-      const res = await approveTemplate("t1");
+  describe("getReviewQueue", () => {
+    it("denies access to non-moderators", async () => {
+      vi.mocked(requireMarketplaceModerator).mockRejectedValue(new Error("Unauthorized"));
+
+      const res = await getReviewQueue();
+
       expect(res.success).toBe(false);
-      expect(requireRole).toHaveBeenCalledWith("admin");
+      expect(requireMarketplaceModerator).toHaveBeenCalled();
+    });
+  });
+
+  describe("approveTemplate", () => {
+    it("requires marketplace moderator access", async () => {
+      vi.mocked(requireMarketplaceModerator).mockRejectedValue(new Error("Unauthorized"));
+
+      const res = await approveTemplate("t1");
+
+      expect(res.success).toBe(false);
+      expect(requireMarketplaceModerator).toHaveBeenCalled();
     });
 
-    it("should approve template and create a stable revision", async () => {
-      (requireRole as any).mockResolvedValue({ userId: "u1", orgId: "o1" });
-      const mockTemplate = {
+    it("approves a pending template and creates one stable revision", async () => {
+      vi.mocked(requireMarketplaceModerator).mockResolvedValue({
+        userId: "u1",
+        orgId: "o1",
+        role: "admin",
+      });
+      (db.marketplaceTemplate.findUnique as any).mockResolvedValue({
         id: "t1",
+        name: "Quarterly Invoice",
+        description: "Stable invoice template",
+        templateType: "Invoice",
         version: "1.0.0",
         templateData: { test: true },
+        previewImageUrl: "https://example.com/preview.png",
+        previewPdfUrl: null,
+        status: "PENDING_REVIEW",
         publisherOrgId: "o1",
-      };
-      
-      (db.marketplaceTemplate.findUnique as any).mockResolvedValue(mockTemplate);
-      (db.marketplaceTemplateRevision.create as any).mockResolvedValue({});
-      (db.marketplaceTemplate.update as any).mockResolvedValue({});
+        publisherName: "Acme Publishing",
+        publisherOrg: { name: "Acme Publishing" },
+      });
+      (db.marketplaceTemplate.updateMany as any).mockResolvedValue({ count: 1 });
+      (db.marketplaceTemplateRevision.create as any).mockResolvedValue({ id: "rev-1" });
 
       const res = await approveTemplate("t1");
-      
+
       expect(res.success).toBe(true);
+      expect(db.marketplaceTemplate.updateMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: "t1", status: "PENDING_REVIEW" },
+          data: expect.objectContaining({
+            status: "PUBLISHED",
+            reviewedByUserId: "u1",
+          }),
+        }),
+      );
       expect(db.marketplaceTemplateRevision.create).toHaveBeenCalledWith(
         expect.objectContaining({
           data: expect.objectContaining({
             templateId: "t1",
+            name: "Quarterly Invoice",
+            description: "Stable invoice template",
+            templateType: "Invoice",
+            publisherDisplayName: "Acme Publishing",
             status: "PUBLISHED",
-            reviewedBy: "u1",
+            createdByOrgId: "o1",
+            reviewedByUserId: "u1",
           }),
-        })
+        }),
       );
-      expect(db.marketplaceTemplate.update).toHaveBeenCalledWith(
-        expect.objectContaining({
-          where: { id: "t1" },
-          data: expect.objectContaining({
-            status: "PUBLISHED",
-            rejectionReason: null,
-          }),
-        })
-      );
+    });
+
+    it("treats repeated approval of a published template as idempotent", async () => {
+      vi.mocked(requireMarketplaceModerator).mockResolvedValue({
+        userId: "u1",
+        orgId: "o1",
+        role: "admin",
+      });
+      (db.marketplaceTemplate.findUnique as any).mockResolvedValue({
+        id: "t1",
+        status: "PUBLISHED",
+      });
+
+      const res = await approveTemplate("t1");
+
+      expect(res.success).toBe(true);
+      expect(db.marketplaceTemplate.updateMany).not.toHaveBeenCalled();
+      expect(db.marketplaceTemplateRevision.create).not.toHaveBeenCalled();
     });
   });
 
   describe("rejectTemplate", () => {
-    it("should reject the template and save the reason", async () => {
-      (requireRole as any).mockResolvedValue({ userId: "u1", orgId: "o1" });
-      (db.marketplaceTemplate.update as any).mockResolvedValue({});
+    it("rejects a pending template and stores moderation metadata", async () => {
+      vi.mocked(requireMarketplaceModerator).mockResolvedValue({
+        userId: "u1",
+        orgId: "o1",
+        role: "admin",
+      });
+      (db.marketplaceTemplate.updateMany as any).mockResolvedValue({ count: 1 });
 
       const res = await rejectTemplate("t1", "Not well designed");
-      
+
       expect(res.success).toBe(true);
-      expect(db.marketplaceTemplate.update).toHaveBeenCalledWith(
+      expect(db.marketplaceTemplate.updateMany).toHaveBeenCalledWith(
         expect.objectContaining({
-          where: { id: "t1" },
+          where: { id: "t1", status: "PENDING_REVIEW" },
           data: expect.objectContaining({
             status: "REJECTED",
             rejectionReason: "Not well designed",
-            reviewedBy: "u1",
+            reviewedByUserId: "u1",
           }),
-        })
+        }),
       );
+    });
+
+    it("rejects invalid status transitions safely", async () => {
+      vi.mocked(requireMarketplaceModerator).mockResolvedValue({
+        userId: "u1",
+        orgId: "o1",
+        role: "admin",
+      });
+      (db.marketplaceTemplate.updateMany as any).mockResolvedValue({ count: 0 });
+      (db.marketplaceTemplate.findUnique as any).mockResolvedValue({ status: "PUBLISHED" });
+
+      const res = await rejectTemplate("t1", "Needs work");
+
+      expect(res.success).toBe(false);
+      if (!res.success) {
+        expect(res.error).toContain("Cannot reject");
+      }
+    });
+  });
+
+  describe("archiveTemplate", () => {
+    it("archives published or rejected templates", async () => {
+      vi.mocked(requireMarketplaceModerator).mockResolvedValue({
+        userId: "u1",
+        orgId: "o1",
+        role: "admin",
+      });
+      (db.marketplaceTemplate.updateMany as any).mockResolvedValue({ count: 1 });
+
+      const res = await archiveTemplate("t1");
+
+      expect(res.success).toBe(true);
+      expect(db.marketplaceTemplate.updateMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: {
+            id: "t1",
+            status: { in: ["PUBLISHED", "REJECTED"] },
+          },
+          data: expect.objectContaining({
+            status: "ARCHIVED",
+            reviewedByUserId: "u1",
+          }),
+        }),
+      );
+    });
+
+    it("treats repeated archive as idempotent", async () => {
+      vi.mocked(requireMarketplaceModerator).mockResolvedValue({
+        userId: "u1",
+        orgId: "o1",
+        role: "admin",
+      });
+      (db.marketplaceTemplate.updateMany as any).mockResolvedValue({ count: 0 });
+      (db.marketplaceTemplate.findUnique as any).mockResolvedValue({ status: "ARCHIVED" });
+
+      const res = await archiveTemplate("t1");
+
+      expect(res.success).toBe(true);
     });
   });
 });
 
-// Type declaration for the mock db transaction
 declare global {
   var __mockDbTransaction: any;
 }

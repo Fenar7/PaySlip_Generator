@@ -1164,7 +1164,7 @@ model FileAttachment {
   voucher     Voucher?     @relation("VoucherAttachments", fields: [entityId], references: [id], map: "file_attachment_voucher_fkey")
   vendorBill  VendorBill?  @relation("VendorBillAttachments", fields: [entityId], references: [id], map: "file_attachment_vendor_bill_fkey")
   salarySlip  SalarySlip?  @relation("SalarySlipAttachments", fields: [entityId], references: [id], map: "file_attachment_salary_slip_fkey")
-  quote      Quote?      @relation("QuoteAttachments", fields: [entityId], references: [id], map: "file_attachment_quote_fkey")
+  quote       Quote?       @relation("QuoteAttachments", fields: [entityId], references: [id], map: "file_attachment_quote_fkey")
   ticketReply TicketReply? @relation("TicketReplyAttachments", fields: [entityId], references: [id], map: "file_attachment_ticket_reply_fkey")
 
   @@index([organizationId, entityType, entityId])
@@ -2528,10 +2528,10 @@ model Quote {
   updatedAt          DateTime    @updatedAt
   archivedAt         DateTime?
 
-  org       Organization    @relation(fields: [orgId], references: [id], onDelete: Cascade)
-  customer  Customer        @relation(fields: [customerId], references: [id])
-  creator   Profile         @relation(fields: [createdBy], references: [id])
-  lineItems QuoteLineItem[]
+  org         Organization     @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  customer    Customer         @relation(fields: [customerId], references: [id])
+  creator     Profile          @relation(fields: [createdBy], references: [id])
+  lineItems   QuoteLineItem[]
   attachments FileAttachment[] @relation("QuoteAttachments")
 
   @@unique([orgId, quoteNumber])
@@ -2687,12 +2687,12 @@ model MarketplaceTemplate {
   createdAt       DateTime                  @default(now())
   updatedAt       DateTime                  @updatedAt
 
-  reviewedBy      String?   @db.Uuid
-  reviewedAt      DateTime?
-  rejectionReason String?
-  reviewNotes     String?
-  publishedAt     DateTime?
-  archivedAt      DateTime?
+  reviewedByUserId String?   @db.Uuid
+  reviewedAt       DateTime?
+  rejectionReason  String?
+  reviewNotes      String?
+  publishedAt      DateTime?
+  archivedAt       DateTime?
 
   publisherOrg Organization?                 @relation(fields: [publisherOrgId], references: [id])
   purchases    MarketplacePurchase[]
@@ -2703,22 +2703,26 @@ model MarketplaceTemplate {
 }
 
 model MarketplaceTemplateRevision {
-  id              String                    @id @default(cuid())
-  templateId      String
-  version         String                    @default("1.0.0")
-  templateData    Json
-  previewImageUrl String
-  previewPdfUrl   String?
-  status          MarketplaceTemplateStatus @default(DRAFT)
+  id                   String                    @id @default(cuid())
+  templateId           String
+  version              String                    @default("1.0.0")
+  name                 String
+  description          String
+  templateType         String
+  publisherDisplayName String
+  templateData         Json
+  previewImageUrl      String
+  previewPdfUrl        String?
+  status               MarketplaceTemplateStatus @default(DRAFT)
 
-  createdBy String?  @db.Uuid
-  createdAt DateTime @default(now())
+  createdByOrgId String?
+  createdAt      DateTime @default(now())
 
-  reviewedBy      String?   @db.Uuid
-  reviewedAt      DateTime?
-  reviewNotes     String?
-  rejectionReason String?
-  publishedAt     DateTime?
+  reviewedByUserId String?   @db.Uuid
+  reviewedAt       DateTime?
+  reviewNotes      String?
+  rejectionReason  String?
+  publishedAt      DateTime?
 
   template  MarketplaceTemplate   @relation(fields: [templateId], references: [id], onDelete: Cascade)
   purchases MarketplacePurchase[]
@@ -2912,20 +2916,20 @@ model DocumentIndex {
 /// Append-only normalized lifecycle/event history for all document types.
 /// Added: Phase 19 Sprint 19.2
 model DocumentEvent {
-  id          String    @id @default(cuid())
-  orgId       String
+  id         String   @id @default(cuid())
+  orgId      String
   /// "invoice" | "voucher" | "salary_slip" | "quote"
-  docType     String
-  documentId  String
+  docType    String
+  documentId String
   /// e.g. "created" | "updated" | "issued" | "archived" | "restored" |
   ///       "duplicated" | "approved" | "released" | "paid" |
   ///       "quote_accepted" | "quote_declined" | "quote_converted" |
   ///       "sent" | "cancelled"
-  eventType   String
-  actorId     String?
-  actorLabel  String?
-  eventAt     DateTime  @default(now())
-  metadata    Json?
+  eventType  String
+  actorId    String?
+  actorLabel String?
+  eventAt    DateTime @default(now())
+  metadata   Json?
 
   organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
 
@@ -2934,4 +2938,3 @@ model DocumentEvent {
   @@index([orgId, docType, eventAt])
   @@map("document_event")
 }
-
