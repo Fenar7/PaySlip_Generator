@@ -41,81 +41,78 @@ model Organization {
   createdAt DateTime @default(now())
   metadata  String?
 
-  members                      Member[]
-  invitations                  Invitation[]
-  branding                     BrandingProfile?
-  defaults                     OrgDefaults?
-  customers                    Customer[]
-  vendors                      Vendor[]
-  employees                    Employee[]
-  invoices                     Invoice[]
-  vouchers                     Voucher[]
-  salarySlips                  SalarySlip[]
-  salaryPresets                SalaryPreset[]
-  attachments                  FileAttachment[]
-  reportSnapshots              ReportSnapshot[]
-  glAccounts                   GlAccount[]
-  fiscalPeriods                FiscalPeriod[]
-  journalEntries               JournalEntry[]
-  journalLines                 JournalLine[]
-  bankAccounts                 BankAccount[]
-  bankStatementImports         BankStatementImport[]
-  bankTransactions             BankTransaction[]
-  bankTransactionMatches       BankTransactionMatch[]
-  vendorBills                  VendorBill[]
-  vendorBillPayments           VendorBillPayment[]
-  paymentRuns                  PaymentRun[]
-  closeRuns                    CloseRun[]
-  closeTasks                   CloseTask[]
-  proxyGrants                  ProxyGrant[]
-  auditLogs                    AuditLog[]
-  subscription                 Subscription?
-  usageRecords                 UsageRecord[]
-  storageUsage                 StorageUsage[]
-  sendLogs                     SendLog[]
-  sharedDocuments              SharedDocument[]
-  virtualAccounts              CustomerVirtualAccount[]
-  unmatchedPayments            UnmatchedPayment[]
-  billingInvoices              BillingInvoice[]
-  apiKeys                      ApiKey[]
-  webhookEndpoints             ApiWebhookEndpoint[]
-  apiRequestLogs               ApiRequestLog[]
-  ssoConfig                    SsoConfig?
-  orgPreferences               UserOrgPreference[]
-  orgDomain                    OrgDomain?
-  whiteLabel                   OrgWhiteLabel?
-  emailDomains                 OrgEmailDomain[]
-  ocrJobs                      OcrJob[]
-  integrations                 OrgIntegration[]
-  dunningSequences             DunningSequence[]
-  dunningLogs                  DunningLog[]
-  dunningOptOuts               DunningOptOut[]
-  portalTokens                 CustomerPortalToken[]
-  portalAccessLogs             CustomerPortalAccessLog[]
-  statements                   CustomerStatement[]
-  quotes                       Quote[]
-  arrangements                 PaymentArrangement[]
-  tdsRecords                   TdsRecord[]
-  marketplaceTemplates         MarketplaceTemplate[]
-  marketplacePurchases         MarketplacePurchase[]
-  marketplacePayoutBeneficiary MarketplacePayoutBeneficiary?
-  marketplacePayoutItems       MarketplacePayoutItem[]
-  marketplacePayoutEvents      MarketplacePayoutEvent[]
-  approvalPolicies             ApprovalPolicy[]
-  ticketSlaPolicies            TicketSlaPolicy[]
-  ticketEscalationRules        TicketEscalationRule[]
-  scheduledActions             ScheduledAction[]
-  deadLetterActions            DeadLetterAction[]
-  workflowDefinitions          WorkflowDefinition[]
-  workflowRuns                 WorkflowRun[]
-  marketplaceReviews           MarketplaceReview[]
-  marketplaceRevenue           MarketplaceRevenue[]
-  oauthApps                    OAuthApp[]
-  oauthAuthorizations          OAuthAuthorization[]
-  partnerProfile               PartnerProfile?
-  partnerManagedOrgs           PartnerManagedOrg[]
-  documentIndexes              DocumentIndex[]
-  documentEvents               DocumentEvent[]
+  members                Member[]
+  invitations            Invitation[]
+  branding               BrandingProfile?
+  defaults               OrgDefaults?
+  customers              Customer[]
+  vendors                Vendor[]
+  employees              Employee[]
+  invoices               Invoice[]
+  vouchers               Voucher[]
+  salarySlips            SalarySlip[]
+  salaryPresets          SalaryPreset[]
+  attachments            FileAttachment[]
+  reportSnapshots        ReportSnapshot[]
+  glAccounts             GlAccount[]
+  fiscalPeriods          FiscalPeriod[]
+  journalEntries         JournalEntry[]
+  journalLines           JournalLine[]
+  bankAccounts           BankAccount[]
+  bankStatementImports   BankStatementImport[]
+  bankTransactions       BankTransaction[]
+  bankTransactionMatches BankTransactionMatch[]
+  vendorBills            VendorBill[]
+  vendorBillPayments     VendorBillPayment[]
+  paymentRuns            PaymentRun[]
+  closeRuns              CloseRun[]
+  closeTasks             CloseTask[]
+  proxyGrants            ProxyGrant[]
+  auditLogs              AuditLog[]
+  subscription           Subscription?
+  usageRecords           UsageRecord[]
+  storageUsage           StorageUsage[]
+  sendLogs               SendLog[]
+  sharedDocuments        SharedDocument[]
+  virtualAccounts        CustomerVirtualAccount[]
+  unmatchedPayments      UnmatchedPayment[]
+  billingInvoices        BillingInvoice[]
+  apiKeys                ApiKey[]
+  webhookEndpoints       ApiWebhookEndpoint[]
+  apiRequestLogs         ApiRequestLog[]
+  ssoConfig              SsoConfig?
+  orgPreferences         UserOrgPreference[]
+  orgDomain              OrgDomain?
+  whiteLabel             OrgWhiteLabel?
+  emailDomains           OrgEmailDomain[]
+  ocrJobs                OcrJob[]
+  integrations           OrgIntegration[]
+  dunningSequences       DunningSequence[]
+  dunningLogs            DunningLog[]
+  dunningOptOuts         DunningOptOut[]
+  portalTokens           CustomerPortalToken[]
+  portalAccessLogs       CustomerPortalAccessLog[]
+  statements             CustomerStatement[]
+  quotes                 Quote[]
+  arrangements           PaymentArrangement[]
+  tdsRecords             TdsRecord[]
+  marketplaceTemplates   MarketplaceTemplate[]
+  marketplacePurchases   MarketplacePurchase[]
+  approvalPolicies       ApprovalPolicy[]
+  ticketSlaPolicies      TicketSlaPolicy[]
+  ticketEscalationRules  TicketEscalationRule[]
+  scheduledActions       ScheduledAction[]
+  deadLetterActions      DeadLetterAction[]
+  workflowDefinitions    WorkflowDefinition[]
+  workflowRuns           WorkflowRun[]
+  marketplaceReviews     MarketplaceReview[]
+  marketplaceRevenue     MarketplaceRevenue[]
+  oauthApps              OAuthApp[]
+  oauthAuthorizations    OAuthAuthorization[]
+  partnerProfile         PartnerProfile?
+  partnerManagedOrgs     PartnerManagedOrg[]
+  documentIndexes        DocumentIndex[]
+  documentEvents         DocumentEvent[]
 
   @@map("organization")
 }
@@ -2774,173 +2771,20 @@ model MarketplaceReview {
 }
 
 model MarketplaceRevenue {
-  id              String    @id @default(cuid())
-  purchaseId      String    @unique
-  publisherOrgId  String
-  totalAmount     Decimal   @db.Decimal(8, 2)
-  publisherShare  Decimal   @db.Decimal(8, 2)
-  platformShare   Decimal   @db.Decimal(8, 2)
-  status          String    @default("pending")
-  eligibleAt      DateTime?
-  queuedAt        DateTime?
-  paidOutAt       DateTime?
-  onHoldReason    String?
-  failureReason   String?
-  lastEvaluatedAt DateTime?
-  createdAt       DateTime  @default(now())
+  id             String    @id @default(cuid())
+  purchaseId     String    @unique
+  publisherOrgId String
+  totalAmount    Decimal   @db.Decimal(8, 2)
+  publisherShare Decimal   @db.Decimal(8, 2)
+  platformShare  Decimal   @db.Decimal(8, 2)
+  status         String    @default("PENDING_PAYOUT")
+  paidOutAt      DateTime?
+  createdAt      DateTime  @default(now())
 
-  purchase     MarketplacePurchase      @relation(fields: [purchaseId], references: [id])
-  publisherOrg Organization             @relation(fields: [publisherOrgId], references: [id])
-  payoutItems  MarketplacePayoutItem[]
-  payoutEvents MarketplacePayoutEvent[]
+  purchase     MarketplacePurchase @relation(fields: [purchaseId], references: [id])
+  publisherOrg Organization        @relation(fields: [publisherOrgId], references: [id])
 
   @@map("marketplace_revenue")
-}
-
-model MarketplacePayoutBeneficiary {
-  id                     String    @id @default(cuid())
-  publisherOrgId         String    @unique
-  accountHolderName      String
-  payoutMethod           String    @default("bank_transfer")
-  bankAccountCiphertext  String?
-  bankAccountLast4       String?
-  bankAccountFingerprint String?
-  ifscCiphertext         String?
-  upiIdCiphertext        String?
-  status                 String    @default("pending_verification")
-  providerName           String?
-  providerBeneficiaryId  String?
-  verificationReference  String?
-  verificationNotes      String?
-  verifiedAt             DateTime?
-  lastChangedAt          DateTime  @default(now())
-  createdByUserId        String?   @db.Uuid
-  updatedByUserId        String?   @db.Uuid
-  createdAt              DateTime  @default(now())
-  updatedAt              DateTime  @updatedAt
-
-  publisherOrg Organization             @relation(fields: [publisherOrgId], references: [id], onDelete: Cascade)
-  payoutItems  MarketplacePayoutItem[]
-  payoutEvents MarketplacePayoutEvent[]
-
-  @@index([status, updatedAt])
-  @@map("marketplace_payout_beneficiary")
-}
-
-model MarketplacePayoutRun {
-  id                String    @id @default(cuid())
-  runNumber         String    @unique
-  status            String    @default("draft")
-  providerName      String    @default("manual")
-  totalAmount       Decimal   @default(0) @db.Decimal(12, 2)
-  itemCount         Int       @default(0)
-  successCount      Int       @default(0)
-  failureCount      Int       @default(0)
-  manualReviewCount Int       @default(0)
-  notes             String?
-  requestedByUserId String?   @db.Uuid
-  approvedByUserId  String?   @db.Uuid
-  approvedAt        DateTime?
-  executedByUserId  String?   @db.Uuid
-  executedAt        DateTime?
-  completedAt       DateTime?
-  failedAt          DateTime?
-  createdAt         DateTime  @default(now())
-  updatedAt         DateTime  @updatedAt
-
-  items    MarketplacePayoutItem[]
-  attempts MarketplacePayoutAttempt[]
-  events   MarketplacePayoutEvent[]
-
-  @@index([status, createdAt])
-  @@map("marketplace_payout_run")
-}
-
-model MarketplacePayoutItem {
-  id                  String    @id @default(cuid())
-  payoutRunId         String
-  revenueId           String    @unique
-  publisherOrgId      String
-  beneficiaryId       String
-  amount              Decimal   @db.Decimal(12, 2)
-  status              String    @default("pending")
-  providerReferenceId String?
-  externalReferenceId String?
-  failureCode         String?
-  failureMessage      String?
-  manualReviewReason  String?
-  lastAttemptAt       DateTime?
-  settledAt           DateTime?
-  attemptCount        Int       @default(0)
-  createdAt           DateTime  @default(now())
-  updatedAt           DateTime  @updatedAt
-
-  payoutRun    MarketplacePayoutRun         @relation(fields: [payoutRunId], references: [id], onDelete: Cascade)
-  revenue      MarketplaceRevenue           @relation(fields: [revenueId], references: [id], onDelete: Restrict)
-  publisherOrg Organization                 @relation(fields: [publisherOrgId], references: [id], onDelete: Cascade)
-  beneficiary  MarketplacePayoutBeneficiary @relation(fields: [beneficiaryId], references: [id], onDelete: Restrict)
-  attempts     MarketplacePayoutAttempt[]
-  events       MarketplacePayoutEvent[]
-
-  @@unique([payoutRunId, revenueId])
-  @@index([publisherOrgId, status])
-  @@index([status, createdAt])
-  @@map("marketplace_payout_item")
-}
-
-model MarketplacePayoutAttempt {
-  id                  String    @id @default(cuid())
-  payoutRunId         String
-  payoutItemId        String
-  providerName        String
-  status              String    @default("pending")
-  idempotencyKey      String    @unique
-  providerRequestId   String?
-  providerReferenceId String?
-  requestPayload      Json
-  responsePayload     Json?
-  failureCode         String?
-  failureMessage      String?
-  retryable           Boolean   @default(true)
-  processedAt         DateTime?
-  createdAt           DateTime  @default(now())
-
-  payoutRun  MarketplacePayoutRun     @relation(fields: [payoutRunId], references: [id], onDelete: Cascade)
-  payoutItem MarketplacePayoutItem    @relation(fields: [payoutItemId], references: [id], onDelete: Cascade)
-  events     MarketplacePayoutEvent[]
-
-  @@index([payoutItemId, createdAt])
-  @@index([status, createdAt])
-  @@map("marketplace_payout_attempt")
-}
-
-model MarketplacePayoutEvent {
-  id              String   @id @default(cuid())
-  publisherOrgId  String?
-  payoutRunId     String?
-  payoutItemId    String?
-  payoutAttemptId String?
-  revenueId       String?
-  beneficiaryId   String?
-  actorId         String?  @db.Uuid
-  actorType       String   @default("user")
-  eventType       String
-  fromStatus      String?
-  toStatus        String?
-  reason          String?
-  metadata        Json?
-  createdAt       DateTime @default(now())
-
-  publisherOrg  Organization?                 @relation(fields: [publisherOrgId], references: [id], onDelete: Cascade)
-  payoutRun     MarketplacePayoutRun?         @relation(fields: [payoutRunId], references: [id], onDelete: Cascade)
-  payoutItem    MarketplacePayoutItem?        @relation(fields: [payoutItemId], references: [id], onDelete: Cascade)
-  payoutAttempt MarketplacePayoutAttempt?     @relation(fields: [payoutAttemptId], references: [id], onDelete: Cascade)
-  revenue       MarketplaceRevenue?           @relation(fields: [revenueId], references: [id], onDelete: Cascade)
-  beneficiary   MarketplacePayoutBeneficiary? @relation(fields: [beneficiaryId], references: [id], onDelete: Cascade)
-
-  @@index([publisherOrgId, createdAt])
-  @@index([eventType, createdAt])
-  @@map("marketplace_payout_event")
 }
 
 // ─── Sprint 15.3: OAuth ─────────────────────────────────────────────────────

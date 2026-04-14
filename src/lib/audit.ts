@@ -71,15 +71,6 @@ export const AUDIT_ACTION_LABELS: Record<string, string> = {
   "quote_accepted": "Quote accepted",
   "quote_declined": "Quote declined",
   "quote_converted": "Converted quote to invoice",
-  "marketplace.payout_beneficiary.updated": "Updated marketplace payout beneficiary",
-  "marketplace.payout_beneficiary.verified": "Verified marketplace payout beneficiary",
-  "marketplace.payout_run.created": "Created marketplace payout run",
-  "marketplace.payout_run.approved": "Approved marketplace payout run",
-  "marketplace.payout_run.executed": "Executed marketplace payout run",
-  "marketplace.payout_item.hold": "Held marketplace payout item",
-  "marketplace.payout_item.release": "Released marketplace payout item",
-  "marketplace.payout_item.paid": "Marked marketplace payout item paid",
-  "marketplace.payout_item.failed": "Marked marketplace payout item failed",
 };
 
 export function getAuditCategory(action: string): string {
@@ -94,7 +85,6 @@ export function getAuditCategory(action: string): string {
   )
     return "Documents";
   if (action.startsWith("org.")) return "Settings";
-  if (action.startsWith("marketplace.")) return "Marketplace";
   if (
     action.startsWith("cron.") ||
     action.startsWith("send.") ||
