@@ -1164,6 +1164,7 @@ model FileAttachment {
   voucher    Voucher?    @relation("VoucherAttachments", fields: [entityId], references: [id], map: "file_attachment_voucher_fkey")
   vendorBill VendorBill? @relation("VendorBillAttachments", fields: [entityId], references: [id], map: "file_attachment_vendor_bill_fkey")
   salarySlip SalarySlip? @relation("SalarySlipAttachments", fields: [entityId], references: [id], map: "file_attachment_salary_slip_fkey")
+  quote      Quote?      @relation("QuoteAttachments", fields: [entityId], references: [id], map: "file_attachment_quote_fkey")
   ticketReply TicketReply? @relation("TicketReplyAttachments", fields: [entityId], references: [id], map: "file_attachment_ticket_reply_fkey")
 
   @@index([organizationId, entityType, entityId])
@@ -2529,6 +2530,7 @@ model Quote {
   customer  Customer        @relation(fields: [customerId], references: [id])
   creator   Profile         @relation(fields: [createdBy], references: [id])
   lineItems QuoteLineItem[]
+  attachments FileAttachment[] @relation("QuoteAttachments")
 
   @@unique([orgId, quoteNumber])
   @@index([orgId, status])

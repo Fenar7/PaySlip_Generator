@@ -254,7 +254,7 @@ export async function deleteQuote(quoteId: string): Promise<ActionResult<void>> 
 
 export async function archiveQuote(quoteId: string): Promise<ActionResult<void>> {
   try {
-    const { orgId } = await requireOrgContext();
+    const { orgId, userId } = await requireOrgContext();
 
     const existing = await db.quote.findFirst({
       where: { id: quoteId, orgId },
@@ -270,7 +270,7 @@ export async function archiveQuote(quoteId: string): Promise<ActionResult<void>>
       include: { customer: true },
     });
 
-    // Sync archive state to DocumentIndex
+    // Phase 19.1: Sync archive state to DocumentIndex
     void syncQuoteToIndex(orgId, {
       id: archived.id,
       quoteNumber: archived.quoteNumber,
@@ -283,6 +283,9 @@ export async function archiveQuote(quoteId: string): Promise<ActionResult<void>>
       customer: archived.customer ?? undefined,
     });
 
+    // Phase 19.2: emit normalized document event
+    void emitQuoteEvent(orgId, quoteId, "archived", { actorId: userId });
+
     revalidatePath("/app/docs/quotes");
     revalidatePath("/app/docs/vault");
     return { success: true, data: undefined };
@@ -292,6 +295,48 @@ export async function archiveQuote(quoteId: string): Promise<ActionResult<void>>
   }
 }
 
+export async function restoreQuote(quoteId: string): Promise<ActionResult<void>> {
+  try {
+    const { orgId, userId } = await requireOrgContext();
+
+    const existing = await db.quote.findFirst({
+      where: { id: quoteId, orgId },
+    });
+
+    if (!existing) {
+      return { success: false, error: "Quote not found" };
+    }
+
+    const restored = await db.quote.update({
+      where: { id: quoteId },
+      data: { archivedAt: null },
+      include: { customer: true },
+    });
+
+    // Phase 19.1: Sync restore state to DocumentIndex
+    void syncQuoteToIndex(orgId, {
+      id: restored.id,
+      quoteNumber: restored.quoteNumber,
+      title: restored.title,
+      status: restored.status,
+      issueDate: restored.issueDate,
+      totalAmount: restored.totalAmount,
+      currency: restored.currency,
+      archivedAt: restored.archivedAt,
+      customer: restored.customer ?? undefined,
+    });
+
+    // Phase 19.2: emit normalized document event
+    void emitQuoteEvent(orgId, quoteId, "restored", { actorId: userId });
+
+    revalidatePath("/app/docs/quotes");
+    revalidatePath("/app/docs/vault");
+    return { success: true, data: undefined };
+  } catch (error) {
+    console.error("restoreQuote error:", error);
+    return { success: false, error: "Failed to restore quote" };
+  }
+}
 // ─── Send Quote Action ───────────────────────────────────────────────────────
 
 export async function sendQuoteAction(quoteId: string): Promise<ActionResult<void>> {
