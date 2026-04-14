@@ -1,6 +1,5 @@
 import { getReviewQueue } from "./actions";
 import Link from "next/link";
-import { formatDistanceToNow } from "date-fns";
 
 export default async function AdminReviewQueuePage() {
   const result = await getReviewQueue();
@@ -55,7 +54,11 @@ export default async function AdminReviewQueuePage() {
                   </td>
                   <td className="px-6 py-4 capitalize">{tpl.templateType?.toLowerCase()}</td>
                   <td className="px-6 py-4 text-muted-foreground">
-                    {formatDistanceToNow(new Date(tpl.createdAt), { addSuffix: true })}
+                    {new Date(tpl.createdAt).toLocaleDateString("en-US", { 
+                      month: "short", 
+                      day: "numeric", 
+                      year: "numeric" 
+                    })}
                   </td>
                   <td className="px-6 py-4 text-right">
                     <Link

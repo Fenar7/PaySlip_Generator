@@ -3,6 +3,8 @@ import { getInvoice, getInvoiceTimeline, getInvoicePayments } from "../actions";
 import { InvoiceBrandingWrapper } from "../new/branding-wrapper";
 import { listCustomers } from "@/app/app/data/actions";
 import { InvoiceDetailClient } from "./invoice-detail-client";
+import { DocumentAttachments } from "@/components/docs/document-attachments";
+import { getDocAttachments } from "@/app/app/docs/attachment-actions";
 
 export const metadata = {
   title: "Edit Invoice | Slipwise",
@@ -14,11 +16,12 @@ export default async function EditInvoicePage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const [invoice, customersResult, events, payments] = await Promise.all([
+  const [invoice, customersResult, events, payments, attachments] = await Promise.all([
     getInvoice(id),
     listCustomers({ limit: 200 }).catch(() => ({ customers: [] })),
     getInvoiceTimeline(id),
     getInvoicePayments(id),
+    getDocAttachments(id, "invoice"),
   ]);
 
   if (!invoice) {
@@ -64,6 +67,9 @@ export default async function EditInvoicePage({
               plannedNextPaymentDate: p.plannedNextPaymentDate,
             }))}
           />
+        </div>
+        <div className="mt-6">
+          <DocumentAttachments docId={invoice.id} docType="invoice" attachments={attachments} />
         </div>
       </aside>
     </div>

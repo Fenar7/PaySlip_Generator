@@ -5,10 +5,10 @@ import ReviewActions from "./review-actions";
 export default async function ReviewDetailPage({
   params,
 }: {
-  params: { templateId: string };
+  params: Promise<{ templateId: string }>;
 }) {
-  const result = await getTemplateForReview(params.templateId);
-  const templateId = params.templateId;
+  const { templateId } = await params;
+  const result = await getTemplateForReview(templateId);
 
   if (!result.success) {
     return (
