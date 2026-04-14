@@ -1,6 +1,8 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { getSalarySlip, releaseSalarySlip, archiveSalarySlip } from "../actions";
+import { getDocumentTimelineForPage } from "@/lib/document-events";
+import { DocumentTimeline } from "@/components/docs/document-timeline";
 
 export const metadata = {
   title: "Salary Slip Details | Slipwise",
@@ -25,7 +27,10 @@ export default async function SalarySlipDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const slip = await getSalarySlip(id);
+  const [slip, events] = await Promise.all([
+    getSalarySlip(id),
+    getDocumentTimelineForPage("salary_slip", id).catch(() => []),
+  ]);
 
   if (!slip) {
     notFound();
@@ -152,6 +157,11 @@ export default async function SalarySlipDetailPage({
               </>
             )}
           </div>
+        </div>
+
+        {/* Timeline */}
+        <div className="mt-6 rounded-lg border border-slate-200 bg-white p-6">
+          <DocumentTimeline events={events} title="History" />
         </div>
       </div>
     </div>
