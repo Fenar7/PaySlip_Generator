@@ -113,6 +113,12 @@ export async function installFreeTemplate(
 
     const template = await db.marketplaceTemplate.findUnique({
       where: { id: templateId },
+      include: {
+        revisions: {
+          orderBy: { createdAt: "desc" },
+          take: 1,
+        },
+      },
     });
 
     if (!template) {
@@ -137,10 +143,13 @@ export async function installFreeTemplate(
       return { success: true, data: { purchaseId: existing.id } };
     }
 
+    const latestRevision = template.revisions?.[0];
+
     const purchase = await db.marketplacePurchase.create({
       data: {
         orgId,
         templateId,
+        revisionId: latestRevision?.id,
         userId,
         amount: 0,
         status: "COMPLETED",
@@ -251,6 +260,12 @@ export async function verifyTemplatePurchase(data: {
 
     const template = await db.marketplaceTemplate.findUnique({
       where: { id: data.templateId },
+      include: {
+        revisions: {
+          orderBy: { createdAt: "desc" },
+          take: 1,
+        },
+      },
     });
 
     if (!template) {
@@ -275,11 +290,14 @@ export async function verifyTemplatePurchase(data: {
     const publisherShare = Math.round(amount * 70) / 100;
     const platformShare = Math.round(amount * 30) / 100;
 
+    const latestRevision = template.revisions?.[0];
+
     const purchase = await db.$transaction(async (tx) => {
       const p = await tx.marketplacePurchase.create({
         data: {
           orgId,
           templateId: data.templateId,
+          revisionId: latestRevision?.id,
           userId,
           amount,
           razorpayPaymentId: data.razorpayPaymentId,
