@@ -2,7 +2,7 @@ import "server-only";
 
 import { db } from "@/lib/db";
 import { upsertInsight } from "./insights";
-import type { IntelInsightSeverity, IntelInsightCategory } from "@/generated/prisma/client";
+import type { IntelInsightSeverity } from "@/generated/prisma/client";
 
 /**
  * Deterministic anomaly detection service for Slipwise One.
@@ -189,11 +189,11 @@ async function checkArProofRejectionSpike(orgId: string): Promise<AnomalyRuleRes
   const ruleKey = "ar.proof_rejection_spike";
   const window = daysAgo(7);
 
-  const rejectedProofs = await db.paymentProof.count({
+  const rejectedProofs = await db.invoiceProof.count({
     where: {
-      orgId,
-      status: "REJECTED",
-      updatedAt: { gte: window },
+      invoice: { organizationId: orgId },
+      reviewStatus: "REJECTED",
+      reviewedAt: { gte: window },
     },
   });
 
@@ -267,11 +267,11 @@ async function checkBooksUnreconciledSpike(orgId: string): Promise<AnomalyRuleRe
   const ruleKey = "books.unreconciled_transaction_spike";
   const staleThreshold = daysAgo(14);
 
-  const unmatched = await db.bankStatementItem.count({
+  const unmatched = await db.bankTransaction.count({
     where: {
       orgId,
-      matchStatus: { in: ["UNMATCHED", "PENDING"] },
-      transactionDate: { lte: staleThreshold },
+      status: { in: ["UNMATCHED", "SUGGESTED"] },
+      txnDate: { lte: staleThreshold },
     },
   });
 
@@ -345,10 +345,10 @@ async function checkMarketplacePayoutStuck(orgId: string): Promise<AnomalyRuleRe
   const ruleKey = "marketplace.payout_item_stuck";
   const staleThreshold = daysAgo(7);
 
-  const stuckItems = await db.payoutItem.count({
+  const stuckItems = await db.marketplacePayoutItem.count({
     where: {
-      orgId,
-      status: { in: ["HOLD", "RETRY", "MANUAL"] },
+      publisherOrgId: orgId,
+      status: { in: ["on_hold", "processing", "manual_review"] },
       updatedAt: { lte: staleThreshold },
     },
   });
@@ -384,7 +384,7 @@ async function checkPartnerAccessRejections(orgId: string): Promise<AnomalyRuleR
   const ruleKey = "partner.repeated_access_rejection";
   const window = daysAgo(14);
 
-  const rejected = await db.partnerAccessRequest.count({
+  const rejected = await db.partnerClientAccessRequest.count({
     where: {
       clientOrgId: orgId,
       status: "REJECTED",
@@ -425,9 +425,9 @@ async function checkWebhookDeliveryFailures(orgId: string): Promise<AnomalyRuleR
 
   const failedDeliveries = await db.apiWebhookDelivery.count({
     where: {
-      orgId,
+      endpoint: { orgId },
       success: false,
-      createdAt: { gte: window },
+      deliveredAt: { gte: window },
     },
   });
 
@@ -484,7 +484,7 @@ export async function runAnomalyDetection(orgId: string): Promise<DetectionRunSu
 
   let rulesEvaluated = 0;
   let insightsCreated = 0;
-  let insightsUpdated = 0;
+  const insightsUpdated = 0;
   const errors: string[] = [];
 
   for (const rule of ALL_RULES) {
