@@ -116,11 +116,15 @@ model Organization {
   partnerManagedOrgs           PartnerManagedOrg[]
   documentIndexes              DocumentIndex[]
   documentEvents               DocumentEvent[]
-  gstFilingRuns            GstFilingRun[]
-  gstFilingIssues          GstFilingValidationIssue[]
-  gstFilingSubmissions     GstFilingSubmission[]
-  gstFilingReconciliations GstFilingReconciliation[]
-  gstFilingEvents          GstFilingEvent[]
+  ssoBreakGlassCodes           SsoBreakGlassCode[]
+  ssoAuthnRequests             SsoAuthnRequest[]
+  ssoAssertionReplays          SsoAssertionReplay[]
+  gstFilingRuns                GstFilingRun[]
+  gstFilingIssues              GstFilingValidationIssue[]
+  gstFilingSubmissions         GstFilingSubmission[]
+  gstFilingReconciliations     GstFilingReconciliation[]
+  gstFilingEvents              GstFilingEvent[]
+
   @@map("organization")
 }
 
@@ -2379,23 +2383,96 @@ model ApiRequestLog {
 
 // ─── Phase 12: Enterprise Features ───────────────────────────────────────────
 
+enum SsoMetadataStatus {
+  PENDING
+  VALID
+  FAILED
+  STALE
+}
+
+enum SsoAuthnRequestMode {
+  LOGIN
+  TEST
+}
+
 model SsoConfig {
-  id          String    @id @default(cuid())
-  orgId       String    @unique
-  provider    String
-  metadataUrl String?
-  metadataXml String?   @db.Text
-  acsUrl      String
-  entityId    String
-  ssoEnforced Boolean   @default(false)
-  isActive    Boolean   @default(true)
-  testedAt    DateTime?
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  id                    String            @id @default(cuid())
+  orgId                 String            @unique
+  provider              String
+  metadataUrl           String?
+  metadataXml           String?           @db.Text
+  acsUrl                String
+  entityId              String
+  idpEntityId           String?
+  idpSsoUrl             String?
+  idpSsoBinding         String?
+  idpCertificates       Json?
+  metadataStatus        SsoMetadataStatus @default(PENDING)
+  metadataError         String?           @db.Text
+  metadataLastFetchedAt DateTime?
+  metadataNextRefreshAt DateTime?
+  ssoEnforced           Boolean           @default(false)
+  isActive              Boolean           @default(true)
+  testedAt              DateTime?
+  lastFailureAt         DateTime?
+  lastFailureReason     String?
+  lastLoginAt           DateTime?
+  lastLoginEmail        String?
+  createdAt             DateTime          @default(now())
+  updatedAt             DateTime          @updatedAt
 
   organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
 
   @@map("sso_config")
+}
+
+model SsoBreakGlassCode {
+  id               String    @id @default(cuid())
+  orgId            String
+  codeHash         String    @unique
+  issuedByUserId   String    @db.Uuid
+  redeemedByUserId String?   @db.Uuid
+  expiresAt        DateTime
+  redeemedAt       DateTime?
+  createdAt        DateTime  @default(now())
+
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@index([orgId, expiresAt])
+  @@index([orgId, redeemedAt])
+  @@map("sso_break_glass_code")
+}
+
+model SsoAuthnRequest {
+  id         String              @id @default(cuid())
+  orgId      String
+  requestId  String              @unique
+  mode       SsoAuthnRequestMode @default(LOGIN)
+  redirectTo String
+  createdAt  DateTime            @default(now())
+  expiresAt  DateTime
+  consumedAt DateTime?
+
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@index([orgId, expiresAt])
+  @@index([orgId, consumedAt])
+  @@map("sso_authn_request")
+}
+
+model SsoAssertionReplay {
+  id          String   @id @default(cuid())
+  orgId       String
+  assertionId String   @unique
+  responseId  String?
+  nameId      String?
+  createdAt   DateTime @default(now())
+  expiresAt   DateTime
+
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@index([orgId, expiresAt])
+  @@map("sso_assertion_replay")
 }
 
 model UserOrgPreference {

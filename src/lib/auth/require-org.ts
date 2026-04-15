@@ -3,6 +3,7 @@ import "server-only";
 import { createSupabaseServer } from "@/lib/supabase/server";
 import { db } from "@/lib/db";
 import { redirect } from "next/navigation";
+import { getSsoLoginPathForUser } from "@/lib/sso";
 
 export interface OrgContext {
   userId: string;
@@ -23,9 +24,16 @@ export interface MarketplaceFinanceContext {
 }
 
 export type AuthRoutingContext =
-  | { isAuthenticated: false }
+  | { isAuthenticated: false; loginPath?: string }
   | { isAuthenticated: true; userId: string; hasOrg: false }
-  | { isAuthenticated: true; userId: string; hasOrg: true; orgId: string; role: string };
+  | {
+      isAuthenticated: true;
+      userId: string;
+      hasOrg: true;
+      orgId: string;
+      orgSlug: string;
+      role: string;
+    };
 
 export async function getAuthRoutingContext(): Promise<AuthRoutingContext> {
   const supabase = await createSupabaseServer();
@@ -39,14 +47,46 @@ export async function getAuthRoutingContext(): Promise<AuthRoutingContext> {
     return { isAuthenticated: false };
   }
 
-  const member = await db.member.findFirst({
+  const preference = await db.userOrgPreference.findUnique({
     where: { userId: user.id },
-    select: {
-      organizationId: true,
-      role: true,
-    },
-    orderBy: { createdAt: "desc" },
+    select: { activeOrgId: true },
   });
+
+  const preferredMember = preference
+    ? await db.member.findUnique({
+        where: {
+          organizationId_userId: {
+            organizationId: preference.activeOrgId,
+            userId: user.id,
+          },
+        },
+        select: {
+          organizationId: true,
+          role: true,
+          organization: {
+            select: {
+              slug: true,
+            },
+          },
+        },
+      })
+    : null;
+
+  const member = preferredMember
+    ? preferredMember
+    : await db.member.findFirst({
+        where: { userId: user.id },
+        select: {
+          organizationId: true,
+          role: true,
+          organization: {
+            select: {
+              slug: true,
+            },
+          },
+        },
+        orderBy: { createdAt: "asc" },
+      });
 
   if (!member) {
     return {
@@ -56,11 +96,26 @@ export async function getAuthRoutingContext(): Promise<AuthRoutingContext> {
     };
   }
 
+  const loginPath = await getSsoLoginPathForUser(
+    member.organizationId,
+    member.organization.slug,
+    user.id,
+    member.role,
+  );
+
+  if (loginPath) {
+    return {
+      isAuthenticated: false,
+      loginPath,
+    };
+  }
+
   return {
     isAuthenticated: true,
     userId: user.id,
     hasOrg: true,
     orgId: member.organizationId,
+    orgSlug: member.organization.slug,
     role: member.role,
   };
 }
@@ -78,7 +133,7 @@ export async function requireOrgContext(): Promise<OrgContext> {
   const context = await getAuthRoutingContext();
 
   if (!context.isAuthenticated) {
-    redirect("/auth/login");
+    redirect(context.loginPath ?? "/auth/login");
   }
 
   if (!context.hasOrg) {
@@ -165,7 +220,7 @@ export async function requireMarketplaceModerator(): Promise<MarketplaceModerato
   const context = await getAuthRoutingContext();
 
   if (!context.isAuthenticated) {
-    redirect("/auth/login");
+    redirect(context.loginPath ?? "/auth/login");
   }
 
   if (!isMarketplaceModeratorUser(context.userId)) {

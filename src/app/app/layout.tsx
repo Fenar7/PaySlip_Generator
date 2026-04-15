@@ -10,7 +10,7 @@ export default async function AppLayout({
   const context = await getAuthRoutingContext();
 
   if (!context.isAuthenticated) {
-    redirect("/auth/login");
+    redirect(context.loginPath ?? "/auth/login");
   }
 
   if (!context.hasOrg) {
