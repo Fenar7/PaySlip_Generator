@@ -130,6 +130,8 @@ model Organization {
   aiJobs                       AiJob[]
   extractionReviews            ExtractionReview[]
   customerHealthSnapshots      CustomerHealthSnapshot[]
+  anomalyDetectionRuns         AnomalyDetectionRun[]
+  aiUsageRecords               AiUsageRecord[]
 
   @@map("organization")
 }
@@ -3706,4 +3708,81 @@ model CustomerHealthSnapshot {
   @@index([orgId, customerId, calculatedAt])
   @@index([orgId, riskBand])
   @@map("customer_health_snapshot")
+}
+
+// ─── Phase 21: Anomaly Detection ─────────────────────────────────────────────
+
+/// Configuration for a deterministic anomaly detection rule.
+/// Rules are seeded or admin-configured; AI may explain but not override severity.
+/// Added: Phase 21 Sprint 21.4
+model AnomalyRule {
+  id              String   @id @default(cuid())
+  /// Unique key for this rule (e.g. "docs.duplicate_numbering")
+  key             String   @unique
+  /// Category aligns with IntelInsightCategory
+  category        String
+  /// DEFAULT severity when this rule fires (CRITICAL | HIGH | MEDIUM | LOW | INFO)
+  severityDefault String
+  enabled         Boolean  @default(true)
+  /// JSON: thresholds, time windows, plan gate, etc.
+  thresholdConfig Json?
+  /// Optional plan gate key (null = available to all)
+  planGate        String?
+  description     String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([category, enabled])
+  @@map("anomaly_rule")
+}
+
+/// Tracks a single anomaly detection sweep for an org.
+/// Written at the start and end of each detection run.
+/// Added: Phase 21 Sprint 21.4
+model AnomalyDetectionRun {
+  id              String    @id @default(cuid())
+  orgId           String
+  status          String    @default("RUNNING")
+  startedAt       DateTime  @default(now())
+  completedAt     DateTime?
+  rulesEvaluated  Int       @default(0)
+  insightsCreated Int       @default(0)
+  insightsUpdated Int       @default(0)
+  errorMessage    String?
+
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@index([orgId, startedAt])
+  @@map("anomaly_detection_run")
+}
+
+// ─── Phase 21: AI Governance ──────────────────────────────────────────────────
+
+/// Per-call AI usage metering record.
+/// Created after every successful or failed AI provider call.
+/// Added: Phase 21 Sprint 21.5
+model AiUsageRecord {
+  id                String   @id @default(cuid())
+  orgId             String
+  userId            String?  @db.Uuid
+  /// "document_extraction" | "customer_health" | "anomaly_explanation" | "collection_recommendation" | ...
+  feature           String
+  provider          String
+  model             String
+  promptTemplateKey String?
+  /// "completion" | "embedding" | ...
+  usageType         String   @default("completion")
+  tokensInput       Int      @default(0)
+  tokensOutput      Int      @default(0)
+  /// In paise (1/100 INR)
+  costEstimatePaise Int      @default(0)
+  success           Boolean
+  errorCode         String?
+  createdAt         DateTime @default(now())
+
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@index([orgId, feature, createdAt])
+  @@index([orgId, createdAt])
+  @@map("ai_usage_record")
 }
