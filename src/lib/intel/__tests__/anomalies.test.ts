@@ -14,7 +14,7 @@ const { mockDb } = vi.hoisted(() => ({
     paymentArrangement: {
       count: vi.fn(),
     },
-    bankStatementItem: {
+    bankTransaction: {
       count: vi.fn(),
     },
     gstFilingRun: {
@@ -69,7 +69,7 @@ function setupNoAnomalies() {
   mockDb.invoice.count.mockResolvedValue(0);
   mockDb.invoiceProof.count.mockResolvedValue(0);
   mockDb.paymentArrangement.count.mockResolvedValue(0);
-  mockDb.bankStatementItem.count.mockResolvedValue(0);
+  mockDb.bankTransaction.count.mockResolvedValue(0);
   mockDb.gstFilingRun.count.mockResolvedValue(0);
   mockDb.payoutItem.count.mockResolvedValue(0);
   mockDb.partnerClientAccessRequest.count.mockResolvedValue(0);
