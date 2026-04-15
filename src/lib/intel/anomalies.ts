@@ -191,7 +191,7 @@ async function checkArProofRejectionSpike(orgId: string): Promise<AnomalyRuleRes
 
   const rejectedProofs = await db.invoiceProof.count({
     where: {
-      invoice: { orgId },
+      invoice: { organizationId: orgId },
       reviewStatus: "REJECTED",
       reviewedAt: { gte: window },
     },
