@@ -1117,3 +1117,113 @@ export async function listPaymentRuns(
     totalPages: Math.ceil(total / limit),
   };
 }
+
+// ─── Reject / Resubmit ────────────────────────────────────────────────────────
+
+/**
+ * Rejects a payment run that is awaiting approval.
+ * Only PENDING_APPROVAL runs can be rejected. The run transitions to REJECTED
+ * and the reason is recorded for auditability. The actor must be identified.
+ */
+export async function rejectPaymentRun(input: {
+  orgId: string;
+  paymentRunId: string;
+  reason: string;
+  actorId: string;
+}) {
+  await ensureBooksSetup(input.orgId);
+
+  return db.$transaction(async (tx) => {
+    const run = await tx.paymentRun.findFirst({
+      where: { id: input.paymentRunId, orgId: input.orgId },
+      select: { id: true, runNumber: true, status: true },
+    });
+
+    if (!run) {
+      throw new Error("Payment run not found.");
+    }
+
+    if (run.status !== "PENDING_APPROVAL") {
+      throw new Error("Only pending approval runs can be rejected");
+    }
+
+    const updated = await tx.paymentRun.update({
+      where: { id: input.paymentRunId },
+      data: {
+        status: "REJECTED",
+        rejectedAt: new Date(),
+        rejectedByUserId: input.actorId,
+        rejectionReason: input.reason,
+      },
+    });
+
+    await tx.auditLog.create({
+      data: {
+        orgId: input.orgId,
+        actorId: input.actorId,
+        action: "books.payment_run.rejected",
+        entityType: "payment_run",
+        entityId: input.paymentRunId,
+        metadata: {
+          runNumber: run.runNumber,
+          reason: input.reason,
+        },
+      },
+    });
+
+    return updated;
+  });
+}
+
+/**
+ * Resubmits a rejected payment run back to DRAFT so the submitter can revise
+ * and re-request approval. Clears all rejection state. Only REJECTED runs can
+ * be resubmitted.
+ */
+export async function resubmitPaymentRun(input: {
+  orgId: string;
+  paymentRunId: string;
+  actorId: string;
+}) {
+  await ensureBooksSetup(input.orgId);
+
+  return db.$transaction(async (tx) => {
+    const run = await tx.paymentRun.findFirst({
+      where: { id: input.paymentRunId, orgId: input.orgId },
+      select: { id: true, runNumber: true, status: true },
+    });
+
+    if (!run) {
+      throw new Error("Payment run not found.");
+    }
+
+    if (run.status !== "REJECTED") {
+      throw new Error("Only rejected runs can be resubmitted");
+    }
+
+    const updated = await tx.paymentRun.update({
+      where: { id: input.paymentRunId },
+      data: {
+        status: "DRAFT",
+        rejectedAt: null,
+        rejectedByUserId: null,
+        rejectionReason: null,
+      },
+    });
+
+    await tx.auditLog.create({
+      data: {
+        orgId: input.orgId,
+        actorId: input.actorId,
+        action: "books.payment_run.resubmitted",
+        entityType: "payment_run",
+        entityId: input.paymentRunId,
+        metadata: {
+          runNumber: run.runNumber,
+        },
+      },
+    });
+
+    return updated;
+  });
+}

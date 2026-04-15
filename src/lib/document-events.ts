@@ -83,7 +83,7 @@ export async function createDocEvent(params: CreateDocEventParams): Promise<void
       eventType: params.eventType,
       actorId: params.actorId ?? null,
       actorLabel: params.actorLabel ?? null,
-      metadata: params.metadata ?? undefined,
+      metadata: params.metadata != null ? (params.metadata as object) : undefined,
     },
   });
 }

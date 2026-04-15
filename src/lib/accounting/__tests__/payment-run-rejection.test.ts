@@ -7,6 +7,11 @@ import {
   getPaymentRun,
 } from "../vendor-bills";
 
+vi.mock("@/lib/accounting/accounts", () => ({
+  ensureBooksSetup: vi.fn().mockResolvedValue({ booksEnabled: true }),
+  ensureBooksSetupTx: vi.fn().mockResolvedValue({ booksEnabled: true }),
+}));
+
 vi.mock("@/lib/db", () => ({
   db: {
     $transaction: vi.fn((callback) => callback(db)),
