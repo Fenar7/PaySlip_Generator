@@ -114,7 +114,7 @@ model Organization {
   oauthAuthorizations          OAuthAuthorization[]
   partnerProfile               PartnerProfile?
   partnerManagedOrgs           PartnerManagedOrg[]
-  partnerAccessRequests        PartnerClientAccessRequest[] @relation("ClientOrgAccessRequests")
+  partnerAccessRequests        PartnerClientAccessRequest[]  @relation("ClientOrgAccessRequests")
   documentIndexes              DocumentIndex[]
   documentEvents               DocumentEvent[]
   ssoBreakGlassCodes           SsoBreakGlassCode[]
@@ -125,6 +125,11 @@ model Organization {
   gstFilingSubmissions         GstFilingSubmission[]
   gstFilingReconciliations     GstFilingReconciliation[]
   gstFilingEvents              GstFilingEvent[]
+  // Phase 21: SW Intel
+  intelInsights                IntelInsight[]
+  aiJobs                       AiJob[]
+  extractionReviews            ExtractionReview[]
+  customerHealthSnapshots      CustomerHealthSnapshot[]
 
   @@map("organization")
 }
@@ -3253,19 +3258,19 @@ enum PartnerType {
 }
 
 enum PartnerStatus {
-  PENDING      // legacy — equivalent to APPLIED; retained for backward compat
+  PENDING // legacy — equivalent to APPLIED; retained for backward compat
   UNDER_REVIEW // platform admin has opened the application for review
-  APPROVED     // partner is active and may manage client orgs
-  SUSPENDED    // temporarily blocked; managed-client access is revoked
-  REVOKED      // permanently removed; cannot re-activate
+  APPROVED // partner is active and may manage client orgs
+  SUSPENDED // temporarily blocked; managed-client access is revoked
+  REVOKED // permanently removed; cannot re-activate
 }
 
 enum PartnerAccessRequestStatus {
-  PENDING    // awaiting client-org admin review
-  APPROVED   // client approved — creates an active PartnerManagedOrg record
-  REJECTED   // client declined
-  CANCELLED  // partner withdrew the request
-  EXPIRED    // request lapsed without action
+  PENDING // awaiting client-org admin review
+  APPROVED // client approved — creates an active PartnerManagedOrg record
+  REJECTED // client declined
+  CANCELLED // partner withdrew the request
+  EXPIRED // request lapsed without action
 }
 
 /// Partner program profile. One per org. Lifecycle: PENDING → UNDER_REVIEW → APPROVED | REVOKED.
@@ -3297,10 +3302,10 @@ model PartnerProfile {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  org           Organization          @relation(fields: [orgId], references: [id])
-  managedOrgs   PartnerManagedOrg[]
-  reviewEvents  PartnerReviewEvent[]
-  activityLogs  PartnerActivityLog[]
+  org            Organization                 @relation(fields: [orgId], references: [id])
+  managedOrgs    PartnerManagedOrg[]
+  reviewEvents   PartnerReviewEvent[]
+  activityLogs   PartnerActivityLog[]
   accessRequests PartnerClientAccessRequest[]
 
   @@map("partner_profiles")
@@ -3311,10 +3316,10 @@ model PartnerProfile {
 /// All assignments carry actor attribution. Revocation immediately blocks access.
 /// Added: Phase 20 Sprint 20.4
 model PartnerManagedOrg {
-  id            String   @id @default(cuid())
+  id            String    @id @default(cuid())
   partnerId     String
   orgId         String
-  addedAt       DateTime @default(now())
+  addedAt       DateTime  @default(now())
   addedByUserId String?
   scope         String[] // e.g. ["view_invoices","manage_documents","view_payments"]
   revokedAt     DateTime?
@@ -3374,16 +3379,16 @@ model PartnerReviewEvent {
 /// Every cross-org operation through the partner portal creates one record.
 /// Added: Phase 20 Sprint 20.4
 model PartnerActivityLog {
-  id            String   @id @default(cuid())
-  partnerId     String
-  actorUserId   String
-  managedOrgId  String?
-  clientOrgId   String?
-  action        String
-  entityType    String?
-  entityId      String?
-  metadata      Json?
-  createdAt     DateTime @default(now())
+  id           String   @id @default(cuid())
+  partnerId    String
+  actorUserId  String
+  managedOrgId String?
+  clientOrgId  String?
+  action       String
+  entityType   String?
+  entityId     String?
+  metadata     Json?
+  createdAt    DateTime @default(now())
 
   partner    PartnerProfile     @relation(fields: [partnerId], references: [id])
   managedOrg PartnerManagedOrg? @relation(fields: [managedOrgId], references: [id])
@@ -3448,4 +3453,257 @@ model DocumentEvent {
   @@index([orgId, eventType, eventAt])
   @@index([orgId, docType, eventAt])
   @@map("document_event")
+}
+
+// ─── Phase 21: SW Intel Intelligence Foundation ──────────────────────────────
+
+enum IntelInsightStatus {
+  ACTIVE
+  ACKNOWLEDGED
+  RESOLVED
+  DISMISSED
+  EXPIRED
+}
+
+enum IntelInsightSeverity {
+  INFO
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum IntelInsightCategory {
+  REVENUE
+  RECEIVABLES
+  DOCUMENTS
+  PAYROLL
+  OPERATIONS
+  COMPLIANCE
+  PARTNER
+  MARKETPLACE
+  INTEGRATIONS
+  SYSTEM
+}
+
+enum InsightSourceType {
+  RULE
+  AI
+  HYBRID
+  INTEGRATION
+  SYSTEM
+}
+
+/// Durable insight record shown to org users in the Insights workspace.
+/// Status and lifecycle events are append-only via InsightEvent.
+/// Added: Phase 21 Sprint 21.1
+model IntelInsight {
+  id                    String               @id @default(cuid())
+  orgId                 String
+  category              IntelInsightCategory
+  severity              IntelInsightSeverity
+  status                IntelInsightStatus   @default(ACTIVE)
+  title                 String
+  summary               String
+  evidence              Json?
+  sourceType            InsightSourceType
+  sourceRecordType      String?
+  sourceRecordId        String?
+  recommendedActionType String?
+  assignedRole          String?
+  createdByJobId        String?
+  /// Deduplication key — one active insight per org per key
+  dedupeKey             String?
+  firstDetectedAt       DateTime             @default(now())
+  lastDetectedAt        DateTime             @default(now())
+  acknowledgedAt        DateTime?
+  acknowledgedByUserId  String?              @db.Uuid
+  resolvedAt            DateTime?
+  resolvedByUserId      String?              @db.Uuid
+  dismissedAt           DateTime?
+  dismissedByUserId     String?              @db.Uuid
+  dismissedReason       String?
+  expiresAt             DateTime?
+  createdAt             DateTime             @default(now())
+  updatedAt             DateTime             @updatedAt
+
+  organization Organization   @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  events       InsightEvent[]
+
+  @@unique([orgId, dedupeKey])
+  @@index([orgId, status])
+  @@index([orgId, category, severity])
+  @@index([orgId, status, expiresAt])
+  @@map("intel_insight")
+}
+
+/// Append-only lifecycle event log for IntelInsight records.
+/// Added: Phase 21 Sprint 21.1
+model InsightEvent {
+  id         String   @id @default(cuid())
+  insightId  String
+  /// CREATED | UPDATED | ACKNOWLEDGED | ACTION_STARTED | RESOLVED | DISMISSED | EXPIRED | REOPENED
+  eventType  String
+  actorId    String?  @db.Uuid
+  actorLabel String?
+  metadata   Json?
+  createdAt  DateTime @default(now())
+
+  insight IntelInsight @relation(fields: [insightId], references: [id], onDelete: Cascade)
+
+  @@index([insightId, createdAt])
+  @@map("insight_event")
+}
+
+enum AiJobStatus {
+  QUEUED
+  RUNNING
+  COMPLETED
+  FAILED
+  CANCELLED
+}
+
+/// Governs a single AI provider call or rule evaluation.
+/// Captures prompt template version, model, token usage, and output reference.
+/// Added: Phase 21 Sprint 21.1
+model AiJob {
+  id                    String      @id @default(cuid())
+  orgId                 String
+  userId                String?     @db.Uuid
+  /// "insight_analysis" | "document_extraction" | "customer_health" | "collection_recommendation"
+  feature               String
+  status                AiJobStatus @default(QUEUED)
+  provider              String?
+  model                 String?
+  promptTemplateKey     String?
+  promptTemplateVersion String?
+  inputRef              Json?
+  outputRef             Json?
+  tokensInput           Int?
+  tokensOutput          Int?
+  costEstimatePaise     Int?
+  errorCode             String?
+  errorMessage          String?
+  startedAt             DateTime?
+  completedAt           DateTime?
+  createdAt             DateTime    @default(now())
+
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  events       AiJobEvent[]
+
+  @@index([orgId, feature, status])
+  @@index([orgId, createdAt])
+  @@map("ai_job")
+}
+
+/// Append-only operational event log for AiJob records.
+/// Added: Phase 21 Sprint 21.1
+model AiJobEvent {
+  id        String   @id @default(cuid())
+  jobId     String
+  /// QUEUED | STARTED | PROVIDER_REQUESTED | PROVIDER_FAILED | OUTPUT_VALIDATED | OUTPUT_REJECTED | COMPLETED | FAILED | CANCELLED
+  eventType String
+  metadata  Json?
+  createdAt DateTime @default(now())
+
+  job AiJob @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  @@index([jobId, createdAt])
+  @@map("ai_job_event")
+}
+
+// ─── Phase 21: Document Intelligence Workbench ───────────────────────────────
+
+enum ExtractionReviewStatus {
+  UPLOADED
+  QUEUED
+  PROCESSING
+  NEEDS_REVIEW
+  APPROVED
+  PROMOTED
+  REJECTED
+  FAILED
+  EXPIRED
+}
+
+/// Human-review wrapper around a document extraction AI job.
+/// Preserves original AI output and user-corrected output separately.
+/// Promotion to business records (invoices/vouchers/vendor bills) creates drafts only.
+/// Added: Phase 21 Sprint 21.2
+model ExtractionReview {
+  id                 String                 @id @default(cuid())
+  orgId              String
+  aiJobId            String?
+  ocrJobId           String?
+  sourceAttachmentId String?
+  /// "invoice" | "voucher" | "vendor_bill"
+  targetType         String?
+  targetDraftId      String?
+  status             ExtractionReviewStatus @default(UPLOADED)
+  originalOutput     Json?
+  correctedOutput    Json?
+  reviewerId         String?                @db.Uuid
+  reviewedAt         DateTime?
+  promotedAt         DateTime?
+  createdAt          DateTime               @default(now())
+  updatedAt          DateTime               @updatedAt
+
+  organization Organization      @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  fields       ExtractionField[]
+
+  @@index([orgId, status])
+  @@index([orgId, createdAt])
+  @@map("extraction_review")
+}
+
+/// Field-level extracted data with confidence, validation status, and user correction.
+/// Added: Phase 21 Sprint 21.2
+model ExtractionField {
+  id               String   @id @default(cuid())
+  reviewId         String
+  fieldKey         String
+  proposedValue    String?
+  normalizedValue  String?
+  correctedValue   String?
+  confidence       Float?
+  /// "valid" | "invalid" | "warning" | "unverified"
+  validationStatus String?
+  validationError  String?
+  sourcePage       Int?
+  sourceRegion     String?
+  accepted         Boolean  @default(false)
+  rejectedReason   String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  review ExtractionReview @relation(fields: [reviewId], references: [id], onDelete: Cascade)
+
+  @@index([reviewId])
+  @@map("extraction_field")
+}
+
+// ─── Phase 21: Customer Health Intelligence ───────────────────────────────────
+
+/// Periodic or on-demand snapshot of a customer's health score and risk band.
+/// Score and factors are computed from payment history, overdue data, arrangements,
+/// and disputes. No black-box scoring — all factors are stored with the snapshot.
+/// Added: Phase 21 Sprint 21.3
+model CustomerHealthSnapshot {
+  id                String   @id @default(cuid())
+  orgId             String
+  customerId        String
+  /// 0–100 score (higher = healthier)
+  score             Float
+  /// "healthy" | "at_risk" | "high_risk" | "critical"
+  riskBand          String
+  factors           Json
+  recommendedAction String?
+  calculatedAt      DateTime @default(now())
+  validUntil        DateTime
+
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@index([orgId, customerId, calculatedAt])
+  @@index([orgId, riskBand])
+  @@map("customer_health_snapshot")
 }
