@@ -276,3 +276,32 @@ export async function requireMarketplaceFinanceOrModerator(): Promise<Marketplac
     role: context.hasOrg ? context.role : null,
   };
 }
+
+function getPlatformAdminUserIds(): string[] {
+  return (process.env.PLATFORM_ADMIN_USER_IDS ?? "")
+    .split(",")
+    .map((v) => v.trim())
+    .filter(Boolean);
+}
+
+export function isPlatformAdminUser(userId: string): boolean {
+  return getPlatformAdminUserIds().includes(userId);
+}
+
+/**
+ * Require the caller to be a platform admin (not a tenant org admin).
+ * Used for partner governance, global admin surfaces, and cross-org operations.
+ */
+export async function requirePlatformAdmin(): Promise<{ userId: string }> {
+  const context = await getAuthRoutingContext();
+
+  if (!context.isAuthenticated) {
+    redirect("/auth/login");
+  }
+
+  if (!isPlatformAdminUser(context.userId)) {
+    throw new Error("Platform admin access required");
+  }
+
+  return { userId: context.userId };
+}

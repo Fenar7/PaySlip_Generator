@@ -10,6 +10,8 @@ export {
   requireMarketplaceFinance,
   requireMarketplaceFinanceOrModerator,
   requireMarketplacePublisherAdmin,
+  isPlatformAdminUser,
+  requirePlatformAdmin,
   type AuthRoutingContext,
   type OrgContext,
   type MarketplaceModeratorContext,
