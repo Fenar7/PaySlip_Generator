@@ -189,11 +189,11 @@ async function checkArProofRejectionSpike(orgId: string): Promise<AnomalyRuleRes
   const ruleKey = "ar.proof_rejection_spike";
   const window = daysAgo(7);
 
-  const rejectedProofs = await db.paymentProof.count({
+  const rejectedProofs = await db.invoiceProof.count({
     where: {
-      orgId,
-      status: "REJECTED",
-      updatedAt: { gte: window },
+      invoice: { orgId },
+      reviewStatus: "REJECTED",
+      reviewedAt: { gte: window },
     },
   });
 
@@ -384,7 +384,7 @@ async function checkPartnerAccessRejections(orgId: string): Promise<AnomalyRuleR
   const ruleKey = "partner.repeated_access_rejection";
   const window = daysAgo(14);
 
-  const rejected = await db.partnerAccessRequest.count({
+  const rejected = await db.partnerClientAccessRequest.count({
     where: {
       clientOrgId: orgId,
       status: "REJECTED",
@@ -425,9 +425,9 @@ async function checkWebhookDeliveryFailures(orgId: string): Promise<AnomalyRuleR
 
   const failedDeliveries = await db.apiWebhookDelivery.count({
     where: {
-      orgId,
+      endpoint: { orgId },
       success: false,
-      createdAt: { gte: window },
+      deliveredAt: { gte: window },
     },
   });
 

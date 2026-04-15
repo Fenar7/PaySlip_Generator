@@ -8,7 +8,7 @@ const { mockDb } = vi.hoisted(() => ({
       findMany: vi.fn(),
       count: vi.fn(),
     },
-    paymentProof: {
+    invoiceProof: {
       count: vi.fn(),
     },
     paymentArrangement: {
@@ -23,7 +23,7 @@ const { mockDb } = vi.hoisted(() => ({
     payoutItem: {
       count: vi.fn(),
     },
-    partnerAccessRequest: {
+    partnerClientAccessRequest: {
       count: vi.fn(),
     },
     apiWebhookDelivery: {
@@ -67,12 +67,12 @@ function resetMocks() {
 function setupNoAnomalies() {
   mockDb.invoice.findMany.mockResolvedValue([]);
   mockDb.invoice.count.mockResolvedValue(0);
-  mockDb.paymentProof.count.mockResolvedValue(0);
+  mockDb.invoiceProof.count.mockResolvedValue(0);
   mockDb.paymentArrangement.count.mockResolvedValue(0);
   mockDb.bankStatementItem.count.mockResolvedValue(0);
   mockDb.gstFilingRun.count.mockResolvedValue(0);
   mockDb.payoutItem.count.mockResolvedValue(0);
-  mockDb.partnerAccessRequest.count.mockResolvedValue(0);
+  mockDb.partnerClientAccessRequest.count.mockResolvedValue(0);
   mockDb.apiWebhookDelivery.count.mockResolvedValue(0);
   mockDb.anomalyDetectionRun.create.mockResolvedValue({ id: RUN_ID });
   mockDb.anomalyDetectionRun.update.mockResolvedValue({});
@@ -275,7 +275,7 @@ describe("runAnomalyDetection", () => {
 
   it("fires partner access rejection anomaly when 3+ rejections", async () => {
     setupNoAnomalies();
-    mockDb.partnerAccessRequest.count.mockResolvedValue(4);
+    mockDb.partnerClientAccessRequest.count.mockResolvedValue(4);
     mockDb.intelInsight.findFirst.mockResolvedValue(null);
     mockDb.intelInsight.create.mockResolvedValue({ id: INSIGHT_ID });
     mockDb.insightEvent.create.mockResolvedValue({});
