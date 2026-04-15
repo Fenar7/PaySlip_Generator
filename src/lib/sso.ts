@@ -911,7 +911,8 @@ export async function createSsoAuthnRequest(params: {
   }
 
   const org = await resolveOrgAndConfigBySlug(params.orgSlug);
-  let config = org.ssoConfig;
+  // resolveOrgAndConfigBySlug throws if ssoConfig is null/inactive; assert non-null here
+  let config = org.ssoConfig!;
 
   try {
     config = await ensureFreshSsoMetadata(config);
@@ -979,7 +980,8 @@ export async function completeSsoLogin(params: {
   }
 
   const org = await resolveOrgAndConfigBySlug(params.orgSlug);
-  let config = org.ssoConfig;
+  // resolveOrgAndConfigBySlug throws if ssoConfig is null/inactive; assert non-null here
+  let config = org.ssoConfig!;
 
   try {
     config = await ensureFreshSsoMetadata(config);

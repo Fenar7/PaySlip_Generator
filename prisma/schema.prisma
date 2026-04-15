@@ -616,6 +616,7 @@ enum PaymentRunStatus {
   COMPLETED
   FAILED
   CANCELLED
+  REJECTED
 }
 
 enum PaymentRunItemStatus {
@@ -747,6 +748,9 @@ model PaymentRun {
   approvedByUserId  String?          @db.Uuid
   executedAt        DateTime?
   executedByUserId  String?          @db.Uuid
+  rejectedAt        DateTime?
+  rejectedByUserId  String?          @db.Uuid
+  rejectionReason   String?
   createdAt         DateTime         @default(now())
   updatedAt         DateTime         @updatedAt
 

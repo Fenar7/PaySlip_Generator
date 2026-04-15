@@ -23,6 +23,8 @@ const eslintConfig = defineConfig([
     "test-results/**",
     // One-off migration/utility scripts
     "patch_schema.js",
+    "resolve.js",
+    "resolver.js",
   ]),
 ]);
 
