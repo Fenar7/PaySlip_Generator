@@ -65,6 +65,9 @@ export interface PlanLimits {
   oauthApps: boolean;
   webhookV2: boolean;
   partnerProgram: boolean;
+  // Phase 21: SW Intel
+  aiInsights: boolean;
+  documentIntelligence: boolean;
 }
 
 export interface PlanConfig {
@@ -133,6 +136,8 @@ export const PLAN_LIMITS: Record<PlanId, PlanLimits> = {
     oauthApps: false,
     webhookV2: false,
     partnerProgram: false,
+    aiInsights: false,
+    documentIntelligence: false,
   },
   starter: {
     invoicesPerMonth: 100,
@@ -188,6 +193,8 @@ export const PLAN_LIMITS: Record<PlanId, PlanLimits> = {
     oauthApps: true,
     webhookV2: true,
     partnerProgram: false,
+    aiInsights: false,
+    documentIntelligence: false,
   },
   pro: {
     invoicesPerMonth: 1000,
@@ -243,6 +250,8 @@ export const PLAN_LIMITS: Record<PlanId, PlanLimits> = {
     oauthApps: true,
     webhookV2: true,
     partnerProgram: true,
+    aiInsights: true,
+    documentIntelligence: true,
   },
   enterprise: {
     invoicesPerMonth: -1, // unlimited
@@ -298,6 +307,8 @@ export const PLAN_LIMITS: Record<PlanId, PlanLimits> = {
     oauthApps: true,
     webhookV2: true,
     partnerProgram: true,
+    aiInsights: true,
+    documentIntelligence: true,
   },
 };
 
