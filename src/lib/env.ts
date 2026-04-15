@@ -35,6 +35,8 @@ const envSchema = z.object({
   RAZORPAY_PLAN_ENTERPRISE_MONTHLY: z.string().optional(),
   RAZORPAY_PLAN_ENTERPRISE_YEARLY: z.string().optional(),
   MARKETPLACE_FINANCE_USER_IDS: z.string().optional(),
+  MARKETPLACE_MODERATOR_USER_IDS: z.string().optional(),
+  PLATFORM_ADMIN_USER_IDS: z.string().optional(),
   MARKETPLACE_PAYOUT_PROVIDER: z.string().optional(),
   MARKETPLACE_PAYOUT_SETTLEMENT_HOLD_DAYS: z.string().optional(),
   PAYOUT_DETAILS_ENCRYPTION_KEY: z.string().optional(),
@@ -96,7 +98,29 @@ function validateEnv(): Env {
       throw new Error("Invalid environment variables");
     }
   }
-  return (result.data ?? {}) as Env;
+
+  const env = (result.data ?? {}) as Env;
+
+  // Warn at startup when operator-critical env vars are absent.
+  // These are optional in dev but required for full partner governance and finance
+  // workflows in production.
+  if (process.env.NODE_ENV === "production") {
+    const criticalVars: { key: keyof Env; description: string }[] = [
+      { key: "PLATFORM_ADMIN_USER_IDS", description: "partner governance and platform admin surfaces" },
+      { key: "MARKETPLACE_FINANCE_USER_IDS", description: "marketplace payout finance operations" },
+      { key: "MARKETPLACE_MODERATOR_USER_IDS", description: "marketplace moderation" },
+      { key: "PAYOUT_DETAILS_ENCRYPTION_KEY", description: "payout beneficiary details encryption" },
+      { key: "SSO_SESSION_SECRET", description: "enterprise SSO session issuance" },
+      { key: "CRON_SECRET", description: "cron job authentication" },
+    ];
+    for (const { key, description } of criticalVars) {
+      if (!env[key]) {
+        console.warn(`⚠️  [env] ${String(key)} is not set — ${description} will be unavailable`);
+      }
+    }
+  }
+
+  return env;
 }
 
 export const env = validateEnv();

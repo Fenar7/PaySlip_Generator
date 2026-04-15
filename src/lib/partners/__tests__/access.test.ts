@@ -139,7 +139,7 @@ describe("Partner cross-org access guard", () => {
       }
     });
 
-    it("allows access when partner is approved, assignment active, and scope matches", async () => {
+    it("allows access when partner is approved, assignment active, scope explicitly granted", async () => {
       mockDb.partnerProfile.findUnique.mockResolvedValue({
         id: "partner-1",
         status: "APPROVED",
@@ -161,24 +161,24 @@ describe("Partner cross-org access guard", () => {
       expect(ctx.clientOrgId).toBe("client-org-1");
     });
 
-    it("allows access when scope is empty (full access)", async () => {
+    it("denies access when scope is empty (SEC-02: empty scope is not full access)", async () => {
       mockDb.partnerProfile.findUnique.mockResolvedValue({
         id: "partner-1",
         status: "APPROVED",
       });
       mockDb.partnerManagedOrg.findUnique.mockResolvedValue({
         id: "managed-1",
-        scope: ["view_invoices"],
+        scope: [], // empty — no explicit permissions granted
         revokedAt: null,
       });
 
-      // Scope includes the required action explicitly
-      const ctx = await requirePartnerClientAccess(
-        "org-1",
-        "client-org-1",
-        "view_invoices"
-      );
-      expect(ctx).toBeDefined();
+      try {
+        await requirePartnerClientAccess("org-1", "client-org-1", "view_invoices");
+        throw new Error("Should have thrown SCOPE_DENIED");
+      } catch (err) {
+        expect(err).toBeInstanceOf(PartnerAccessError);
+        expect((err as PartnerAccessError).code).toBe("SCOPE_DENIED");
+      }
     });
   });
 

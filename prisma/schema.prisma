@@ -114,6 +114,7 @@ model Organization {
   oauthAuthorizations          OAuthAuthorization[]
   partnerProfile               PartnerProfile?
   partnerManagedOrgs           PartnerManagedOrg[]
+  partnerAccessRequests        PartnerClientAccessRequest[] @relation("ClientOrgAccessRequests")
   documentIndexes              DocumentIndex[]
   documentEvents               DocumentEvent[]
   ssoBreakGlassCodes           SsoBreakGlassCode[]
@@ -3259,6 +3260,14 @@ enum PartnerStatus {
   REVOKED      // permanently removed; cannot re-activate
 }
 
+enum PartnerAccessRequestStatus {
+  PENDING    // awaiting client-org admin review
+  APPROVED   // client approved — creates an active PartnerManagedOrg record
+  REJECTED   // client declined
+  CANCELLED  // partner withdrew the request
+  EXPIRED    // request lapsed without action
+}
+
 /// Partner program profile. One per org. Lifecycle: PENDING → UNDER_REVIEW → APPROVED | REVOKED.
 /// Approved partners may be SUSPENDED (temporary) or REVOKED (permanent) by platform admins.
 /// All status transitions are append-only via PartnerReviewEvent.
@@ -3292,6 +3301,7 @@ model PartnerProfile {
   managedOrgs   PartnerManagedOrg[]
   reviewEvents  PartnerReviewEvent[]
   activityLogs  PartnerActivityLog[]
+  accessRequests PartnerClientAccessRequest[]
 
   @@map("partner_profiles")
 }
@@ -3316,6 +3326,31 @@ model PartnerManagedOrg {
 
   @@unique([partnerId, orgId])
   @@map("partner_managed_orgs")
+}
+
+/// Client-org access request submitted by an approved partner.
+/// The client org admin must explicitly APPROVE before an active PartnerManagedOrg is created.
+/// Empty scope is never valid — partners must enumerate specific permissions.
+/// Added: Phase 20 Pre-Master Remediation
+model PartnerClientAccessRequest {
+  id                String                     @id @default(cuid())
+  partnerId         String
+  clientOrgId       String
+  requestedByUserId String
+  scope             String[]
+  status            PartnerAccessRequestStatus @default(PENDING)
+  notes             String?
+  reviewedByUserId  String?
+  reviewedAt        DateTime?
+  expiresAt         DateTime?
+  createdAt         DateTime                   @default(now())
+  updatedAt         DateTime                   @updatedAt
+
+  partner   PartnerProfile @relation(fields: [partnerId], references: [id])
+  clientOrg Organization   @relation("ClientOrgAccessRequests", fields: [clientOrgId], references: [id])
+
+  @@index([partnerId, clientOrgId, status])
+  @@map("partner_client_access_requests")
 }
 
 /// Append-only audit trail for partner lifecycle state changes.

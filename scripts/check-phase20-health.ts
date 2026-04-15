@@ -1,10 +1,11 @@
 /**
  * scripts/check-phase20-health.ts
  *
- * Phase 20 operational health check — Sprint 20.5
+ * Phase 20 operational health check — Sprint 20.5 + Pre-Master Remediation
  *
  * Inspects the Phase 20 subsystem data for known gap patterns that could
  * indicate missing backfills, inconsistent state, or misconfiguration.
+ * Covers: payout, GST filing, SSO, payment-run rejection, and Partner OS.
  *
  * Usage (dry-run, no writes):
  *   npx tsx scripts/check-phase20-health.ts
@@ -216,6 +217,112 @@ async function checkSsoHealth() {
   }
 }
 
+// ─── Partner OS health checks ──────────────────────────────────────────────
+
+async function checkPartnerOsHealth() {
+  // CFG-01: PLATFORM_ADMIN_USER_IDS must be configured for partner governance
+  const platformAdminIds = (process.env.PLATFORM_ADMIN_USER_IDS ?? "")
+    .split(",")
+    .map((v) => v.trim())
+    .filter(Boolean);
+
+  if (platformAdminIds.length === 0) {
+    critical(
+      "partner.platform_admin_unconfigured",
+      "PLATFORM_ADMIN_USER_IDS is empty — no platform admins can govern the partner program"
+    );
+  } else {
+    pass(
+      "partner.platform_admin_unconfigured",
+      `${platformAdminIds.length} platform admin ID(s) configured`
+    );
+  }
+
+  // SEC-05: REVOKED partners should have no active (non-revoked) assignments.
+  // If any exist, the lifecycle bulk-revoke step was not applied — flag for backfill.
+  const revokedWithActive = await db.partnerProfile.count({
+    where: {
+      status: { in: ["REVOKED"] },
+      managedOrgs: { some: { revokedAt: null } },
+    },
+  });
+  if (revokedWithActive > 0) {
+    critical(
+      "partner.revoked_with_active_assignments",
+      `${revokedWithActive} REVOKED partner(s) still have active assignment records — run backfill-revoke-partner-assignments.ts`,
+      revokedWithActive
+    );
+  } else {
+    pass(
+      "partner.revoked_with_active_assignments",
+      "No REVOKED partners have active client assignments"
+    );
+  }
+
+  // SEC-02: Active assignments with empty scope have no explicit permissions.
+  // The access guard blocks all operations for empty-scope assignments, but their
+  // presence may indicate an older assignment created before scope enforcement.
+  const emptyScopeAssignments = await db.partnerManagedOrg.count({
+    where: {
+      revokedAt: null,
+      scope: { isEmpty: true },
+    },
+  });
+  if (emptyScopeAssignments > 0) {
+    warn(
+      "partner.empty_scope_assignments",
+      `${emptyScopeAssignments} active partner assignment(s) have empty scope — no operations are permitted on these. Review and add explicit scope or revoke.`,
+      emptyScopeAssignments
+    );
+  } else {
+    pass(
+      "partner.empty_scope_assignments",
+      "No active assignments have empty scope"
+    );
+  }
+
+  // Active assignments where the partner is not APPROVED (access guard blocks runtime
+  // access, but assignments should be revoked to keep client-visible state accurate).
+  const inconsistentAssignments = await db.partnerManagedOrg.count({
+    where: {
+      revokedAt: null,
+      partner: { status: { not: "APPROVED" } },
+    },
+  });
+  if (inconsistentAssignments > 0) {
+    warn(
+      "partner.active_assignments_non_approved_partner",
+      `${inconsistentAssignments} active partner assignment(s) belong to non-APPROVED partners. Runtime access is blocked by the guard, but assignments show as 'Active' on client settings pages.`,
+      inconsistentAssignments
+    );
+  } else {
+    pass(
+      "partner.active_assignments_non_approved_partner",
+      "All active assignments belong to APPROVED partners"
+    );
+  }
+
+  // Stale PENDING access requests past their expiry date
+  const expiredPending = await db.partnerClientAccessRequest.count({
+    where: {
+      status: "PENDING",
+      expiresAt: { lt: new Date() },
+    },
+  });
+  if (expiredPending > 0) {
+    warn(
+      "partner.expired_pending_requests",
+      `${expiredPending} partner access request(s) are past their expiry date but still PENDING. These should be marked EXPIRED.`,
+      expiredPending
+    );
+  } else {
+    pass(
+      "partner.expired_pending_requests",
+      "No expired-but-pending access requests"
+    );
+  }
+}
+
 // ─── Payment run rejection health checks ───────────────────────────────────
 
 async function checkPaymentRunHealth() {
@@ -252,6 +359,7 @@ async function main() {
     await checkGstHealth();
     await checkSsoHealth();
     await checkPaymentRunHealth();
+    await checkPartnerOsHealth();
   } catch (err) {
     console.error("Health check failed to run:", err);
     await db.$disconnect();
