@@ -61,10 +61,10 @@ export type RecentAiJobsResult = {
   jobs: Array<{
     id: string;
     feature: string;
-    provider: string;
-    model: string;
+    provider: string | null;
+    model: string | null;
     status: string;
-    startedAt: Date;
+    startedAt: Date | null;
     completedAt: Date | null;
     errorMessage: string | null;
   }>;
