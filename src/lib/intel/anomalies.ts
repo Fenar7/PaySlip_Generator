@@ -270,7 +270,7 @@ async function checkBooksUnreconciledSpike(orgId: string): Promise<AnomalyRuleRe
   const unmatched = await db.bankTransaction.count({
     where: {
       orgId,
-      status: { in: ["UNMATCHED", "PENDING"] },
+      status: { in: ["UNMATCHED", "SUGGESTED"] },
       txnDate: { lte: staleThreshold },
     },
   });
