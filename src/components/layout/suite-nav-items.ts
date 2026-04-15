@@ -99,6 +99,7 @@ export const suiteNavItems: NavItem[] = [
       { href: "/app/intel/collections", label: "Collections Queue" },
       { href: "/app/intel/gst-reports", label: "GST Reports" },
       { href: "/app/intel/gst-filings", label: "GST Filings" },
+      { href: "/app/intel/ai-usage", label: "AI Governance" },
     ],
   },
   {
