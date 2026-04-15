@@ -68,6 +68,9 @@ export interface PlanLimits {
   // Phase 21: SW Intel
   aiInsights: boolean;
   documentIntelligence: boolean;
+  anomalyDetection: boolean;
+  /** Max AI provider calls per calendar month (0 = not available) */
+  aiRunsPerMonth: number;
 }
 
 export interface PlanConfig {
@@ -138,8 +141,9 @@ export const PLAN_LIMITS: Record<PlanId, PlanLimits> = {
     partnerProgram: false,
     aiInsights: false,
     documentIntelligence: false,
+    anomalyDetection: false,
+    aiRunsPerMonth: 0,
   },
-  starter: {
     invoicesPerMonth: 100,
     vouchersPerMonth: 100,
     salarySlipsPerMonth: 50,
@@ -195,6 +199,8 @@ export const PLAN_LIMITS: Record<PlanId, PlanLimits> = {
     partnerProgram: false,
     aiInsights: false,
     documentIntelligence: false,
+    anomalyDetection: false,
+    aiRunsPerMonth: 0,
   },
   pro: {
     invoicesPerMonth: 1000,
@@ -252,6 +258,8 @@ export const PLAN_LIMITS: Record<PlanId, PlanLimits> = {
     partnerProgram: true,
     aiInsights: true,
     documentIntelligence: true,
+    anomalyDetection: true,
+    aiRunsPerMonth: 200,
   },
   enterprise: {
     invoicesPerMonth: -1, // unlimited
@@ -309,6 +317,8 @@ export const PLAN_LIMITS: Record<PlanId, PlanLimits> = {
     partnerProgram: true,
     aiInsights: true,
     documentIntelligence: true,
+    anomalyDetection: true,
+    aiRunsPerMonth: Infinity,
   },
 };
 
