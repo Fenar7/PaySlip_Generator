@@ -52,6 +52,7 @@ const envSchema = z.object({
   FEATURE_SMART_COLLECT_ENABLED: z.string().optional().default("true"),
   FEATURE_API_PLATFORM_ENABLED: z.string().optional().default("true"),
   FEATURE_SSO_ENABLED: z.string().optional().default("true"),
+  GST_FILING_PROVIDER: z.enum(["manual"]).optional().default("manual"),
   // Phase 13
   AWS_REGION: z.string().optional().default("ap-south-1"),
   AWS_S3_BUCKET_ASSETS: z.string().optional(),

@@ -93,6 +93,8 @@ export const suiteNavItems: NavItem[] = [
       { href: "/app/intel/dashboard", label: "Dashboard" },
       { href: "/app/intel/reports", label: "Reports" },
       { href: "/app/intel/insights", label: "Insights" },
+      { href: "/app/intel/gst-reports", label: "GST Reports" },
+      { href: "/app/intel/gst-filings", label: "GST Filings" },
     ],
   },
   {
