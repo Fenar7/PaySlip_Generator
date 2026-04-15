@@ -20,6 +20,8 @@ import type { IntelInsightSeverity } from "@/generated/prisma/client";
 export interface AnomalyRuleResult {
   fired: boolean;
   insightId?: string;
+  /** True if the insight was newly created; false if an existing one was refreshed. */
+  wasCreated?: boolean;
   ruleKey: string;
   severity?: IntelInsightSeverity;
 }
@@ -77,7 +79,7 @@ async function checkDocsDuplicateNumbering(orgId: string): Promise<AnomalyRuleRe
     windowDays: 30,
   };
 
-  const insightId = await upsertInsight({
+  const { id: insightId, wasCreated } = await upsertInsight({
     orgId,
     category: "DOCUMENTS",
     severity,
@@ -92,7 +94,7 @@ async function checkDocsDuplicateNumbering(orgId: string): Promise<AnomalyRuleRe
     expiresAt: expiresIn(48),
   });
 
-  return { fired: true, ruleKey, insightId, severity };
+  return { fired: true, ruleKey, insightId, wasCreated, severity };
 }
 
 /**
@@ -116,7 +118,7 @@ async function checkDocsDraftAbandonment(orgId: string): Promise<AnomalyRuleResu
   const severity: IntelInsightSeverity = staleDrafts >= 50 ? "HIGH" : "MEDIUM";
   const evidence = { staleDraftCount: staleDrafts, staleThresholdDays: 7 };
 
-  const insightId = await upsertInsight({
+  const { id: insightId, wasCreated } = await upsertInsight({
     orgId,
     category: "DOCUMENTS",
     severity,
@@ -131,7 +133,7 @@ async function checkDocsDraftAbandonment(orgId: string): Promise<AnomalyRuleResu
     expiresAt: expiresIn(24),
   });
 
-  return { fired: true, ruleKey, insightId, severity };
+  return { fired: true, ruleKey, insightId, wasCreated, severity };
 }
 
 /**
@@ -163,7 +165,7 @@ async function checkArOverdueSpike(orgId: string): Promise<AnomalyRuleResult> {
     totalOverdueInr: Math.round(totalOverdue / 100),
   };
 
-  const insightId = await upsertInsight({
+  const { id: insightId, wasCreated } = await upsertInsight({
     orgId,
     category: "RECEIVABLES",
     severity,
@@ -178,7 +180,7 @@ async function checkArOverdueSpike(orgId: string): Promise<AnomalyRuleResult> {
     expiresAt: expiresIn(24),
   });
 
-  return { fired: true, ruleKey, insightId, severity };
+  return { fired: true, ruleKey, insightId, wasCreated, severity };
 }
 
 /**
@@ -202,7 +204,7 @@ async function checkArProofRejectionSpike(orgId: string): Promise<AnomalyRuleRes
   const severity: IntelInsightSeverity = rejectedProofs >= 8 ? "HIGH" : "MEDIUM";
   const evidence = { rejectedCount: rejectedProofs, windowDays: 7 };
 
-  const insightId = await upsertInsight({
+  const { id: insightId, wasCreated } = await upsertInsight({
     orgId,
     category: "RECEIVABLES",
     severity,
@@ -217,7 +219,7 @@ async function checkArProofRejectionSpike(orgId: string): Promise<AnomalyRuleRes
     expiresAt: expiresIn(48),
   });
 
-  return { fired: true, ruleKey, insightId, severity };
+  return { fired: true, ruleKey, insightId, wasCreated, severity };
 }
 
 /**
@@ -241,7 +243,7 @@ async function checkArMissedInstallments(orgId: string): Promise<AnomalyRuleResu
   const severity: IntelInsightSeverity = defaulted >= 5 ? "HIGH" : "MEDIUM";
   const evidence = { defaultedCount: defaulted, windowDays: 14 };
 
-  const insightId = await upsertInsight({
+  const { id: insightId, wasCreated } = await upsertInsight({
     orgId,
     category: "RECEIVABLES",
     severity,
@@ -256,7 +258,7 @@ async function checkArMissedInstallments(orgId: string): Promise<AnomalyRuleResu
     expiresAt: expiresIn(48),
   });
 
-  return { fired: true, ruleKey, insightId, severity };
+  return { fired: true, ruleKey, insightId, wasCreated, severity };
 }
 
 /**
@@ -280,7 +282,7 @@ async function checkBooksUnreconciledSpike(orgId: string): Promise<AnomalyRuleRe
   const severity: IntelInsightSeverity = unmatched >= 150 ? "HIGH" : "MEDIUM";
   const evidence = { unmatchedCount: unmatched, staleAfterDays: 14 };
 
-  const insightId = await upsertInsight({
+  const { id: insightId, wasCreated } = await upsertInsight({
     orgId,
     category: "OPERATIONS",
     severity,
@@ -295,7 +297,7 @@ async function checkBooksUnreconciledSpike(orgId: string): Promise<AnomalyRuleRe
     expiresAt: expiresIn(48),
   });
 
-  return { fired: true, ruleKey, insightId, severity };
+  return { fired: true, ruleKey, insightId, wasCreated, severity };
 }
 
 /**
@@ -319,7 +321,7 @@ async function checkGstFilingBlocked(orgId: string): Promise<AnomalyRuleResult> 
   const severity: IntelInsightSeverity = failedFilings >= 6 ? "CRITICAL" : "HIGH";
   const evidence = { failedCount: failedFilings, windowDays: 30 };
 
-  const insightId = await upsertInsight({
+  const { id: insightId, wasCreated } = await upsertInsight({
     orgId,
     category: "COMPLIANCE",
     severity,
@@ -334,7 +336,7 @@ async function checkGstFilingBlocked(orgId: string): Promise<AnomalyRuleResult> 
     expiresAt: expiresIn(24),
   });
 
-  return { fired: true, ruleKey, insightId, severity };
+  return { fired: true, ruleKey, insightId, wasCreated, severity };
 }
 
 /**
@@ -358,7 +360,7 @@ async function checkMarketplacePayoutStuck(orgId: string): Promise<AnomalyRuleRe
   const severity: IntelInsightSeverity = stuckItems >= 5 ? "HIGH" : "MEDIUM";
   const evidence = { stuckCount: stuckItems, staleAfterDays: 7 };
 
-  const insightId = await upsertInsight({
+  const { id: insightId, wasCreated } = await upsertInsight({
     orgId,
     category: "MARKETPLACE",
     severity,
@@ -373,7 +375,7 @@ async function checkMarketplacePayoutStuck(orgId: string): Promise<AnomalyRuleRe
     expiresAt: expiresIn(24),
   });
 
-  return { fired: true, ruleKey, insightId, severity };
+  return { fired: true, ruleKey, insightId, wasCreated, severity };
 }
 
 /**
@@ -397,7 +399,7 @@ async function checkPartnerAccessRejections(orgId: string): Promise<AnomalyRuleR
   const severity: IntelInsightSeverity = rejected >= 6 ? "HIGH" : "MEDIUM";
   const evidence = { rejectedCount: rejected, windowDays: 14 };
 
-  const insightId = await upsertInsight({
+  const { id: insightId, wasCreated } = await upsertInsight({
     orgId,
     category: "PARTNER",
     severity,
@@ -412,7 +414,7 @@ async function checkPartnerAccessRejections(orgId: string): Promise<AnomalyRuleR
     expiresAt: expiresIn(72),
   });
 
-  return { fired: true, ruleKey, insightId, severity };
+  return { fired: true, ruleKey, insightId, wasCreated, severity };
 }
 
 /**
@@ -436,7 +438,7 @@ async function checkWebhookDeliveryFailures(orgId: string): Promise<AnomalyRuleR
   const severity: IntelInsightSeverity = failedDeliveries >= 50 ? "HIGH" : "MEDIUM";
   const evidence = { failedCount: failedDeliveries, windowHours: 24 };
 
-  const insightId = await upsertInsight({
+  const { id: insightId, wasCreated } = await upsertInsight({
     orgId,
     category: "INTEGRATIONS",
     severity,
@@ -451,7 +453,416 @@ async function checkWebhookDeliveryFailures(orgId: string): Promise<AnomalyRuleR
     expiresAt: expiresIn(12),
   });
 
-  return { fired: true, ruleKey, insightId, severity };
+  return { fired: true, ruleKey, insightId, wasCreated, severity };
+}
+
+// ─── Books rules (additional) ─────────────────────────────────────────────────
+
+/**
+ * BOOKS-02: Vendor bill approval bottleneck.
+ * 5 or more vendor bills have been sitting in PENDING_APPROVAL for longer than 7 days.
+ */
+async function checkBooksVendorBillBottleneck(orgId: string): Promise<AnomalyRuleResult> {
+  const ruleKey = "books.vendor_bill_bottleneck";
+  const staleBefore = daysAgo(7);
+
+  const stuckBills = await db.vendorBill.findMany({
+    where: {
+      orgId,
+      status: "PENDING_APPROVAL",
+      updatedAt: { lte: staleBefore },
+    },
+    select: { id: true, billNumber: true, totalAmount: true, billDate: true },
+  });
+
+  if (stuckBills.length < 5) return { fired: false, ruleKey };
+
+  const severity: IntelInsightSeverity = stuckBills.length >= 15 ? "HIGH" : "MEDIUM";
+  const evidence = {
+    stuckBillCount: stuckBills.length,
+    staleThresholdDays: 7,
+    examples: stuckBills.slice(0, 5).map((b) => ({ id: b.id, billNumber: b.billNumber })),
+  };
+
+  const { id: insightId, wasCreated } = await upsertInsight({
+    orgId,
+    category: "OPERATIONS",
+    severity,
+    title: `${stuckBills.length} vendor bills stuck in approval for more than 7 days`,
+    summary: `${stuckBills.length} vendor bills have been awaiting approval for over 7 days. This may indicate a blocked approver or missing approval policy. Review and process or reassign.`,
+    evidence,
+    sourceType: "RULE",
+    sourceRecordType: "vendor_bill",
+    recommendedActionType: "review_vendor_bill_approvals",
+    assignedRole: "admin",
+    dedupeKey: `${ruleKey}:${orgId}`,
+    expiresAt: expiresIn(24),
+  });
+
+  return { fired: true, ruleKey, insightId, wasCreated, severity };
+}
+
+/**
+ * BOOKS-03: Payment run failure concentration.
+ * 2 or more payment runs have failed or been rejected in the last 30 days.
+ */
+async function checkBooksPaymentRunFailures(orgId: string): Promise<AnomalyRuleResult> {
+  const ruleKey = "books.payment_run_failures";
+  const window = daysAgo(30);
+
+  const failedRuns = await db.paymentRun.findMany({
+    where: {
+      orgId,
+      status: { in: ["FAILED", "REJECTED"] },
+      updatedAt: { gte: window },
+    },
+    select: { id: true, status: true, updatedAt: true },
+  });
+
+  if (failedRuns.length < 2) return { fired: false, ruleKey };
+
+  const severity: IntelInsightSeverity = failedRuns.length >= 5 ? "HIGH" : "MEDIUM";
+  const evidence = {
+    failedRunCount: failedRuns.length,
+    windowDays: 30,
+    examples: failedRuns.slice(0, 5).map((r) => ({ id: r.id, status: r.status })),
+  };
+
+  const { id: insightId, wasCreated } = await upsertInsight({
+    orgId,
+    category: "OPERATIONS",
+    severity,
+    title: `${failedRuns.length} payment runs failed or rejected in the last 30 days`,
+    summary: `${failedRuns.length} payment runs have failed or been rejected recently. This may indicate issues with bank account configuration, insufficient funds, or approval rejections. Review and retry or cancel affected runs.`,
+    evidence,
+    sourceType: "RULE",
+    sourceRecordType: "payment_run",
+    recommendedActionType: "review_payment_run_failures",
+    assignedRole: "admin",
+    dedupeKey: `${ruleKey}:${orgId}`,
+    expiresAt: expiresIn(24),
+  });
+
+  return { fired: true, ruleKey, insightId, wasCreated, severity };
+}
+
+/**
+ * BOOKS-04: Close period blocked.
+ * A close run has been in BLOCKED status for more than 7 days, or there are
+ * 3+ blocked close tasks across all open close runs.
+ */
+async function checkBooksClosePeriodBlocked(orgId: string): Promise<AnomalyRuleResult> {
+  const ruleKey = "books.close_period_blocked";
+  const staleBefore = daysAgo(7);
+
+  const blockedRuns = await db.closeRun.findMany({
+    where: {
+      orgId,
+      status: "BLOCKED",
+      startedAt: { lte: staleBefore },
+    },
+    select: { id: true, blockerCount: true },
+  });
+
+  const blockedTasks = await db.closeTask.count({
+    where: {
+      closeRun: { orgId },
+      status: "BLOCKED",
+    },
+  });
+
+  if (blockedRuns.length === 0 && blockedTasks < 3) return { fired: false, ruleKey };
+
+  const totalBlockers = blockedRuns.reduce((sum, r) => sum + (r.blockerCount ?? 0), 0);
+  const severity: IntelInsightSeverity =
+    blockedRuns.length >= 2 || totalBlockers >= 5 ? "HIGH" : "MEDIUM";
+
+  const evidence = {
+    blockedRunCount: blockedRuns.length,
+    blockedTaskCount: blockedTasks,
+    totalBlockers,
+    staleThresholdDays: 7,
+  };
+
+  const { id: insightId, wasCreated } = await upsertInsight({
+    orgId,
+    category: "OPERATIONS",
+    severity,
+    title: `Close period blocked: ${blockedRuns.length} run${blockedRuns.length === 1 ? "" : "s"}, ${blockedTasks} task${blockedTasks === 1 ? "" : "s"} blocked`,
+    summary: `Period close is blocked by unresolved checklist items or missing approvals. This delays financial close and reporting. Resolve blockers or escalate to the responsible team.`,
+    evidence,
+    sourceType: "RULE",
+    sourceRecordType: "close_run",
+    recommendedActionType: "resolve_close_blockers",
+    assignedRole: "admin",
+    dedupeKey: `${ruleKey}:${orgId}`,
+    expiresAt: expiresIn(24),
+  });
+
+  return { fired: true, ruleKey, insightId, wasCreated, severity };
+}
+
+// ─── GST rules (additional) ───────────────────────────────────────────────────
+
+/**
+ * GST-02: Validation issue spike.
+ * More than 10 GST filing validation issues have been created in the last 30 days.
+ */
+async function checkGstValidationIssueSpike(orgId: string): Promise<AnomalyRuleResult> {
+  const ruleKey = "gst.validation_issue_spike";
+  const window = daysAgo(30);
+
+  const issueCount = await db.gstFilingValidationIssue.count({
+    where: { orgId, createdAt: { gte: window } },
+  });
+
+  if (issueCount < 10) return { fired: false, ruleKey };
+
+  const severity: IntelInsightSeverity = issueCount >= 50 ? "HIGH" : "MEDIUM";
+  const evidence = { issueCount, windowDays: 30, threshold: 10 };
+
+  const { id: insightId, wasCreated } = await upsertInsight({
+    orgId,
+    category: "COMPLIANCE",
+    severity,
+    title: `${issueCount} GST filing validation issues in the last 30 days`,
+    summary: `A high number of GST validation issues have been detected. This may indicate data quality problems in invoices or mismatched GSTIN/HSN data. Resolve issues before your next filing deadline.`,
+    evidence,
+    sourceType: "RULE",
+    sourceRecordType: "gst_filing_validation_issue",
+    recommendedActionType: "review_gst_validation_issues",
+    assignedRole: "admin",
+    dedupeKey: `${ruleKey}:${orgId}`,
+    expiresAt: expiresIn(48),
+  });
+
+  return { fired: true, ruleKey, insightId, wasCreated, severity };
+}
+
+/**
+ * GST-03: Stale GST filing data.
+ * The org has at least one non-draft filing run but no RECONCILED run in the last 60 days.
+ * This suggests filing activity has stalled or a previous submission was not reconciled.
+ */
+async function checkGstStaleFilingData(orgId: string): Promise<AnomalyRuleResult> {
+  const ruleKey = "gst.stale_filing_data";
+  const window = daysAgo(60);
+
+  // Check if org has ever attempted a filing (exclude DRAFT-only orgs — no signal yet).
+  const attemptedRunCount = await db.gstFilingRun.count({
+    where: { orgId, status: { not: "DRAFT" } },
+  });
+
+  if (attemptedRunCount === 0) return { fired: false, ruleKey };
+
+  const recentReconciled = await db.gstFilingRun.count({
+    where: { orgId, status: "RECONCILED", updatedAt: { gte: window } },
+  });
+
+  if (recentReconciled > 0) return { fired: false, ruleKey };
+
+  const severity: IntelInsightSeverity = "MEDIUM";
+  const evidence = {
+    windowDays: 60,
+    attemptedRunCount,
+    recentReconciledCount: recentReconciled,
+  };
+
+  const { id: insightId, wasCreated } = await upsertInsight({
+    orgId,
+    category: "COMPLIANCE",
+    severity,
+    title: "No reconciled GST filing in the last 60 days",
+    summary:
+      "Your organisation has active GST filing history but no filing has been reconciled in the last 60 days. Check whether a recent filing run is stalled, failed, or needs manual reconciliation.",
+    evidence,
+    sourceType: "RULE",
+    sourceRecordType: "gst_filing_run",
+    recommendedActionType: "review_gst_filing_status",
+    assignedRole: "admin",
+    dedupeKey: `${ruleKey}:${orgId}`,
+    expiresAt: expiresIn(48),
+  });
+
+  return { fired: true, ruleKey, insightId, wasCreated, severity };
+}
+
+// ─── Flow / notifications rules ───────────────────────────────────────────────
+
+/**
+ * FLOW-01: Pending approval SLA breaches.
+ * 1 or more ApprovalRequests are past their dueAt deadline with status PENDING.
+ */
+async function checkFlowApprovalSlaBreaches(orgId: string): Promise<AnomalyRuleResult> {
+  const ruleKey = "flow.approval_sla_breaches";
+  const now = new Date();
+
+  const overdueApprovals = await db.approvalRequest.findMany({
+    where: {
+      orgId,
+      status: "PENDING",
+      dueAt: { lt: now },
+    },
+    select: { id: true, dueAt: true, docType: true },
+  });
+
+  if (overdueApprovals.length === 0) return { fired: false, ruleKey };
+
+  const severity: IntelInsightSeverity =
+    overdueApprovals.length >= 10 ? "HIGH" : overdueApprovals.length >= 3 ? "MEDIUM" : "LOW";
+
+  const evidence = {
+    breachedCount: overdueApprovals.length,
+    examples: overdueApprovals.slice(0, 5).map((a) => ({
+      id: a.id,
+      docType: a.docType,
+      dueAt: a.dueAt?.toISOString(),
+    })),
+  };
+
+  const { id: insightId, wasCreated } = await upsertInsight({
+    orgId,
+    category: "OPERATIONS",
+    severity,
+    title: `${overdueApprovals.length} approval${overdueApprovals.length === 1 ? "" : "s"} past SLA deadline`,
+    summary: `${overdueApprovals.length} approval request${overdueApprovals.length === 1 ? " has" : "s have"} missed their deadline and remain pending. This may delay financial operations. Assign or escalate to the responsible approver.`,
+    evidence,
+    sourceType: "RULE",
+    sourceRecordType: "approval_request",
+    recommendedActionType: "resolve_overdue_approvals",
+    assignedRole: "admin",
+    dedupeKey: `${ruleKey}:${orgId}`,
+    expiresAt: expiresIn(12),
+  });
+
+  return { fired: true, ruleKey, insightId, wasCreated, severity };
+}
+
+/**
+ * FLOW-02: Notification delivery failure spike.
+ * 10 or more notification deliveries have failed in the last 24 hours.
+ */
+async function checkFlowNotificationFailures(orgId: string): Promise<AnomalyRuleResult> {
+  const ruleKey = "flow.notification_delivery_failures";
+  const window = daysAgo(1);
+
+  const failedCount = await db.notificationDelivery.count({
+    where: {
+      orgId,
+      status: { in: ["FAILED", "TERMINAL_FAILURE"] },
+      failedAt: { gte: window },
+    },
+  });
+
+  if (failedCount < 10) return { fired: false, ruleKey };
+
+  const severity: IntelInsightSeverity = failedCount >= 50 ? "HIGH" : "MEDIUM";
+  const evidence = { failedCount, windowHours: 24, threshold: 10 };
+
+  const { id: insightId, wasCreated } = await upsertInsight({
+    orgId,
+    category: "OPERATIONS",
+    severity,
+    title: `${failedCount} notification delivery failures in the last 24 hours`,
+    summary: `A spike in notification delivery failures has been detected. Recipients may not be receiving invoices, payment reminders, or other critical communications. Check your email provider configuration.`,
+    evidence,
+    sourceType: "RULE",
+    sourceRecordType: "notification_delivery",
+    recommendedActionType: "review_notification_failures",
+    assignedRole: "admin",
+    dedupeKey: `${ruleKey}:${orgId}`,
+    expiresAt: expiresIn(12),
+  });
+
+  return { fired: true, ruleKey, insightId, wasCreated, severity };
+}
+
+/**
+ * FLOW-03: Notification retry loop concentration.
+ * 5 or more notification deliveries have been retried 3+ times and are still not delivered.
+ *
+ * NOTE: Dead-letter queue growth and generic retry loop tracking require infrastructure-level
+ * telemetry not present in the Prisma schema. This rule covers the detectable subset:
+ * notification deliveries stuck in high-attempt-count FAILED state.
+ */
+async function checkFlowNotificationRetryLoops(orgId: string): Promise<AnomalyRuleResult> {
+  const ruleKey = "flow.notification_retry_loops";
+
+  const stuckDeliveries = await db.notificationDelivery.count({
+    where: {
+      orgId,
+      attemptCount: { gte: 3 },
+      status: { in: ["FAILED", "SENDING"] },
+    },
+  });
+
+  if (stuckDeliveries < 5) return { fired: false, ruleKey };
+
+  const severity: IntelInsightSeverity = stuckDeliveries >= 20 ? "HIGH" : "MEDIUM";
+  const evidence = { stuckCount: stuckDeliveries, minAttemptCount: 3 };
+
+  const { id: insightId, wasCreated } = await upsertInsight({
+    orgId,
+    category: "OPERATIONS",
+    severity,
+    title: `${stuckDeliveries} notifications stuck in retry loops (3+ attempts)`,
+    summary: `${stuckDeliveries} notifications have been retried 3 or more times without success. These are likely stuck due to invalid recipient addresses or provider issues. Review and clear stuck deliveries.`,
+    evidence,
+    sourceType: "RULE",
+    sourceRecordType: "notification_delivery",
+    recommendedActionType: "review_stuck_notifications",
+    assignedRole: "admin",
+    dedupeKey: `${ruleKey}:${orgId}`,
+    expiresAt: expiresIn(24),
+  });
+
+  return { fired: true, ruleKey, insightId, wasCreated, severity };
+}
+
+// ─── Integrations rules (additional) ─────────────────────────────────────────
+
+/**
+ * INTEGRATIONS-02: OAuth authorization expiry warning.
+ * One or more OAuth authorizations for this org's apps expire within 7 days.
+ *
+ * NOTE: Sync drift and third-party integration OAuth refresh failures require
+ * an integration-specific sync log not present in the current Prisma schema.
+ * This rule covers the detectable subset: org OAuth authorizations approaching expiry.
+ */
+async function checkIntegrationsOAuthExpiry(orgId: string): Promise<AnomalyRuleResult> {
+  const ruleKey = "integrations.oauth_expiry_warning";
+  const now = new Date();
+  const warnWindow = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000); // 7 days from now
+
+  const expiringAuths = await db.oAuthAuthorization.count({
+    where: {
+      orgId,
+      isRevoked: false,
+      refreshExpiresAt: { gt: now, lte: warnWindow },
+    },
+  });
+
+  if (expiringAuths === 0) return { fired: false, ruleKey };
+
+  const severity: IntelInsightSeverity = "MEDIUM";
+  const evidence = { expiringCount: expiringAuths, warnWindowDays: 7 };
+
+  const { id: insightId, wasCreated } = await upsertInsight({
+    orgId,
+    category: "INTEGRATIONS",
+    severity,
+    title: `${expiringAuths} OAuth authorization${expiringAuths === 1 ? "" : "s"} expiring within 7 days`,
+    summary: `${expiringAuths} active OAuth authorization${expiringAuths === 1 ? " is" : "s are"} approaching their refresh token expiry. If not renewed, connected integrations will lose access. Request users to re-authorize before expiry.`,
+    evidence,
+    sourceType: "RULE",
+    sourceRecordType: "oauth_authorization",
+    recommendedActionType: "renew_oauth_authorizations",
+    assignedRole: "admin",
+    dedupeKey: `${ruleKey}:${orgId}`,
+    expiresAt: expiresIn(48),
+  });
+
+  return { fired: true, ruleKey, insightId, wasCreated, severity };
 }
 
 // ─── Master detection runner ──────────────────────────────────────────────────
@@ -465,10 +876,19 @@ const ALL_RULES: Array<{ key: string; runner: RuleRunner; enabled: boolean }> = 
   { key: "ar.proof_rejection_spike", runner: checkArProofRejectionSpike, enabled: true },
   { key: "ar.missed_installment_cluster", runner: checkArMissedInstallments, enabled: true },
   { key: "books.unreconciled_transaction_spike", runner: checkBooksUnreconciledSpike, enabled: true },
+  { key: "books.vendor_bill_bottleneck", runner: checkBooksVendorBillBottleneck, enabled: true },
+  { key: "books.payment_run_failures", runner: checkBooksPaymentRunFailures, enabled: true },
+  { key: "books.close_period_blocked", runner: checkBooksClosePeriodBlocked, enabled: true },
   { key: "gst.filing_run_blocked", runner: checkGstFilingBlocked, enabled: true },
+  { key: "gst.validation_issue_spike", runner: checkGstValidationIssueSpike, enabled: true },
+  { key: "gst.stale_filing_data", runner: checkGstStaleFilingData, enabled: true },
+  { key: "flow.approval_sla_breaches", runner: checkFlowApprovalSlaBreaches, enabled: true },
+  { key: "flow.notification_delivery_failures", runner: checkFlowNotificationFailures, enabled: true },
+  { key: "flow.notification_retry_loops", runner: checkFlowNotificationRetryLoops, enabled: true },
   { key: "marketplace.payout_item_stuck", runner: checkMarketplacePayoutStuck, enabled: true },
   { key: "partner.repeated_access_rejection", runner: checkPartnerAccessRejections, enabled: true },
   { key: "integrations.webhook_delivery_failures", runner: checkWebhookDeliveryFailures, enabled: true },
+  { key: "integrations.oauth_expiry_warning", runner: checkIntegrationsOAuthExpiry, enabled: true },
 ];
 
 /**
@@ -484,7 +904,7 @@ export async function runAnomalyDetection(orgId: string): Promise<DetectionRunSu
 
   let rulesEvaluated = 0;
   let insightsCreated = 0;
-  const insightsUpdated = 0;
+  let insightsUpdated = 0;
   const errors: string[] = [];
 
   for (const rule of ALL_RULES) {
@@ -494,9 +914,11 @@ export async function runAnomalyDetection(orgId: string): Promise<DetectionRunSu
     try {
       const result = await rule.runner(orgId);
       if (result.fired) {
-        // The upsertInsight function handles create vs update.
-        // We count creates here by checking if insight was new (imprecise but good enough for summary).
-        insightsCreated++;
+        if (result.wasCreated) {
+          insightsCreated++;
+        } else {
+          insightsUpdated++;
+        }
       }
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);

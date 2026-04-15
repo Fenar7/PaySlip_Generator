@@ -9,6 +9,7 @@ const { mockDb } = vi.hoisted(() => ({
       findMany: vi.fn(),
       create: vi.fn(),
       update: vi.fn(),
+      updateMany: vi.fn(),
       upsert: vi.fn(),
       count: vi.fn(),
       groupBy: vi.fn(),
@@ -30,6 +31,7 @@ import {
   dismissInsight,
   resolveInsight,
   getInsightSummary,
+  expireStaleInsights,
 } from "../insights";
 
 const ORG_ID = "org-abc";
@@ -282,5 +284,50 @@ describe("getInsightSummary", () => {
     expect(result.bySeverity.HIGH).toBe(5);
     expect(result.bySeverity.INFO).toBe(0);
     expect(result.total).toBe(7);
+  });
+});
+
+// ── expireStaleInsights — status filter regression ─────────────────────────────
+
+describe("expireStaleInsights", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("calls updateMany with exactly [ACTIVE, ACKNOWLEDGED] — no duplicates", async () => {
+    mockDb.intelInsight.updateMany.mockResolvedValue({ count: 3 });
+
+    const count = await expireStaleInsights(ORG_ID);
+
+    expect(count).toBe(3);
+    expect(mockDb.intelInsight.updateMany).toHaveBeenCalledOnce();
+    const callArgs = mockDb.intelInsight.updateMany.mock.calls[0][0];
+    const statusFilter: string[] = callArgs.where.status.in;
+    // Must contain both eligible statuses
+    expect(statusFilter).toContain("ACTIVE");
+    expect(statusFilter).toContain("ACKNOWLEDGED");
+    // Must NOT have duplicates
+    const unique = [...new Set(statusFilter)];
+    expect(statusFilter.length).toBe(unique.length);
+    // Must NOT include EXPIRED (would be a no-op for EXPIRED rows)
+    expect(statusFilter).not.toContain("EXPIRED");
+  });
+
+  it("returns the count of affected records", async () => {
+    mockDb.intelInsight.updateMany.mockResolvedValue({ count: 7 });
+
+    const count = await expireStaleInsights(ORG_ID);
+
+    expect(count).toBe(7);
+  });
+
+  it("scopes the update to the correct org", async () => {
+    mockDb.intelInsight.updateMany.mockResolvedValue({ count: 0 });
+
+    await expireStaleInsights(ORG_ID);
+
+    expect(mockDb.intelInsight.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: expect.objectContaining({ orgId: ORG_ID }) }),
+    );
   });
 });

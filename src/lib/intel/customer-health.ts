@@ -66,7 +66,7 @@ export async function computeCustomerHealth(
     where: {
       organizationId: orgId,
       customerId,
-      status: { in: ["PAID", "PARTIALLY_PAID", "OVERDUE", "ISSUED", "VIEWED", "DUE", "CANCELLED", "ARRANGEMENT_MADE"] },
+      status: { in: ["PAID", "PARTIALLY_PAID", "OVERDUE", "ISSUED", "VIEWED", "DUE", "CANCELLED", "ARRANGEMENT_MADE", "DISPUTED"] },
     },
     select: {
       id: true,
@@ -264,9 +264,17 @@ export async function getCustomerHealthSnapshot(
   });
 
   if (latest) {
+    // Hydrate the customer name — the snapshot model has no customer relation,
+    // so we do a targeted lookup. This is a single query on the cached path,
+    // not a per-row N+1 on a list page.
+    const customer = await db.customer.findFirst({
+      where: { id: customerId, organizationId: orgId },
+      select: { name: true },
+    });
+
     return {
       customerId,
-      customerName: "",
+      customerName: customer?.name ?? "",
       score: latest.score,
       riskBand: latest.riskBand as RiskBand,
       factors: latest.factors as unknown as HealthFactor[],
