@@ -133,7 +133,7 @@ export async function getUsageSummary(
   totalRuns: number;
   successRate: number;
   totalCostPaise: number;
-  byFeature: Record<string, { runs: number; costPaise: number }>;
+  byFeature: Record<string, { runs: number; successCount: number; costPaise: number }>;
 }> {
   const startOfMonth = sinceDate ?? (() => {
     const d = new Date();
@@ -147,14 +147,17 @@ export async function getUsageSummary(
     select: { feature: true, success: true, costEstimatePaise: true },
   });
 
-  const byFeature: Record<string, { runs: number; costPaise: number }> = {};
+  const byFeature: Record<string, { runs: number; successCount: number; costPaise: number }> = {};
   let successCount = 0;
 
   for (const rec of records) {
-    byFeature[rec.feature] ??= { runs: 0, costPaise: 0 };
+    byFeature[rec.feature] ??= { runs: 0, successCount: 0, costPaise: 0 };
     byFeature[rec.feature].runs++;
     byFeature[rec.feature].costPaise += rec.costEstimatePaise;
-    if (rec.success) successCount++;
+    if (rec.success) {
+      byFeature[rec.feature].successCount++;
+      successCount++;
+    }
   }
 
   const totalCostPaise = Object.values(byFeature).reduce((sum, f) => sum + f.costPaise, 0);

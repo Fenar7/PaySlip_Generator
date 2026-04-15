@@ -32,12 +32,18 @@ export async function getAiUsageDashboardAction(): Promise<AiUsageSummaryResult>
     checkProviderHealth(),
   ]);
 
+  const byFeature = Object.entries(summary.byFeature).map(([feature, stats]) => ({
+    feature,
+    count: stats.runs,
+    successRate: stats.runs > 0 ? stats.successCount / stats.runs : 1,
+  }));
+
   return {
     success: true,
     data: {
       totalThisMonth: summary.totalRuns,
       successRate: summary.successRate,
-      byFeature: summary.byFeature,
+      byFeature,
       providerHealth: health,
       planLimits: {
         aiRunsPerMonth: plan.limits.aiRunsPerMonth,
