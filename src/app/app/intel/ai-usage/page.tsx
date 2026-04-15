@@ -187,7 +187,7 @@ export default async function AiUsagePage() {
                   <td className="px-4 py-2">
                     <StatusBadge status={job.status} />
                   </td>
-                  <td className="px-4 py-2 text-slate-500 text-xs">{timeAgo(job.startedAt)}</td>
+                  <td className="px-4 py-2 text-slate-500 text-xs">{job.startedAt ? timeAgo(job.startedAt) : "—"}</td>
                   <td className="px-4 py-2 text-red-600 text-xs max-w-xs truncate" title={job.errorMessage ?? ""}>
                     {job.errorMessage ?? "—"}
                   </td>
