@@ -27,7 +27,7 @@ Use this checklist before claiming a release candidate is ready for production.
 | Integrations | QuickBooks/Zoho credentials configured only if those integrations are enabled |
 | Observability | Sentry/PostHog/Redis decisions documented for target environment |
 | Feature flags | `FEATURE_SSO_ENABLED` intentionally set (default should remain `false` unless explicitly approved) |
-| Phase 19 Backfills | Run `scripts/backfill-document-index.ts` and `scripts/backfill-template-revisions.ts` post-migration, then capture zero-count verification for completed purchases with `revisionId IS NULL`, templates without revisions, and duplicate published revisions |
+| Phase 19 Backfills | Run `npm run phase19:backfills` post-migration (wraps `scripts/backfill-document-index.ts` and `scripts/backfill-template-revisions.ts`), then capture zero-count verification for completed purchases with `revisionId IS NULL`, templates without revisions, and duplicate published revisions |
 
 ---
 

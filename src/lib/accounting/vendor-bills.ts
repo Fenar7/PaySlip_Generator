@@ -8,6 +8,7 @@ import type {
 } from "@/generated/prisma/client";
 import { db } from "@/lib/db";
 import { nextDocumentNumberTx } from "@/lib/docs";
+import { listApprovalRequestsByDocIds, listAttachmentsByEntityIds } from "@/lib/polymorphic-relations";
 import { ensureBooksSetup } from "./accounts";
 import { postVendorBillPaymentTx, postVendorBillTx } from "./posting";
 import { cleanText, roundMoney } from "./utils";
@@ -591,7 +592,7 @@ export async function getVendorBill(orgId: string, vendorBillId: string) {
   await ensureBooksSetup(orgId);
   await refreshVendorBillOverdueStates(orgId);
 
-  return db.vendorBill.findFirst({
+  const bill = await db.vendorBill.findFirst({
     where: {
       id: vendorBillId,
       orgId,
@@ -609,9 +610,6 @@ export async function getVendorBill(orgId: string, vendorBillId: string) {
       lines: {
         orderBy: { sortOrder: "asc" },
       },
-      attachments: {
-        orderBy: { createdAt: "desc" },
-      },
       payments: {
         orderBy: { paidAt: "desc" },
         include: {
@@ -624,11 +622,33 @@ export async function getVendorBill(orgId: string, vendorBillId: string) {
           },
         },
       },
-      approvalRequests: {
-        orderBy: { createdAt: "desc" },
-      },
     },
   });
+
+  if (!bill) {
+    return null;
+  }
+
+  const [attachmentsByEntityId, approvalsByDocId] = await Promise.all([
+    listAttachmentsByEntityIds({
+      orgId,
+      entityType: "vendor_bill",
+      entityIds: [bill.id],
+      sortDirection: "desc",
+    }),
+    listApprovalRequestsByDocIds({
+      orgId,
+      docType: "vendor-bill",
+      docIds: [bill.id],
+      sortDirection: "desc",
+    }),
+  ]);
+
+  return {
+    ...bill,
+    attachments: attachmentsByEntityId.get(bill.id) ?? [],
+    approvalRequests: approvalsByDocId.get(bill.id) ?? [],
+  };
 }
 
 export async function listVendorBills(
@@ -674,10 +694,6 @@ export async function listVendorBills(
             name: true,
           },
         },
-        approvalRequests: {
-          where: { status: "PENDING" },
-          select: { id: true },
-        },
       },
       orderBy: [{ billDate: "desc" }, { createdAt: "desc" }],
       skip,
@@ -686,8 +702,18 @@ export async function listVendorBills(
     db.vendorBill.count({ where }),
   ]);
 
+  const pendingApprovalsByDocId = await listApprovalRequestsByDocIds({
+    orgId,
+    docType: "vendor-bill",
+    docIds: bills.map((bill) => bill.id),
+    status: "PENDING",
+  });
+
   return {
-    bills,
+    bills: bills.map((bill) => ({
+      ...bill,
+      approvalRequests: pendingApprovalsByDocId.get(bill.id) ?? [],
+    })),
     total,
     page,
     totalPages: Math.ceil(total / limit),
@@ -989,7 +1015,7 @@ export async function executePaymentRun(input: {
         },
       });
 
-      return tx.paymentRun.findUniqueOrThrow({
+      const runWithRelations = await tx.paymentRun.findUniqueOrThrow({
         where: { id: run.id },
         include: {
           items: {
@@ -1001,11 +1027,21 @@ export async function executePaymentRun(input: {
             },
             orderBy: { createdAt: "asc" },
           },
-          approvalRequests: {
-            orderBy: { createdAt: "desc" },
-          },
         },
       });
+
+      const approvalsByDocId = await listApprovalRequestsByDocIds({
+        client: tx,
+        orgId: input.orgId,
+        docType: "payment-run",
+        docIds: [runWithRelations.id],
+        sortDirection: "desc",
+      });
+
+      return {
+        ...runWithRelations,
+        approvalRequests: approvalsByDocId.get(runWithRelations.id) ?? [],
+      };
     });
 
     return result;
@@ -1029,7 +1065,7 @@ export async function executePaymentRun(input: {
 export async function getPaymentRun(orgId: string, paymentRunId: string) {
   await ensureBooksSetup(orgId);
 
-  return db.paymentRun.findFirst({
+  const run = await db.paymentRun.findFirst({
     where: {
       id: paymentRunId,
       orgId,
@@ -1056,14 +1092,27 @@ export async function getPaymentRun(orgId: string, paymentRunId: string) {
         },
         orderBy: { createdAt: "asc" },
       },
-      approvalRequests: {
-        orderBy: { createdAt: "desc" },
-      },
       payments: {
         orderBy: { paidAt: "desc" },
       },
     },
   });
+
+  if (!run) {
+    return null;
+  }
+
+  const approvalsByDocId = await listApprovalRequestsByDocIds({
+    orgId,
+    docType: "payment-run",
+    docIds: [run.id],
+    sortDirection: "desc",
+  });
+
+  return {
+    ...run,
+    approvalRequests: approvalsByDocId.get(run.id) ?? [],
+  };
 }
 
 export async function listPaymentRuns(
@@ -1098,10 +1147,6 @@ export async function listPaymentRuns(
             },
           },
         },
-        approvalRequests: {
-          where: { status: "PENDING" },
-          select: { id: true },
-        },
       },
       orderBy: [{ scheduledDate: "desc" }, { createdAt: "desc" }],
       skip,
@@ -1110,8 +1155,18 @@ export async function listPaymentRuns(
     db.paymentRun.count({ where }),
   ]);
 
+  const pendingApprovalsByDocId = await listApprovalRequestsByDocIds({
+    orgId,
+    docType: "payment-run",
+    docIds: runs.map((run) => run.id),
+    status: "PENDING",
+  });
+
   return {
-    runs,
+    runs: runs.map((run) => ({
+      ...run,
+      approvalRequests: pendingApprovalsByDocId.get(run.id) ?? [],
+    })),
     total,
     page,
     totalPages: Math.ceil(total / limit),
