@@ -345,10 +345,10 @@ async function checkMarketplacePayoutStuck(orgId: string): Promise<AnomalyRuleRe
   const ruleKey = "marketplace.payout_item_stuck";
   const staleThreshold = daysAgo(7);
 
-  const stuckItems = await db.payoutItem.count({
+  const stuckItems = await db.marketplacePayoutItem.count({
     where: {
-      orgId,
-      status: { in: ["HOLD", "RETRY", "MANUAL"] },
+      publisherOrgId: orgId,
+      status: { in: ["on_hold", "processing", "manual_review"] },
       updatedAt: { lte: staleThreshold },
     },
   });

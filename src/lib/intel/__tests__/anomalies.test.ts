@@ -20,7 +20,7 @@ const { mockDb } = vi.hoisted(() => ({
     gstFilingRun: {
       count: vi.fn(),
     },
-    payoutItem: {
+    marketplacePayoutItem: {
       count: vi.fn(),
     },
     partnerClientAccessRequest: {
@@ -71,7 +71,7 @@ function setupNoAnomalies() {
   mockDb.paymentArrangement.count.mockResolvedValue(0);
   mockDb.bankTransaction.count.mockResolvedValue(0);
   mockDb.gstFilingRun.count.mockResolvedValue(0);
-  mockDb.payoutItem.count.mockResolvedValue(0);
+  mockDb.marketplacePayoutItem.count.mockResolvedValue(0);
   mockDb.partnerClientAccessRequest.count.mockResolvedValue(0);
   mockDb.apiWebhookDelivery.count.mockResolvedValue(0);
   mockDb.anomalyDetectionRun.create.mockResolvedValue({ id: RUN_ID });
@@ -261,7 +261,7 @@ describe("runAnomalyDetection", () => {
 
   it("fires marketplace payout stuck anomaly", async () => {
     setupNoAnomalies();
-    mockDb.payoutItem.count.mockResolvedValue(3);
+    mockDb.marketplacePayoutItem.count.mockResolvedValue(3);
     mockDb.intelInsight.findFirst.mockResolvedValue(null);
     mockDb.intelInsight.create.mockResolvedValue({ id: INSIGHT_ID });
     mockDb.insightEvent.create.mockResolvedValue({});
