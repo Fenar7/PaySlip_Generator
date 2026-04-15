@@ -238,7 +238,7 @@ describe("runAnomalyDetection", () => {
     mockDb.intelInsight.create.mockResolvedValue({ id: INSIGHT_ID });
     mockDb.insightEvent.create.mockResolvedValue({});
 
-    const result = await runAnomalyDetection(ORG_ID);
+    await runAnomalyDetection(ORG_ID);
     const createCall = mockDb.intelInsight.create.mock.calls.find(
       (call) => call[0]?.data?.category === "COMPLIANCE",
     );
@@ -266,7 +266,7 @@ describe("runAnomalyDetection", () => {
     mockDb.intelInsight.create.mockResolvedValue({ id: INSIGHT_ID });
     mockDb.insightEvent.create.mockResolvedValue({});
 
-    const result = await runAnomalyDetection(ORG_ID);
+    await runAnomalyDetection(ORG_ID);
     const createCall = mockDb.intelInsight.create.mock.calls.find(
       (call) => call[0]?.data?.category === "MARKETPLACE",
     );
@@ -357,7 +357,6 @@ describe("listAnomalyInsights", () => {
   });
 
   it("does not return expired anomalies", async () => {
-    const now = new Date();
     mockDb.intelInsight.findMany.mockResolvedValue([]);
     await listAnomalyInsights(ORG_ID);
 

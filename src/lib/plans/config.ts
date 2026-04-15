@@ -144,6 +144,7 @@ export const PLAN_LIMITS: Record<PlanId, PlanLimits> = {
     anomalyDetection: false,
     aiRunsPerMonth: 0,
   },
+  starter: {
     invoicesPerMonth: 100,
     vouchersPerMonth: 100,
     salarySlipsPerMonth: 50,

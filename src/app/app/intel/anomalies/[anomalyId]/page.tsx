@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { redirect, notFound } from "next/navigation";
 import { getOrgContext } from "@/lib/auth";
 import { getOrgPlan } from "@/lib/plans/enforcement";
@@ -30,9 +31,9 @@ export default async function AnomalyDetailPage({ params }: { params: Promise<{ 
   return (
     <div className="p-6 max-w-3xl mx-auto space-y-6">
       {/* Back link */}
-      <a href="/app/intel/anomalies" className="text-sm text-indigo-600 hover:underline">
+      <Link href="/app/intel/anomalies" className="text-sm text-indigo-600 hover:underline">
         ← Back to Anomaly Detection
-      </a>
+      </Link>
 
       {/* Title block */}
       <div>

@@ -13,7 +13,6 @@ import "server-only";
  */
 
 import { db } from "@/lib/db";
-import { getPlanLimits } from "@/lib/plans/config";
 import { getOrgPlan } from "@/lib/plans/enforcement";
 
 export type AiFeature =

@@ -2,7 +2,7 @@ import "server-only";
 
 import { db } from "@/lib/db";
 import { upsertInsight } from "./insights";
-import type { IntelInsightSeverity, IntelInsightCategory } from "@/generated/prisma/client";
+import type { IntelInsightSeverity } from "@/generated/prisma/client";
 
 /**
  * Deterministic anomaly detection service for Slipwise One.
@@ -484,7 +484,7 @@ export async function runAnomalyDetection(orgId: string): Promise<DetectionRunSu
 
   let rulesEvaluated = 0;
   let insightsCreated = 0;
-  let insightsUpdated = 0;
+  const insightsUpdated = 0;
   const errors: string[] = [];
 
   for (const rule of ALL_RULES) {
