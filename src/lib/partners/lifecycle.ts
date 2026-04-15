@@ -125,6 +125,23 @@ export async function executePartnerTransition(
         ...(lifecycleUpdate as Parameters<typeof db.partnerProfile.update>[0]["data"]),
       },
     }),
+    // SEC-05: On permanent revocation (revoke or reject), immediately soft-revoke all
+    // active managed-client assignments. This ensures the client settings page accurately
+    // reflects that the partner no longer has access rather than showing stale "Active" badges.
+    // The access guard also enforces this at runtime, but explicit revocation of assignment
+    // records maintains audit integrity and correct client-visible state.
+    ...(action === "revoke" || action === "reject"
+      ? [
+          db.partnerManagedOrg.updateMany({
+            where: { partnerId, revokedAt: null },
+            data: { revokedAt: now, revokedBy: actorUserId },
+          }),
+          db.partnerProfile.update({
+            where: { id: partnerId },
+            data: { managedOrgCount: 0 },
+          }),
+        ]
+      : []),
   ]);
 
   return { success: true, newStatus };

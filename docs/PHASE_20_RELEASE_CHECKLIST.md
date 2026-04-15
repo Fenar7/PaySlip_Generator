@@ -1,9 +1,9 @@
 # Phase 20 Release Checklist
 
 **Sprint 20.5 — Hardening, Backfills, and Release Readiness**
-**Prepared:** Sprint 20.5 hardening pass
-**Branch baseline:** `feature/phase-20` (Sprints 20.1, 20.2, 20.3 merged)
-**Sprint 20.4 status:** Open PR — NOT merged. See [Sprint 20.4 Dependency](#sprint-204-dependency) below.
+**Updated:** Pre-Master Remediation pass (all sprints 20.1–20.5 merged + remediation hardening applied)
+**Branch baseline:** `feature/phase-20` (all Sprints 20.1–20.5 merged, Pre-Master Remediation applied)
+**Sprint 20.4 status:** ✅ MERGED to `feature/phase-20`.
 
 ---
 
@@ -14,8 +14,9 @@
 | 20.1 | Marketplace Payout Operations | ✅ Merged to `feature/phase-20` |
 | 20.2 | GST Filing Operations Workspace | ✅ Merged to `feature/phase-20` |
 | 20.3 | Enterprise SSO Runtime | ✅ Merged to `feature/phase-20` |
-| 20.4 | Partner Operating System | ⏳ Open PR — not yet merged |
+| 20.4 | Partner Operating System | ✅ Merged to `feature/phase-20` |
 | 20.5 | Hardening, Backfills, Release Readiness | ✅ This sprint |
+| Pre-Master Remediation | SEC fixes, BUILD fix, Partner OS hardening | ✅ Applied |
 
 ---
 
@@ -30,7 +31,10 @@ Run `scripts/check-db-migrations.sh` before deploying to any environment.
 | `20260415000003_phase20_sprint3_enterprise_sso_runtime` | SsoMetadataStatus enum, SsoAuthnRequestMode enum, SsoConfig columns, SsoBreakGlassCode | ✅ Applied |
 | `20260415000005_phase20_sprint5_payment_run_rejection` | `PaymentRunStatus.REJECTED` enum value, `rejectedAt`/`rejectedByUserId`/`rejectionReason` columns on `payment_run` | ✅ Sprint 20.5 |
 
-**Note:** Migration `20260415000004_phase20_sprint4_partner_os` exists only on `feature/phase-20-sprint-20-4` and is NOT part of this release unless Sprint 20.4 is merged first.
+| `20260415000004_phase20_sprint4_partner_os` | PartnerProfile, PartnerManagedOrg, PartnerReviewEvent, partner enums | ✅ Applied |
+| `20260416000001_phase20_remediation_partner_access_requests` | PartnerClientAccessRequest, PartnerAccessRequestStatus enum | ✅ Applied |
+
+**Note:** All Phase 20 migrations are now included in `feature/phase-20`.
 
 ### Migration Safety Notes
 - Sprint 20.5 migration uses `ALTER TYPE ... ADD VALUE IF NOT EXISTS` — safe to re-run on Postgres.
@@ -104,6 +108,13 @@ npx tsx scripts/check-phase20-health.ts
 | `UPSTASH_REDIS_REST_URL` | Optional | If set, Upstash Redis is used for rate limiting and caching. |
 | `UPSTASH_REDIS_REST_TOKEN` | Optional | Required if `UPSTASH_REDIS_REST_URL` is set. |
 | `CRON_SECRET` | Required for cron routes | Secures `/api/cron/*` endpoints. |
+
+### Required — Phase 20 Partner OS (Sprint 20.4 + Pre-Master Remediation)
+| Variable | Required | Notes |
+|----------|----------|-------|
+| `PLATFORM_ADMIN_USER_IDS` | ✅ Required | Comma-separated Supabase user UUIDs for platform administrators who can approve/reject partner applications and review partner governance. An empty value means no one can perform platform-admin partner operations. |
+
+> ⚠️ **Security note:** `PLATFORM_ADMIN_USER_IDS` must contain real platform operator IDs. Do not deploy with an empty value — the partner governance admin surface will be inaccessible and the health check will flag it as critical.
 
 ---
 
@@ -219,18 +230,30 @@ Run these manually in staging after deploying and running migrations:
 
 ## Known Release Blockers
 
-### ⚠️ Sprint 20.4 Dependency (Pending PR)
+## Known Release Blockers
 
-**Status:** Sprint 20.4 (Partner Operating System) is an open PR and has NOT been merged to `feature/phase-20`.
+### ✅ Sprint 20.4 (Partner OS) — Merged
 
-**Impact:** The following capabilities are not available in this release:
+**Status:** Sprint 20.4 (Partner Operating System) has been merged to `feature/phase-20`.
+
+**Included capabilities:**
 - Partner lifecycle management (applied/under_review/approved/suspended/revoked)
 - Platform admin partner governance surfaces
 - Managed client assignment and revocation
 - Partner activity attribution and audit
 - Partner dashboard and reporting
 
-**Action required:** Sprint 20.4 PR must be reviewed, approved, and merged before Phase 20 includes Partner OS capabilities. A separate Sprint 20.5 hardening pass over Sprint 20.4 schema/logic will be needed post-merge.
+**Pre-Master Remediation additions (this branch):**
+- SEC-01: `inviteClientOrg` (raw self-assignment) replaced by `requestClientAccess` + approval workflow
+- SEC-02: empty partner scope now explicitly denied (not treated as full access)
+- SEC-03: all cross-org partner reads route through `withPartnerClientAccess()` guard
+- SEC-04: `revokeClientPartnerAccess` added — client admins can immediately revoke partner access
+- SEC-05: partner revoke/reject lifecycle transitions now bulk-revoke active managed org assignments
+- `PartnerClientAccessRequest` model and migration added for request-based workflow
+
+**Required env vars added:**
+- `PLATFORM_ADMIN_USER_IDS` (critical for partner governance)
+- `MARKETPLACE_MODERATOR_USER_IDS` (required for marketplace moderation)
 
 ### ⚠️ Baseline Test Blockers (Resolved in Sprint 20.5)
 
@@ -250,7 +273,7 @@ Run these manually in staging after deploying and running migrations:
 
 4. **Marketplace payout provider** — Only manual payout is implemented. Payment provider integration (e.g., Razorpay X, Cashfree Payouts) requires the `MARKETPLACE_PAYOUT_PROVIDER` env var and a provider adapter.
 
-5. **Sprint 20.4 schema isolation** — Phase 20.5 does not include Partner OS schema. If Sprint 20.4 is merged after 20.5, a follow-up hardening pass is required for partner governance.
+5. **Partner access request approval** — New `PartnerClientAccessRequest` workflow requires client org admins to approve partner access requests before the partner gains managed-org visibility.
 
 ---
 
@@ -305,7 +328,8 @@ DRY_RUN=true npx tsx scripts/backfill-phase20-payout-eligibility.ts
 | Backfill scripts available | ✅ |
 | Health check script available | ✅ |
 | Release checklist documented | ✅ |
-| Sprint 20.4 (Partner OS) merged | ❌ Pending PR |
+| Sprint 20.4 (Partner OS) merged | ✅ Merged |
+| Partner OS SEC hardening applied (Pre-Master Remediation) | ✅ Applied |
 | E2E tests passing | ⚠️ Not verified — known startup issue with `.next` cleanup |
 
-**Overall: Phase 20 (Sprints 20.1–20.3, 20.5) is conditionally release-ready. Sprint 20.4 must be merged and validated before Partner OS capabilities are available in production.**
+**Overall: Phase 20 (Sprints 20.1–20.5 + Pre-Master Remediation) is conditionally release-ready. Partner OS SEC hardening has been applied. E2E validation gap remains due to test environment startup issue unrelated to Phase 20 code.**

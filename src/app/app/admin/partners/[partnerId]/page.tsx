@@ -26,9 +26,8 @@ const STATUS_BADGE: Record<
   REVOKED: "danger",
 };
 
-type PartnerDetail = NonNullable<
-  Awaited<ReturnType<typeof adminGetPartnerDetail>>["data" & { success: true }]
->;
+type AdminPartnerDetailResult = Awaited<ReturnType<typeof adminGetPartnerDetail>>;
+type PartnerDetail = Extract<AdminPartnerDetailResult, { success: true }>["data"];
 
 export default function AdminPartnerDetailPage({
   params,

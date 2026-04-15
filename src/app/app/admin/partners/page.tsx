@@ -112,16 +112,23 @@ export default function AdminPartnersPage() {
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-5">
           {(["PENDING", "UNDER_REVIEW", "APPROVED", "SUSPENDED", "REVOKED"] as PartnerStatus[]).map(
             (status) => (
-              <Card key={status} className="cursor-pointer hover:bg-gray-50" onClick={() => handleFilterChange(status)}>
-                <CardContent>
-                  <p className="mt-3 text-xs font-medium text-gray-500">
-                    {STATUS_LABELS[status]}
-                  </p>
-                  <p className="mt-1 text-2xl font-bold text-gray-900">
-                    {overview.byStatus[status] ?? 0}
-                  </p>
-                </CardContent>
-              </Card>
+              <button
+                key={status}
+                type="button"
+                className="w-full cursor-pointer text-left"
+                onClick={() => handleFilterChange(status)}
+              >
+                <Card className="hover:bg-gray-50">
+                  <CardContent>
+                    <p className="mt-3 text-xs font-medium text-gray-500">
+                      {STATUS_LABELS[status]}
+                    </p>
+                    <p className="mt-1 text-2xl font-bold text-gray-900">
+                      {overview.byStatus[status] ?? 0}
+                    </p>
+                  </CardContent>
+                </Card>
+              </button>
             )
           )}
         </div>

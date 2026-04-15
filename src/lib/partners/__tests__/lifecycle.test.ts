@@ -11,6 +11,9 @@ vi.mock("@/lib/db", () => ({
     partnerReviewEvent: {
       create: vi.fn(),
     },
+    partnerManagedOrg: {
+      updateMany: vi.fn(),
+    },
     $transaction: vi.fn(),
   },
 }));
@@ -26,6 +29,7 @@ import { PartnerStatus } from "@/generated/prisma/client";
 type MockDb = {
   partnerProfile: { findUnique: ReturnType<typeof vi.fn>; update: ReturnType<typeof vi.fn> };
   partnerReviewEvent: { create: ReturnType<typeof vi.fn> };
+  partnerManagedOrg: { updateMany: ReturnType<typeof vi.fn> };
   $transaction: ReturnType<typeof vi.fn>;
 };
 
@@ -39,6 +43,7 @@ describe("Partner lifecycle state machine", () => {
     });
     mockDb.partnerReviewEvent.create.mockResolvedValue({});
     mockDb.partnerProfile.update.mockResolvedValue({});
+    mockDb.partnerManagedOrg.updateMany.mockResolvedValue({ count: 0 });
   });
 
   // ─── isValidTransition ────────────────────────────────────────────────────
@@ -216,6 +221,71 @@ describe("Partner lifecycle state machine", () => {
 
       expect(result.success).toBe(false);
       expect(mockDb.$transaction).not.toHaveBeenCalled();
+    });
+
+    // ─── SEC-05: bulk assignment revocation ─────────────────────────────────
+
+    it("bulk-revokes active assignments when partner is revoked", async () => {
+      mockDb.partnerProfile.findUnique.mockResolvedValue({
+        id: "partner-1",
+        status: "APPROVED" as PartnerStatus,
+      });
+
+      const result = await executePartnerTransition(
+        "partner-1",
+        "admin-user",
+        "revoke",
+        "Fraud detected"
+      );
+
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.newStatus).toBe("REVOKED");
+      }
+      // The transaction must include updateMany for assignments
+      expect(mockDb.$transaction).toHaveBeenCalledOnce();
+      const [callArgs] = mockDb.$transaction.mock.calls as [unknown[][]];
+      const ops = callArgs[0] as unknown[];
+      // Expect at least 3 ops: reviewEvent.create, profile.update, managedOrg.updateMany, profile.update(count=0)
+      expect(ops.length).toBeGreaterThanOrEqual(3);
+    });
+
+    it("bulk-revokes active assignments when partner is rejected", async () => {
+      mockDb.partnerProfile.findUnique.mockResolvedValue({
+        id: "partner-1",
+        status: "UNDER_REVIEW" as PartnerStatus,
+      });
+
+      const result = await executePartnerTransition(
+        "partner-1",
+        "admin-user",
+        "reject",
+        "Did not meet requirements"
+      );
+
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.newStatus).toBe("REVOKED");
+      }
+      expect(mockDb.$transaction).toHaveBeenCalledOnce();
+    });
+
+    it("does NOT bulk-revoke assignments when partner is merely suspended", async () => {
+      mockDb.partnerProfile.findUnique.mockResolvedValue({
+        id: "partner-1",
+        status: "APPROVED" as PartnerStatus,
+      });
+
+      await executePartnerTransition(
+        "partner-1",
+        "admin-user",
+        "suspend",
+        "Compliance review"
+      );
+
+      expect(mockDb.$transaction).toHaveBeenCalledOnce();
+      // updateMany should NOT have been called for suspension
+      expect(mockDb.partnerManagedOrg.updateMany).not.toHaveBeenCalled();
     });
   });
 });

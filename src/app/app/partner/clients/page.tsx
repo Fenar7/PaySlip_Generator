@@ -5,7 +5,20 @@ import Link from "next/link";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { getPartnerDashboard, inviteClientOrg, removeClientOrg } from "../actions";
+import {
+  getPartnerDashboard,
+  requestClientAccess,
+  removeClientOrg,
+} from "../actions";
+
+const AVAILABLE_SCOPES = [
+  { value: "view_invoices", label: "View Invoices" },
+  { value: "manage_documents", label: "Manage Documents" },
+  { value: "view_payments", label: "View Payments" },
+  { value: "create_payslips", label: "Create Payslips" },
+  { value: "view_gst_filings", label: "View GST Filings" },
+  { value: "manage_gst_filings", label: "Manage GST Filings" },
+];
 
 interface ManagedClient {
   id: string;
@@ -18,7 +31,8 @@ export default function PartnerClientsPage() {
   const [loading, setLoading] = useState(true);
   const [clients, setClients] = useState<ManagedClient[]>([]);
   const [newOrgId, setNewOrgId] = useState("");
-  const [adding, setAdding] = useState(false);
+  const [selectedScopes, setSelectedScopes] = useState<string[]>(["view_invoices"]);
+  const [requesting, setRequesting] = useState(false);
   const [removing, setRemoving] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
@@ -34,23 +48,34 @@ export default function PartnerClientsPage() {
     load();
   }, []);
 
-  async function handleAddClient(e: React.FormEvent) {
+  function toggleScope(scope: string) {
+    setSelectedScopes((prev) =>
+      prev.includes(scope) ? prev.filter((s) => s !== scope) : [...prev, scope],
+    );
+  }
+
+  async function handleRequestAccess(e: React.FormEvent) {
     e.preventDefault();
     if (!newOrgId.trim()) return;
-    setAdding(true);
+    if (selectedScopes.length === 0) {
+      setError("Select at least one permission scope.");
+      return;
+    }
+    setRequesting(true);
     setError(null);
     setSuccess(null);
 
-    const result = await inviteClientOrg(newOrgId.trim());
+    const result = await requestClientAccess(newOrgId.trim(), selectedScopes);
     if (result.success) {
-      setSuccess("Client added successfully");
+      setSuccess(
+        "Access request sent — the client org admin must approve before access is granted.",
+      );
       setNewOrgId("");
-      const refreshed = await getPartnerDashboard();
-      if (refreshed.success) setClients(refreshed.data.managedOrgs as unknown as ManagedClient[]);
+      setSelectedScopes(["view_invoices"]);
     } else {
       setError(result.error);
     }
-    setAdding(false);
+    setRequesting(false);
   }
 
   async function handleRemove(orgId: string) {
@@ -95,20 +120,46 @@ export default function PartnerClientsPage() {
 
       <Card>
         <CardHeader>
-          <h2 className="text-lg font-semibold text-gray-900">Add Client</h2>
+          <h2 className="text-lg font-semibold text-gray-900">Request Client Access</h2>
+          <p className="text-sm text-gray-500">
+            Enter the client&apos;s organization ID and choose the permissions you need.
+            The request must be approved by the client&apos;s admin before access is granted.
+          </p>
         </CardHeader>
         <CardContent>
-          <form onSubmit={handleAddClient} className="flex items-end gap-3">
-            <div className="flex-1">
-              <Input
-                label="Organization ID"
-                placeholder="Enter client organization ID"
-                value={newOrgId}
-                onChange={(e) => setNewOrgId(e.target.value)}
-              />
+          <form onSubmit={handleRequestAccess} className="space-y-4">
+            <Input
+              label="Client Organization ID"
+              placeholder="Enter client organization ID"
+              value={newOrgId}
+              onChange={(e) => setNewOrgId(e.target.value)}
+            />
+            <div>
+              <p className="mb-2 text-sm font-medium text-gray-700">
+                Permissions to request
+              </p>
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                {AVAILABLE_SCOPES.map((scope) => (
+                  <label
+                    key={scope.value}
+                    className="flex cursor-pointer items-center gap-2 rounded-md border border-gray-200 p-2 hover:bg-gray-50"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={selectedScopes.includes(scope.value)}
+                      onChange={() => toggleScope(scope.value)}
+                      className="h-4 w-4 rounded border-gray-300"
+                    />
+                    <span className="text-sm text-gray-700">{scope.label}</span>
+                  </label>
+                ))}
+              </div>
             </div>
-            <Button type="submit" disabled={adding || !newOrgId.trim()}>
-              {adding ? "Adding…" : "Add Client"}
+            <Button
+              type="submit"
+              disabled={requesting || !newOrgId.trim() || selectedScopes.length === 0}
+            >
+              {requesting ? "Sending Request…" : "Send Access Request"}
             </Button>
           </form>
           {error && <p className="mt-2 text-sm text-red-600">{error}</p>}
@@ -119,13 +170,13 @@ export default function PartnerClientsPage() {
       <Card>
         <CardHeader>
           <h2 className="text-lg font-semibold text-gray-900">
-            Clients ({clients.length})
+            Active Clients ({clients.length})
           </h2>
         </CardHeader>
         <CardContent>
           {clients.length === 0 ? (
             <p className="py-8 text-center text-sm text-gray-500">
-              No managed clients yet. Add your first client above.
+              No managed clients yet. Send an access request above.
             </p>
           ) : (
             <div className="overflow-x-auto">
@@ -159,7 +210,9 @@ export default function PartnerClientsPage() {
                       </td>
                       <td className="py-3">
                         <div className="flex gap-2">
-                          <Link href={`/app/partner/clients/${client.org?.id ?? client.orgId}/invoices`}>
+                          <Link
+                            href={`/app/partner/clients/${client.org?.id ?? client.orgId}/invoices`}
+                          >
                             <Button variant="ghost" size="sm">
                               View Invoices
                             </Button>
@@ -170,7 +223,9 @@ export default function PartnerClientsPage() {
                             disabled={removing === (client.org?.id ?? client.orgId)}
                             onClick={() => handleRemove(client.org?.id ?? client.orgId)}
                           >
-                            {removing === (client.org?.id ?? client.orgId) ? "Removing…" : "Remove"}
+                            {removing === (client.org?.id ?? client.orgId)
+                              ? "Removing…"
+                              : "Remove"}
                           </Button>
                         </div>
                       </td>
@@ -185,3 +240,4 @@ export default function PartnerClientsPage() {
     </div>
   );
 }
+
