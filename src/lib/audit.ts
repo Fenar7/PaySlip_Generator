@@ -47,6 +47,14 @@ export const AUDIT_ACTION_LABELS: Record<string, string> = {
   "member.role_changed": "Changed member role",
   "member.deactivated": "Deactivated member",
   "member.removed": "Removed member",
+  "sso.config_updated": "Updated SSO configuration",
+  "sso.config_deleted": "Deleted SSO configuration",
+  "sso.metadata_refreshed": "Refreshed SSO metadata",
+  "sso.test_succeeded": "Completed SSO test login",
+  "sso.login_succeeded": "Completed SSO login",
+  "sso.member_provisioned": "Provisioned member from SSO",
+  "sso.break_glass_issued": "Issued break-glass code",
+  "sso.break_glass_redeemed": "Redeemed break-glass code",
   "proxy.granted": "Granted proxy access",
   "proxy.revoked": "Revoked proxy access",
   "proxy.action": "Acted via proxy",
@@ -88,7 +96,11 @@ export const AUDIT_ACTION_LABELS: Record<string, string> = {
   "gst.filing.reconciled": "Recorded GST filing reconciliation",
 };
 export function getAuditCategory(action: string): string {
-  if (action.startsWith("member.") || action.startsWith("proxy."))
+  if (
+    action.startsWith("member.") ||
+    action.startsWith("proxy.") ||
+    action.startsWith("sso.")
+  )
     return "Access";
   if (
     action.startsWith("invoice.") ||

@@ -6,6 +6,12 @@ vi.mock("@/lib/supabase/server", () => ({
 
 vi.mock("@/lib/db", () => ({
   db: {
+    ssoConfig: {
+      findUnique: vi.fn(),
+    },
+    userOrgPreference: {
+      findUnique: vi.fn(),
+    },
     member: {
       findFirst: vi.fn(),
     },
@@ -26,6 +32,8 @@ describe("marketplace moderator auth", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     delete process.env.MARKETPLACE_MODERATOR_USER_IDS;
+    vi.mocked(db.ssoConfig.findUnique).mockResolvedValue(null as never);
+    vi.mocked(db.userOrgPreference.findUnique).mockResolvedValue(null as never);
   });
 
   it("checks moderator membership from the explicit allowlist", () => {
@@ -61,6 +69,9 @@ describe("marketplace moderator auth", () => {
     vi.mocked(db.member.findFirst).mockResolvedValue({
       organizationId: "org-1",
       role: "admin",
+      organization: {
+        slug: "acme",
+      },
     } as never);
 
     await expect(requireMarketplaceModerator()).resolves.toEqual({

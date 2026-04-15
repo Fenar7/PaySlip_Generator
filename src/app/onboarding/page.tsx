@@ -6,7 +6,7 @@ export default async function OnboardingPage() {
   const context = await getAuthRoutingContext();
 
   if (!context.isAuthenticated) {
-    redirect("/auth/login");
+    redirect(context.loginPath ?? "/auth/login");
   }
 
   if (context.hasOrg) {

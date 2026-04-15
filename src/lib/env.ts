@@ -42,6 +42,7 @@ const envSchema = z.object({
   CUSTOMER_PORTAL_BASE_URL: z.string().url().optional(),
   PORTAL_JWT_SECRET: z.string().optional(),
   CRON_SECRET: z.string().optional(),
+  SSO_SESSION_SECRET: z.string().optional(),
   MSG91_API_KEY: z.string().optional(),
   MSG91_SENDER_ID: z.string().optional(),
   // Phase 12
