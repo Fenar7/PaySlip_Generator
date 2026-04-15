@@ -35,7 +35,7 @@ export async function getAiUsageDashboardAction(): Promise<AiUsageSummaryResult>
   return {
     success: true,
     data: {
-      totalThisMonth: summary.totalThisMonth,
+      totalThisMonth: summary.totalRuns,
       successRate: summary.successRate,
       byFeature: summary.byFeature,
       providerHealth: health,
@@ -45,7 +45,7 @@ export async function getAiUsageDashboardAction(): Promise<AiUsageSummaryResult>
         aiInsights: plan.limits.aiInsights,
         anomalyDetection: plan.limits.anomalyDetection,
       },
-      currentMonthUsage: summary.totalThisMonth,
+      currentMonthUsage: summary.totalRuns,
     },
   };
 }
