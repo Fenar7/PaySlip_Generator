@@ -11,8 +11,13 @@ vi.mock("@/lib/db", () => ({
     },
     partnerManagedOrg: {
       findUnique: vi.fn(),
+      findMany: vi.fn(),
       create: vi.fn(),
+      update: vi.fn(),
       delete: vi.fn(),
+    },
+    partnerActivityLog: {
+      create: vi.fn().mockResolvedValue({}),
     },
     invoice: {
       findMany: vi.fn(),
@@ -33,6 +38,14 @@ vi.mock("@/lib/plans/enforcement", () => ({
   checkFeature: vi.fn().mockResolvedValue(undefined),
 }));
 
+vi.mock("@/lib/audit", () => ({
+  logAudit: vi.fn().mockResolvedValue(undefined),
+}));
+
+vi.mock("@/lib/partners/reporting", () => ({
+  getPartnerMetrics: vi.fn(),
+}));
+
 import { db } from "@/lib/db";
 import {
   applyForPartner,
@@ -41,7 +54,10 @@ import {
   removeClientOrg,
   getManagedClientInvoices,
   getPartnerProfile,
+  getPartnerReports,
+  getClientOrgPartnerAccess,
 } from "../actions";
+import { getPartnerMetrics } from "@/lib/partners/reporting";
 
 const mockDb = db as unknown as {
   partnerProfile: {
@@ -51,13 +67,18 @@ const mockDb = db as unknown as {
   };
   partnerManagedOrg: {
     findUnique: ReturnType<typeof vi.fn>;
+    findMany: ReturnType<typeof vi.fn>;
     create: ReturnType<typeof vi.fn>;
+    update: ReturnType<typeof vi.fn>;
     delete: ReturnType<typeof vi.fn>;
   };
+  partnerActivityLog: { create: ReturnType<typeof vi.fn> };
   invoice: {
     findMany: ReturnType<typeof vi.fn>;
   };
 };
+
+const mockGetPartnerMetrics = getPartnerMetrics as ReturnType<typeof vi.fn>;
 
 describe("Partner Actions", () => {
   beforeEach(() => {
@@ -140,7 +161,12 @@ describe("Partner Actions", () => {
       }
 
       expect(mockDb.partnerManagedOrg.create).toHaveBeenCalledWith({
-        data: { partnerId: "partner-1", orgId: "client-org-1" },
+        data: expect.objectContaining({
+          partnerId: "partner-1",
+          orgId: "client-org-1",
+          addedByUserId: "user-1",
+          scope: [],
+        }),
       });
       expect(mockDb.partnerProfile.update).toHaveBeenCalledWith({
         where: { id: "partner-1" },
@@ -164,7 +190,7 @@ describe("Partner Actions", () => {
       expect(mockDb.partnerManagedOrg.create).not.toHaveBeenCalled();
     });
 
-    it("returns error when already managing the org", async () => {
+    it("returns error when already managing the org (active assignment)", async () => {
       mockDb.partnerProfile.findUnique.mockResolvedValue({
         id: "partner-1",
         orgId: "org-1",
@@ -174,6 +200,7 @@ describe("Partner Actions", () => {
         id: "managed-1",
         partnerId: "partner-1",
         orgId: "client-org-1",
+        revokedAt: null,
       });
 
       const result = await inviteClientOrg("client-org-1");
@@ -181,6 +208,27 @@ describe("Partner Actions", () => {
       expect(result.success).toBe(false);
       if (!result.success) {
         expect(result.error).toBe("Already managing this organization");
+      }
+    });
+
+    it("returns error for previously revoked assignment (requires admin re-approval)", async () => {
+      mockDb.partnerProfile.findUnique.mockResolvedValue({
+        id: "partner-1",
+        orgId: "org-1",
+        status: "APPROVED",
+      });
+      mockDb.partnerManagedOrg.findUnique.mockResolvedValue({
+        id: "managed-1",
+        partnerId: "partner-1",
+        orgId: "client-org-1",
+        revokedAt: new Date(),
+      });
+
+      const result = await inviteClientOrg("client-org-1");
+
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        expect(result.error).toContain("revoked");
       }
     });
   });
@@ -201,6 +249,8 @@ describe("Partner Actions", () => {
         id: "managed-1",
         partnerId: "partner-1",
         orgId: "client-org-1",
+        revokedAt: null,
+        scope: [],
       });
       mockDb.invoice.findMany.mockResolvedValue(mockInvoices);
 
@@ -235,6 +285,28 @@ describe("Partner Actions", () => {
       }
     });
 
+    it("returns error when assignment is revoked", async () => {
+      mockDb.partnerProfile.findUnique.mockResolvedValue({
+        id: "partner-1",
+        orgId: "org-1",
+        status: "APPROVED",
+      });
+      mockDb.partnerManagedOrg.findUnique.mockResolvedValue({
+        id: "managed-1",
+        partnerId: "partner-1",
+        orgId: "client-org-1",
+        revokedAt: new Date(),
+        scope: [],
+      });
+
+      const result = await getManagedClientInvoices("client-org-1");
+
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        expect(result.error).toBe("Not managing this organization");
+      }
+    });
+
     it("returns error when partner is not approved", async () => {
       mockDb.partnerProfile.findUnique.mockResolvedValue({
         id: "partner-1",
@@ -252,23 +324,31 @@ describe("Partner Actions", () => {
   });
 
   describe("removeClientOrg", () => {
-    it("decrements managedOrgCount on removal", async () => {
+    it("soft-revokes assignment and decrements managedOrgCount", async () => {
       mockDb.partnerProfile.findUnique.mockResolvedValue({
         id: "partner-1",
         orgId: "org-1",
         managedOrgCount: 3,
       });
-      mockDb.partnerManagedOrg.delete.mockResolvedValue({});
+      mockDb.partnerManagedOrg.findUnique.mockResolvedValue({
+        id: "managed-1",
+        partnerId: "partner-1",
+        orgId: "client-org-1",
+        revokedAt: null,
+      });
+      mockDb.partnerManagedOrg.update.mockResolvedValue({});
       mockDb.partnerProfile.update.mockResolvedValue({});
 
       const result = await removeClientOrg("client-org-1");
 
       expect(result.success).toBe(true);
-      expect(mockDb.partnerManagedOrg.delete).toHaveBeenCalledWith({
-        where: {
-          partnerId_orgId: { partnerId: "partner-1", orgId: "client-org-1" },
-        },
+      // Soft-revoke: update by id, set revokedAt + revokedBy
+      expect(mockDb.partnerManagedOrg.update).toHaveBeenCalledWith({
+        where: { id: "managed-1" },
+        data: expect.objectContaining({ revokedBy: "user-1" }),
       });
+      const updateCall = mockDb.partnerManagedOrg.update.mock.calls[0][0];
+      expect(updateCall.data.revokedAt).toBeInstanceOf(Date);
       expect(mockDb.partnerProfile.update).toHaveBeenCalledWith({
         where: { id: "partner-1" },
         data: { managedOrgCount: { decrement: 1 } },
@@ -283,6 +363,125 @@ describe("Partner Actions", () => {
       expect(result.success).toBe(false);
       if (!result.success) {
         expect(result.error).toBe("Not a partner");
+      }
+    });
+
+    it("returns error when assignment not found", async () => {
+      mockDb.partnerProfile.findUnique.mockResolvedValue({
+        id: "partner-1",
+        orgId: "org-1",
+        managedOrgCount: 1,
+      });
+      mockDb.partnerManagedOrg.findUnique.mockResolvedValue(null);
+
+      const result = await removeClientOrg("client-org-1");
+
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        expect(result.error).toBe("Client assignment not found or already removed");
+      }
+    });
+
+    it("returns error when assignment already revoked", async () => {
+      mockDb.partnerProfile.findUnique.mockResolvedValue({
+        id: "partner-1",
+        orgId: "org-1",
+        managedOrgCount: 1,
+      });
+      mockDb.partnerManagedOrg.findUnique.mockResolvedValue({
+        id: "managed-1",
+        partnerId: "partner-1",
+        orgId: "client-org-1",
+        revokedAt: new Date("2024-01-01"),
+      });
+
+      const result = await removeClientOrg("client-org-1");
+
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        expect(result.error).toBe("Client assignment not found or already removed");
+      }
+    });
+  });
+
+  describe("getPartnerReports", () => {
+    it("returns partner metrics from reporting module", async () => {
+      mockGetPartnerMetrics.mockResolvedValue({
+        partnerId: "partner-1",
+        managedClientCount: 5,
+        activeAssignments: 4,
+        recentActivityCount: 12,
+        recentActivity: [],
+      });
+
+      const result = await getPartnerReports();
+
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data.managedClientCount).toBe(5);
+        expect(result.data.activeAssignments).toBe(4);
+      }
+      // getPartnerReports passes orgId ("org-1") to getPartnerMetrics
+      expect(mockGetPartnerMetrics).toHaveBeenCalledWith("org-1");
+    });
+
+    it("returns error when no partner profile exists (metrics returns null)", async () => {
+      mockGetPartnerMetrics.mockResolvedValue(null);
+
+      const result = await getPartnerReports();
+
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        expect(result.error).toBe("Not a partner");
+      }
+    });
+  });
+
+  describe("getClientOrgPartnerAccess", () => {
+    it("returns active partner assignments for the org", async () => {
+      const mockAssignments = [
+        {
+          id: "managed-1",
+          partnerId: "partner-1",
+          orgId: "org-1",
+          scope: ["read_invoices"],
+          revokedAt: null,
+          addedAt: new Date("2024-01-15"),
+          partner: {
+            id: "partner-1",
+            partnerCode: "PTR-ABCD1234",
+            companyName: "Test Partner",
+            type: "ACCOUNTANT",
+            status: "APPROVED",
+          },
+        },
+      ];
+      mockDb.partnerManagedOrg.findMany.mockResolvedValue(mockAssignments);
+
+      const result = await getClientOrgPartnerAccess();
+
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data).toHaveLength(1);
+        expect(result.data[0].companyName).toBe("Test Partner");
+        expect(result.data[0].partnerCode).toBe("PTR-ABCD1234");
+        expect(result.data[0].scope).toEqual(["read_invoices"]);
+      }
+      expect(mockDb.partnerManagedOrg.findMany).toHaveBeenCalledWith({
+        where: { orgId: "org-1", revokedAt: null },
+        include: { partner: expect.any(Object) },
+        orderBy: { addedAt: "desc" },
+      });
+    });
+
+    it("returns empty array when no active partner access", async () => {
+      mockDb.partnerManagedOrg.findMany.mockResolvedValue([]);
+
+      const result = await getClientOrgPartnerAccess();
+
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data).toHaveLength(0);
       }
     });
   });

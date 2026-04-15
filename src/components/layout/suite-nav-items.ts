@@ -125,6 +125,7 @@ export const suiteNavItems: NavItem[] = [
     children: [
       { href: "/app/partner", label: "Dashboard" },
       { href: "/app/partner/clients", label: "Managed Clients" },
+      { href: "/app/partner/reports", label: "Reports" },
       { href: "/app/partner/apply", label: "Apply" },
     ],
   },

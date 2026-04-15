@@ -3248,11 +3248,17 @@ enum PartnerType {
 }
 
 enum PartnerStatus {
-  PENDING
-  APPROVED
-  SUSPENDED
+  PENDING      // legacy — equivalent to APPLIED; retained for backward compat
+  UNDER_REVIEW // platform admin has opened the application for review
+  APPROVED     // partner is active and may manage client orgs
+  SUSPENDED    // temporarily blocked; managed-client access is revoked
+  REVOKED      // permanently removed; cannot re-activate
 }
 
+/// Partner program profile. One per org. Lifecycle: PENDING → UNDER_REVIEW → APPROVED | REVOKED.
+/// Approved partners may be SUSPENDED (temporary) or REVOKED (permanent) by platform admins.
+/// All status transitions are append-only via PartnerReviewEvent.
+/// Added: Phase 20 Sprint 20.4
 model PartnerProfile {
   id              String        @id @default(cuid())
   orgId           String        @unique
@@ -3265,26 +3271,85 @@ model PartnerProfile {
   partnerCode     String        @unique
   revenueShare    Decimal       @db.Decimal(5, 2)
   managedOrgCount Int           @default(0)
-  createdAt       DateTime      @default(now())
-  updatedAt       DateTime      @updatedAt
 
-  org         Organization        @relation(fields: [orgId], references: [id])
-  managedOrgs PartnerManagedOrg[]
+  // Lifecycle audit fields — set by platform-admin review actions
+  reviewedByUserId String?
+  reviewedAt       DateTime?
+  reviewNotes      String?
+  suspendedAt      DateTime?
+  suspendedReason  String?
+  revokedAt        DateTime?
+  revokedReason    String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  org           Organization          @relation(fields: [orgId], references: [id])
+  managedOrgs   PartnerManagedOrg[]
+  reviewEvents  PartnerReviewEvent[]
+  activityLogs  PartnerActivityLog[]
 
   @@map("partner_profiles")
 }
 
+/// Explicit client-org assignment for an approved partner.
+/// scope defines what operations the partner may perform on the client org.
+/// All assignments carry actor attribution. Revocation immediately blocks access.
+/// Added: Phase 20 Sprint 20.4
 model PartnerManagedOrg {
-  id        String   @id @default(cuid())
-  partnerId String
-  orgId     String
-  addedAt   DateTime @default(now())
+  id            String   @id @default(cuid())
+  partnerId     String
+  orgId         String
+  addedAt       DateTime @default(now())
+  addedByUserId String?
+  scope         String[] // e.g. ["view_invoices","manage_documents","view_payments"]
+  revokedAt     DateTime?
+  revokedBy     String?
 
-  partner PartnerProfile @relation(fields: [partnerId], references: [id])
-  org     Organization   @relation(fields: [orgId], references: [id])
+  partner      PartnerProfile       @relation(fields: [partnerId], references: [id])
+  org          Organization         @relation(fields: [orgId], references: [id])
+  activityLogs PartnerActivityLog[]
 
   @@unique([partnerId, orgId])
   @@map("partner_managed_orgs")
+}
+
+/// Append-only audit trail for partner lifecycle state changes.
+/// Every approval, rejection, suspension, and revocation creates one record.
+/// Added: Phase 20 Sprint 20.4
+model PartnerReviewEvent {
+  id          String        @id @default(cuid())
+  partnerId   String
+  actorUserId String
+  fromStatus  PartnerStatus
+  toStatus    PartnerStatus
+  notes       String?
+  createdAt   DateTime      @default(now())
+
+  partner PartnerProfile @relation(fields: [partnerId], references: [id])
+
+  @@map("partner_review_events")
+}
+
+/// Attribution log for partner actions performed on behalf of client orgs.
+/// Every cross-org operation through the partner portal creates one record.
+/// Added: Phase 20 Sprint 20.4
+model PartnerActivityLog {
+  id            String   @id @default(cuid())
+  partnerId     String
+  actorUserId   String
+  managedOrgId  String?
+  clientOrgId   String?
+  action        String
+  entityType    String?
+  entityId      String?
+  metadata      Json?
+  createdAt     DateTime @default(now())
+
+  partner    PartnerProfile     @relation(fields: [partnerId], references: [id])
+  managedOrg PartnerManagedOrg? @relation(fields: [managedOrgId], references: [id])
+
+  @@map("partner_activity_logs")
 }
 
 // ─── Phase 19: SW Docs Control Plane ──────────────────────────────────────────

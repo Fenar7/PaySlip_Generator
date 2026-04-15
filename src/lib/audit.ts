@@ -94,6 +94,16 @@ export const AUDIT_ACTION_LABELS: Record<string, string> = {
   "gst.filing.submission_intent": "Recorded GST filing submission intent",
   "gst.filing.submission_result": "Recorded GST filing submission result",
   "gst.filing.reconciled": "Recorded GST filing reconciliation",
+  "partner.applied": "Partner application submitted",
+  "partner.review_started": "Partner application under review",
+  "partner.approved": "Partner application approved",
+  "partner.rejected": "Partner application rejected",
+  "partner.suspended": "Partner account suspended",
+  "partner.reinstated": "Partner account reinstated",
+  "partner.revoked": "Partner account revoked",
+  "partner.client_assigned": "Client organization assigned to partner",
+  "partner.client_revoked": "Client organization removed from partner",
+  "partner.client_scope_updated": "Partner client assignment scope updated",
 };
 export function getAuditCategory(action: string): string {
   if (
