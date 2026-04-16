@@ -13,6 +13,7 @@ const navItems = [
   { label: "Proxy Access", href: "/app/settings/access" },
   { label: "API Keys", href: "/app/settings/api" },
   { label: "Webhooks", href: "/app/settings/developer/webhooks/v2" },
+  { label: "Payment Gateway", href: "/app/settings/payments" },
   { label: "Customer Portal", href: "/app/settings/portal" },
   { label: "Usage & Limits", href: "/app/settings/billing/usage" },
   { label: "Language & Currency", href: "/app/settings/i18n" },
