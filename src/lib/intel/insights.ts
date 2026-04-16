@@ -66,11 +66,18 @@ export interface UpsertInsightParams {
   expiresAt?: Date;
 }
 
+export interface UpsertInsightResult {
+  id: string;
+  /** True when a new insight record was created; false when an existing one was refreshed. */
+  wasCreated: boolean;
+}
+
 /**
  * Create a new insight, or refresh an existing active one by dedupeKey.
  * Emits CREATED or UPDATED events accordingly.
+ * Returns the insight ID and whether it was newly created vs refreshed.
  */
-export async function upsertInsight(params: UpsertInsightParams): Promise<string> {
+export async function upsertInsight(params: UpsertInsightParams): Promise<UpsertInsightResult> {
   const now = new Date();
 
   if (params.dedupeKey) {
@@ -95,7 +102,7 @@ export async function upsertInsight(params: UpsertInsightParams): Promise<string
       await db.insightEvent.create({
         data: { insightId: existing.id, eventType: "UPDATED" },
       });
-      return existing.id;
+      return { id: existing.id, wasCreated: false };
     }
   }
 
@@ -126,7 +133,7 @@ export async function upsertInsight(params: UpsertInsightParams): Promise<string
     data: { insightId: insight.id, eventType: "CREATED" },
   });
 
-  return insight.id;
+  return { id: insight.id, wasCreated: true };
 }
 
 const SEVERITY_WEIGHT: Record<string, number> = {
@@ -299,7 +306,7 @@ export async function expireStaleInsights(orgId: string): Promise<number> {
     where: {
       orgId,
       expiresAt: { lte: now },
-      status: { in: ["ACTIVE", "ACKNOWLEDGED", "ACTIVE"] },
+      status: { in: ["ACTIVE", "ACKNOWLEDGED"] },
     },
     data: { status: "EXPIRED", updatedAt: now },
   });

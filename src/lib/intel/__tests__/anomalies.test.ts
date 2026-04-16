@@ -20,6 +20,34 @@ const { mockDb } = vi.hoisted(() => ({
     gstFilingRun: {
       count: vi.fn(),
     },
+    gstFilingValidationIssue: {
+      count: vi.fn(),
+    },
+    vendorBill: {
+      findMany: vi.fn(),
+      count: vi.fn(),
+    },
+    paymentRun: {
+      findMany: vi.fn(),
+      count: vi.fn(),
+    },
+    closeRun: {
+      findMany: vi.fn(),
+      count: vi.fn(),
+    },
+    closeTask: {
+      count: vi.fn(),
+    },
+    approvalRequest: {
+      findMany: vi.fn(),
+      count: vi.fn(),
+    },
+    notificationDelivery: {
+      count: vi.fn(),
+    },
+    oAuthAuthorization: {
+      count: vi.fn(),
+    },
     marketplacePayoutItem: {
       count: vi.fn(),
     },
@@ -71,6 +99,18 @@ function setupNoAnomalies() {
   mockDb.paymentArrangement.count.mockResolvedValue(0);
   mockDb.bankTransaction.count.mockResolvedValue(0);
   mockDb.gstFilingRun.count.mockResolvedValue(0);
+  mockDb.gstFilingValidationIssue.count.mockResolvedValue(0);
+  mockDb.vendorBill.findMany.mockResolvedValue([]);
+  mockDb.vendorBill.count.mockResolvedValue(0);
+  mockDb.paymentRun.findMany.mockResolvedValue([]);
+  mockDb.paymentRun.count.mockResolvedValue(0);
+  mockDb.closeRun.findMany.mockResolvedValue([]);
+  mockDb.closeRun.count.mockResolvedValue(0);
+  mockDb.closeTask.count.mockResolvedValue(0);
+  mockDb.approvalRequest.findMany.mockResolvedValue([]);
+  mockDb.approvalRequest.count.mockResolvedValue(0);
+  mockDb.notificationDelivery.count.mockResolvedValue(0);
+  mockDb.oAuthAuthorization.count.mockResolvedValue(0);
   mockDb.marketplacePayoutItem.count.mockResolvedValue(0);
   mockDb.partnerClientAccessRequest.count.mockResolvedValue(0);
   mockDb.apiWebhookDelivery.count.mockResolvedValue(0);
@@ -376,5 +416,258 @@ describe("listAnomalyInsights", () => {
 
     const whereClause = mockDb.intelInsight.findMany.mock.calls[0][0].where;
     expect(whereClause.orgId).toBe("org-tenant-A");
+  });
+});
+
+// ── New rule tests ─────────────────────────────────────────────────────────────
+
+describe("books.vendor_bill_bottleneck rule", () => {
+  beforeEach(() => resetMocks());
+
+  it("fires when 5+ vendor bills are stuck in PENDING_APPROVAL > 7 days", async () => {
+    setupNoAnomalies();
+    mockDb.vendorBill.findMany.mockResolvedValue([
+      { id: "vb1", billNumber: "BILL-001", totalAmount: 50000, billDate: "2024-01-01" },
+      { id: "vb2", billNumber: "BILL-002", totalAmount: 50000, billDate: "2024-01-01" },
+      { id: "vb3", billNumber: "BILL-003", totalAmount: 50000, billDate: "2024-01-01" },
+      { id: "vb4", billNumber: "BILL-004", totalAmount: 50000, billDate: "2024-01-01" },
+      { id: "vb5", billNumber: "BILL-005", totalAmount: 50000, billDate: "2024-01-01" },
+    ]);
+    mockDb.intelInsight.findFirst.mockResolvedValue(null);
+    mockDb.intelInsight.create.mockResolvedValue({ id: INSIGHT_ID });
+    mockDb.insightEvent.create.mockResolvedValue({});
+
+    const result = await runAnomalyDetection(ORG_ID);
+
+    expect(mockDb.intelInsight.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ category: "OPERATIONS", orgId: ORG_ID }),
+      }),
+    );
+    expect(result.insightsCreated).toBeGreaterThan(0);
+  });
+
+  it("does NOT fire when fewer than 5 bills are stuck", async () => {
+    setupNoAnomalies();
+    mockDb.vendorBill.findMany.mockResolvedValue([
+      { id: "vb1", billNumber: "BILL-001", totalAmount: 50000, billDate: "2024-01-01" },
+      { id: "vb2", billNumber: "BILL-002", totalAmount: 50000, billDate: "2024-01-01" },
+    ]);
+
+    const result = await runAnomalyDetection(ORG_ID);
+    expect(result.insightsCreated).toBe(0);
+  });
+});
+
+describe("books.payment_run_failures rule", () => {
+  beforeEach(() => resetMocks());
+
+  it("fires when 2+ payment runs have failed in 30 days", async () => {
+    setupNoAnomalies();
+    mockDb.paymentRun.findMany.mockResolvedValue([
+      { id: "pr1", status: "FAILED", updatedAt: new Date() },
+      { id: "pr2", status: "REJECTED", updatedAt: new Date() },
+    ]);
+    mockDb.intelInsight.findFirst.mockResolvedValue(null);
+    mockDb.intelInsight.create.mockResolvedValue({ id: INSIGHT_ID });
+    mockDb.insightEvent.create.mockResolvedValue({});
+
+    const result = await runAnomalyDetection(ORG_ID);
+    expect(mockDb.intelInsight.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ category: "OPERATIONS", sourceRecordType: "payment_run" }),
+      }),
+    );
+    expect(result.insightsCreated).toBeGreaterThan(0);
+  });
+
+  it("does NOT fire when fewer than 2 payment runs failed", async () => {
+    setupNoAnomalies();
+    mockDb.paymentRun.findMany.mockResolvedValue([
+      { id: "pr1", status: "FAILED", updatedAt: new Date() },
+    ]);
+
+    const result = await runAnomalyDetection(ORG_ID);
+    expect(result.insightsCreated).toBe(0);
+  });
+});
+
+describe("books.close_period_blocked rule", () => {
+  beforeEach(() => resetMocks());
+
+  it("fires when a close run has been BLOCKED for more than 7 days", async () => {
+    setupNoAnomalies();
+    mockDb.closeRun.findMany.mockResolvedValue([
+      { id: "cr1", blockerCount: 3 },
+    ]);
+    mockDb.closeTask.count.mockResolvedValue(3);
+    mockDb.intelInsight.findFirst.mockResolvedValue(null);
+    mockDb.intelInsight.create.mockResolvedValue({ id: INSIGHT_ID });
+    mockDb.insightEvent.create.mockResolvedValue({});
+
+    const result = await runAnomalyDetection(ORG_ID);
+    expect(mockDb.intelInsight.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ category: "OPERATIONS", sourceRecordType: "close_run" }),
+      }),
+    );
+    expect(result.insightsCreated).toBeGreaterThan(0);
+  });
+
+  it("does NOT fire when no blocked runs and fewer than 3 blocked tasks", async () => {
+    setupNoAnomalies();
+    mockDb.closeRun.findMany.mockResolvedValue([]);
+    mockDb.closeTask.count.mockResolvedValue(2);
+
+    const result = await runAnomalyDetection(ORG_ID);
+    expect(result.insightsCreated).toBe(0);
+  });
+});
+
+describe("gst.validation_issue_spike rule", () => {
+  beforeEach(() => resetMocks());
+
+  it("fires when 10+ GST validation issues exist in last 30 days", async () => {
+    setupNoAnomalies();
+    mockDb.gstFilingValidationIssue.count.mockResolvedValue(15);
+    mockDb.intelInsight.findFirst.mockResolvedValue(null);
+    mockDb.intelInsight.create.mockResolvedValue({ id: INSIGHT_ID });
+    mockDb.insightEvent.create.mockResolvedValue({});
+
+    const result = await runAnomalyDetection(ORG_ID);
+    expect(mockDb.intelInsight.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ category: "COMPLIANCE", sourceRecordType: "gst_filing_validation_issue" }),
+      }),
+    );
+    expect(result.insightsCreated).toBeGreaterThan(0);
+  });
+
+  it("does NOT fire when fewer than 10 validation issues", async () => {
+    setupNoAnomalies();
+    mockDb.gstFilingValidationIssue.count.mockResolvedValue(5);
+
+    const result = await runAnomalyDetection(ORG_ID);
+    expect(result.insightsCreated).toBe(0);
+  });
+});
+
+describe("gst.stale_filing_data rule", () => {
+  beforeEach(() => resetMocks());
+
+  it("fires when org has filing history but no RECONCILED run in 60 days", async () => {
+    setupNoAnomalies();
+    // Rule call order: GST-03 (filing_run_blocked) runs before GST-02 (stale_filing_data).
+    // GST-03: count({ status: "FAILED" }) → 0 (doesn't fire)
+    // GST-02: count({ status: { not: "DRAFT" } }) → 3 (has history)
+    // GST-02: count({ status: "RECONCILED" }) → 0 (no recent success → fires)
+    mockDb.gstFilingRun.count
+      .mockResolvedValueOnce(0)  // GST-03: no failed filings
+      .mockResolvedValueOnce(3)  // GST-02: has attempted runs
+      .mockResolvedValueOnce(0); // GST-02: no recent reconciled
+    mockDb.intelInsight.findFirst.mockResolvedValue(null);
+    mockDb.intelInsight.create.mockResolvedValue({ id: INSIGHT_ID });
+    mockDb.insightEvent.create.mockResolvedValue({});
+
+    const result = await runAnomalyDetection(ORG_ID);
+    expect(mockDb.intelInsight.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ category: "COMPLIANCE", sourceRecordType: "gst_filing_run" }),
+      }),
+    );
+    expect(result.insightsCreated).toBeGreaterThan(0);
+  });
+
+  it("does NOT fire for orgs with no filing history at all", async () => {
+    setupNoAnomalies();
+    mockDb.gstFilingRun.count.mockResolvedValue(0);
+
+    const result = await runAnomalyDetection(ORG_ID);
+    expect(result.insightsCreated).toBe(0);
+  });
+});
+
+describe("flow.approval_sla_breaches rule", () => {
+  beforeEach(() => resetMocks());
+
+  it("fires when any ApprovalRequest is past its deadline", async () => {
+    setupNoAnomalies();
+    mockDb.approvalRequest.findMany.mockResolvedValue([
+      { id: "ar1", dueAt: new Date(Date.now() - 86400000), resourceType: "vendor_bill" },
+    ]);
+    mockDb.intelInsight.findFirst.mockResolvedValue(null);
+    mockDb.intelInsight.create.mockResolvedValue({ id: INSIGHT_ID });
+    mockDb.insightEvent.create.mockResolvedValue({});
+
+    const result = await runAnomalyDetection(ORG_ID);
+    expect(mockDb.intelInsight.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ category: "OPERATIONS", sourceRecordType: "approval_request" }),
+      }),
+    );
+    expect(result.insightsCreated).toBeGreaterThan(0);
+  });
+
+  it("does NOT fire when no approvals are overdue", async () => {
+    setupNoAnomalies();
+    mockDb.approvalRequest.findMany.mockResolvedValue([]);
+
+    const result = await runAnomalyDetection(ORG_ID);
+    expect(result.insightsCreated).toBe(0);
+  });
+});
+
+describe("flow.notification_delivery_failures rule", () => {
+  beforeEach(() => resetMocks());
+
+  it("fires when 10+ notification deliveries failed in last 24 hours", async () => {
+    setupNoAnomalies();
+    mockDb.notificationDelivery.count.mockResolvedValueOnce(12); // FAILED/TERMINAL count
+    mockDb.intelInsight.findFirst.mockResolvedValue(null);
+    mockDb.intelInsight.create.mockResolvedValue({ id: INSIGHT_ID });
+    mockDb.insightEvent.create.mockResolvedValue({});
+
+    const result = await runAnomalyDetection(ORG_ID);
+    expect(mockDb.intelInsight.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ category: "OPERATIONS", sourceRecordType: "notification_delivery" }),
+      }),
+    );
+    expect(result.insightsCreated).toBeGreaterThan(0);
+  });
+
+  it("does NOT fire when fewer than 10 delivery failures", async () => {
+    setupNoAnomalies();
+    mockDb.notificationDelivery.count.mockResolvedValue(5);
+
+    const result = await runAnomalyDetection(ORG_ID);
+    expect(result.insightsCreated).toBe(0);
+  });
+});
+
+describe("insightsUpdated counter", () => {
+  beforeEach(() => resetMocks());
+
+  it("increments insightsUpdated (not insightsCreated) when an existing insight is refreshed", async () => {
+    setupNoAnomalies();
+    // Return 10 invoices with 5 duplicate pairs — this rule fires
+    mockDb.invoice.findMany.mockResolvedValue([
+      { invoiceNumber: "INV-001" }, { invoiceNumber: "INV-001" },
+      { invoiceNumber: "INV-002" }, { invoiceNumber: "INV-002" },
+      { invoiceNumber: "INV-003" }, { invoiceNumber: "INV-003" },
+      { invoiceNumber: "INV-004" }, { invoiceNumber: "INV-004" },
+      { invoiceNumber: "INV-005" }, { invoiceNumber: "INV-005" },
+    ]);
+
+    // Simulate existing active insight (upsert will update, not create)
+    mockDb.intelInsight.findFirst.mockResolvedValue({ id: INSIGHT_ID, status: "ACTIVE" });
+    mockDb.intelInsight.update.mockResolvedValue({ id: INSIGHT_ID });
+    mockDb.insightEvent.create.mockResolvedValue({});
+
+    const result = await runAnomalyDetection(ORG_ID);
+    expect(result.insightsUpdated).toBeGreaterThan(0);
+    expect(result.insightsCreated).toBe(0);
+    expect(mockDb.intelInsight.update).toHaveBeenCalled();
+    expect(mockDb.intelInsight.create).not.toHaveBeenCalled();
   });
 });

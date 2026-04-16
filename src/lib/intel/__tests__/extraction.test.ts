@@ -147,3 +147,185 @@ describe("parseExtractionOutput", () => {
     expect(result![0].proposedValue).toContain("DROP TABLE");
   });
 });
+
+// ── promoteExtractionToDraft tests ────────────────────────────────────────────
+// These tests use a separate vi.hoisted block for their own db mock.
+// vi.mock calls are hoisted; importOriginal preserves real safeParseAiJson so
+// the parseExtractionOutput tests above are not broken.
+
+import { vi, beforeEach } from "vitest";
+import { promoteExtractionToDraft } from "../extraction";
+
+const { mockDb } = vi.hoisted(() => ({
+  mockDb: {
+    extractionReview: {
+      findFirst: vi.fn(),
+      update: vi.fn(),
+    },
+    invoice: {
+      create: vi.fn(),
+    },
+    vendorBill: {
+      create: vi.fn(),
+    },
+    orgDefaults: {
+      findUnique: vi.fn(),
+      create: vi.fn(),
+      updateMany: vi.fn(),
+    },
+    $transaction: vi.fn(),
+  },
+}));
+
+vi.mock("@/lib/db", () => ({ db: mockDb }));
+// Preserve real safeParseAiJson so parseExtractionOutput tests above still work.
+vi.mock("@/lib/ai/jobs", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/ai/jobs")>();
+  return { ...actual, runTrackedAiJob: vi.fn() };
+});
+
+const ORG_ID = "org-promo-001";
+const REVIEW_ID = "review-001";
+const USER_ID = "user-001";
+const DRAFT_INVOICE_ID = "inv-draft-001";
+const DRAFT_BILL_ID = "bill-draft-001";
+
+function makeApprovedReview(overrides: Record<string, unknown> = {}) {
+  return {
+    id: REVIEW_ID,
+    orgId: ORG_ID,
+    status: "APPROVED",
+    targetType: "invoice",
+    targetDraftId: null,
+    promotedAt: null,
+    fields: [
+      {
+        fieldKey: "invoice_date",
+        proposedValue: "2024-06-01",
+        correctedValue: null,
+        accepted: true,
+      },
+      {
+        fieldKey: "total_amount",
+        proposedValue: "50000",
+        correctedValue: null,
+        accepted: true,
+      },
+    ],
+    ...overrides,
+  };
+}
+
+function setupDocumentNumber() {
+  mockDb.orgDefaults.findUnique.mockResolvedValue({
+    invoicePrefix: "INV",
+    invoiceCounter: 1,
+    vendorBillPrefix: "BILL",
+    vendorBillCounter: 1,
+  });
+  mockDb.orgDefaults.updateMany.mockResolvedValue({ count: 1 });
+}
+
+describe("promoteExtractionToDraft", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    // Default $transaction: execute the callback directly with the mockDb as tx
+    mockDb.$transaction.mockImplementation(
+      async (fn: (tx: typeof mockDb) => Promise<unknown>) => fn(mockDb),
+    );
+  });
+
+  it("creates a draft invoice from an approved extraction review", async () => {
+    mockDb.extractionReview.findFirst.mockResolvedValue(makeApprovedReview({ targetType: "invoice" }));
+    setupDocumentNumber();
+    mockDb.invoice.create.mockResolvedValue({ id: DRAFT_INVOICE_ID });
+    mockDb.extractionReview.update.mockResolvedValue({});
+
+    const result = await promoteExtractionToDraft(ORG_ID, REVIEW_ID, USER_ID);
+
+    expect(result.success).toBe(true);
+    expect(result.draftType).toBe("invoice");
+    expect(mockDb.invoice.create).toHaveBeenCalledOnce();
+  });
+
+  it("returns the existing draft ID when already promoted (idempotency)", async () => {
+    mockDb.extractionReview.findFirst.mockResolvedValue(
+      makeApprovedReview({
+        status: "PROMOTED",
+        targetDraftId: DRAFT_INVOICE_ID,
+        targetType: "invoice",
+      }),
+    );
+
+    const result = await promoteExtractionToDraft(ORG_ID, REVIEW_ID, USER_ID);
+
+    expect(result.success).toBe(true);
+    expect(result.draftId).toBe(DRAFT_INVOICE_ID);
+    // Must not create another draft
+    expect(mockDb.invoice.create).not.toHaveBeenCalled();
+    expect(mockDb.$transaction).not.toHaveBeenCalled();
+  });
+
+  it("rejects promotion when review is not APPROVED", async () => {
+    mockDb.extractionReview.findFirst.mockResolvedValue(
+      makeApprovedReview({ status: "PENDING_REVIEW" }),
+    );
+
+    const result = await promoteExtractionToDraft(ORG_ID, REVIEW_ID, USER_ID);
+
+    expect(result.success).toBe(false);
+    expect(result.error).toMatch(/APPROVED/i);
+  });
+
+  it("blocks cross-org promotion — review not found for wrong org", async () => {
+    mockDb.extractionReview.findFirst.mockResolvedValue(null);
+
+    const result = await promoteExtractionToDraft("org-attacker", REVIEW_ID, USER_ID);
+
+    expect(result.success).toBe(false);
+    expect(result.error).toMatch(/not found/i);
+  });
+
+  it("rejects unsupported target type 'voucher' with a clear message", async () => {
+    mockDb.extractionReview.findFirst.mockResolvedValue(
+      makeApprovedReview({ targetType: "voucher" }),
+    );
+
+    const result = await promoteExtractionToDraft(ORG_ID, REVIEW_ID, USER_ID);
+
+    expect(result.success).toBe(false);
+    expect(result.error).toMatch(/voucher/i);
+    expect(mockDb.invoice.create).not.toHaveBeenCalled();
+    expect(mockDb.vendorBill.create).not.toHaveBeenCalled();
+    expect(mockDb.$transaction).not.toHaveBeenCalled();
+  });
+
+  it("creates a vendor bill draft when targetType is vendor_bill", async () => {
+    mockDb.extractionReview.findFirst.mockResolvedValue(
+      makeApprovedReview({ targetType: "vendor_bill" }),
+    );
+    setupDocumentNumber();
+    mockDb.vendorBill.create.mockResolvedValue({ id: DRAFT_BILL_ID });
+    mockDb.extractionReview.update.mockResolvedValue({});
+
+    const result = await promoteExtractionToDraft(ORG_ID, REVIEW_ID, USER_ID);
+
+    expect(result.success).toBe(true);
+    expect(result.draftType).toBe("vendor_bill");
+    expect(mockDb.vendorBill.create).toHaveBeenCalledOnce();
+  });
+
+  it("does not create a sent, approved, paid, or filed record — only DRAFT", async () => {
+    mockDb.extractionReview.findFirst.mockResolvedValue(makeApprovedReview({ targetType: "invoice" }));
+    setupDocumentNumber();
+    mockDb.invoice.create.mockImplementation(async ({ data }: { data: { status: string } }) => {
+      expect(data.status).toBe("DRAFT");
+      return { id: DRAFT_INVOICE_ID };
+    });
+    mockDb.extractionReview.update.mockResolvedValue({});
+
+    const result = await promoteExtractionToDraft(ORG_ID, REVIEW_ID, USER_ID);
+
+    expect(result.success).toBe(true);
+  });
+});

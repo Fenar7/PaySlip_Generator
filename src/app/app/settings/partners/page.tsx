@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -55,7 +55,7 @@ export default function ClientOrgPartnersPage() {
   const [error, setError] = useState<string | null>(null);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
 
-  const reload = useCallback(async () => {
+  const reload = async () => {
     const [accessRes, requestsRes] = await Promise.all([
       getClientOrgPartnerAccess(),
       getPendingPartnerAccessRequests(),
@@ -70,11 +70,38 @@ export default function ClientOrgPartnersPage() {
     if (requestsRes.success) {
       setPendingRequests(requestsRes.data as PendingRequest[]);
     }
-  }, []);
+  };
 
   useEffect(() => {
-    reload().finally(() => setLoading(false));
-  }, [reload]);
+    let cancelled = false;
+
+    async function load() {
+      const [accessRes, requestsRes] = await Promise.all([
+        getClientOrgPartnerAccess(),
+        getPendingPartnerAccessRequests(),
+      ]);
+
+      if (cancelled) return;
+
+      if (accessRes.success) {
+        setPartners(accessRes.data as PartnerAccess[]);
+      } else {
+        setError("Failed to load partner access.");
+      }
+
+      if (requestsRes.success) {
+        setPendingRequests(requestsRes.data as PendingRequest[]);
+      }
+
+      setLoading(false);
+    }
+
+    load();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   async function handleRevoke(managedOrgId: string, companyName: string) {
     if (

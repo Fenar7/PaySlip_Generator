@@ -4,6 +4,7 @@ import { requireOrgContext, requireRole } from "@/lib/auth";
 import { getOrgPlan } from "@/lib/plans/enforcement";
 import { runAnomalyDetection, listAnomalyInsights, listAnomalyRuns } from "@/lib/intel/anomalies";
 import { acknowledgeInsight, dismissInsight, resolveInsight, getInsightDetail } from "@/lib/intel/insights";
+import { requirePartnerClientAccess, PartnerAccessError } from "@/lib/partners/access";
 
 type ActionResult<T = void> = { success: true; data: T } | { success: false; error: string };
 
@@ -33,6 +34,89 @@ export async function getAnomalyDashboardAction(): Promise<
     return { success: false, error: err instanceof Error ? err.message : "Failed to load anomaly dashboard" };
   }
 }
+
+// ─── Partner-managed-client anomaly actions ───────────────────────────────────
+//
+// Partners access their managed clients' anomalies through a separate set of
+// actions that enforce requirePartnerClientAccess() before touching any client
+// org data. Normal own-org actions above are unchanged and remain org-scoped.
+
+/**
+ * Fetch anomaly dashboard for a partner-managed client org.
+ * Requires the caller's org to be an approved partner with anomaly_read scope
+ * for the given clientOrgId.
+ */
+export async function getPartnerClientAnomaliesAction(
+  clientOrgId: string,
+): Promise<
+  ActionResult<{
+    anomalies: Awaited<ReturnType<typeof listAnomalyInsights>>;
+    recentRuns: Awaited<ReturnType<typeof listAnomalyRuns>>;
+  }>
+> {
+  try {
+    const ctx = await requireOrgContext();
+    await requirePartnerClientAccess(ctx.orgId, clientOrgId, "anomaly_read");
+
+    const [anomalies, recentRuns] = await Promise.all([
+      listAnomalyInsights(clientOrgId),
+      listAnomalyRuns(clientOrgId, 5),
+    ]);
+    return { success: true, data: { anomalies, recentRuns } };
+  } catch (err) {
+    if (err instanceof PartnerAccessError) {
+      return { success: false, error: err.message };
+    }
+    return { success: false, error: err instanceof Error ? err.message : "Failed to load client anomalies" };
+  }
+}
+
+/**
+ * Acknowledge an anomaly in a partner-managed client org.
+ * Requires anomaly_write scope on the client org.
+ */
+export async function acknowledgePartnerClientAnomalyAction(
+  clientOrgId: string,
+  anomalyId: string,
+): Promise<ActionResult> {
+  try {
+    const ctx = await requireOrgContext();
+    await requirePartnerClientAccess(ctx.orgId, clientOrgId, "anomaly_write");
+    const result = await acknowledgeInsight(clientOrgId, anomalyId, ctx.userId);
+    if (!result.success) return { success: false, error: result.error ?? "Failed to acknowledge" };
+    return { success: true, data: undefined };
+  } catch (err) {
+    if (err instanceof PartnerAccessError) {
+      return { success: false, error: err.message };
+    }
+    return { success: false, error: err instanceof Error ? err.message : "Failed to acknowledge anomaly" };
+  }
+}
+
+/**
+ * Dismiss an anomaly in a partner-managed client org.
+ * Requires anomaly_write scope on the client org.
+ */
+export async function dismissPartnerClientAnomalyAction(
+  clientOrgId: string,
+  anomalyId: string,
+  reason?: string,
+): Promise<ActionResult> {
+  try {
+    const ctx = await requireOrgContext();
+    await requirePartnerClientAccess(ctx.orgId, clientOrgId, "anomaly_write");
+    const result = await dismissInsight(clientOrgId, anomalyId, ctx.userId, reason);
+    if (!result.success) return { success: false, error: result.error ?? "Failed to dismiss" };
+    return { success: true, data: undefined };
+  } catch (err) {
+    if (err instanceof PartnerAccessError) {
+      return { success: false, error: err.message };
+    }
+    return { success: false, error: err instanceof Error ? err.message : "Failed to dismiss anomaly" };
+  }
+}
+
+// ─── Existing own-org actions (unchanged) ─────────────────────────────────────
 
 export async function triggerAnomalyDetectionAction(): Promise<
   ActionResult<{ runId: string; insightsCreated: number; rulesEvaluated: number }>

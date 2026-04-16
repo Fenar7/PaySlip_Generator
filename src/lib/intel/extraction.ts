@@ -2,6 +2,7 @@ import "server-only";
 
 import { db } from "@/lib/db";
 import { runTrackedAiJob, safeParseAiJson } from "@/lib/ai/jobs";
+import { nextDocumentNumberTx } from "@/lib/docs/numbering";
 import type { ExtractionReviewStatus } from "@/generated/prisma/client";
 
 export type { ExtractionReviewStatus };
@@ -276,40 +277,139 @@ export async function approveExtractionReview(
 
 /**
  * Promote an approved extraction review to a draft business record.
+ *
  * Creates drafts only — never finalizes, sends, approves, submits, or pays.
+ * Idempotent: repeated calls return the existing draft reference.
+ *
+ * Supported target types: "invoice", "vendor_bill".
+ * "voucher" is explicitly unsupported — the debit/credit structure of a journal
+ * voucher cannot be reliably inferred from document extraction.
  */
 export async function promoteExtractionToDraft(
   orgId: string,
   reviewId: string,
   userId: string,
-): Promise<{ success: boolean; draftId?: string; error?: string }> {
+): Promise<{ success: boolean; draftId?: string; draftType?: string; error?: string }> {
   const review = await db.extractionReview.findFirst({
     where: { id: reviewId, orgId },
     include: { fields: true },
   });
   if (!review) return { success: false, error: "Review not found" };
+
+  // Idempotency: already promoted, return the existing draft reference.
+  if (review.status === "PROMOTED" && review.targetDraftId) {
+    return { success: true, draftId: review.targetDraftId, draftType: review.targetType ?? undefined };
+  }
+
   if (review.status !== "APPROVED") {
     return { success: false, error: "Review must be APPROVED before promotion" };
   }
 
-  // Build corrected output from accepted fields
-  const acceptedFields: Record<string, string> = {};
+  const targetType = review.targetType;
+  if (!targetType) {
+    return { success: false, error: "Review has no target type — set targetType before promoting" };
+  }
+
+  if (targetType === "voucher") {
+    return {
+      success: false,
+      error:
+        "Voucher promotion is not supported for automated draft creation. " +
+        "Journal voucher debit/credit structure cannot be reliably inferred from document extraction. " +
+        "Create the voucher manually in the Books module.",
+    };
+  }
+
+  if (targetType !== "invoice" && targetType !== "vendor_bill") {
+    return { success: false, error: `Unsupported target type: ${targetType}` };
+  }
+
+  // Build field map from accepted corrections.
+  const fieldMap: Record<string, string> = {};
   for (const f of review.fields) {
     if (f.accepted) {
-      acceptedFields[f.fieldKey] = f.correctedValue ?? f.proposedValue ?? "";
+      fieldMap[f.fieldKey] = f.correctedValue ?? f.proposedValue ?? "";
     }
   }
 
-  await db.extractionReview.update({
-    where: { id: reviewId },
-    data: {
-      status: "PROMOTED",
-      correctedOutput: acceptedFields as object,
-      promotedAt: new Date(),
-    },
+  const result = await db.$transaction(async (tx) => {
+    let draftId: string;
+
+    if (targetType === "invoice") {
+      // Always use auto-generated invoice number to avoid numbering conflicts.
+      // The vendor's invoice reference (if any) is preserved in formData.
+      const invoiceNumber = await nextDocumentNumberTx(tx, orgId, "invoice");
+      const invoiceDate = fieldMap["invoice_date"] || fieldMap["date"] || new Date().toISOString().slice(0, 10);
+
+      const totalAmount = fieldMap["total_amount"]
+        ? parseFloat(String(fieldMap["total_amount"]).replace(/[^0-9.]/g, "")) || 0
+        : 0;
+
+      const draft = await tx.invoice.create({
+        data: {
+          organizationId: orgId,
+          invoiceNumber,
+          invoiceDate,
+          status: "DRAFT",
+          totalAmount,
+          formData: {
+            extractedFrom: reviewId,
+            extractedFields: fieldMap,
+            vendorInvoiceRef: fieldMap["invoice_number"] ?? null,
+            promotedBy: userId,
+            promotedAt: new Date().toISOString(),
+          },
+          supplierGstin: fieldMap["vendor_gstin"] || null,
+          customerGstin: fieldMap["customer_gstin"] || null,
+          notes: `Promoted from document extraction (review: ${reviewId})`,
+        },
+        select: { id: true },
+      });
+      draftId = draft.id;
+    } else {
+      // vendor_bill: use the vendor's invoice number as the bill number when available.
+      const billNumber =
+        fieldMap["invoice_number"] || (await nextDocumentNumberTx(tx, orgId, "vendorBill"));
+      const billDate = fieldMap["invoice_date"] || fieldMap["date"] || new Date().toISOString().slice(0, 10);
+
+      const totalAmount = fieldMap["total_amount"]
+        ? parseFloat(String(fieldMap["total_amount"]).replace(/[^0-9.]/g, "")) || 0
+        : 0;
+
+      const draft = await tx.vendorBill.create({
+        data: {
+          orgId,
+          billNumber,
+          billDate,
+          status: "DRAFT",
+          totalAmount,
+          formData: {
+            extractedFrom: reviewId,
+            extractedFields: fieldMap,
+            promotedBy: userId,
+            promotedAt: new Date().toISOString(),
+          },
+          notes: `Promoted from document extraction (review: ${reviewId})`,
+        },
+        select: { id: true },
+      });
+      draftId = draft.id;
+    }
+
+    await tx.extractionReview.update({
+      where: { id: reviewId },
+      data: {
+        status: "PROMOTED",
+        targetDraftId: draftId,
+        correctedOutput: fieldMap as object,
+        promotedAt: new Date(),
+      },
+    });
+
+    return { draftId };
   });
 
-  return { success: true };
+  return { success: true, draftId: result.draftId, draftType: targetType };
 }
 
 /** Reject an extraction review. */

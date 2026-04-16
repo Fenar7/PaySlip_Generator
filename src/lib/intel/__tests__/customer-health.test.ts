@@ -28,7 +28,7 @@ vi.mock("@/lib/db", () => ({ db: mockDb }));
 import {
   computeCustomerHealth,
   getCollectionQueue,
-  type RiskBand,
+  getCustomerHealthSnapshot,
 } from "../customer-health";
 
 const ORG_ID = "org-abc";
@@ -201,5 +201,120 @@ describe("getCollectionQueue", () => {
     expect(mockDb.invoice.groupBy).toHaveBeenCalledWith(
       expect.objectContaining({ where: expect.objectContaining({ organizationId: ORG_ID }) }),
     );
+  });
+});
+
+// ── computeCustomerHealth — DISPUTED invoice support ──────────────────────────
+
+describe("computeCustomerHealth — DISPUTED invoices", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockDb.paymentArrangement.findMany.mockResolvedValue([]);
+    mockDb.customerHealthSnapshot.create.mockResolvedValue({});
+  });
+
+  it("counts DISPUTED invoices toward the dispute factor", async () => {
+    mockDb.customer.findFirst.mockResolvedValue(makeCustomer());
+
+    const paid = makeInvoice({ status: "PAID" });
+    const invoices = [
+      paid,
+      makeInvoice({ status: "PAID" }),
+      makeInvoice({ status: "PAID" }),
+      makeInvoice({ status: "DISPUTED" }), // should be counted
+    ];
+    mockDb.invoice.findMany.mockResolvedValue(invoices);
+
+    const result = await computeCustomerHealth(ORG_ID, CUSTOMER_ID);
+    expect(result.insufficientData).toBe(false);
+    const disputeFactor = result.factors.find((f) => f.key === "open_tickets");
+    // The factor should exist and report a non-zero count
+    expect(disputeFactor).toBeDefined();
+    expect(Number(disputeFactor!.value)).toBeGreaterThan(0);
+  });
+
+  it("returns disputedCount: 0 and no dispute evidence when no DISPUTED invoices", async () => {
+    mockDb.customer.findFirst.mockResolvedValue(makeCustomer());
+
+    const invoices = [
+      makeInvoice({ status: "PAID" }),
+      makeInvoice({ status: "PAID" }),
+      makeInvoice({ status: "PAID" }),
+    ];
+    mockDb.invoice.findMany.mockResolvedValue(invoices);
+
+    const result = await computeCustomerHealth(ORG_ID, CUSTOMER_ID);
+    const disputeFactor = result.factors.find((f) => f.key === "open_tickets");
+    if (disputeFactor) {
+      expect(Number(disputeFactor.value)).toBe(0);
+    }
+  });
+
+  it("includes DISPUTED invoices in the invoice set returned from the query", async () => {
+    mockDb.customer.findFirst.mockResolvedValue(makeCustomer());
+
+    // We want to verify that the query includes DISPUTED invoices.
+    // If DISPUTED were missing from the status filter, a pure-DISPUTED scenario would return 0.
+    const invoices = [
+      makeInvoice({ status: "DISPUTED" }),
+      makeInvoice({ status: "DISPUTED" }),
+      makeInvoice({ status: "DISPUTED" }),
+    ];
+    mockDb.invoice.findMany.mockResolvedValue(invoices);
+
+    const result = await computeCustomerHealth(ORG_ID, CUSTOMER_ID);
+    // Should score (3 invoices found — meets minimum) and have dispute evidence
+    expect(result.insufficientData).toBe(false);
+
+    // Query must include DISPUTED in the status filter
+    const callArgs = mockDb.invoice.findMany.mock.calls[0][0];
+    expect(callArgs.where.status.in).toContain("DISPUTED");
+  });
+});
+
+// ── getCustomerHealthSnapshot — cached name fix ────────────────────────────────
+
+describe("getCustomerHealthSnapshot — customer name in cached result", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("returns the customer name from a cached snapshot (not empty string)", async () => {
+    const now = new Date();
+    mockDb.customerHealthSnapshot.findFirst.mockResolvedValue({
+      id: "snap-001",
+      orgId: ORG_ID,
+      customerId: CUSTOMER_ID,
+      score: 80,
+      riskBand: "healthy",
+      factors: [],
+      recommendedAction: "monitor",
+      calculatedAt: new Date(now.getTime() - 3600000),
+      validUntil: new Date(now.getTime() + 3600000),
+    });
+    mockDb.customer.findFirst.mockResolvedValue({ name: "Test Corp" });
+
+    const result = await getCustomerHealthSnapshot(ORG_ID, CUSTOMER_ID);
+    expect(result.customerName).toBe("Test Corp");
+    expect(result.customerName).not.toBe("");
+  });
+
+  it("returns empty string for name when customer record is not found (safe fallback)", async () => {
+    const now = new Date();
+    mockDb.customerHealthSnapshot.findFirst.mockResolvedValue({
+      id: "snap-001",
+      orgId: ORG_ID,
+      customerId: CUSTOMER_ID,
+      score: 80,
+      riskBand: "healthy",
+      factors: [],
+      recommendedAction: "monitor",
+      calculatedAt: new Date(now.getTime() - 3600000),
+      validUntil: new Date(now.getTime() + 3600000),
+    });
+    mockDb.customer.findFirst.mockResolvedValue(null);
+
+    const result = await getCustomerHealthSnapshot(ORG_ID, CUSTOMER_ID);
+    expect(result.customerName).toBe("");
   });
 });
