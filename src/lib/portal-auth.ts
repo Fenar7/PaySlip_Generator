@@ -2,20 +2,44 @@ import "server-only";
 
 import crypto from "crypto";
 import { db } from "@/lib/db";
+import { redis } from "@/lib/redis-client";
 import { cookies } from "next/headers";
 import { sendEmail } from "@/lib/email";
 import { logAudit } from "@/lib/audit";
 import { redirect } from "next/navigation";
 
-// ─── Rate limiting (DB-backed, safe for serverless) ──────────────────────────
+// ─── Rate limiting (Redis-preferred, DB fallback, safe for serverless) ───────
 
 const MAGIC_LINK_MAX_REQUESTS = 3;
-const MAGIC_LINK_WINDOW_MS = 15 * 60 * 1000; // 15 minutes
+const MAGIC_LINK_WINDOW_SECONDS = 15 * 60; // 15 minutes
+const MAGIC_LINK_WINDOW_MS = MAGIC_LINK_WINDOW_SECONDS * 1000;
 
+/**
+ * Returns true if the request is within rate limits, false if rate-limited.
+ * Prefers Redis for atomic sliding-window counting; falls back to DB when Redis
+ * is unavailable. Fails open on errors so auth is not blocked by infra issues.
+ */
 async function checkPortalRateLimit(email: string, orgId: string): Promise<boolean> {
   const key = `ml:${orgId}:${sha256(email.toLowerCase())}`;
-  const now = new Date();
 
+  // ── Redis path ───────────────────────────────────────────────────────────
+  try {
+    const raw = await redis.get(key);
+    if (raw !== null) {
+      const count = parseInt(raw, 10);
+      if (count >= MAGIC_LINK_MAX_REQUESTS) return false;
+      await redis.set(key, String(count + 1), MAGIC_LINK_WINDOW_SECONDS);
+      return true;
+    }
+    // First request in this window
+    await redis.set(key, "1", MAGIC_LINK_WINDOW_SECONDS);
+    return true;
+  } catch {
+    // Redis unavailable — fall through to DB path
+  }
+
+  // ── DB fallback ──────────────────────────────────────────────────────────
+  const now = new Date();
   try {
     const existing = await db.portalRateLimit.findUnique({ where: { key } });
 
@@ -38,7 +62,7 @@ async function checkPortalRateLimit(email: string, orgId: string): Promise<boole
     });
     return true;
   } catch {
-    // Fail open on rate-limit DB errors to avoid blocking legitimate users
+    // Fail open on all errors to avoid blocking legitimate users
     return true;
   }
 }
