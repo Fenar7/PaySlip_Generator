@@ -20,7 +20,13 @@ interface NameOverlayConfig {
   date: string;
 }
 
-export function PassportWorkspace() {
+interface PassportWorkspaceProps {
+  /** When true, renders a registration CTA after the first photo download (public pages). */
+  showRegistrationCTA?: boolean;
+}
+
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+export function PassportWorkspace({ showRegistrationCTA: _showRegistrationCTA }: PassportWorkspaceProps = {}) {
   const [image, setImage] = useState<HTMLImageElement | null>(null);
   const [imageSrc, setImageSrc] = useState<string | null>(null);
   const [preset, setPreset] = useState<PassportPreset | null>(null);

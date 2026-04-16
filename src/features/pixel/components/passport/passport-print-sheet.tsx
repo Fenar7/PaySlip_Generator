@@ -12,17 +12,22 @@ interface PassportPrintSheetProps {
   photoCanvas: HTMLCanvasElement | null;
   preset: PassportPreset | null;
   onClose: () => void;
+  /** Optional orgId forwarded to the PDF API for watermark gate evaluation. */
+  orgId?: string;
 }
 
 export function PassportPrintSheet({
   photoCanvas,
   preset,
   onClose,
+  orgId,
 }: PassportPrintSheetProps) {
   const displayRef = useRef<HTMLCanvasElement>(null);
   const [result, setResult] = useState<PrintSheetResult | null>(null);
   const [sheetSize, setSheetSize] = useState<"a4" | "letter">("a4");
   const [blobUrl, setBlobUrl] = useState<string | null>(null);
+  const [pdfLoading, setPdfLoading] = useState(false);
+  const [pdfError, setPdfError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!photoCanvas || !preset) return;
@@ -79,6 +84,61 @@ export function PassportPrintSheet({
     );
   }, [result, blobUrl, sheetSize]);
 
+  const handleDownloadPdf = useCallback(async () => {
+    if (!photoCanvas || !preset) return;
+    setPdfLoading(true);
+    setPdfError(null);
+
+    try {
+      const imageBase64: string = await new Promise((resolve, reject) => {
+        photoCanvas.toBlob(
+          (blob) => {
+            if (!blob) {
+              reject(new Error("Failed to encode photo."));
+              return;
+            }
+            const reader = new FileReader();
+            reader.onloadend = () => resolve(reader.result as string);
+            reader.onerror = () => reject(new Error("File read error."));
+            reader.readAsDataURL(blob);
+          },
+          "image/jpeg",
+          0.92,
+        );
+      });
+
+      const response = await fetch("/api/pixel/print-sheet", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          imageBase64,
+          presetId: preset.id,
+          paperSize: sheetSize,
+          orgId,
+        }),
+      });
+
+      if (!response.ok) {
+        const json = await response.json().catch(() => ({}));
+        throw new Error(
+          (json as { error?: string }).error ?? `HTTP ${response.status}`,
+        );
+      }
+
+      const pdfBlob = await response.blob();
+      const pdfUrl = URL.createObjectURL(pdfBlob);
+      const a = document.createElement("a");
+      a.href = pdfUrl;
+      a.download = `print-sheet-${preset.id}-${sheetSize}.pdf`;
+      a.click();
+      URL.revokeObjectURL(pdfUrl);
+    } catch (err) {
+      setPdfError(err instanceof Error ? err.message : "Download failed.");
+    } finally {
+      setPdfLoading(false);
+    }
+  }, [photoCanvas, preset, sheetSize, orgId]);
+
   useEffect(() => {
     return () => {
       if (blobUrl) URL.revokeObjectURL(blobUrl);
@@ -125,8 +185,19 @@ export function PassportPrintSheet({
       </div>
 
       <Button onClick={handleDownload} size="sm">
-        Download Print Sheet
+        Download JPEG
       </Button>
+      <Button
+        variant="secondary"
+        size="sm"
+        onClick={handleDownloadPdf}
+        disabled={pdfLoading}
+      >
+        {pdfLoading ? "Generating PDF…" : "Download PDF"}
+      </Button>
+      {pdfError && (
+        <p className="text-xs text-red-500">{pdfError}</p>
+      )}
     </div>
   );
 }
