@@ -71,6 +71,13 @@ export interface PlanLimits {
   anomalyDetection: boolean;
   /** Max AI provider calls per calendar month (0 = not available) */
   aiRunsPerMonth: number;
+  // Phase 23: usage metering
+  /** Max concurrently-active portal sessions (0 = not available) */
+  activePortalSessions: number;
+  /** Max active share bundles at any given time (0 = not available) */
+  activeShareBundles: number;
+  /** Max pixel jobs saved to the document vault (0 = not available) */
+  pixelJobsSaved: number;
 }
 
 export interface PlanConfig {
@@ -143,6 +150,9 @@ export const PLAN_LIMITS: Record<PlanId, PlanLimits> = {
     documentIntelligence: false,
     anomalyDetection: false,
     aiRunsPerMonth: 0,
+    activePortalSessions: 5,
+    activeShareBundles: 10,
+    pixelJobsSaved: 20,
   },
   starter: {
     invoicesPerMonth: 100,
@@ -202,6 +212,9 @@ export const PLAN_LIMITS: Record<PlanId, PlanLimits> = {
     documentIntelligence: false,
     anomalyDetection: false,
     aiRunsPerMonth: 0,
+    activePortalSessions: 25,
+    activeShareBundles: 50,
+    pixelJobsSaved: 200,
   },
   pro: {
     invoicesPerMonth: 1000,
@@ -261,6 +274,9 @@ export const PLAN_LIMITS: Record<PlanId, PlanLimits> = {
     documentIntelligence: true,
     anomalyDetection: true,
     aiRunsPerMonth: 200,
+    activePortalSessions: 200,
+    activeShareBundles: 500,
+    pixelJobsSaved: 2000,
   },
   enterprise: {
     invoicesPerMonth: -1, // unlimited
@@ -320,6 +336,9 @@ export const PLAN_LIMITS: Record<PlanId, PlanLimits> = {
     documentIntelligence: true,
     anomalyDetection: true,
     aiRunsPerMonth: Infinity,
+    activePortalSessions: -1,
+    activeShareBundles: -1,
+    pixelJobsSaved: -1,
   },
 };
 

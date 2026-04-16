@@ -43,7 +43,7 @@ export async function extractImagesFromPdf(
       const ctx = canvas.getContext("2d");
       if (!ctx) continue;
 
-      await page.render({ canvasContext: ctx, viewport }).promise;
+      await page.render({ canvas, viewport }).promise;
 
       // Extract image bitmaps via the operator list
       const opList = await page.getOperatorList();
@@ -80,11 +80,11 @@ export async function extractImagesFromPdf(
         if (!imgCtx) continue;
 
         if (imgObj.data) {
-          const imageData = new ImageData(
-            new Uint8ClampedArray(imgObj.data.buffer ?? imgObj.data),
-            w,
-            h,
-          );
+          const rawData =
+            imgObj.data instanceof Uint8ClampedArray
+              ? imgObj.data
+              : new Uint8ClampedArray(imgObj.data as ArrayBuffer);
+          const imageData = new ImageData(rawData as unknown as Uint8ClampedArray<ArrayBuffer>, w, h);
           imgCtx.putImageData(imageData, 0, 0);
         }
 

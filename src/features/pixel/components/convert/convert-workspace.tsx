@@ -169,7 +169,7 @@ export function ConvertWorkspace() {
                     </p>
                     <Button
                       size="sm"
-                      variant="outline"
+                      variant="secondary"
                       className="ml-4 shrink-0"
                       onClick={() => handleDownloadSingle(entry)}
                     >
