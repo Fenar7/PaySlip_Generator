@@ -138,6 +138,10 @@ model Organization {
   shareAccessLogs              ShareAccessLog[]
   // Phase 22: Portal Analytics
   externalAccessEvents         ExternalAccessEvent[]
+  // Phase 23: SW Pixel + Usage Metering
+  pixelJobRecords              PixelJobRecord[]
+  usageEvents                  UsageEvent[]
+  orgUsageSnapshots            OrgUsageSnapshot[]
 
   @@map("organization")
 }
@@ -4032,4 +4036,111 @@ model RecipientVerification {
   @@index([sharedDocumentId, recipientEmail])
   @@index([tokenHash])
   @@map("recipient_verification")
+}
+
+// ─── Phase 23 Sprint 23.1: SW Pixel Models ───────────────────────────────────
+
+/// Tool type for a SW Pixel processing job.
+enum PixelToolType {
+  PASSPORT_PHOTO
+  RESIZE
+  COMPRESS
+  ADJUST
+  FORMAT_CONVERT
+  PRINT_SHEET
+
+  @@map("pixel_tool_type")
+}
+
+/// Tracks SW Pixel processing jobs for authenticated users.
+/// Used for history view at /app/pixel/history.
+/// Public (unauthenticated) jobs are not recorded.
+/// Added: Phase 23 Sprint 23.1
+model PixelJobRecord {
+  id             String        @id @default(cuid())
+  orgId          String
+  userId         String        @db.Uuid
+  toolType       PixelToolType
+  inputFileName  String
+  outputFileName String?
+  /// Preset ID used for passport photo jobs (e.g. "india-passport").
+  presetId       String?
+  /// S3/storage path if the output was saved to the document vault.
+  storagePath    String?
+  fileSizeBytes  Int?
+  createdAt      DateTime      @default(now())
+  /// Null means the record never expires; set to TTL for ephemeral jobs.
+  expiresAt      DateTime?
+
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@index([orgId, userId, createdAt])
+  @@index([orgId, toolType, createdAt])
+  @@map("pixel_job_record")
+}
+
+// ─── Phase 23 Sprint 23.5: Usage Metering Models ─────────────────────────────
+
+/// Metered resource types for per-org usage tracking.
+enum UsageResource {
+  INVOICE
+  QUOTE
+  VOUCHER
+  SALARY_SLIP
+  FILE_STORAGE_BYTES
+  TEAM_MEMBER
+  WEBHOOK_CALL
+  PORTAL_SESSION
+  SHARE_BUNDLE
+  PIXEL_JOB_SAVED
+
+  @@map("usage_resource")
+}
+
+/// Append-only usage event log.
+/// The source of truth from which OrgUsageSnapshot records are derived.
+/// Never updated or deleted — only inserted.
+/// Added: Phase 23 Sprint 23.5
+model UsageEvent {
+  id         String        @id @default(cuid())
+  orgId      String
+  resource   UsageResource
+  /// +1 for creation, -1 for deletion/archive.
+  delta      Int
+  /// Optional reference to the created/deleted entity for traceability.
+  entityId   String?
+  recordedAt DateTime      @default(now())
+
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@index([orgId, resource, recordedAt])
+  @@map("usage_event")
+}
+
+/// Per-org billing-period usage snapshot.
+/// Computed nightly by the /api/cron/usage-snapshot cron job.
+/// One record per org per billing period (calendar month).
+/// Added: Phase 23 Sprint 23.5
+model OrgUsageSnapshot {
+  id                   String   @id @default(cuid())
+  orgId                String
+  periodStart          DateTime
+  periodEnd            DateTime
+  activeInvoices       Int      @default(0)
+  activeQuotes         Int      @default(0)
+  vouchers             Int      @default(0)
+  salarySlips          Int      @default(0)
+  storageBytes         BigInt   @default(0)
+  teamMembers          Int      @default(0)
+  webhookCallsMonthly  Int      @default(0)
+  activePortalSessions Int      @default(0)
+  activeShareBundles   Int      @default(0)
+  pixelJobsSaved       Int      @default(0)
+  lastComputedAt       DateTime @default(now())
+
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@unique([orgId, periodStart])
+  @@index([orgId, periodStart])
+  @@map("org_usage_snapshot")
 }
