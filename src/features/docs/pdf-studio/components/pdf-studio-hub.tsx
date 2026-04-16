@@ -86,8 +86,15 @@ const convertTools: ToolCard[] = [
     title: "PDF to Image",
     description: "Export PDF pages as JPG or PNG images",
     icon: "🖼️",
-    href: "#",
-    available: false,
+    href: "/app/docs/pdf-studio/pdf-to-image",
+    available: true,
+  },
+  {
+    title: "Extract Images",
+    description: "Pull embedded raster images out of a PDF file",
+    icon: "🗂️",
+    href: "/app/docs/pdf-studio/extract-images",
+    available: true,
   },
 ];
 
