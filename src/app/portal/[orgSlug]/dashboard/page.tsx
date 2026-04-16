@@ -50,7 +50,7 @@ export default async function PortalDashboardPage({
       select: { name: true, email: true },
     }),
     db.orgDefaults.findUnique({
-      where: { orgId: session.orgId },
+      where: { organizationId: session.orgId },
       select: { portalQuoteAcceptanceEnabled: true },
     }),
     db.invoice.findMany({
@@ -241,9 +241,7 @@ export default async function PortalDashboardPage({
                       </Link>
                     </td>
                     <td className="px-6 py-3 text-slate-600">
-                      {inv.invoiceDate instanceof Date
-                        ? inv.invoiceDate.toLocaleDateString("en-IN")
-                        : String(inv.invoiceDate)}
+                      {inv.invoiceDate}
                     </td>
                     <td className="px-6 py-3 font-medium text-slate-900">{formatCurrency(inv.totalAmount)}</td>
                     <td className="px-6 py-3">

@@ -141,6 +141,18 @@ export async function generatePortalStatement(
   const session = await requireSession();
   await resolveOrgId(orgSlug, session.orgId);
 
+  // Enforce portalEnabled + portalStatementEnabled policy
+  const orgDefaults = await db.orgDefaults.findUnique({
+    where: { organizationId: session.orgId },
+    select: { portalEnabled: true, portalStatementEnabled: true },
+  });
+  if (!orgDefaults?.portalEnabled) {
+    throw new Error("Portal is not enabled for this organization");
+  }
+  if (!orgDefaults.portalStatementEnabled) {
+    throw new Error("Statement generation is not enabled for this portal");
+  }
+
   const from = new Date(fromDate);
   const to = new Date(toDate);
 
@@ -376,7 +388,7 @@ export async function getPortalQuoteDetail(orgSlug: string, quoteId: string) {
         },
       }),
       db.orgDefaults.findUnique({
-        where: { orgId: session.orgId },
+        where: { organizationId: session.orgId },
         select: { portalQuoteAcceptanceEnabled: true },
       }),
     ]);
@@ -415,11 +427,14 @@ export async function acceptPortalQuote(
     const session = await requireSession();
     await resolveOrgId(orgSlug, session.orgId);
 
-    // Check policy
+    // Check portal enabled + policy
     const orgDefaults = await db.orgDefaults.findUnique({
-      where: { orgId: session.orgId },
-      select: { portalQuoteAcceptanceEnabled: true },
+      where: { organizationId: session.orgId },
+      select: { portalEnabled: true, portalQuoteAcceptanceEnabled: true },
     });
+    if (!orgDefaults?.portalEnabled) {
+      return { success: false, error: "Portal is not available" };
+    }
     if (!orgDefaults?.portalQuoteAcceptanceEnabled) {
       return { success: false, error: "Quote acceptance is not enabled for this portal" };
     }
@@ -470,11 +485,14 @@ export async function declinePortalQuote(
     const session = await requireSession();
     await resolveOrgId(orgSlug, session.orgId);
 
-    // Check policy
+    // Check portal enabled + policy
     const orgDefaults = await db.orgDefaults.findUnique({
-      where: { orgId: session.orgId },
-      select: { portalQuoteAcceptanceEnabled: true },
+      where: { organizationId: session.orgId },
+      select: { portalEnabled: true, portalQuoteAcceptanceEnabled: true },
     });
+    if (!orgDefaults?.portalEnabled) {
+      return { success: false, error: "Portal is not available" };
+    }
     if (!orgDefaults?.portalQuoteAcceptanceEnabled) {
       return { success: false, error: "Quote responses are not enabled for this portal" };
     }

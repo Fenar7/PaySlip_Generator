@@ -4,7 +4,8 @@ import { getPortalSession } from "@/lib/portal-auth";
 import { db } from "@/lib/db";
 import { PortalProfileForm } from "./profile-form";
 
-function formatDate(date: Date) {
+function formatDate(date: Date | null | undefined) {
+  if (!date) return "—";
   return new Date(date).toLocaleString("en-IN", {
     day: "2-digit",
     month: "short",
