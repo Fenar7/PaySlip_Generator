@@ -51,6 +51,9 @@ export async function getPublicInvoice(token: string) {
           paymentPromiseDate: invoice.paymentPromiseDate ?? null,
           notes: invoice.notes,
           paidAt: invoice.paidAt?.toISOString() ?? null,
+          razorpayPaymentLinkUrl: invoice.razorpayPaymentLinkUrl ?? null,
+          paymentLinkStatus: invoice.paymentLinkStatus ?? null,
+          paymentLinkExpiresAt: invoice.paymentLinkExpiresAt?.toISOString() ?? null,
           formData,
           lineItems: invoice.lineItems.map((li) => ({
             id: li.id,

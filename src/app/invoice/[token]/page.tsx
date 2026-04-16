@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { getPublicInvoice, markAsViewed } from "./actions";
 import { ProofUploadForm } from "@/features/pay/components/proof-upload-form";
+import { PublicPayButton } from "./pay-button";
 
 const STATUS_COLORS: Record<string, string> = {
   DRAFT: "bg-slate-100 text-slate-700",
@@ -320,6 +321,16 @@ export default async function PublicInvoicePage({
           </div>
         )}
       </div>
+
+      {/* Pay Online — Razorpay Payment Link */}
+      {!isPaid && invoice.razorpayPaymentLinkUrl && (
+        <PublicPayButton
+          paymentLinkUrl={invoice.razorpayPaymentLinkUrl}
+          paymentLinkStatus={invoice.paymentLinkStatus}
+          paymentLinkExpiresAt={invoice.paymentLinkExpiresAt}
+          remainingAmount={invoice.remainingAmount || invoice.totalAmount}
+        />
+      )}
 
       {/* Upload Payment Proof Section */}
       {!isPaid && (

@@ -9,6 +9,7 @@ import {
   disputeInvoice,
   recordPayment,
 } from "../actions";
+import { createPaymentLink, cancelPaymentLink } from "../payment-link-actions";
 
 function formatCurrency(amount: number) {
   return new Intl.NumberFormat("en-IN", {
@@ -378,7 +379,16 @@ export function InvoiceDetailClient({
             {invoiceSummary.paymentLinkStatus && (
               <div className="flex justify-between items-center">
                 <span className="text-slate-500">Status</span>
-                <span className="inline-flex items-center rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-700">
+                <span
+                  className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${
+                    invoiceSummary.paymentLinkStatus === "paid"
+                      ? "bg-green-100 text-green-700"
+                      : invoiceSummary.paymentLinkStatus === "expired" ||
+                        invoiceSummary.paymentLinkStatus === "cancelled"
+                      ? "bg-slate-100 text-slate-500"
+                      : "bg-blue-100 text-blue-700"
+                  }`}
+                >
                   {invoiceSummary.paymentLinkStatus}
                 </span>
               </div>
@@ -395,19 +405,37 @@ export function InvoiceDetailClient({
                 <span className="text-slate-700">{new Date(invoiceSummary.paymentLinkLastEventAt).toLocaleDateString("en-IN")}</span>
               </div>
             )}
-            <div className="pt-1 border-t border-slate-200">
-              <p className="text-xs text-slate-500 mb-1 truncate">{invoiceSummary.razorpayPaymentLinkUrl}</p>
-              <button
-                type="button"
-                onClick={() => navigator.clipboard.writeText(invoiceSummary.razorpayPaymentLinkUrl!)}
-                className="text-xs text-blue-600 hover:text-blue-800 font-medium"
-              >
-                Copy Link
-              </button>
+            <div className="pt-1 border-t border-slate-200 space-y-2">
+              <p className="text-xs text-slate-500 truncate">{invoiceSummary.razorpayPaymentLinkUrl}</p>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => navigator.clipboard.writeText(invoiceSummary.razorpayPaymentLinkUrl!)}
+                  className="text-xs text-blue-600 hover:text-blue-800 font-medium"
+                >
+                  Copy Link
+                </button>
+                {invoiceSummary.paymentLinkStatus &&
+                  ["created", "partially_paid"].includes(invoiceSummary.paymentLinkStatus) && (
+                    <GatewayLinkActions
+                      invoiceId={invoiceId}
+                      mode="cancel"
+                    />
+                  )}
+              </div>
             </div>
           </div>
         </div>
       )}
+
+      {/* Create Payment Link button — shown when no active link exists */}
+      {!invoiceSummary?.razorpayPaymentLinkUrl ||
+        (invoiceSummary.paymentLinkStatus &&
+          !["created", "partially_paid"].includes(invoiceSummary.paymentLinkStatus)) ? (
+        ["ISSUED", "DUE", "OVERDUE", "PARTIALLY_PAID"].includes(status) && (
+          <GatewayLinkActions invoiceId={invoiceId} mode="create" />
+        )
+      ) : null}
 
       {/* Timeline */}
       <div>
@@ -415,5 +443,68 @@ export function InvoiceDetailClient({
         <InvoiceTimeline events={events} />
       </div>
     </div>
+  );
+}
+
+function GatewayLinkActions({
+  invoiceId,
+  mode,
+}: {
+  invoiceId: string;
+  mode: "create" | "cancel";
+}) {
+  const [isPending, startTransition] = useTransition();
+  const [result, setResult] = useState<{ ok: boolean; message: string } | null>(null);
+
+  function handleCreate() {
+    startTransition(async () => {
+      const res = await createPaymentLink(invoiceId);
+      if (res.success) {
+        setResult({ ok: true, message: "Payment link created." });
+        // Trigger full page reload to show the new link
+        window.location.reload();
+      } else {
+        setResult({ ok: false, message: res.error });
+      }
+    });
+  }
+
+  function handleCancel() {
+    if (!confirm("Cancel this payment link? The customer will no longer be able to pay via this link.")) return;
+    startTransition(async () => {
+      const res = await cancelPaymentLink(invoiceId);
+      if (res.success) {
+        window.location.reload();
+      } else {
+        setResult({ ok: false, message: res.error });
+      }
+    });
+  }
+
+  return (
+    <span className="inline-flex items-center gap-2">
+      {mode === "create" ? (
+        <button
+          type="button"
+          onClick={handleCreate}
+          disabled={isPending}
+          className="inline-flex items-center rounded-md bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+        >
+          {isPending ? "Creating…" : "Create Payment Link"}
+        </button>
+      ) : (
+        <button
+          type="button"
+          onClick={handleCancel}
+          disabled={isPending}
+          className="text-xs text-red-600 hover:text-red-800 font-medium disabled:opacity-50"
+        >
+          {isPending ? "Cancelling…" : "Cancel Link"}
+        </button>
+      )}
+      {result && !result.ok && (
+        <span className="text-xs text-red-600">{result.message}</span>
+      )}
+    </span>
   );
 }
