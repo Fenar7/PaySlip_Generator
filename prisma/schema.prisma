@@ -92,6 +92,7 @@ model Organization {
   dunningOptOuts               DunningOptOut[]
   portalTokens                 CustomerPortalToken[]
   portalAccessLogs             CustomerPortalAccessLog[]
+  portalSessions               CustomerPortalSession[]
   statements                   CustomerStatement[]
   quotes                       Quote[]
   arrangements                 PaymentArrangement[]
@@ -214,13 +215,21 @@ model OrgDefaults {
   portalHeaderMessage String?
   portalSupportEmail  String?
   portalSupportPhone  String?
+
+  // Phase 22: Portal policies
+  portalMagicLinkExpiryHours   Int     @default(24)
+  portalSessionExpiryHours     Int     @default(24)
+  portalProofUploadEnabled     Boolean @default(false)
+  portalTicketCreationEnabled  Boolean @default(true)
+  portalStatementEnabled       Boolean @default(true)
+  portalQuoteAcceptanceEnabled Boolean @default(false)
   // Phase 14: Quotes
-  quotePrefix         String  @default("QTE")
-  quoteCounter        Int     @default(1)
-  quoteValidityDays   Int     @default(14)
-  quoteHeaderLabel    String  @default("QUOTE")
+  quotePrefix                  String  @default("QTE")
+  quoteCounter                 Int     @default(1)
+  quoteValidityDays            Int     @default(14)
+  quoteHeaderLabel             String  @default("QUOTE")
   // Phase 14: Dunning
-  defaultDunningSeqId String?
+  defaultDunningSeqId          String?
 
   // Phase 15.2: i18n + Country
   defaultLanguage    String   @default("en")
@@ -865,6 +874,7 @@ model Customer {
   dunningOptOuts   DunningOptOut[]
   portalTokens     CustomerPortalToken[]
   portalAccessLogs CustomerPortalAccessLog[]
+  portalSessions   CustomerPortalSession[]
   statements       CustomerStatement[]
   quotes           Quote[]
   arrangements     PaymentArrangement[]
@@ -2733,15 +2743,52 @@ model CustomerPortalAccessLog {
   orgId      String
   customerId String
   path       String
+  action     String?
   ip         String?
   userAgent  String?
+  statusCode Int?
   accessedAt DateTime @default(now())
 
   org      Organization @relation(fields: [orgId], references: [id])
   customer Customer     @relation(fields: [customerId], references: [id])
 
   @@index([customerId, orgId])
+  @@index([orgId, accessedAt])
   @@map("customer_portal_access_log")
+}
+
+// ─── Phase 22: Portal sessions (revocable, JTI-tracked) ──────────────────────
+
+model CustomerPortalSession {
+  id         String    @id @default(cuid())
+  orgId      String
+  customerId String
+  jti        String    @unique
+  issuedAt   DateTime  @default(now())
+  expiresAt  DateTime
+  revokedAt  DateTime?
+  lastSeenAt DateTime?
+  ip         String?
+  userAgent  String?
+
+  org      Organization @relation(fields: [orgId], references: [id])
+  customer Customer     @relation(fields: [customerId], references: [id])
+
+  @@index([customerId, orgId])
+  @@index([orgId, revokedAt])
+  @@map("customer_portal_session")
+}
+
+// ─── Phase 22: Durable portal rate-limit buckets ─────────────────────────────
+
+model PortalRateLimit {
+  id        String   @id @default(cuid())
+  key       String   @unique
+  count     Int      @default(1)
+  windowEnd DateTime
+
+  @@index([key, windowEnd])
+  @@map("portal_rate_limit")
 }
 
 model CustomerStatement {
