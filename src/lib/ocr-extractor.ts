@@ -2,9 +2,22 @@ import "server-only";
 
 import { db } from "@/lib/db";
 
+/** Per-field confidence score, 0.0–1.0. */
+export interface FieldConfidence {
+  vendorName: number;
+  vendorGST: number;
+  amount: number;
+  taxAmount: number;
+  invoiceDate: number;
+  invoiceNumber: number;
+}
+
 export interface ExtractedDocument {
   type: "invoice" | "receipt" | "unknown";
+  /** Overall document-level confidence. */
   confidence: number;
+  /** Per-field confidence scores returned by the model. */
+  fieldConfidence: FieldConfidence;
   extracted: {
     vendorName: string | null;
     vendorGST: string | null;
@@ -19,12 +32,24 @@ export interface ExtractedDocument {
     }>;
   };
   ocrJobId: string;
+  /** Set to true when the extraction timed out after 30 seconds. */
+  timedOut?: boolean;
 }
+
+const EXTRACTION_TIMEOUT_MS = 30_000;
 
 const EXTRACTION_PROMPT = `Extract invoice/receipt data from this image. Return JSON with:
 {
   "type": "invoice" or "receipt",
-  "confidence": 0.0-1.0 (how confident you are in the extraction),
+  "confidence": 0.0-1.0 (overall confidence in extraction),
+  "fieldConfidence": {
+    "vendorName": 0.0-1.0,
+    "vendorGST": 0.0-1.0,
+    "amount": 0.0-1.0,
+    "taxAmount": 0.0-1.0,
+    "invoiceDate": 0.0-1.0,
+    "invoiceNumber": 0.0-1.0
+  },
   "vendorName": "string or null",
   "vendorGST": "string or null (15-char GSTIN if visible)",
   "amount": number or null (total amount before tax, in rupees),
@@ -33,8 +58,32 @@ const EXTRACTION_PROMPT = `Extract invoice/receipt data from this image. Return 
   "invoiceNumber": "string or null",
   "lineItems": [{"description": "string", "quantity": number, "unitPrice": number}]
 }
-If a field is not found, set it to null. For lineItems, return an empty array if none found.
+For each field in fieldConfidence: 1.0 = clearly visible and high confidence, 0.5 = partially visible, 0.0 = not found.
+If a value field is not found, set it to null and set its fieldConfidence to 0.0.
 Return ONLY the JSON object, no markdown or explanation.`;
+
+const NULL_FIELD_CONFIDENCE: FieldConfidence = {
+  vendorName: 0,
+  vendorGST: 0,
+  amount: 0,
+  taxAmount: 0,
+  invoiceDate: 0,
+  invoiceNumber: 0,
+};
+
+function parseFieldConfidence(raw: unknown): FieldConfidence {
+  if (!raw || typeof raw !== "object") return NULL_FIELD_CONFIDENCE;
+  const r = raw as Record<string, unknown>;
+  const clamp = (v: unknown) => Math.min(1, Math.max(0, Number(v ?? 0)));
+  return {
+    vendorName: clamp(r.vendorName),
+    vendorGST: clamp(r.vendorGST),
+    amount: clamp(r.amount),
+    taxAmount: clamp(r.taxAmount),
+    invoiceDate: clamp(r.invoiceDate),
+    invoiceNumber: clamp(r.invoiceNumber),
+  };
+}
 
 /**
  * Extract structured data from a document image using OpenAI GPT-4o vision.
@@ -68,6 +117,7 @@ export async function extractDocument(
     return {
       type: "unknown",
       confidence: 0,
+      fieldConfidence: NULL_FIELD_CONFIDENCE,
       extracted: {
         vendorName: null,
         vendorGST: null,
@@ -81,9 +131,13 @@ export async function extractDocument(
     };
   }
 
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), EXTRACTION_TIMEOUT_MS);
+
   try {
     const response = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
+      signal: controller.signal,
       headers: {
         Authorization: `Bearer ${apiKey}`,
         "Content-Type": "application/json",
@@ -115,6 +169,7 @@ export async function extractDocument(
     }
 
     const data = await response.json();
+    clearTimeout(timeoutId);
     const content: string = data.choices?.[0]?.message?.content ?? "";
 
     // Strip markdown code fences if present
@@ -139,10 +194,8 @@ export async function extractDocument(
         : [],
     };
 
-    const confidence = Math.min(
-      1,
-      Math.max(0, Number(parsed.confidence ?? 0.5)),
-    );
+    const confidence = Math.min(1, Math.max(0, Number(parsed.confidence ?? 0.5)));
+    const fieldConfidence = parseFieldConfidence(parsed.fieldConfidence);
 
     await db.ocrJob.update({
       where: { id: ocrJob.id },
@@ -157,12 +210,22 @@ export async function extractDocument(
     return {
       type: parsed.type === "receipt" ? "receipt" : "invoice",
       confidence,
+      fieldConfidence,
       extracted,
       ocrJobId: ocrJob.id,
     };
   } catch (error) {
-    const message =
-      error instanceof Error ? error.message : "Unknown extraction error";
+    clearTimeout(timeoutId);
+
+    const isTimeout =
+      error instanceof Error &&
+      (error.name === "AbortError" || error.message.includes("aborted"));
+
+    const message = isTimeout
+      ? "OCR extraction timed out after 30 seconds"
+      : error instanceof Error
+        ? error.message
+        : "Unknown extraction error";
 
     await db.ocrJob.update({
       where: { id: ocrJob.id },
@@ -176,6 +239,7 @@ export async function extractDocument(
     return {
       type: "unknown",
       confidence: 0,
+      fieldConfidence: NULL_FIELD_CONFIDENCE,
       extracted: {
         vendorName: null,
         vendorGST: null,
@@ -186,6 +250,7 @@ export async function extractDocument(
         lineItems: [],
       },
       ocrJobId: ocrJob.id,
+      timedOut: isTimeout,
     };
   }
 }
