@@ -5,7 +5,14 @@ import { db } from "@/lib/db";
 import {
   getPortalSession,
   requestMagicLink,
+  logPortalAccess,
 } from "@/lib/portal-auth";
+
+// ─── Types ─────────────────────────────────────────────────────────────────────
+
+export type PortalActionResult<T> =
+  | { success: true; data: T }
+  | { success: false; error: string };
 
 // ─── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -13,6 +20,16 @@ async function requireSession() {
   const session = await getPortalSession();
   if (!session) redirect("/portal");
   return session;
+}
+
+async function resolveOrgId(orgSlug: string, expectedOrgId: string): Promise<void> {
+  const org = await db.organization.findUnique({
+    where: { slug: orgSlug },
+    select: { id: true },
+  });
+  if (!org || org.id !== expectedOrgId) {
+    throw new Error("Unauthorized");
+  }
 }
 
 function formatCurrency(amount: number) {
@@ -43,14 +60,7 @@ export async function requestPortalMagicLink(email: string, orgSlug: string) {
 
 export async function getPortalInvoices(orgSlug: string) {
   const session = await requireSession();
-
-  const org = await db.organization.findUnique({
-    where: { slug: orgSlug },
-    select: { id: true },
-  });
-  if (!org || org.id !== session.orgId) {
-    throw new Error("Unauthorized");
-  }
+  await resolveOrgId(orgSlug, session.orgId);
 
   const invoices = await db.invoice.findMany({
     where: {
@@ -81,14 +91,7 @@ export async function getPortalInvoiceDetail(
   invoiceId: string,
 ) {
   const session = await requireSession();
-
-  const org = await db.organization.findUnique({
-    where: { slug: orgSlug },
-    select: { id: true },
-  });
-  if (!org || org.id !== session.orgId) {
-    throw new Error("Unauthorized");
-  }
+  await resolveOrgId(orgSlug, session.orgId);
 
   const invoice = await db.invoice.findFirst({
     where: {
@@ -118,13 +121,11 @@ export async function getPortalInvoiceDetail(
 
   if (!invoice) return null;
 
-  // Log portal access
-  await db.customerPortalAccessLog.create({
-    data: {
-      orgId: session.orgId,
-      customerId: session.customerId,
-      path: `/portal/${orgSlug}/invoices/${invoiceId}`,
-    },
+  logPortalAccess({
+    orgId: session.orgId,
+    customerId: session.customerId,
+    path: `/portal/${orgSlug}/invoices/${invoiceId}`,
+    action: "view_invoice",
   });
 
   return invoice;
@@ -138,14 +139,7 @@ export async function generatePortalStatement(
   toDate: string,
 ) {
   const session = await requireSession();
-
-  const org = await db.organization.findUnique({
-    where: { slug: orgSlug },
-    select: { id: true },
-  });
-  if (!org || org.id !== session.orgId) {
-    throw new Error("Unauthorized");
-  }
+  await resolveOrgId(orgSlug, session.orgId);
 
   const from = new Date(fromDate);
   const to = new Date(toDate);
@@ -193,13 +187,11 @@ export async function generatePortalStatement(
     },
   });
 
-  // Log portal access
-  await db.customerPortalAccessLog.create({
-    data: {
-      orgId: session.orgId,
-      customerId: session.customerId,
-      path: `/portal/${orgSlug}/statements`,
-    },
+  logPortalAccess({
+    orgId: session.orgId,
+    customerId: session.customerId,
+    path: `/portal/${orgSlug}/statements`,
+    action: "generate_statement",
   });
 
   return {
@@ -224,14 +216,7 @@ export async function updatePortalProfile(
   data: { phone?: string; address?: string },
 ) {
   const session = await requireSession();
-
-  const org = await db.organization.findUnique({
-    where: { slug: orgSlug },
-    select: { id: true },
-  });
-  if (!org || org.id !== session.orgId) {
-    throw new Error("Unauthorized");
-  }
+  await resolveOrgId(orgSlug, session.orgId);
 
   await db.customer.update({
     where: {
@@ -244,12 +229,11 @@ export async function updatePortalProfile(
     },
   });
 
-  await db.customerPortalAccessLog.create({
-    data: {
-      orgId: session.orgId,
-      customerId: session.customerId,
-      path: `/portal/${orgSlug}/profile/update`,
-    },
+  logPortalAccess({
+    orgId: session.orgId,
+    customerId: session.customerId,
+    path: `/portal/${orgSlug}/profile/update`,
+    action: "update_profile",
   });
 
   return { success: true };
@@ -262,14 +246,7 @@ export async function initiatePortalPayment(
   invoiceId: string,
 ) {
   const session = await requireSession();
-
-  const org = await db.organization.findUnique({
-    where: { slug: orgSlug },
-    select: { id: true },
-  });
-  if (!org || org.id !== session.orgId) {
-    throw new Error("Unauthorized");
-  }
+  await resolveOrgId(orgSlug, session.orgId);
 
   // IDOR check: invoice must belong to this customer + org
   const invoice = await db.invoice.findFirst({
@@ -304,22 +281,239 @@ export async function initiatePortalPayment(
     return { alreadyPaid: false, url: invoice.razorpayPaymentLinkUrl };
   }
 
-  // Otherwise, the UI should direct to the public invoice page for payment
+  // Otherwise, direct to public invoice page for payment
   const publicToken = await db.publicInvoiceToken.findFirst({
     where: { invoiceId: invoice.id },
     select: { token: true },
   });
 
-  await db.customerPortalAccessLog.create({
-    data: {
-      orgId: session.orgId,
-      customerId: session.customerId,
-      path: `/portal/${orgSlug}/invoices/${invoiceId}/pay`,
-    },
+  logPortalAccess({
+    orgId: session.orgId,
+    customerId: session.customerId,
+    path: `/portal/${orgSlug}/invoices/${invoiceId}/pay`,
+    action: "initiate_payment",
   });
 
   return {
     alreadyPaid: false,
     url: publicToken ? `/invoice/${publicToken.token}` : null,
   };
+}
+
+// ─── 7. Get Portal Quotes ──────────────────────────────────────────────────────
+
+export interface PortalQuoteListItem {
+  id: string;
+  quoteNumber: string;
+  title: string;
+  status: string;
+  issueDate: Date;
+  validUntil: Date;
+  totalAmount: number;
+  acceptedAt: Date | null;
+  declinedAt: Date | null;
+}
+
+export async function getPortalQuotes(
+  orgSlug: string,
+): Promise<PortalActionResult<PortalQuoteListItem[]>> {
+  try {
+    const session = await requireSession();
+    await resolveOrgId(orgSlug, session.orgId);
+
+    const quotes = await db.quote.findMany({
+      where: {
+        orgId: session.orgId,
+        customerId: session.customerId,
+        status: { not: "DRAFT" },
+      },
+      orderBy: { createdAt: "desc" },
+      select: {
+        id: true,
+        quoteNumber: true,
+        title: true,
+        status: true,
+        issueDate: true,
+        validUntil: true,
+        totalAmount: true,
+        acceptedAt: true,
+        declinedAt: true,
+      },
+    });
+
+    logPortalAccess({
+      orgId: session.orgId,
+      customerId: session.customerId,
+      path: `/portal/${orgSlug}/quotes`,
+      action: "list_quotes",
+    });
+
+    return { success: true, data: quotes };
+  } catch (err) {
+    return { success: false, error: err instanceof Error ? err.message : "Failed to load quotes" };
+  }
+}
+
+// ─── 8. Get Portal Quote Detail ────────────────────────────────────────────────
+
+export async function getPortalQuoteDetail(orgSlug: string, quoteId: string) {
+  try {
+    const session = await requireSession();
+    await resolveOrgId(orgSlug, session.orgId);
+
+    const [quote, orgDefaults] = await Promise.all([
+      db.quote.findFirst({
+        where: {
+          id: quoteId,
+          orgId: session.orgId,
+          customerId: session.customerId,
+          status: { not: "DRAFT" },
+        },
+        include: {
+          lineItems: { orderBy: { sortOrder: "asc" } },
+          org: { select: { name: true } },
+          customer: { select: { name: true, email: true } },
+        },
+      }),
+      db.orgDefaults.findUnique({
+        where: { orgId: session.orgId },
+        select: { portalQuoteAcceptanceEnabled: true },
+      }),
+    ]);
+
+    if (!quote) return { success: false as const, error: "not_found" as const };
+
+    logPortalAccess({
+      orgId: session.orgId,
+      customerId: session.customerId,
+      path: `/portal/${orgSlug}/quotes/${quoteId}`,
+      action: "view_quote",
+    });
+
+    return {
+      success: true as const,
+      data: {
+        ...quote,
+        canRespond:
+          (orgDefaults?.portalQuoteAcceptanceEnabled ?? false) &&
+          quote.status === "SENT" &&
+          quote.validUntil >= new Date(),
+      },
+    };
+  } catch (err) {
+    return { success: false as const, error: err instanceof Error ? err.message : "Failed to load quote" };
+  }
+}
+
+// ─── 9. Accept Portal Quote ────────────────────────────────────────────────────
+
+export async function acceptPortalQuote(
+  orgSlug: string,
+  quoteId: string,
+): Promise<PortalActionResult<{ quoteNumber: string }>> {
+  try {
+    const session = await requireSession();
+    await resolveOrgId(orgSlug, session.orgId);
+
+    // Check policy
+    const orgDefaults = await db.orgDefaults.findUnique({
+      where: { orgId: session.orgId },
+      select: { portalQuoteAcceptanceEnabled: true },
+    });
+    if (!orgDefaults?.portalQuoteAcceptanceEnabled) {
+      return { success: false, error: "Quote acceptance is not enabled for this portal" };
+    }
+
+    // IDOR + state check
+    const quote = await db.quote.findFirst({
+      where: {
+        id: quoteId,
+        orgId: session.orgId,
+        customerId: session.customerId,
+        status: "SENT",
+        validUntil: { gte: new Date() },
+      },
+      select: { id: true, quoteNumber: true },
+    });
+
+    if (!quote) {
+      return { success: false, error: "Quote not available for acceptance" };
+    }
+
+    const updated = await db.quote.update({
+      where: { id: quote.id },
+      data: { status: "ACCEPTED", acceptedAt: new Date() },
+      select: { quoteNumber: true },
+    });
+
+    logPortalAccess({
+      orgId: session.orgId,
+      customerId: session.customerId,
+      path: `/portal/${orgSlug}/quotes/${quoteId}/accept`,
+      action: "accept_quote",
+    });
+
+    return { success: true, data: { quoteNumber: updated.quoteNumber } };
+  } catch (err) {
+    return { success: false, error: err instanceof Error ? err.message : "Failed to accept quote" };
+  }
+}
+
+// ─── 10. Decline Portal Quote ──────────────────────────────────────────────────
+
+export async function declinePortalQuote(
+  orgSlug: string,
+  quoteId: string,
+  reason?: string,
+): Promise<PortalActionResult<{ quoteNumber: string }>> {
+  try {
+    const session = await requireSession();
+    await resolveOrgId(orgSlug, session.orgId);
+
+    // Check policy
+    const orgDefaults = await db.orgDefaults.findUnique({
+      where: { orgId: session.orgId },
+      select: { portalQuoteAcceptanceEnabled: true },
+    });
+    if (!orgDefaults?.portalQuoteAcceptanceEnabled) {
+      return { success: false, error: "Quote responses are not enabled for this portal" };
+    }
+
+    // IDOR + state check
+    const quote = await db.quote.findFirst({
+      where: {
+        id: quoteId,
+        orgId: session.orgId,
+        customerId: session.customerId,
+        status: "SENT",
+        validUntil: { gte: new Date() },
+      },
+      select: { id: true, quoteNumber: true },
+    });
+
+    if (!quote) {
+      return { success: false, error: "Quote not available for response" };
+    }
+
+    const updated = await db.quote.update({
+      where: { id: quote.id },
+      data: {
+        status: "DECLINED",
+        declinedAt: new Date(),
+        declineReason: reason ?? null,
+      },
+      select: { quoteNumber: true },
+    });
+
+    logPortalAccess({
+      orgId: session.orgId,
+      customerId: session.customerId,
+      path: `/portal/${orgSlug}/quotes/${quoteId}/decline`,
+      action: "decline_quote",
+    });
+
+    return { success: true, data: { quoteNumber: updated.quoteNumber } };
+  } catch (err) {
+    return { success: false, error: err instanceof Error ? err.message : "Failed to decline quote" };
+  }
 }

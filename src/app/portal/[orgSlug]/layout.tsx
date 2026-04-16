@@ -1,4 +1,3 @@
-import { notFound } from "next/navigation";
 import Link from "next/link";
 import { db } from "@/lib/db";
 
@@ -23,6 +22,7 @@ export default async function PortalLayout({
           portalHeaderMessage: true,
           portalSupportEmail: true,
           portalSupportPhone: true,
+          portalQuoteAcceptanceEnabled: true,
         },
       },
     },
@@ -101,6 +101,14 @@ export default async function PortalLayout({
             >
               Statements
             </Link>
+            {defaults.portalQuoteAcceptanceEnabled && (
+              <Link
+                href={`/portal/${orgSlug}/quotes`}
+                className="rounded-lg px-3 py-2 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-900"
+              >
+                Quotes
+              </Link>
+            )}
             <Link
               href={`/portal/${orgSlug}/tickets`}
               className="rounded-lg px-3 py-2 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-900"
@@ -132,6 +140,9 @@ export default async function PortalLayout({
               <Link href={`/portal/${orgSlug}/dashboard`} className="block px-4 py-2 text-sm text-slate-700 hover:bg-slate-50">Dashboard</Link>
               <Link href={`/portal/${orgSlug}/invoices`} className="block px-4 py-2 text-sm text-slate-700 hover:bg-slate-50">Invoices</Link>
               <Link href={`/portal/${orgSlug}/statements`} className="block px-4 py-2 text-sm text-slate-700 hover:bg-slate-50">Statements</Link>
+              {defaults.portalQuoteAcceptanceEnabled && (
+                <Link href={`/portal/${orgSlug}/quotes`} className="block px-4 py-2 text-sm text-slate-700 hover:bg-slate-50">Quotes</Link>
+              )}
               <Link href={`/portal/${orgSlug}/tickets`} className="block px-4 py-2 text-sm text-slate-700 hover:bg-slate-50">Support</Link>
               <Link href={`/portal/${orgSlug}/profile`} className="block px-4 py-2 text-sm text-slate-700 hover:bg-slate-50">Profile</Link>
               <hr className="my-1 border-slate-100" />
