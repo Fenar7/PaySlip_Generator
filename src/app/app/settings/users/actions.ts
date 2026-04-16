@@ -6,6 +6,7 @@ import { requirePermission } from "@/lib/permissions-server";
 import { sendEmail } from "@/lib/email";
 import { inviteEmailHtml } from "@/lib/email-templates/invite-email";
 import { revalidatePath } from "next/cache";
+import { checkUsageLimit } from "@/lib/usage-metering";
 
 export type ActionResult = { success: boolean; error?: string };
 
@@ -81,6 +82,14 @@ export async function inviteUser(data: {
   try {
     const { orgId, userId } = await requireOrgContext();
     await requirePermission(orgId, userId, "settings_users", "create");
+
+    const limitCheck = await checkUsageLimit(orgId, "TEAM_MEMBER");
+    if (!limitCheck.allowed) {
+      return {
+        success: false,
+        error: `Team member limit reached (${limitCheck.current}/${limitCheck.limit}). Upgrade your plan to invite more members.`,
+      };
+    }
 
     const existing = await db.member.findFirst({
       where: {

@@ -3,6 +3,7 @@ import { PDFDocument, rgb, StandardFonts } from "pdf-lib";
 import { PASSPORT_PRESETS } from "@/features/pixel/data/passport-presets";
 import { db } from "@/lib/db";
 import { redis } from "@/lib/redis-client";
+import { recordUsageEvent } from "@/lib/usage-metering";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -68,7 +69,10 @@ export async function POST(request: NextRequest) {
   if (await isRateLimited(ip)) {
     return NextResponse.json(
       { error: "Too many requests. Please wait a minute and try again." },
-      { status: 429 },
+      {
+        status: 429,
+        headers: { "Retry-After": String(RATE_LIMIT_WINDOW_SECONDS) },
+      },
     );
   }
 
@@ -216,19 +220,11 @@ export async function POST(request: NextRequest) {
 
     // Log usage event (fire-and-forget, do not block response)
     if (orgId) {
-      void db.usageEvent
-        .create({
-          data: {
-            id: crypto.randomUUID(),
-            orgId,
-            resource: "PIXEL_JOB_SAVED",
-            delta: 1,
-            entityId: `pdf:${presetId}:${paperSize}`,
-          },
-        })
-        .catch(() => {
+      void recordUsageEvent(orgId, "PIXEL_JOB_SAVED", 1, `pdf:${presetId}:${paperSize}`).catch(
+        () => {
           // Non-fatal
-        });
+        },
+      );
     }
 
     return new NextResponse(Buffer.from(pdfBytes), {

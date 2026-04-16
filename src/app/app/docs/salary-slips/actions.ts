@@ -8,6 +8,7 @@ import type { Prisma } from "@/generated/prisma/client";
 import { postSalarySlipAccrualTx, postSalarySlipPayoutTx } from "@/lib/accounting";
 import { emitSalarySlipEvent } from "@/lib/document-events";
 import { syncSalarySlipToIndex } from "@/lib/docs-vault";
+import { checkUsageLimit } from "@/lib/usage-metering";
 
 export type ActionResult<T> = 
   | { success: true; data: T }
@@ -33,6 +34,14 @@ export async function saveSalarySlip(
 ): Promise<ActionResult<{ id: string; slipNumber: string }>> {
   try {
     const { orgId, userId } = await requireOrgContext();
+
+    const limitCheck = await checkUsageLimit(orgId, "SALARY_SLIP");
+    if (!limitCheck.allowed) {
+      return {
+        success: false,
+        error: `Salary slip limit reached (${limitCheck.current}/${limitCheck.limit}). Upgrade your plan to create more salary slips.`,
+      };
+    }
     
     const slipNumber = await nextDocumentNumber(orgId, "salarySlip");
     
@@ -272,6 +281,14 @@ export async function archiveSalarySlip(id: string): Promise<ActionResult<void>>
 export async function duplicateSalarySlip(id: string): Promise<ActionResult<{ id: string; slipNumber: string }>> {
   try {
     const { orgId } = await requireOrgContext();
+
+    const limitCheck = await checkUsageLimit(orgId, "SALARY_SLIP");
+    if (!limitCheck.allowed) {
+      return {
+        success: false,
+        error: `Salary slip limit reached (${limitCheck.current}/${limitCheck.limit}). Upgrade your plan to create more salary slips.`,
+      };
+    }
     
     const existing = await db.salarySlip.findFirst({
       where: { id, organizationId: orgId },
