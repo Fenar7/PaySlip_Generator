@@ -100,10 +100,10 @@ async function buildChecklist(orgId: string): Promise<CheckItem[]> {
   const removeBranding = whiteLabel?.removeBranding === true;
   items.push({
     id: "white-label",
-    label: "\"Powered by Slipwise\" visibility",
+    label: "Powered by Slipwise visibility",
     description: removeBranding
       ? "White-label is active — the Slipwise branding is hidden from customers."
-      : "The \"Powered by Slipwise\" badge is visible in the portal footer. Upgrade your plan to remove it.",
+      : "The &apos;Powered by Slipwise&apos; badge is visible in the portal footer. Upgrade your plan to remove it.",
     status: removeBranding ? "pass" : "warn",
     actionHref: removeBranding ? undefined : "/app/settings/billing",
     actionLabel: removeBranding ? undefined : "Upgrade plan",
@@ -149,7 +149,7 @@ export default async function PortalReadinessPage() {
       <div>
         <h1 className="text-2xl font-semibold text-gray-900">Portal Readiness Checklist</h1>
         <p className="mt-1 text-sm text-gray-500">
-          Review what's needed to provide a complete, branded client portal experience.
+          Review what&apos;s needed to provide a complete, branded client portal experience.
         </p>
       </div>
 

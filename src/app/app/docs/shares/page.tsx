@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { formatDistanceToNow } from "date-fns";
-import { Share2, Package, ExternalLink, Lock, CheckCircle, XCircle, Clock } from "lucide-react";
+import { Share2, Package, ExternalLink, CheckCircle, XCircle, Clock } from "lucide-react";
 import { listShareLinks, listBundles } from "./actions";
 
 export const metadata = { title: "Share Center – Slipwise" };
