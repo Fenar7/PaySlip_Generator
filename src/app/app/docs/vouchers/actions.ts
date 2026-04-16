@@ -8,6 +8,7 @@ import type { Prisma } from "@/generated/prisma/client";
 import { postVoucherTx } from "@/lib/accounting";
 import { emitVoucherEvent } from "@/lib/document-events";
 import { syncVoucherToIndex } from "@/lib/docs-vault";
+import { checkUsageLimit } from "@/lib/usage-metering";
 
 export type ActionResult<T> = 
   | { success: true; data: T }
@@ -37,6 +38,14 @@ export async function saveVoucher(
 ): Promise<ActionResult<{ id: string; voucherNumber: string }>> {
   try {
     const { orgId, userId } = await requireOrgContext();
+
+    const limitCheck = await checkUsageLimit(orgId, "VOUCHER");
+    if (!limitCheck.allowed) {
+      return {
+        success: false,
+        error: `Voucher limit reached (${limitCheck.current}/${limitCheck.limit}). Upgrade your plan to create more vouchers.`,
+      };
+    }
     
     const voucherNumber = await nextDocumentNumber(orgId, "voucher");
     
@@ -225,6 +234,14 @@ export async function archiveVoucher(id: string): Promise<ActionResult<void>> {
 export async function duplicateVoucher(id: string): Promise<ActionResult<{ id: string; voucherNumber: string }>> {
   try {
     const { orgId } = await requireOrgContext();
+
+    const limitCheck = await checkUsageLimit(orgId, "VOUCHER");
+    if (!limitCheck.allowed) {
+      return {
+        success: false,
+        error: `Voucher limit reached (${limitCheck.current}/${limitCheck.limit}). Upgrade your plan to create more vouchers.`,
+      };
+    }
     
     const existing = await db.voucher.findFirst({
       where: { id, organizationId: orgId },

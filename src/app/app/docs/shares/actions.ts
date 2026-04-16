@@ -6,6 +6,7 @@ import { nanoid } from "nanoid";
 import { db } from "@/lib/db";
 import { requireOrgContext, requireRole } from "@/lib/auth";
 import { logAudit } from "@/lib/audit";
+import { checkUsageLimit } from "@/lib/usage-metering";
 import type { SharedDocumentStatus, ShareBundleStatus } from "@/generated/prisma/client";
 
 type ActionResult<T> = { success: true; data: T } | { success: false; error: string };
@@ -212,6 +213,14 @@ export async function createBundle(
   input: CreateBundleInput
 ): Promise<ActionResult<BundleData>> {
   const { orgId, userId } = await requireOrgContext();
+
+  const limitCheck = await checkUsageLimit(orgId, "SHARE_BUNDLE");
+  if (!limitCheck.allowed) {
+    return {
+      success: false,
+      error: `Share bundle limit reached (${limitCheck.current}/${limitCheck.limit}). Upgrade your plan to create more share bundles.`,
+    };
+  }
 
   if (input.shareIds.length === 0) {
     return { success: false, error: "At least one share link is required" };

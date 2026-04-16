@@ -11,6 +11,7 @@ import { postInvoiceIssueTx, postInvoicePaymentTx, reverseJournalEntryTx } from 
 import { fireWorkflowTrigger } from "@/lib/flow/workflow-engine";
 import { emitInvoiceEvent } from "@/lib/document-events";
 import { syncInvoiceToIndex } from "@/lib/docs-vault";
+import { checkUsageLimit } from "@/lib/usage-metering";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -95,6 +96,14 @@ export async function saveInvoice(
 ): Promise<ActionResult<{ id: string; invoiceNumber: string }>> {
   try {
     const { orgId, userId } = await requireOrgContext();
+
+    const limitCheck = await checkUsageLimit(orgId, "INVOICE");
+    if (!limitCheck.allowed) {
+      return {
+        success: false,
+        error: `Invoice limit reached (${limitCheck.current}/${limitCheck.limit}). Upgrade your plan to create more invoices.`,
+      };
+    }
 
     const invoiceNumber = await nextDocumentNumber(orgId, "invoice");
 
@@ -343,6 +352,14 @@ export async function duplicateInvoice(
 ): Promise<ActionResult<{ id: string; invoiceNumber: string }>> {
   try {
     const { orgId } = await requireOrgContext();
+
+    const limitCheck = await checkUsageLimit(orgId, "INVOICE");
+    if (!limitCheck.allowed) {
+      return {
+        success: false,
+        error: `Invoice limit reached (${limitCheck.current}/${limitCheck.limit}). Upgrade your plan to create more invoices.`,
+      };
+    }
 
     const existing = await db.invoice.findFirst({
       where: { id, organizationId: orgId },

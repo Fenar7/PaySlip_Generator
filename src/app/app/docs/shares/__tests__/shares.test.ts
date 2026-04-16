@@ -28,12 +28,23 @@ const mockDb = vi.hoisted(() => ({
   shareBundleItem: { create: vi.fn() },
   shareAccessLog: { create: vi.fn() },
   auditLog: { create: vi.fn() },
+  orgUsageSnapshot: { findFirst: vi.fn(), upsert: vi.fn() },
+  invoice: { count: vi.fn() },
+  quote: { count: vi.fn() },
+  voucher: { count: vi.fn() },
+  salarySlip: { count: vi.fn() },
+  fileAttachment: { aggregate: vi.fn() },
+  member: { count: vi.fn() },
+  usageEvent: { count: vi.fn(), create: vi.fn() },
+  customerPortalSession: { count: vi.fn() },
+  pixelJobRecord: { count: vi.fn() },
 }));
 
 const mockRequireOrgContext = vi.hoisted(() => vi.fn());
 const mockRequireRole = vi.hoisted(() => vi.fn());
 const mockLogAudit = vi.hoisted(() => vi.fn());
 const mockRevalidatePath = vi.hoisted(() => vi.fn());
+const mockGetOrgPlan = vi.hoisted(() => vi.fn());
 
 vi.mock("@/lib/db", () => ({ db: mockDb }));
 vi.mock("@/lib/auth", () => ({
@@ -43,6 +54,7 @@ vi.mock("@/lib/auth", () => ({
 vi.mock("@/lib/audit", () => ({ logAudit: mockLogAudit }));
 vi.mock("next/cache", () => ({ revalidatePath: mockRevalidatePath }));
 vi.mock("server-only", () => ({}));
+vi.mock("@/lib/plans/enforcement", () => ({ getOrgPlan: mockGetOrgPlan }));
 
 // ─── Imports under test ───────────────────────────────────────────────────────
 
@@ -264,6 +276,19 @@ describe("createBundle", () => {
     vi.clearAllMocks();
     mockRequireOrgContext.mockResolvedValue({ orgId: ORG_A, userId: USER_ID });
     mockLogAudit.mockResolvedValue(undefined);
+    // Default: limit check passes (under limit)
+    mockDb.orgUsageSnapshot.findFirst.mockResolvedValue({
+      id: "snap1", orgId: ORG_A, periodStart: new Date(), periodEnd: new Date(),
+      activeInvoices: 0, activeQuotes: 0, vouchers: 0, salarySlips: 0,
+      storageBytes: BigInt(0), teamMembers: 1, webhookCallsMonthly: 0,
+      activePortalSessions: 0, activeShareBundles: 0, pixelJobsSaved: 0,
+      lastComputedAt: new Date(),
+    });
+    mockGetOrgPlan.mockResolvedValue({
+      planId: "pro", status: "active",
+      limits: { activeShareBundles: -1 } as never,
+      trialEndsAt: null,
+    });
   });
 
   it("rejects empty shareIds", async () => {
