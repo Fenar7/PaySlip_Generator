@@ -16,6 +16,12 @@ export default async function PortalLayout({
       id: true,
       name: true,
       logo: true,
+      branding: {
+        select: { logoUrl: true, accentColor: true, fontFamily: true, fontColor: true },
+      },
+      whiteLabel: {
+        select: { removeBranding: true },
+      },
       defaults: {
         select: {
           portalEnabled: true,
@@ -49,14 +55,34 @@ export default async function PortalLayout({
     );
   }
 
-  const { defaults } = org;
+  const { defaults, branding, whiteLabel } = org;
+
+  // Build dynamic brand CSS variables — fall back to sensible defaults
+  const accentColor = branding?.accentColor ?? "#2563eb";
+  const fontFamily = branding?.fontFamily ? `'${branding.fontFamily}', sans-serif` : "inherit";
+  const fontColor = branding?.fontColor ?? "#0f172a";
+  const logoUrl = branding?.logoUrl ?? org.logo;
+  const showPoweredBy = !whiteLabel?.removeBranding;
+
+  const brandStyle = `
+    :root {
+      --portal-accent: ${accentColor};
+      --portal-font: ${fontFamily};
+      --portal-text: ${fontColor};
+    }
+    .portal-accent-bg { background-color: var(--portal-accent); }
+    .portal-accent-text { color: var(--portal-accent); }
+    .portal-font { font-family: var(--portal-font); color: var(--portal-text); }
+  `;
 
   return (
-    <div className="flex min-h-screen flex-col bg-slate-50">
+    <div className="portal-font flex min-h-screen flex-col bg-slate-50">
+      <style dangerouslySetInnerHTML={{ __html: brandStyle }} />
+
       {/* Header */}
       <header className="border-b border-slate-200 bg-white">
         {defaults.portalHeaderMessage && (
-          <div className="bg-blue-600 px-4 py-2 text-center text-xs font-medium text-white">
+          <div className="portal-accent-bg px-4 py-2 text-center text-xs font-medium text-white">
             {defaults.portalHeaderMessage}
           </div>
         )}
@@ -65,15 +91,15 @@ export default async function PortalLayout({
             href={`/portal/${orgSlug}/dashboard`}
             className="flex items-center gap-3"
           >
-            {org.logo ? (
+            {logoUrl ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img
-                src={org.logo}
+                src={logoUrl}
                 alt={`${org.name} logo`}
-                className="h-8 w-8 rounded-lg object-contain"
+                className="h-8 w-auto max-w-[120px] object-contain"
               />
             ) : (
-              <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-slate-900 text-sm font-bold text-white">
+              <span className="portal-accent-bg flex h-8 w-8 items-center justify-center rounded-lg text-sm font-bold text-white">
                 {org.name.charAt(0)}
               </span>
             )}
@@ -182,6 +208,14 @@ export default async function PortalLayout({
                   </a>
                 )}
               </div>
+            )}
+            {showPoweredBy && (
+              <p className="text-xs text-slate-400">
+                Powered by{" "}
+                <a href="https://slipwise.in" target="_blank" rel="noopener noreferrer" className="portal-accent-text hover:underline font-medium">
+                  Slipwise
+                </a>
+              </p>
             )}
           </div>
         </div>
