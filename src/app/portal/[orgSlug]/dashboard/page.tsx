@@ -1,9 +1,9 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import { getPortalSession } from "@/lib/portal-auth";
+import { getPortalSession, logPortalAccess } from "@/lib/portal-auth";
 import { db } from "@/lib/db";
 
-const STATUS_COLORS: Record<string, string> = {
+const INVOICE_STATUS_COLORS: Record<string, string> = {
   DRAFT: "bg-slate-100 text-slate-700",
   ISSUED: "bg-blue-100 text-blue-700",
   VIEWED: "bg-purple-100 text-purple-700",
@@ -34,10 +34,24 @@ export default async function PortalDashboardPage({
   const session = await getPortalSession();
   if (!session) redirect(`/portal/${orgSlug}/auth/login`);
 
-  const [customer, recentInvoices, outstandingAgg] = await Promise.all([
+  const now = new Date();
+
+  const [
+    customer,
+    orgDefaults,
+    recentInvoices,
+    outstandingAgg,
+    overdueCount,
+    openTicketsCount,
+    pendingQuotesCount,
+  ] = await Promise.all([
     db.customer.findUnique({
       where: { id: session.customerId },
       select: { name: true, email: true },
+    }),
+    db.orgDefaults.findUnique({
+      where: { orgId: session.orgId },
+      select: { portalQuoteAcceptanceEnabled: true },
     }),
     db.invoice.findMany({
       where: {
@@ -65,18 +79,40 @@ export default async function PortalDashboardPage({
       },
       _sum: { remainingAmount: true },
     }),
+    db.invoice.count({
+      where: {
+        organizationId: session.orgId,
+        customerId: session.customerId,
+        status: "OVERDUE",
+      },
+    }),
+    db.invoiceTicket.count({
+      where: {
+        orgId: session.orgId,
+        status: { in: ["OPEN", "IN_PROGRESS"] },
+        invoice: { customerId: session.customerId },
+      },
+    }),
+    db.quote.count({
+      where: {
+        orgId: session.orgId,
+        customerId: session.customerId,
+        status: "SENT",
+        validUntil: { gte: now },
+      },
+    }),
   ]);
 
   const outstandingBalance = outstandingAgg._sum.remainingAmount ?? 0;
 
-  // Log portal access
-  await db.customerPortalAccessLog.create({
-    data: {
-      orgId: session.orgId,
-      customerId: session.customerId,
-      path: `/portal/${orgSlug}/dashboard`,
-    },
+  logPortalAccess({
+    orgId: session.orgId,
+    customerId: session.customerId,
+    path: `/portal/${orgSlug}/dashboard`,
+    action: "view_dashboard",
   });
+
+  const showQuotes = orgDefaults?.portalQuoteAcceptanceEnabled ?? false;
 
   return (
     <div className="space-y-6">
@@ -91,7 +127,7 @@ export default async function PortalDashboardPage({
       </div>
 
       {/* Summary Cards */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {/* Outstanding Balance */}
         <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
           <p className="text-xs font-medium uppercase tracking-wider text-slate-400">
@@ -100,41 +136,55 @@ export default async function PortalDashboardPage({
           <p className={`mt-2 text-2xl font-bold ${outstandingBalance > 0 ? "text-red-600" : "text-green-600"}`}>
             {formatCurrency(outstandingBalance)}
           </p>
+          {overdueCount > 0 && (
+            <p className="mt-1 text-xs font-medium text-red-500">
+              {overdueCount} overdue {overdueCount === 1 ? "invoice" : "invoices"}
+            </p>
+          )}
         </div>
 
-        {/* Quick Actions */}
+        {/* Open Tickets */}
         <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
-          <p className="text-xs font-medium uppercase tracking-wider text-slate-400 mb-3">
-            Quick Actions
+          <p className="text-xs font-medium uppercase tracking-wider text-slate-400">
+            Support Tickets
           </p>
-          <div className="flex flex-col gap-2">
+          <p className={`mt-2 text-2xl font-bold ${openTicketsCount > 0 ? "text-amber-600" : "text-slate-700"}`}>
+            {openTicketsCount}
+          </p>
+          <p className="mt-1 text-xs text-slate-400">open {openTicketsCount === 1 ? "ticket" : "tickets"}</p>
+          <Link
+            href={`/portal/${orgSlug}/tickets`}
+            className="mt-2 inline-flex text-xs font-medium text-blue-600 hover:text-blue-700"
+          >
+            View tickets →
+          </Link>
+        </div>
+
+        {/* Pending Quotes */}
+        {showQuotes && (
+          <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+            <p className="text-xs font-medium uppercase tracking-wider text-slate-400">
+              Pending Quotes
+            </p>
+            <p className={`mt-2 text-2xl font-bold ${pendingQuotesCount > 0 ? "text-blue-600" : "text-slate-700"}`}>
+              {pendingQuotesCount}
+            </p>
+            <p className="mt-1 text-xs text-slate-400">awaiting response</p>
             <Link
-              href={`/portal/${orgSlug}/invoices`}
-              className="inline-flex items-center gap-2 rounded-lg bg-blue-50 px-3 py-2 text-sm font-medium text-blue-700 transition-colors hover:bg-blue-100"
+              href={`/portal/${orgSlug}/quotes`}
+              className="mt-2 inline-flex text-xs font-medium text-blue-600 hover:text-blue-700"
             >
-              <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
-              </svg>
-              View All Invoices
-            </Link>
-            <Link
-              href={`/portal/${orgSlug}/statements`}
-              className="inline-flex items-center gap-2 rounded-lg bg-slate-50 px-3 py-2 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-100"
-            >
-              <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 12h16.5m-16.5 3.75h16.5M3.75 19.5h16.5M5.625 4.5h12.75a1.875 1.875 0 010 3.75H5.625a1.875 1.875 0 010-3.75z" />
-              </svg>
-              View Statement
+              View quotes →
             </Link>
           </div>
-        </div>
+        )}
 
-        {/* Account Info */}
-        <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm sm:col-span-2 lg:col-span-1">
+        {/* Account */}
+        <div className={`rounded-xl border border-slate-200 bg-white p-6 shadow-sm ${showQuotes ? "" : "sm:col-span-2 lg:col-span-1"}`}>
           <p className="text-xs font-medium uppercase tracking-wider text-slate-400 mb-3">
             Account
           </p>
-          <p className="text-sm font-medium text-slate-900">{customer?.name}</p>
+          <p className="text-sm font-semibold text-slate-900">{customer?.name}</p>
           {customer?.email && (
             <p className="text-sm text-slate-500">{customer.email}</p>
           )}
@@ -164,7 +214,7 @@ export default async function PortalDashboardPage({
         {recentInvoices.length === 0 ? (
           <div className="px-6 py-12 text-center">
             <svg className="mx-auto mb-3 h-10 w-10 text-slate-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m6.75 12H9.75m3 0h3m-3 0h-3m-2.25 0H9.75m0 0H6.75m11.25-12H9.75M5.625 3.375h12.75c.621 0 1.125.504 1.125 1.125v15c0 .621-.504 1.125-1.125 1.125H5.625a1.125 1.125 0 01-1.125-1.125v-15c0-.621.504-1.125 1.125-1.125z" />
+              <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m6.75 12H9.75m3 0h3m-3 0h-3m-2.25 0H9.75m0 0H6.75m11.25-12H9.75" />
             </svg>
             <p className="text-sm text-slate-500">No invoices yet</p>
           </div>
@@ -190,10 +240,14 @@ export default async function PortalDashboardPage({
                         #{inv.invoiceNumber}
                       </Link>
                     </td>
-                    <td className="px-6 py-3 text-slate-600">{inv.invoiceDate}</td>
+                    <td className="px-6 py-3 text-slate-600">
+                      {inv.invoiceDate instanceof Date
+                        ? inv.invoiceDate.toLocaleDateString("en-IN")
+                        : String(inv.invoiceDate)}
+                    </td>
                     <td className="px-6 py-3 font-medium text-slate-900">{formatCurrency(inv.totalAmount)}</td>
                     <td className="px-6 py-3">
-                      <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${STATUS_COLORS[inv.status] || "bg-slate-100 text-slate-700"}`}>
+                      <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${INVOICE_STATUS_COLORS[inv.status] ?? "bg-slate-100 text-slate-700"}`}>
                         {inv.status.replace(/_/g, " ")}
                       </span>
                     </td>

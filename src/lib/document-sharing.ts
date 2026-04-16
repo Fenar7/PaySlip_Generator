@@ -2,6 +2,7 @@ import "server-only";
 
 import { db } from "@/lib/db";
 import { nanoid } from "nanoid";
+import { headers } from "next/headers";
 
 export async function createShareLink(params: {
   orgId: string;
@@ -9,6 +10,9 @@ export async function createShareLink(params: {
   docId: string;
   createdBy: string;
   expiresInHours?: number;
+  downloadAllowed?: boolean;
+  recipientEmail?: string;
+  recipientName?: string;
 }): Promise<{ shareToken: string; shareUrl: string }> {
   const shareToken = nanoid(24);
   const expiresAt = params.expiresInHours
@@ -22,6 +26,9 @@ export async function createShareLink(params: {
       docId: params.docId,
       shareToken,
       expiresAt,
+      downloadAllowed: params.downloadAllowed ?? true,
+      recipientEmail: params.recipientEmail ?? null,
+      recipientName: params.recipientName ?? null,
       createdBy: params.createdBy,
     },
   });
@@ -41,16 +48,33 @@ export async function getSharedDocument(shareToken: string) {
 
   if (!shared) return null;
 
-  // Check expiry
-  if (shared.expiresAt && shared.expiresAt < new Date()) {
+  // Reject on any non-ACTIVE status
+  if (shared.status !== "ACTIVE") {
     return null;
   }
 
-  // Increment view count
-  await db.sharedDocument.update({
-    where: { id: shared.id },
-    data: { viewCount: { increment: 1 } },
-  });
+  // Check expiry — also mark as EXPIRED in DB so status is consistent
+  if (shared.expiresAt && shared.expiresAt < new Date()) {
+    await db.sharedDocument.update({
+      where: { id: shared.id },
+      data: { status: "EXPIRED" },
+    });
+    return null;
+  }
+
+  const hdrs = await headers();
+  const ip = hdrs.get("x-forwarded-for") ?? hdrs.get("x-real-ip") ?? null;
+  const ua = hdrs.get("user-agent") ?? null;
+
+  await Promise.all([
+    db.sharedDocument.update({
+      where: { id: shared.id },
+      data: { viewCount: { increment: 1 } },
+    }),
+    db.shareAccessLog.create({
+      data: { orgId: shared.orgId, sharedDocumentId: shared.id, event: "VIEWED", ip, userAgent: ua },
+    }),
+  ]);
 
   return shared;
 }
@@ -60,9 +84,21 @@ export async function revokeShareLink(
   orgId: string,
 ): Promise<boolean> {
   try {
-    await db.sharedDocument.deleteMany({
+    const doc = await db.sharedDocument.findFirst({
       where: { shareToken, orgId },
+      select: { id: true },
     });
+    if (!doc) return false;
+
+    await db.sharedDocument.update({
+      where: { id: doc.id },
+      data: { status: "REVOKED", revokedAt: new Date() },
+    });
+
+    await db.shareAccessLog.create({
+      data: { orgId, sharedDocumentId: doc.id, event: "REVOKED" },
+    });
+
     return true;
   } catch {
     return false;
@@ -75,3 +111,4 @@ export async function getOrgSharedDocuments(orgId: string) {
     orderBy: { createdAt: "desc" },
   });
 }
+

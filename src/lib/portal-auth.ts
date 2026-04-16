@@ -298,6 +298,7 @@ export async function verifyMagicLink(
 }
 
 export interface PortalSession {
+  jti: string;
   customerId: string;
   orgId: string;
   orgSlug: string;
@@ -346,6 +347,7 @@ export async function getPortalSession(): Promise<PortalSession | null> {
     }
 
     return {
+      jti: payload.jti,
       customerId: payload.customerId,
       orgId: payload.orgId,
       orgSlug: payload.orgSlug,
