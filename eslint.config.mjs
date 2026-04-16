@@ -25,6 +25,10 @@ const eslintConfig = defineConfig([
     "patch_schema.js",
     "resolve.js",
     "resolver.js",
+    // Sentry bootstrap files — Sentry's star-re-exports cause irresolvable TS ambiguity;
+    // these are thin startup stubs verified at runtime, not application logic.
+    "instrumentation.ts",
+    "instrumentation-client.ts",
   ]),
 ]);
 

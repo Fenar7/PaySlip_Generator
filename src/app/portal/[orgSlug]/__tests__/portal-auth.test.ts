@@ -7,6 +7,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import crypto from "crypto";
 
 // ─── Hoisted mocks ────────────────────────────────────────────────────────────
 
@@ -118,8 +119,6 @@ function makePortalToken(overrides?: Partial<Record<string, unknown>>) {
 }
 
 function makeJwt(payload: Record<string, unknown>, secret = process.env.PORTAL_JWT_SECRET ?? "test-secret"): string {
-  // Build a valid JWT for testing (no crypto import needed — just use a real sign)
-  const crypto = require("crypto");
   function base64url(data: Buffer | string) {
     const buf = typeof data === "string" ? Buffer.from(data) : data;
     return buf.toString("base64url");

@@ -70,4 +70,8 @@ export const RATE_LIMITS = {
   api: { maxRequests: 60, window: "60 s" },
   export: { maxRequests: 10, window: "60 s" },
   auth: { maxRequests: 5, window: "60 s" },
+  // Phase 23: Pixel suite
+  pixelPrintSheet: { maxRequests: 10, window: "60 s" },
+  ocrExtract: { maxRequests: 5, window: "60 s" },
+  shareTokenValidation: { maxRequests: 20, window: "60 s" },
 } as const;

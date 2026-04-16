@@ -1,6 +1,7 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { getOrgContext } from "@/lib/auth";
 import { extractDocument } from "@/lib/ocr-extractor";
+import { rateLimitByOrg, RATE_LIMITS } from "@/lib/rate-limit";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -9,11 +10,25 @@ export const maxDuration = 60;
 const MAX_SIZE = 5 * 1024 * 1024; // 5 MB
 const ALLOWED_TYPES = ["image/jpeg", "image/png", "image/webp", "image/gif", "application/pdf"];
 
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
   try {
     const ctx = await getOrgContext();
     if (!ctx) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const rl = await rateLimitByOrg(ctx.orgId, RATE_LIMITS.ocrExtract);
+    if (!rl.success) {
+      return NextResponse.json(
+        { error: "Too many requests. Please wait before retrying." },
+        {
+          status: 429,
+          headers: {
+            "Retry-After": String(rl.retryAfter ?? 60),
+            "X-RateLimit-Remaining": "0",
+          },
+        },
+      );
     }
 
     const formData = await request.formData();

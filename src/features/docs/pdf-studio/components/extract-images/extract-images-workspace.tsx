@@ -140,14 +140,14 @@ export function ExtractImagesWorkspace() {
                   <p className="text-[10px] text-[#888]">
                     {img.width}×{img.height}
                   </p>
-                  <Badge variant="outline" className="mt-1 text-[10px]">
+                  <Badge variant="default" className="mt-1 text-[10px]">
                     PNG
                   </Badge>
                 </div>
                 <div className="border-t border-[#f0f0f0] p-2">
                   <Button
                     size="sm"
-                    variant="outline"
+                    variant="secondary"
                     className="w-full text-xs"
                     onClick={() => downloadSingle(img)}
                   >
