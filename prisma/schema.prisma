@@ -133,6 +133,11 @@ model Organization {
   customerHealthSnapshots      CustomerHealthSnapshot[]
   anomalyDetectionRuns         AnomalyDetectionRun[]
   aiUsageRecords               AiUsageRecord[]
+  // Phase 22: Share Center
+  shareBundles                 ShareBundle[]
+  shareAccessLogs              ShareAccessLog[]
+  // Phase 22: Portal Analytics
+  externalAccessEvents         ExternalAccessEvent[]
 
   @@map("organization")
 }
@@ -2212,23 +2217,130 @@ model Referral {
 
 // ─── Phase 11: Document Sharing ───────────────────────────────────────────────
 
-model SharedDocument {
-  id            String    @id @default(cuid())
-  orgId         String
-  docType       String
-  docId         String
-  shareToken    String    @unique
-  expiresAt     DateTime?
-  viewCount     Int       @default(0)
-  downloadCount Int       @default(0)
-  createdBy     String    @db.Uuid
-  createdAt     DateTime  @default(now())
+/// Lifecycle status for individual share links.
+enum SharedDocumentStatus {
+  ACTIVE
+  EXPIRED
+  REVOKED
+  DISABLED_BY_POLICY
 
-  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  @@map("shared_document_status")
+}
+
+/// Lifecycle status for share bundles.
+enum ShareBundleStatus {
+  ACTIVE
+  EXPIRED
+  REVOKED
+
+  @@map("share_bundle_status")
+}
+
+/// Event type for share access logs.
+enum ShareAccessEventType {
+  VIEWED
+  DOWNLOADED
+  EXPIRED
+  REVOKED
+  RECIPIENT_VERIFIED
+  VERIFICATION_FAILED
+  BLOCKED_BY_POLICY
+
+  @@map("share_access_event_type")
+}
+
+model SharedDocument {
+  id                   String               @id @default(cuid())
+  orgId                String
+  docType              String
+  docId                String
+  shareToken           String               @unique
+  status               SharedDocumentStatus @default(ACTIVE)
+  expiresAt            DateTime?
+  viewCount            Int                  @default(0)
+  downloadCount        Int                  @default(0)
+  downloadAllowed      Boolean              @default(true)
+  requiresVerification Boolean              @default(false)
+  recipientEmail       String?
+  recipientName        String?
+  notes                String?
+  revokedAt            DateTime?
+  revokedBy            String?              @db.Uuid
+  createdBy            String               @db.Uuid
+  createdAt            DateTime             @default(now())
+
+  organization Organization      @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  bundleItems  ShareBundleItem[]
+  accessLogs   ShareAccessLog[]
 
   @@index([shareToken])
   @@index([orgId, docType, docId])
+  @@index([orgId, status])
   @@map("shared_document")
+}
+
+/// A curated bundle of multiple shared documents under one access token.
+model ShareBundle {
+  id              String            @id @default(cuid())
+  orgId           String
+  token           String            @unique
+  title           String
+  description     String?
+  status          ShareBundleStatus @default(ACTIVE)
+  expiresAt       DateTime?
+  viewCount       Int               @default(0)
+  downloadAllowed Boolean           @default(true)
+  recipientEmail  String?
+  recipientName   String?
+  notes           String?
+  revokedAt       DateTime?
+  revokedBy       String?           @db.Uuid
+  createdBy       String            @db.Uuid
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+
+  organization Organization      @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  items        ShareBundleItem[]
+  accessLogs   ShareAccessLog[]
+
+  @@index([orgId, status])
+  @@map("share_bundle")
+}
+
+/// Junction linking a ShareBundle to individual SharedDocuments.
+model ShareBundleItem {
+  id               String @id @default(cuid())
+  bundleId         String
+  sharedDocumentId String
+  sortOrder        Int    @default(0)
+
+  bundle         ShareBundle    @relation(fields: [bundleId], references: [id], onDelete: Cascade)
+  sharedDocument SharedDocument @relation(fields: [sharedDocumentId], references: [id], onDelete: Cascade)
+
+  @@unique([bundleId, sharedDocumentId])
+  @@map("share_bundle_item")
+}
+
+/// Append-only log for share link and bundle access events.
+model ShareAccessLog {
+  id               String               @id @default(cuid())
+  orgId            String
+  sharedDocumentId String?
+  bundleId         String?
+  event            ShareAccessEventType
+  recipientEmail   String?
+  ip               String?
+  userAgent        String?
+  createdAt        DateTime             @default(now())
+
+  organization   Organization    @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  sharedDocument SharedDocument? @relation(fields: [sharedDocumentId], references: [id], onDelete: SetNull)
+  bundle         ShareBundle?    @relation(fields: [bundleId], references: [id], onDelete: SetNull)
+
+  @@index([orgId, createdAt])
+  @@index([sharedDocumentId])
+  @@index([bundleId])
+  @@map("share_access_log")
 }
 
 // ─── Phase 11: Onboarding Progress ───────────────────────────────────────────
@@ -3832,4 +3944,56 @@ model AiUsageRecord {
   @@index([orgId, feature, createdAt])
   @@index([orgId, createdAt])
   @@map("ai_usage_record")
+}
+
+// ─── Phase 22: Portal Analytics & Intelligence ───────────────────────────────
+
+/// External access event type for portal/share analytics.
+enum ExternalAccessEventType {
+  PORTAL_LOGIN
+  PORTAL_LOGOUT
+  PORTAL_SESSION_EXPIRED
+  PORTAL_SESSION_REVOKED
+  INVOICE_VIEWED
+  INVOICE_DOWNLOADED
+  STATEMENT_VIEWED
+  QUOTE_VIEWED
+  QUOTE_ACCEPTED
+  QUOTE_DECLINED
+  TICKET_VIEWED
+  TICKET_REPLY_SUBMITTED
+  PROOF_UPLOADED
+  DOCUMENT_SHARED
+  SHARE_VIEWED
+  SHARE_DOWNLOADED
+  SHARE_REVOKED
+  BUNDLE_VIEWED
+  BUNDLE_DOWNLOADED
+  UNUSUAL_ACCESS
+
+  @@map("external_access_event_type")
+}
+
+/// Append-only rollup event for customer portal and share analytics.
+/// Feeds Sprint 22.5 Intel signals.
+/// Added: Phase 22 Sprint 22.5
+model ExternalAccessEvent {
+  id           String                  @id @default(cuid())
+  orgId        String
+  customerId   String?
+  userId       String?                 @db.Uuid
+  eventType    ExternalAccessEventType
+  resourceType String?
+  resourceId   String?
+  metadata     Json?
+  ip           String?
+  userAgent    String?
+  createdAt    DateTime                @default(now())
+
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@index([orgId, eventType, createdAt])
+  @@index([orgId, customerId, createdAt])
+  @@index([orgId, createdAt])
+  @@map("external_access_event")
 }
