@@ -32,7 +32,7 @@ export async function recordExternalEvent(params: RecordExternalEventParams): Pr
         eventType: params.eventType,
         resourceType: params.resourceType ?? null,
         resourceId: params.resourceId ?? null,
-        metadata: params.metadata ?? undefined,
+        metadata: params.metadata ? (params.metadata as import("@/generated/prisma/client").Prisma.InputJsonValue) : undefined,
         ip: params.ip ?? null,
         userAgent: params.userAgent ?? null,
       },
@@ -115,7 +115,7 @@ export async function feedPortalAdoptionSignal(orgId: string): Promise<void> {
     if (recentLogins > 0) return;
 
     const portalEnabled = await db.orgDefaults.findFirst({
-      where: { orgId },
+      where: { organizationId: orgId },
       select: { portalEnabled: true },
     });
 
@@ -188,8 +188,8 @@ export async function feedOverdueUnviewedInvoiceSignal(orgId: string): Promise<v
     const overdueInvoices = await db.invoice.count({
       where: {
         organizationId: orgId,
-        status: { in: ["SENT", "PARTIAL"] },
-        dueDate: { lt: now },
+        status: { in: ["ISSUED", "VIEWED", "DUE", "PARTIALLY_PAID", "OVERDUE"] },
+        dueDate: { lt: now.toISOString().slice(0, 10) },
       },
     });
 

@@ -29,6 +29,8 @@ export interface ShareLinkData {
   id: string;
   shareToken: string;
   shareUrl: string;
+  docType: string;
+  docId: string;
   status: SharedDocumentStatus;
   expiresAt: Date | null;
   downloadAllowed: boolean;

@@ -34,7 +34,7 @@ export async function updatePortalSettings({
   portalSupportEmail: string;
   portalSupportPhone: string;
 }) {
-  const { orgId } = await requireOrgContext();
+  const { orgId, userId } = await requireOrgContext();
   await requireRole("admin");
   if (orgId !== organizationId) throw new Error("Unauthorized");
 
@@ -57,7 +57,7 @@ export async function updatePortalSettings({
 
   logAudit({
     orgId,
-    actorId: "admin",
+    actorId: userId,
     action: "portal.settings_updated",
     entityType: "Organization",
     entityId: orgId,
@@ -95,7 +95,7 @@ export async function updatePortalPolicies(
     portalQuoteAcceptanceEnabled?: boolean;
   },
 ) {
-  const { orgId } = await requireOrgContext();
+  const { orgId, userId } = await requireOrgContext();
   await requireRole("admin");
   if (orgId !== organizationId) throw new Error("Unauthorized");
 
@@ -122,7 +122,7 @@ export async function updatePortalPolicies(
 
   logAudit({
     orgId,
-    actorId: "admin",
+    actorId: userId,
     action: "portal.policies_updated",
     entityType: "Organization",
     entityId: orgId,
@@ -204,7 +204,7 @@ export async function revokeCustomerPortalAccess(
   organizationId: string,
   customerId: string,
 ) {
-  const { orgId } = await requireOrgContext();
+  const { orgId, userId } = await requireOrgContext();
   await requireRole("admin");
   if (orgId !== organizationId) throw new Error("Unauthorized");
 
@@ -229,7 +229,7 @@ export async function revokeCustomerPortalAccess(
 
   logAudit({
     orgId,
-    actorId: "admin",
+    actorId: userId,
     action: "portal.customer_access_revoked",
     entityType: "Customer",
     entityId: customerId,
@@ -248,7 +248,7 @@ export async function revokeCustomerPortalAccess(
 }
 
 export async function revokeAllPortalTokens(organizationId: string) {
-  const { orgId } = await requireOrgContext();
+  const { orgId, userId } = await requireOrgContext();
   await requireRole("admin");
   if (orgId !== organizationId) throw new Error("Unauthorized");
 
@@ -266,7 +266,7 @@ export async function revokeAllPortalTokens(organizationId: string) {
 
   logAudit({
     orgId,
-    actorId: "admin",
+    actorId: userId,
     action: "portal.all_access_revoked",
     entityType: "Organization",
     entityId: orgId,

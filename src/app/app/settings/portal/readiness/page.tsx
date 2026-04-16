@@ -34,7 +34,7 @@ async function buildChecklist(orgId: string): Promise<CheckItem[]> {
         },
       },
     }),
-    db.brandingProfile.findUnique({ where: { orgId } }),
+    db.brandingProfile.findUnique({ where: { organizationId: orgId } }),
     db.orgWhiteLabel.findUnique({ where: { orgId } }),
     db.orgDomain.findFirst({ where: { orgId } }),
     db.orgEmailDomain.findFirst({ where: { orgId } }),

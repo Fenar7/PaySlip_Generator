@@ -2269,9 +2269,10 @@ model SharedDocument {
   createdBy            String               @db.Uuid
   createdAt            DateTime             @default(now())
 
-  organization Organization      @relation(fields: [orgId], references: [id], onDelete: Cascade)
-  bundleItems  ShareBundleItem[]
-  accessLogs   ShareAccessLog[]
+  organization           Organization            @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  bundleItems            ShareBundleItem[]
+  accessLogs             ShareAccessLog[]
+  recipientVerifications RecipientVerification[]
 
   @@index([shareToken])
   @@index([orgId, docType, docId])
@@ -3996,4 +3997,39 @@ model ExternalAccessEvent {
   @@index([orgId, customerId, createdAt])
   @@index([orgId, createdAt])
   @@map("external_access_event")
+}
+
+// ─── Phase 22 Sprint 22.3: Recipient Verification ────────────────────────────
+
+/// State of a recipient verification attempt for a shared document.
+enum RecipientVerificationStatus {
+  PENDING
+  VERIFIED
+  EXPIRED
+  FAILED
+
+  @@map("recipient_verification_status")
+}
+
+/// Tracks email-token verification for shared documents that require
+/// explicit recipient identity confirmation before access is granted.
+/// One PENDING or VERIFIED record per (sharedDocumentId, recipientEmail).
+model RecipientVerification {
+  id               String                      @id @default(cuid())
+  sharedDocumentId String
+  recipientEmail   String
+  /// SHA-256 hash of the one-time verification token sent by email.
+  tokenHash        String                      @unique
+  status           RecipientVerificationStatus @default(PENDING)
+  expiresAt        DateTime
+  verifiedAt       DateTime?
+  failureCount     Int                         @default(0)
+  ip               String?
+  createdAt        DateTime                    @default(now())
+
+  sharedDocument SharedDocument @relation(fields: [sharedDocumentId], references: [id], onDelete: Cascade)
+
+  @@index([sharedDocumentId, recipientEmail])
+  @@index([tokenHash])
+  @@map("recipient_verification")
 }
