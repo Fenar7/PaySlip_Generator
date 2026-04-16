@@ -2,7 +2,9 @@ import type { Metadata } from "next";
 import Link from "next/link";
 
 export const metadata: Metadata = {
-  title: "Free Photo Tools",
+  title: "Free Photo & Image Tools | SW Pixel",
+  description:
+    "Free online image tools — passport photos, resize, compress, convert, and adjust. No account required.",
 };
 
 const TOOLS = [
@@ -11,7 +13,39 @@ const TOOLS = [
     icon: "🪪",
     title: "Passport Photo",
     description:
-      "Crop, adjust, and print-ready passport & visa photos for 13+ countries.",
+      "Crop, adjust, and print-ready passport & visa photos for 19+ countries.",
+    badge: "Free",
+  },
+  {
+    href: "/pixel/resize",
+    icon: "📐",
+    title: "Image Resizer",
+    description:
+      "Resize by dimensions, percentage, or preset. Batch resize and download as ZIP.",
+    badge: "Free",
+  },
+  {
+    href: "/pixel/compress",
+    icon: "🗜️",
+    title: "Image Compressor",
+    description:
+      "Reduce JPEG, PNG, and WebP file sizes without visible quality loss.",
+    badge: "Free",
+  },
+  {
+    href: "/pixel/convert",
+    icon: "🔄",
+    title: "Image Converter",
+    description:
+      "Convert between JPEG, PNG, and WebP formats in bulk. Download as ZIP.",
+    badge: "Free",
+  },
+  {
+    href: "/pixel/adjust",
+    icon: "🎛️",
+    title: "Image Adjuster",
+    description:
+      "Fine-tune brightness, contrast, and saturation with a live preview.",
     badge: "Free",
   },
 ];
@@ -21,10 +55,10 @@ export default function PixelHubPage() {
     <div className="space-y-10">
       <div className="text-center">
         <h1 className="text-3xl font-bold tracking-tight text-[#1a1a1a]">
-          Free Photo Tools
+          Free Photo & Image Tools
         </h1>
         <p className="mt-2 text-[#666]">
-          Professional-quality photo tools, no account required.
+          Professional-quality photo tools — no account required.
         </p>
       </div>
 
