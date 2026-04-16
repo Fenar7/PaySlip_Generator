@@ -1,8 +1,16 @@
 "use server";
+
 import { db } from "@/lib/db";
+import { requireOrgContext, requireRole } from "@/lib/auth";
+import { logAudit } from "@/lib/audit";
+
+// ─── Portal settings (read/write) ────────────────────────────────────────────
 
 export async function getPortalSettings(organizationId: string) {
-  const defaults = await db.orgDefaults.findUnique({
+  const { orgId } = await requireOrgContext();
+  if (orgId !== organizationId) throw new Error("Unauthorized");
+
+  return db.orgDefaults.findUnique({
     where: { organizationId },
     select: {
       portalEnabled: true,
@@ -11,7 +19,6 @@ export async function getPortalSettings(organizationId: string) {
       portalSupportPhone: true,
     },
   });
-  return defaults;
 }
 
 export async function updatePortalSettings({
@@ -27,6 +34,10 @@ export async function updatePortalSettings({
   portalSupportEmail: string;
   portalSupportPhone: string;
 }) {
+  const { orgId } = await requireOrgContext();
+  await requireRole("admin");
+  if (orgId !== organizationId) throw new Error("Unauthorized");
+
   await db.orgDefaults.upsert({
     where: { organizationId },
     create: {
@@ -43,16 +54,116 @@ export async function updatePortalSettings({
       portalSupportPhone: portalSupportPhone || null,
     },
   });
+
+  logAudit({
+    orgId,
+    actorId: "admin",
+    action: "portal.settings_updated",
+    entityType: "Organization",
+    entityId: orgId,
+    metadata: { portalEnabled },
+  }).catch(() => {});
 }
+
+// ─── Portal policies ──────────────────────────────────────────────────────────
+
+export async function getPortalPolicies(organizationId: string) {
+  const { orgId } = await requireOrgContext();
+  if (orgId !== organizationId) throw new Error("Unauthorized");
+
+  return db.orgDefaults.findUnique({
+    where: { organizationId },
+    select: {
+      portalMagicLinkExpiryHours: true,
+      portalSessionExpiryHours: true,
+      portalProofUploadEnabled: true,
+      portalTicketCreationEnabled: true,
+      portalStatementEnabled: true,
+      portalQuoteAcceptanceEnabled: true,
+    },
+  });
+}
+
+export async function updatePortalPolicies(
+  organizationId: string,
+  policies: {
+    portalMagicLinkExpiryHours?: number;
+    portalSessionExpiryHours?: number;
+    portalProofUploadEnabled?: boolean;
+    portalTicketCreationEnabled?: boolean;
+    portalStatementEnabled?: boolean;
+    portalQuoteAcceptanceEnabled?: boolean;
+  },
+) {
+  const { orgId } = await requireOrgContext();
+  await requireRole("admin");
+  if (orgId !== organizationId) throw new Error("Unauthorized");
+
+  // Clamp expiry hours to sensible bounds
+  const magicExpiry = policies.portalMagicLinkExpiryHours
+    ? Math.min(Math.max(policies.portalMagicLinkExpiryHours, 1), 168)
+    : undefined;
+  const sessionExpiry = policies.portalSessionExpiryHours
+    ? Math.min(Math.max(policies.portalSessionExpiryHours, 1), 720)
+    : undefined;
+
+  await db.orgDefaults.upsert({
+    where: { organizationId },
+    create: { organizationId, ...policies, portalMagicLinkExpiryHours: magicExpiry ?? 24, portalSessionExpiryHours: sessionExpiry ?? 24 },
+    update: {
+      ...(magicExpiry !== undefined && { portalMagicLinkExpiryHours: magicExpiry }),
+      ...(sessionExpiry !== undefined && { portalSessionExpiryHours: sessionExpiry }),
+      ...(policies.portalProofUploadEnabled !== undefined && { portalProofUploadEnabled: policies.portalProofUploadEnabled }),
+      ...(policies.portalTicketCreationEnabled !== undefined && { portalTicketCreationEnabled: policies.portalTicketCreationEnabled }),
+      ...(policies.portalStatementEnabled !== undefined && { portalStatementEnabled: policies.portalStatementEnabled }),
+      ...(policies.portalQuoteAcceptanceEnabled !== undefined && { portalQuoteAcceptanceEnabled: policies.portalQuoteAcceptanceEnabled }),
+    },
+  });
+
+  logAudit({
+    orgId,
+    actorId: "admin",
+    action: "portal.policies_updated",
+    entityType: "Organization",
+    entityId: orgId,
+    metadata: policies,
+  }).catch(() => {});
+}
+
+// ─── Access logs ──────────────────────────────────────────────────────────────
 
 export async function getPortalAccessLogs(
   organizationId: string,
-  page = 1,
-  pageSize = 20
+  filters?: {
+    customerId?: string;
+    action?: string;
+    fromDate?: string;
+    toDate?: string;
+    page?: number;
+    pageSize?: number;
+  },
 ) {
+  const { orgId } = await requireOrgContext();
+  if (orgId !== organizationId) throw new Error("Unauthorized");
+
+  const page = filters?.page ?? 1;
+  const pageSize = filters?.pageSize ?? 20;
+
+  const where = {
+    orgId: organizationId,
+    ...(filters?.customerId && { customerId: filters.customerId }),
+    ...(filters?.action && { action: filters.action }),
+    ...((filters?.fromDate || filters?.toDate) && {
+      accessedAt: {
+        ...(filters.fromDate && { gte: new Date(filters.fromDate) }),
+        ...(filters.toDate && { lte: new Date(filters.toDate) }),
+      },
+    }),
+  };
+
   const [logs, total] = await Promise.all([
     db.customerPortalAccessLog.findMany({
-      where: { orgId: organizationId },
+      where,
       orderBy: { accessedAt: "desc" },
       skip: (page - 1) * pageSize,
       take: pageSize,
@@ -60,17 +171,114 @@ export async function getPortalAccessLogs(
         customer: { select: { id: true, name: true, email: true } },
       },
     }),
-    db.customerPortalAccessLog.count({
-      where: { orgId: organizationId },
-    }),
+    db.customerPortalAccessLog.count({ where }),
   ]);
+
   return { logs, total, page, pageSize, totalPages: Math.ceil(total / pageSize) };
 }
 
-export async function revokeAllPortalTokens(organizationId: string) {
-  const result = await db.customerPortalToken.updateMany({
-    where: { orgId: organizationId, isRevoked: false },
-    data: { isRevoked: true },
+// ─── Session management ───────────────────────────────────────────────────────
+
+export async function getActivePortalSessions(organizationId: string) {
+  const { orgId } = await requireOrgContext();
+  await requireRole("admin");
+  if (orgId !== organizationId) throw new Error("Unauthorized");
+
+  const sessions = await db.customerPortalSession.findMany({
+    where: {
+      orgId: organizationId,
+      revokedAt: null,
+      expiresAt: { gt: new Date() },
+    },
+    orderBy: { issuedAt: "desc" },
+    take: 100,
+    include: {
+      customer: { select: { id: true, name: true, email: true } },
+    },
   });
-  return { revokedCount: result.count };
+
+  return sessions;
+}
+
+export async function revokeCustomerPortalAccess(
+  organizationId: string,
+  customerId: string,
+) {
+  const { orgId } = await requireOrgContext();
+  await requireRole("admin");
+  if (orgId !== organizationId) throw new Error("Unauthorized");
+
+  // Verify customer belongs to org (anti-IDOR)
+  const customer = await db.customer.findFirst({
+    where: { id: customerId, organizationId },
+    select: { id: true, name: true },
+  });
+  if (!customer) throw new Error("Customer not found");
+
+  const now = new Date();
+  const [revokedTokens, revokedSessions] = await Promise.all([
+    db.customerPortalToken.updateMany({
+      where: { customerId, orgId: organizationId, isRevoked: false },
+      data: { isRevoked: true },
+    }),
+    db.customerPortalSession.updateMany({
+      where: { customerId, orgId: organizationId, revokedAt: null },
+      data: { revokedAt: now },
+    }),
+  ]);
+
+  logAudit({
+    orgId,
+    actorId: "admin",
+    action: "portal.customer_access_revoked",
+    entityType: "Customer",
+    entityId: customerId,
+    metadata: {
+      customerName: customer.name,
+      revokedTokens: revokedTokens.count,
+      revokedSessions: revokedSessions.count,
+    },
+  }).catch(() => {});
+
+  return {
+    customerId,
+    revokedTokens: revokedTokens.count,
+    revokedSessions: revokedSessions.count,
+  };
+}
+
+export async function revokeAllPortalTokens(organizationId: string) {
+  const { orgId } = await requireOrgContext();
+  await requireRole("admin");
+  if (orgId !== organizationId) throw new Error("Unauthorized");
+
+  const now = new Date();
+  const [revokedTokens, revokedSessions] = await Promise.all([
+    db.customerPortalToken.updateMany({
+      where: { orgId: organizationId, isRevoked: false },
+      data: { isRevoked: true },
+    }),
+    db.customerPortalSession.updateMany({
+      where: { orgId: organizationId, revokedAt: null },
+      data: { revokedAt: now },
+    }),
+  ]);
+
+  logAudit({
+    orgId,
+    actorId: "admin",
+    action: "portal.all_access_revoked",
+    entityType: "Organization",
+    entityId: orgId,
+    metadata: {
+      revokedTokens: revokedTokens.count,
+      revokedSessions: revokedSessions.count,
+    },
+  }).catch(() => {});
+
+  return {
+    revokedCount: revokedTokens.count + revokedSessions.count,
+    revokedTokens: revokedTokens.count,
+    revokedSessions: revokedSessions.count,
+  };
 }

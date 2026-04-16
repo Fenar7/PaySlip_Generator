@@ -23,7 +23,18 @@ const {
         update: vi.fn(),
         updateMany: vi.fn(),
       },
+      customerPortalSession: {
+        create: vi.fn(),
+        findUnique: vi.fn(),
+        update: vi.fn(),
+        updateMany: vi.fn(),
+      },
       customerPortalAccessLog: { create: vi.fn() },
+      portalRateLimit: {
+        findUnique: vi.fn(),
+        upsert: vi.fn(),
+        update: vi.fn(),
+      },
     },
     mockSendEmail: vi.fn(),
     mockLogAudit: vi.fn().mockResolvedValue(undefined),
@@ -94,6 +105,15 @@ describe("portal-auth", () => {
     mockLogAudit.mockResolvedValue(undefined);
     mockDb.customerPortalToken.updateMany.mockResolvedValue({ count: 0 });
     mockDb.customerPortalToken.create.mockResolvedValue({ id: "tok-1" });
+    // Rate limit: default to no window (allows through)
+    mockDb.portalRateLimit.findUnique.mockResolvedValue(null);
+    mockDb.portalRateLimit.upsert.mockResolvedValue({ count: 1 });
+    mockDb.portalRateLimit.update.mockResolvedValue({});
+    // Session: default to success
+    mockDb.customerPortalSession.create.mockResolvedValue({ id: "sess-1" });
+    mockDb.customerPortalSession.findUnique.mockResolvedValue(null);
+    mockDb.customerPortalSession.update.mockResolvedValue({});
+    mockDb.customerPortalSession.updateMany.mockResolvedValue({ count: 0 });
   });
 
   // ─── requestMagicLink ──────────────────────────────────────────────────────
@@ -162,7 +182,10 @@ describe("portal-auth", () => {
         expiresAt: new Date(Date.now() + 86400000),
         customer: {
           id: "cust-1",
-          organization: { slug: "slipwise" },
+          organization: {
+            slug: "slipwise",
+            defaults: { portalEnabled: true, portalSessionExpiryHours: 24 },
+          },
         },
       });
       mockDb.customerPortalToken.update.mockResolvedValue({});
@@ -213,7 +236,10 @@ describe("portal-auth", () => {
         expiresAt: new Date(Date.now() + 86400000),
         customer: {
           id: "cust-2",
-          organization: { slug: "other-org" },
+          organization: {
+            slug: "other-org",
+            defaults: { portalEnabled: true, portalSessionExpiryHours: 24 },
+          },
         },
       });
 
@@ -232,11 +258,19 @@ describe("portal-auth", () => {
         customerId: "cust-1",
         orgId: "org-1",
         orgSlug: "slipwise",
+        jti: "test-jti-1",
         iat: now,
         exp: now + 86400,
       });
       const cookieStore = await mockCookies();
       cookieStore.get.mockReturnValue({ value: jwt });
+      // Session DB record exists and is active
+      mockDb.customerPortalSession.findUnique.mockResolvedValue({
+        id: "sess-1",
+        jti: "test-jti-1",
+        revokedAt: null,
+        expiresAt: new Date(Date.now() + 86400000),
+      });
 
       const session = await getPortalSession();
 
@@ -252,6 +286,7 @@ describe("portal-auth", () => {
         customerId: "cust-1",
         orgId: "org-1",
         orgSlug: "slipwise",
+        jti: "test-jti-expired",
         iat: now - 90000,
         exp: now - 3600, // expired 1 hour ago
       });
@@ -271,14 +306,40 @@ describe("portal-auth", () => {
 
       expect(session).toBeNull();
     });
+
+    it("returns null when DB session is revoked", async () => {
+      const now = Math.floor(Date.now() / 1000);
+      const jwt = makeJwt({
+        customerId: "cust-1",
+        orgId: "org-1",
+        orgSlug: "slipwise",
+        jti: "test-jti-revoked",
+        iat: now,
+        exp: now + 86400,
+      });
+      const cookieStore = await mockCookies();
+      cookieStore.get.mockReturnValue({ value: jwt });
+      // Session is revoked
+      mockDb.customerPortalSession.findUnique.mockResolvedValue({
+        id: "sess-1",
+        jti: "test-jti-revoked",
+        revokedAt: new Date(Date.now() - 1000),
+        expiresAt: new Date(Date.now() + 86400000),
+      });
+
+      const session = await getPortalSession();
+
+      expect(session).toBeNull();
+    });
   });
 
   // ─── revokePortalSession ──────────────────────────────────────────────────
 
   describe("revokePortalSession", () => {
-    it("revokes tokens and clears cookie", async () => {
+    it("revokes tokens and sessions and clears cookie", async () => {
       const cookieStore = await mockCookies();
       mockDb.customerPortalToken.updateMany.mockResolvedValue({ count: 2 });
+      mockDb.customerPortalSession.updateMany.mockResolvedValue({ count: 1 });
 
       await revokePortalSession("cust-1", "org-1");
 
@@ -289,6 +350,14 @@ describe("portal-auth", () => {
           isRevoked: false,
         },
         data: { isRevoked: true },
+      });
+      expect(mockDb.customerPortalSession.updateMany).toHaveBeenCalledWith({
+        where: {
+          customerId: "cust-1",
+          orgId: "org-1",
+          revokedAt: null,
+        },
+        data: { revokedAt: expect.any(Date) },
       });
       expect(cookieStore.delete).toHaveBeenCalledWith("portal_session");
     });
@@ -313,10 +382,20 @@ describe("portal-auth", () => {
         expiresAt: new Date(Date.now() + 86400000),
         customer: {
           id: "cust-1",
-          organization: { slug: "slipwise" },
+          organization: {
+            slug: "slipwise",
+            defaults: { portalEnabled: true, portalSessionExpiryHours: 24 },
+          },
         },
       });
       mockDb.customerPortalToken.update.mockResolvedValue({});
+      // The new session record returned after create
+      mockDb.customerPortalSession.create.mockImplementation(async ({ data }: { data: { jti: string; expiresAt: Date; } }) => ({
+        id: "sess-rt-1",
+        jti: data.jti,
+        revokedAt: null,
+        expiresAt: data.expiresAt,
+      }));
 
       cookieStore.set.mockImplementation((_name: string, value: string) => {
         savedCookieValue = value;
@@ -328,6 +407,16 @@ describe("portal-auth", () => {
 
       // Now simulate getPortalSession reading that cookie back
       cookieStore.get.mockReturnValue({ value: savedCookieValue });
+      // Decode the jti from savedCookieValue so we can mock the DB session lookup
+      const parts = savedCookieValue.split(".");
+      const decodedPayload = JSON.parse(Buffer.from(parts[1], "base64url").toString()) as { jti: string };
+      mockDb.customerPortalSession.findUnique.mockResolvedValue({
+        id: "sess-rt-1",
+        jti: decodedPayload.jti,
+        revokedAt: null,
+        expiresAt: new Date(Date.now() + 86400000),
+      });
+
       const session = await getPortalSession();
 
       expect(session).not.toBeNull();
