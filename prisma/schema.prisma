@@ -150,6 +150,10 @@ model Organization {
   pixelJobRecords              PixelJobRecord[]
   usageEvents                  UsageEvent[]
   orgUsageSnapshots            OrgUsageSnapshot[]
+  // Phase 25: Integration Hub + Payroll
+  tallyImportLogs              TallyImportLog[]
+  payrollRuns                  PayrollRun[]
+  payrollSettings              PayrollSettings?
 
   @@map("organization")
 }
@@ -940,8 +944,19 @@ model Employee {
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
-  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  salarySlips  SalarySlip[]
+  employmentType    String?
+  ctcAnnual         Decimal?
+  effectiveFrom     DateTime?
+  pfAccountNumber   String?
+  esiNumber         String?
+  taxRegime         String    @default("new")
+  pfOptOut          Boolean   @default(false)
+  esiOptOut         Boolean   @default(false)
+
+  organization   Organization           @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  salarySlips    SalarySlip[]
+  ctcComponents  EmployeeCtcComponent[]
+  payrollItems   PayrollRunItem[]
 
   @@index([organizationId])
   @@map("employee")
@@ -1233,6 +1248,7 @@ model SalarySlip {
   journalEntry       JournalEntry?     @relation("SalarySlipJournal", fields: [journalEntryId], references: [id])
   payoutJournalEntry JournalEntry?     @relation("SalarySlipPayoutJournal", fields: [payoutJournalEntryId], references: [id])
   approvalRequests   ApprovalRequest[] @relation("SalarySlipApprovals")
+  payrollRunItem     PayrollRunItem?
 
   @@unique([organizationId, slipNumber])
   @@index([organizationId, status])
@@ -4216,4 +4232,120 @@ model OrgUsageSnapshot {
   @@unique([orgId, periodStart])
   @@index([orgId, periodStart])
   @@map("org_usage_snapshot")
+}
+
+// ─── Phase 25: Integration Hub ────────────────────────────────────────────────
+
+model TallyImportLog {
+  id           String   @id @default(cuid())
+  orgId        String
+  fileName     String
+  importedAt   DateTime @default(now())
+  importedBy   String
+  recordCount  Int
+  errorCount   Int
+  status       String   // "completed" | "partial" | "failed"
+  errorDetails Json?
+
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@index([orgId, importedAt])
+  @@map("tally_import_log")
+}
+
+// ─── Phase 25: Payroll Operations Foundation ──────────────────────────────────
+
+enum PayrollStatus {
+  DRAFT
+  PROCESSING
+  REVIEW
+  FINALIZED
+  CANCELLED
+}
+
+model EmployeeCtcComponent {
+  id              String   @id @default(cuid())
+  employeeId      String
+  componentName   String
+  componentType   String   // "earning" | "deduction" | "employer_contribution"
+  calculationType String   // "fixed" | "percent_of_basic" | "percent_of_ctc"
+  value           Decimal
+  isActive        Boolean  @default(true)
+
+  employee Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@index([employeeId, isActive])
+  @@map("employee_ctc_component")
+}
+
+model PayrollRun {
+  id               String        @id @default(cuid())
+  orgId            String
+  period           String        // "YYYY-MM"
+  status           PayrollStatus @default(DRAFT)
+  workingDays      Int           @default(26)
+  totalGross       Decimal       @default(0)
+  totalDeductions  Decimal       @default(0)
+  totalNetPay      Decimal       @default(0)
+  totalPfEmployer  Decimal       @default(0)
+  totalEsiEmployer Decimal       @default(0)
+  createdBy        String
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+  finalizedAt      DateTime?
+  finalizedBy      String?
+
+  organization Organization    @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  runItems     PayrollRunItem[]
+
+  @@unique([orgId, period])
+  @@index([orgId, status])
+  @@map("payroll_run")
+}
+
+model PayrollRunItem {
+  id               String  @id @default(cuid())
+  runId            String
+  employeeId       String
+  salarySlipId     String? @unique
+  attendedDays     Int
+  lossOfPayDays    Int     @default(0)
+  grossPay         Decimal
+  basicPay         Decimal
+  hra              Decimal @default(0)
+  specialAllowance Decimal @default(0)
+  otherEarnings    Decimal @default(0)
+  pfEmployee       Decimal @default(0)
+  esiEmployee      Decimal @default(0)
+  tdsDeduction     Decimal @default(0)
+  professionalTax  Decimal @default(0)
+  otherDeductions  Decimal @default(0)
+  totalDeductions  Decimal
+  netPay           Decimal
+  pfEmployer       Decimal @default(0)
+  esiEmployer      Decimal @default(0)
+  status           String  @default("draft") // "draft" | "finalized" | "on_hold"
+  holdReason       String?
+
+  run        PayrollRun  @relation(fields: [runId], references: [id], onDelete: Cascade)
+  employee   Employee    @relation(fields: [employeeId], references: [id])
+  salarySlip SalarySlip? @relation(fields: [salarySlipId], references: [id])
+
+  @@unique([runId, employeeId])
+  @@index([runId])
+  @@map("payroll_run_item")
+}
+
+model PayrollSettings {
+  id                   String   @id @default(cuid())
+  orgId                String   @unique
+  pfEnabled            Boolean  @default(true)
+  esiEnabled           Boolean  @default(true)
+  defaultTaxRegime     String   @default("new")
+  professionalTaxState String?
+  professionalTaxSlabs Json     @default("[]")
+
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@map("payroll_settings")
 }
