@@ -48,6 +48,8 @@ export const suiteNavItems: NavItem[] = [
       { href: "/app/pay/proofs", label: "Payment Proofs" },
       { href: "/app/pay/send-log", label: "Send Log" },
       { href: "/app/pay/recurring", label: "Recurring Invoices" },
+      { href: "/app/pay/virtual-accounts", label: "Virtual Accounts" },
+      { href: "/app/pay/unmatched", label: "Unmatched Payments" },
     ],
   },
   {

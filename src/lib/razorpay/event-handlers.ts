@@ -1,6 +1,7 @@
 import "server-only";
 import { db } from "@/lib/db";
 import { recordUsageEvent } from "@/lib/usage-metering";
+import { tryAutoMatchUnmatchedPayment } from "@/lib/razorpay/unmatched-payment-matcher";
 
 interface PaymentLinkPaidPayload {
   id: string;
@@ -180,7 +181,7 @@ async function handleVirtualAccountCredited(
       })
     : null;
 
-  await db.unmatchedPayment.create({
+  const newRecord = await db.unmatchedPayment.create({
     data: {
       orgId,
       virtualAccountId: va?.id ?? virtualAccount.id,
@@ -189,6 +190,11 @@ async function handleVirtualAccountCredited(
       receivedAt: new Date(),
       status: "unmatched",
     },
+  });
+
+  // Fire-and-forget auto-matcher — errors must not fail the webhook response
+  tryAutoMatchUnmatchedPayment(newRecord.id).catch((err) => {
+    console.error("[webhook] auto-matcher error:", err);
   });
 }
 
