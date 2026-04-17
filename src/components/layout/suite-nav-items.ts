@@ -50,6 +50,9 @@ export const suiteNavItems: NavItem[] = [
       { href: "/app/pay/recurring", label: "Recurring Invoices" },
       { href: "/app/pay/virtual-accounts", label: "Virtual Accounts" },
       { href: "/app/pay/unmatched", label: "Unmatched Payments" },
+      { href: "/app/pay/reconciliation", label: "Bank Reconciliation" },
+      { href: "/app/pay/collections-intelligence", label: "Collections Intelligence" },
+      { href: "/app/pay/intelligence/aging", label: "Aging Analysis" },
     ],
   },
   {

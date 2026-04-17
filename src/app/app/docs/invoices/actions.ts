@@ -693,6 +693,31 @@ export async function recordPayment(
       }
     }
 
+    // ─── High-Value Payment Gate ───────────────────────────────────────────────
+    const orgDefaults = await db.orgDefaults.findUnique({
+      where: { organizationId: orgId },
+      select: { requireDualApprovalPayment: true, highValuePaymentThreshold: true },
+    });
+    if (orgDefaults?.requireDualApprovalPayment && input.amount > orgDefaults.highValuePaymentThreshold) {
+      // Create an ApprovalRequest; do NOT record the payment yet.
+      const profile = await db.profile.findUnique({ where: { id: userId }, select: { name: true } });
+      await db.approvalRequest.create({
+        data: {
+          docType: "invoice_payment_pending",
+          docId: invoiceId,
+          orgId,
+          requestedById: userId,
+          requestedByName: profile?.name ?? null,
+          status: "PENDING",
+          note: `High-value payment of ₹${input.amount.toLocaleString("en-IN")} pending dual approval.`,
+        },
+      });
+      return {
+        success: false,
+        error: `Payment of ₹${input.amount.toLocaleString("en-IN")} exceeds the high-value threshold (₹${orgDefaults.highValuePaymentThreshold.toLocaleString("en-IN")}) and requires a second admin's approval. An approval request has been created.`,
+      };
+    }
+
     await db.$transaction(async (tx) => {
       const payment = await tx.invoicePayment.create({
         data: {
