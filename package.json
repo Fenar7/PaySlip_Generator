@@ -57,6 +57,7 @@
     "motion": "^12.23.24",
     "nanoid": "^5.1.7",
     "next": "16.2.1",
+    "otpauth": "^9.5.0",
     "papaparse": "^5.5.3",
     "pdf-lib": "^1.17.1",
     "pdfjs-dist": "^5.5.207",

@@ -17,6 +17,13 @@ model Profile {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  // Phase 24.5: TOTP 2FA
+  totpSecret         String?   // AES-256-CBC encrypted TOTP secret
+  totpEnabled        Boolean   @default(false)
+  totpEnabledAt      DateTime?
+  recoveryCodes      Json?     // array of bcrypt-hashed 8 recovery codes
+  twoFaEnforcedByOrg Boolean   @default(false)
+
   members             Member[]
   auditActorLogs      AuditLog[]           @relation("AuditActor")
   auditRepLogs        AuditLog[]           @relation("AuditRepresented")
@@ -232,6 +239,10 @@ model OrgDefaults {
   portalTicketCreationEnabled  Boolean @default(true)
   portalStatementEnabled       Boolean @default(true)
   portalQuoteAcceptanceEnabled Boolean @default(false)
+
+  // Phase 24.5: High-value payment approval gate
+  highValuePaymentThreshold  Float   @default(100000)
+  requireDualApprovalPayment Boolean @default(false)
   // Phase 14: Quotes
   quotePrefix                  String  @default("QTE")
   quoteCounter                 Int     @default(1)

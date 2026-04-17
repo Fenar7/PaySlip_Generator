@@ -23,7 +23,7 @@ export default async function CashPositionPage() {
       <div>
         <h1 className="text-xl font-semibold text-slate-900">Cash Position</h1>
         <p className="mt-1 text-sm text-slate-500">
-          Actual bank balance, this month's cash flow, and upcoming receivables.
+          Actual bank balance, this month&apos;s cash flow, and upcoming receivables.
         </p>
       </div>
       <CashPositionClient data={result.data} />
