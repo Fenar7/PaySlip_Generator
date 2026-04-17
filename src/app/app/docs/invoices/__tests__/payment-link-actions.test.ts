@@ -302,3 +302,24 @@ describe("getInvoicePaymentLinkStatus", () => {
     expect(result.success).toBe(false);
   });
 });
+
+// ─── expire_by enforcement ────────────────────────────────────────────────────
+
+describe("createPaymentLink — expire_by", () => {
+  it("passes expire_by of ~30 days to the Razorpay API", async () => {
+    const client = makePaymentLinkClient();
+    mockGetOrgRazorpayClient.mockResolvedValue(client);
+
+    await createPaymentLink("inv_1");
+
+    const createCall = (client.paymentLink.create as ReturnType<typeof vi.fn>).mock.calls[0][0] as Record<string, unknown>;
+    const nowSec = Math.floor(Date.now() / 1000);
+    const thirtyDays = 30 * 24 * 60 * 60;
+
+    expect(createCall).toHaveProperty("expire_by");
+    const expireBy = createCall["expire_by"] as number;
+    // Should be approximately now + 30 days (within 5 seconds of test execution)
+    expect(expireBy).toBeGreaterThanOrEqual(nowSec + thirtyDays - 5);
+    expect(expireBy).toBeLessThanOrEqual(nowSec + thirtyDays + 5);
+  });
+});

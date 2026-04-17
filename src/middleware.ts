@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { updateSession } from "@/lib/supabase/middleware";
 import { rateLimitByIp } from "@/lib/rate-limit";
+import {
+  verifyChallengeToken,
+  TOTP_CHALLENGE_COOKIE,
+} from "@/lib/totp/challenge-session";
 
 const PUBLIC_PREFIXES = [
   "/",
@@ -26,6 +30,51 @@ const PUBLIC_PREFIXES = [
   "/sw.js",
   "/offline",
 ];
+
+// ─── 2FA challenge enforcement ────────────────────────────────────────────────
+
+/**
+ * Check whether the current request satisfies the 2FA challenge requirement.
+ *
+ * Reading totpEnabled from Supabase user_metadata means no DB call at the edge.
+ * The flag is synced into user_metadata by verify2faSetup / disable2fa server
+ * actions, so it is authoritative for middleware purposes.
+ *
+ * The sw_2fa cookie is an HMAC-HS256 JWT signed with TOTP_SESSION_SECRET
+ * (falls back to PORTAL_JWT_SECRET). Verified using the Web Crypto API
+ * (edge-runtime compatible).
+ */
+async function check2faChallenge(
+  request: NextRequest,
+  userId: string,
+  totpEnabled: boolean
+): Promise<NextResponse | null> {
+  if (!totpEnabled) return null;
+
+  const secret =
+    process.env.TOTP_SESSION_SECRET ?? process.env.PORTAL_JWT_SECRET ?? "";
+
+  // Fail-open: if no secret is configured, skip enforcement (misconfigured env)
+  if (!secret) {
+    console.warn("[middleware] TOTP_SESSION_SECRET not set — skipping 2FA enforcement");
+    return null;
+  }
+
+  const cookieValue = request.cookies.get(TOTP_CHALLENGE_COOKIE)?.value ?? "";
+  const verifiedUserId = await verifyChallengeToken(cookieValue, secret);
+
+  if (verifiedUserId === userId) {
+    // Valid challenge cookie — user has already passed 2FA
+    return null;
+  }
+
+  // Challenge required: redirect to /auth/2fa with the original path as callback
+  const challengeUrl = new URL("/auth/2fa", request.url);
+  challengeUrl.searchParams.set("callbackUrl", request.nextUrl.pathname);
+  return NextResponse.redirect(challengeUrl);
+}
+
+// ─── Middleware ───────────────────────────────────────────────────────────────
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
@@ -86,6 +135,18 @@ export async function middleware(request: NextRequest) {
       const loginUrl = new URL("/auth/login", request.url);
       loginUrl.searchParams.set("callbackUrl", pathname);
       return NextResponse.redirect(loginUrl);
+    }
+
+    // ── 2FA challenge gate ────────────────────────────────────────────────
+    // totpEnabled is synced to user_metadata on enable/disable, so it can be
+    // read from the Supabase JWT without a database round-trip.
+    const totpEnabled = user.user_metadata?.totpEnabled === true;
+    try {
+      const challengeRedirect = await check2faChallenge(request, user.id, totpEnabled);
+      if (challengeRedirect) return challengeRedirect;
+    } catch (err) {
+      // Fail-open: log but don't block the user on infrastructure errors
+      console.warn("[middleware] 2FA check error, continuing:", err);
     }
   }
 

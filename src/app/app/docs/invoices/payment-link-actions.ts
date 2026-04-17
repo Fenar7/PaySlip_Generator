@@ -73,6 +73,8 @@ export async function createPaymentLink(
       reminder_enable: true,
       callback_url: `${appUrl}/invoice/${invoiceId}/payment-success`,
       callback_method: "get",
+      // PRD §5.2: payment links expire 30 days from creation
+      expire_by: Math.floor(Date.now() / 1000) + 30 * 24 * 60 * 60,
     };
     if (invoice.customer) {
       createParams.customer = {
