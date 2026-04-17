@@ -18,6 +18,8 @@ import { db } from "@/lib/db";
 import { generateCSV } from "@/lib/csv";
 import { isCsvUpload, isUploadedFile } from "@/lib/server/form-data";
 import { getSignedUrlServer, uploadFileServer } from "@/lib/storage/upload-server";
+import { xlsxToCsvText, isXlsxFile, detectBankFormat } from "@/lib/bank/statement-parser";
+import { getEnrichedSuggestedMatches } from "@/lib/bank/reconciliation-engine";
 import {
   archiveGlAccount,
   archiveVendorBill,
@@ -1771,7 +1773,7 @@ export async function uploadBooksBankStatement(
     }
 
     const bankAccountId = String(formData.get("bankAccountId") ?? "").trim();
-    const mappingRaw = String(formData.get("mapping") ?? "").trim();
+    let mappingRaw = String(formData.get("mapping") ?? "").trim();
     const file = formData.get("file");
 
     if (!bankAccountId) {
@@ -1782,18 +1784,39 @@ export async function uploadBooksBankStatement(
       return { success: false, error: "CSV file is required." };
     }
 
-    if (!isCsvUpload(file)) {
-      return { success: false, error: "Only CSV bank statements are supported." };
+    const isXlsx = isXlsxFile(file.name);
+    if (!isXlsx && !isCsvUpload(file)) {
+      return { success: false, error: "Only CSV, XLSX, and XLS bank statements are supported." };
     }
 
-    const csvText = await file.text();
+    let csvText: string;
+    let storedMimeType: string;
+    if (isXlsx) {
+      const buffer = Buffer.from(await file.arrayBuffer());
+      csvText = xlsxToCsvText(buffer);
+      storedMimeType = "text/csv";
+
+      // If no manual mapping was provided, attempt format auto-detection from headers.
+      if (!mappingRaw || mappingRaw === "{}") {
+        const firstLine = csvText.split("\n")[0] ?? "";
+        const headers = firstLine.split(",").map((h) => h.replace(/^"|"$/g, "").trim());
+        const detected = detectBankFormat(headers);
+        if (detected) {
+          mappingRaw = JSON.stringify(detected.mapping);
+        }
+      }
+    } else {
+      csvText = await file.text();
+      storedMimeType = file.type || "text/csv";
+    }
+
     const checksum = crypto.createHash("sha256").update(csvText).digest("hex");
     const storagePath = generateBankStatementStoragePath(orgId, bankAccountId, file.name);
     const uploaded = await uploadFileServer(
       "attachments",
       storagePath,
       Buffer.from(csvText, "utf8"),
-      file.type || "text/csv",
+      storedMimeType,
     );
 
     const result = await importBankStatement({
@@ -3320,6 +3343,151 @@ export async function exportBooksTdsTieOutCsv(input: {
     return {
       success: false,
       error: error instanceof Error ? error.message : "Failed to export TDS tie-out.",
+    };
+  }
+}
+
+// ─── Sprint 24.4: Cash Position & Enriched Matches ────────────────────────────
+
+export interface CashPositionAccount {
+  id: string;
+  name: string;
+  bankName: string | null;
+  currency: string;
+  runningBalance: number | null;
+  openingBalance: number;
+  lastTxnDate: Date | null;
+}
+
+export interface CashPositionSummary {
+  accounts: CashPositionAccount[];
+  totalBankBalance: number;
+  thisMonthCredits: number;
+  thisMonthDebits: number;
+  unreconciledCreditAmount: number;
+  invoicesDueIn7Days: { count: number; totalAmount: number };
+  invoicesDueIn30Days: { count: number; totalAmount: number };
+}
+
+type CashPositionResult =
+  | { success: true; data: CashPositionSummary }
+  | { success: false; error: string };
+
+export async function getCashPositionAction(): Promise<CashPositionResult> {
+  try {
+    const { orgId } = await requireOrgContext();
+
+    const now = new Date();
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    const in7Days = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+    const in30Days = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+
+    const [bankAccounts, monthlyTotals, unreconciledCredits, due7, due30] = await Promise.all([
+      db.bankAccount.findMany({
+        where: { orgId, isActive: true },
+        select: {
+          id: true,
+          name: true,
+          bankName: true,
+          currency: true,
+          openingBalance: true,
+          transactions: {
+            where: { orgId },
+            orderBy: { txnDate: "desc" },
+            take: 1,
+            select: { runningBalance: true, txnDate: true },
+          },
+        },
+        orderBy: [{ isPrimary: "desc" }, { name: "asc" }],
+      }),
+      db.bankTransaction.groupBy({
+        by: ["direction"],
+        where: { orgId, txnDate: { gte: monthStart } },
+        _sum: { amount: true },
+      }),
+      db.bankTransaction.aggregate({
+        where: { orgId, direction: "CREDIT", status: "UNMATCHED" },
+        _sum: { amount: true },
+      }),
+      db.invoice.aggregate({
+        where: {
+          organizationId: orgId,
+          status: { in: ["ISSUED", "VIEWED", "DUE", "OVERDUE", "PARTIALLY_PAID"] },
+          dueDate: { lte: in7Days.toISOString().split("T")[0] },
+        },
+        _count: { id: true },
+        _sum: { totalAmount: true },
+      }),
+      db.invoice.aggregate({
+        where: {
+          organizationId: orgId,
+          status: { in: ["ISSUED", "VIEWED", "DUE", "OVERDUE", "PARTIALLY_PAID"] },
+          dueDate: { lte: in30Days.toISOString().split("T")[0] },
+        },
+        _count: { id: true },
+        _sum: { totalAmount: true },
+      }),
+    ]);
+
+    const accounts: CashPositionAccount[] = bankAccounts.map((ba) => ({
+      id: ba.id,
+      name: ba.name,
+      bankName: ba.bankName,
+      currency: ba.currency,
+      runningBalance: ba.transactions[0]?.runningBalance ?? null,
+      openingBalance: ba.openingBalance,
+      lastTxnDate: ba.transactions[0]?.txnDate ?? null,
+    }));
+
+    const totalBankBalance = accounts.reduce(
+      (sum, a) => sum + (a.runningBalance ?? a.openingBalance),
+      0,
+    );
+
+    const creditRow = monthlyTotals.find((r) => r.direction === "CREDIT");
+    const debitRow = monthlyTotals.find((r) => r.direction === "DEBIT");
+
+    return {
+      success: true,
+      data: {
+        accounts,
+        totalBankBalance,
+        thisMonthCredits: creditRow?._sum.amount ?? 0,
+        thisMonthDebits: debitRow?._sum.amount ?? 0,
+        unreconciledCreditAmount: unreconciledCredits._sum.amount ?? 0,
+        invoicesDueIn7Days: {
+          count: due7._count.id,
+          totalAmount: due7._sum.totalAmount ?? 0,
+        },
+        invoicesDueIn30Days: {
+          count: due30._count.id,
+          totalAmount: due30._sum.totalAmount ?? 0,
+        },
+      },
+    };
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Failed to load cash position.",
+    };
+  }
+}
+
+type SuggestedMatchesResult =
+  | { success: true; data: Awaited<ReturnType<typeof getEnrichedSuggestedMatches>> }
+  | { success: false; error: string };
+
+export async function getSuggestedMatchesAction(
+  bankTxnId: string,
+): Promise<SuggestedMatchesResult> {
+  try {
+    const { orgId } = await requireOrgContext();
+    const data = await getEnrichedSuggestedMatches(bankTxnId, orgId);
+    return { success: true, data };
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Failed to load suggested matches.",
     };
   }
 }

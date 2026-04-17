@@ -64,6 +64,8 @@ export const suiteNavItems: NavItem[] = [
       { href: "/app/books/trial-balance", label: "Trial Balance" },
       { href: "/app/books/banks", label: "Banks" },
       { href: "/app/books/reconciliation", label: "Reconciliation" },
+      { href: "/app/books/reconciliation/workbench", label: "Workbench" },
+      { href: "/app/books/reconciliation/cash-position", label: "Cash Position" },
       { href: "/app/books/vendor-bills", label: "Vendor Bills" },
       { href: "/app/books/payment-runs", label: "Payment Runs" },
       { href: "/app/books/close", label: "Close Center" },

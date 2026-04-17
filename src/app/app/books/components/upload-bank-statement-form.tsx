@@ -160,10 +160,10 @@ export function UploadBankStatementForm({ bankAccounts }: UploadBankStatementFor
             </label>
 
             <label className="block text-sm xl:col-span-2">
-              <span className="mb-1 block font-medium text-slate-700">CSV file</span>
+              <span className="mb-1 block font-medium text-slate-700">CSV / Excel file</span>
               <input
                 type="file"
-                accept=".csv,text/csv"
+                accept=".csv,.xlsx,.xls,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel"
                 onChange={(event) => setFile(event.target.files?.[0] ?? null)}
                 className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
               />
