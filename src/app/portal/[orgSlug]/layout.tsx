@@ -127,6 +127,12 @@ export default async function PortalLayout({
             >
               Statements
             </Link>
+            <Link
+              href={`/portal/${orgSlug}/payments`}
+              className="rounded-lg px-3 py-2 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-900"
+            >
+              Payments
+            </Link>
             {defaults.portalQuoteAcceptanceEnabled && (
               <Link
                 href={`/portal/${orgSlug}/quotes`}
@@ -166,6 +172,7 @@ export default async function PortalLayout({
               <Link href={`/portal/${orgSlug}/dashboard`} className="block px-4 py-2 text-sm text-slate-700 hover:bg-slate-50">Dashboard</Link>
               <Link href={`/portal/${orgSlug}/invoices`} className="block px-4 py-2 text-sm text-slate-700 hover:bg-slate-50">Invoices</Link>
               <Link href={`/portal/${orgSlug}/statements`} className="block px-4 py-2 text-sm text-slate-700 hover:bg-slate-50">Statements</Link>
+              <Link href={`/portal/${orgSlug}/payments`} className="block px-4 py-2 text-sm text-slate-700 hover:bg-slate-50">Payments</Link>
               {defaults.portalQuoteAcceptanceEnabled && (
                 <Link href={`/portal/${orgSlug}/quotes`} className="block px-4 py-2 text-sm text-slate-700 hover:bg-slate-50">Quotes</Link>
               )}

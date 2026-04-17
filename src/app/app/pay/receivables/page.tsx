@@ -1,6 +1,7 @@
 import { Suspense } from "react";
 import Link from "next/link";
 import { getReceivablesKPIs, listReceivables } from "./actions";
+import { BulkPaymentLinkButton } from "./bulk-payment-link-button";
 
 export const metadata = {
   title: "Receivables | Slipwise",
@@ -168,7 +169,25 @@ async function ReceivablesTable({
     );
   }
 
+  // Eligible for bulk payment link generation: outstanding balance and no active link.
+  const eligibleIds = invoices
+    .filter(
+      (inv) =>
+        inv.remainingAmount > 0 &&
+        !["created", "partially_paid"].includes(inv.paymentLinkStatus ?? ""),
+    )
+    .map((inv) => inv.id);
+
   return (
+    <div className="space-y-3">
+      {eligibleIds.length > 0 && (
+        <div className="flex items-center justify-between rounded-lg border border-slate-200 bg-white px-4 py-3">
+          <p className="text-sm text-slate-600">
+            {eligibleIds.length} invoice{eligibleIds.length !== 1 ? "s" : ""} eligible for payment link generation
+          </p>
+          <BulkPaymentLinkButton invoiceIds={eligibleIds} />
+        </div>
+      )}
     <div className="rounded-lg border border-slate-200 bg-white overflow-hidden">
       <table className="w-full">
         <thead>
@@ -256,6 +275,7 @@ async function ReceivablesTable({
           </div>
         </div>
       )}
+    </div>
     </div>
   );
 }
