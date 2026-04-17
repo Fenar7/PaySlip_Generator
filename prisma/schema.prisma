@@ -1636,17 +1636,18 @@ model DeadLetterAction {
 }
 
 model WorkflowDefinition {
-  id          String         @id @default(cuid())
-  orgId       String
-  name        String
-  description String?
-  triggerType String
-  status      WorkflowStatus @default(DRAFT)
-  version     Int            @default(1)
-  config      Json
-  createdBy   String         @db.Uuid
-  createdAt   DateTime       @default(now())
-  updatedAt   DateTime       @updatedAt
+  id            String         @id @default(cuid())
+  orgId         String
+  name          String
+  description   String?
+  triggerType   String
+  triggerConfig Json?          // trigger-specific configuration (e.g., { daysPastDue: 3 })
+  status        WorkflowStatus @default(DRAFT)
+  version       Int            @default(1)
+  config        Json
+  createdBy     String         @db.Uuid
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
 
   organization Organization   @relation(fields: [orgId], references: [id], onDelete: Cascade)
   steps        WorkflowStep[]
@@ -1657,12 +1658,14 @@ model WorkflowDefinition {
 }
 
 model WorkflowStep {
-  id         String   @id @default(cuid())
-  workflowId String
-  sequence   Int
-  actionType String
-  config     Json
-  createdAt  DateTime @default(now())
+  id            String   @id @default(cuid())
+  workflowId    String
+  sequence      Int
+  actionType    String
+  config        Json
+  conditionJson Json?    // optional pre-condition: { field, operator, value }
+  label         String?  // human-readable step label
+  createdAt     DateTime @default(now())
 
   workflow WorkflowDefinition @relation(fields: [workflowId], references: [id], onDelete: Cascade)
   stepRuns WorkflowStepRun[]

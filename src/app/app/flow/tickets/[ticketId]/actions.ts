@@ -226,6 +226,21 @@ export async function updateTicketStatus(
 
     revalidatePath(`/app/flow/tickets/${ticketId}`);
     revalidatePath("/app/flow/tickets");
+
+    // Sprint 25.1: fire ticket.closed trigger when a ticket is closed
+    if (status === "CLOSED") {
+      const { fireWorkflowTrigger } = await import("@/lib/flow/workflow-engine");
+      void fireWorkflowTrigger({
+        triggerType: "ticket.closed",
+        orgId,
+        sourceModule: "tickets",
+        sourceEntityType: "InvoiceTicket",
+        sourceEntityId: ticketId,
+        actorId: userId,
+        payload: { previousStatus: ticket.status, closedBy: userId },
+      });
+    }
+
     return { success: true, data: { status } };
   } catch (error) {
     console.error("updateTicketStatus error:", error);

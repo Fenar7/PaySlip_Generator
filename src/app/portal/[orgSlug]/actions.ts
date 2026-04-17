@@ -458,7 +458,7 @@ export async function acceptPortalQuote(
     const updated = await db.quote.update({
       where: { id: quote.id },
       data: { status: "ACCEPTED", acceptedAt: new Date() },
-      select: { quoteNumber: true },
+      select: { quoteNumber: true, orgId: true, customerId: true },
     });
 
     logPortalAccess({
@@ -466,6 +466,18 @@ export async function acceptPortalQuote(
       customerId: session.customerId,
       path: `/portal/${orgSlug}/quotes/${quoteId}/accept`,
       action: "accept_quote",
+    });
+
+    // Sprint 25.1: fire quote.accepted workflow trigger
+    const { fireWorkflowTrigger } = await import("@/lib/flow/workflow-engine");
+    void fireWorkflowTrigger({
+      triggerType: "quote.accepted",
+      orgId: session.orgId,
+      sourceModule: "quotes",
+      sourceEntityType: "Quote",
+      sourceEntityId: quoteId,
+      actorId: session.customerId,
+      payload: { quoteNumber: updated.quoteNumber, customerId: session.customerId },
     });
 
     return { success: true, data: { quoteNumber: updated.quoteNumber } };
@@ -528,6 +540,18 @@ export async function declinePortalQuote(
       customerId: session.customerId,
       path: `/portal/${orgSlug}/quotes/${quoteId}/decline`,
       action: "decline_quote",
+    });
+
+    // Sprint 25.1: fire quote.declined workflow trigger
+    const { fireWorkflowTrigger } = await import("@/lib/flow/workflow-engine");
+    void fireWorkflowTrigger({
+      triggerType: "quote.declined",
+      orgId: session.orgId,
+      sourceModule: "quotes",
+      sourceEntityType: "Quote",
+      sourceEntityId: quoteId,
+      actorId: session.customerId,
+      payload: { quoteNumber: updated.quoteNumber, reason: reason ?? null, customerId: session.customerId },
     });
 
     return { success: true, data: { quoteNumber: updated.quoteNumber } };

@@ -2,8 +2,8 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { SUPPORTED_TRIGGERS } from "@/lib/flow/catalog";
-import { WorkflowStepEditor } from "./workflow-step-editor";
+import { SUPPORTED_TRIGGERS, TRIGGER_LABELS } from "@/lib/flow/catalog";
+import { WorkflowStepEditor, type StepDraft } from "./workflow-step-editor";
 import {
   createWorkflow,
   updateWorkflow,
@@ -11,10 +11,7 @@ import {
 } from "@/app/app/flow/workflows/actions";
 import { Plus, Loader2, AlertCircle } from "lucide-react";
 
-type StepDraft = {
-  actionType: string;
-  config: Record<string, unknown>;
-};
+type StepDraftLocal = StepDraft;
 
 export interface WorkflowFormProps {
   mode: "create" | "edit";
@@ -30,6 +27,9 @@ export interface WorkflowFormProps {
       actionType: string;
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       config: any;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      conditionJson?: any;
+      label?: string | null;
     }[];
   };
 }
@@ -43,11 +43,13 @@ export function WorkflowForm({ mode, initialData }: WorkflowFormProps) {
   const [triggerType, setTriggerType] = useState(
     initialData?.triggerType ?? SUPPORTED_TRIGGERS[0]
   );
-  const [steps, setSteps] = useState<StepDraft[]>(
+  const [steps, setSteps] = useState<StepDraftLocal[]>(
     initialData?.steps.length
       ? initialData.steps.map((s) => ({
           actionType: s.actionType,
           config: (s.config as Record<string, unknown>) ?? {},
+          conditionJson: s.conditionJson ?? null,
+          label: s.label ?? undefined,
         }))
       : []
   );
@@ -60,7 +62,7 @@ export function WorkflowForm({ mode, initialData }: WorkflowFormProps) {
   const addStep = () => {
     setSteps((prev) => [
       ...prev,
-      { actionType: "send_notification", config: {} },
+      { actionType: "send_notification", config: {}, conditionJson: null },
     ]);
   };
 
@@ -68,7 +70,7 @@ export function WorkflowForm({ mode, initialData }: WorkflowFormProps) {
     setSteps((prev) => prev.filter((_, i) => i !== index));
   };
 
-  const updateStep = (index: number, step: StepDraft) => {
+  const updateStep = (index: number, step: StepDraftLocal) => {
     setSteps((prev) => prev.map((s, i) => (i === index ? step : s)));
   };
 
@@ -206,7 +208,7 @@ export function WorkflowForm({ mode, initialData }: WorkflowFormProps) {
         >
           {SUPPORTED_TRIGGERS.map((trigger) => (
             <option key={trigger} value={trigger}>
-              {trigger}
+              {TRIGGER_LABELS[trigger] ?? trigger}
             </option>
           ))}
         </select>
