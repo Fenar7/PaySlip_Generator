@@ -16,6 +16,7 @@ import { hasPermission } from "@/lib/permissions";
 import { revalidatePath } from "next/cache";
 import { postVendorBillTx, postVoucherTx } from "@/lib/accounting";
 import { createNotification, notifyOrgAdmins } from "@/lib/notifications";
+import { advanceApprovalChain, createApprovalRequest } from "@/lib/flow/approvals";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -327,7 +328,6 @@ export async function requestApproval(
       return { success: false, error: "Document not found" };
     }
 
-    // Get requester name from Profile
     const profile = await db.profile.findUnique({
       where: { id: userId },
       select: { name: true },
@@ -336,25 +336,13 @@ export async function requestApproval(
     const requesterName = profile?.name ?? "Unknown User";
     const docNumber = await getDocNumber(docType, docId);
 
-    const approval = await db.approvalRequest.create({
-      data: {
-        docType,
-        docId,
-        orgId,
-        requestedById: userId,
-        requestedByName: requesterName,
-        status: "PENDING",
-      },
-    });
-
-    // Notify org admins/owners
-    await notifyOrgAdmins({
+    const approval = await createApprovalRequest({
+      docType,
+      docId,
       orgId,
-      type: "approval_requested",
-      title: "Approval Requested",
-      body: `${requesterName} requested approval for ${docTypeToLabel(docType)} ${docNumber}`,
-      link: `/app/flow/approvals/${approval.id}`,
-      excludeUserId: userId,
+      requestedById: userId,
+      requestedByName: requesterName,
+      docNumber,
     });
 
     revalidatePath("/app/flow/approvals");
@@ -536,7 +524,7 @@ export async function approveRequest(
     const { orgId, userId, role } = await requireOrgContext();
 
     const approval = await db.approvalRequest.findFirst({
-      where: { id: requestId, orgId, status: "PENDING" },
+      where: { id: requestId, orgId, status: { in: ["PENDING", "ESCALATED"] } },
     });
 
     if (!approval) {
@@ -562,6 +550,18 @@ export async function approveRequest(
 
     const approverName = profile?.name ?? "Unknown User";
 
+    // Advance the chain — returns "APPROVED" | "PENDING" | "REJECTED"
+    const chainResult = await advanceApprovalChain(requestId, userId, approverName, "APPROVED", note);
+
+    if (chainResult.status === "PENDING") {
+      // Chain is not complete — request stays pending at the next rule
+      revalidateApprovalDocumentPaths(approval.docType as ApprovalDocType, approval.docId);
+      revalidatePath("/app/flow/approvals");
+      revalidatePath(`/app/flow/approvals/${requestId}`);
+      return { success: true, data: undefined };
+    }
+
+    // Chain fully approved — finalize document state
     await db.$transaction(async (tx) => {
       await tx.approvalRequest.update({
         where: { id: requestId },
@@ -575,47 +575,23 @@ export async function approveRequest(
       });
 
       if (approval.docType === "voucher") {
-        await tx.voucher.update({
-          where: { id: approval.docId },
-          data: { status: "approved" },
-        });
-
-        await postVoucherTx(tx, {
-          orgId,
-          voucherId: approval.docId,
-          actorId: userId,
-        });
+        await tx.voucher.update({ where: { id: approval.docId }, data: { status: "approved" } });
+        await postVoucherTx(tx, { orgId, voucherId: approval.docId, actorId: userId });
       } else if (approval.docType === "salary-slip") {
-        await tx.salarySlip.update({
-          where: { id: approval.docId },
-          data: { status: "approved" },
-        });
+        await tx.salarySlip.update({ where: { id: approval.docId }, data: { status: "approved" } });
       } else if (approval.docType === "vendor-bill") {
-        await tx.vendorBill.update({
-          where: { id: approval.docId },
-          data: { status: "APPROVED" },
-        });
-
-        await postVendorBillTx(tx, {
-          orgId,
-          vendorBillId: approval.docId,
-          actorId: userId,
-        });
+        await tx.vendorBill.update({ where: { id: approval.docId }, data: { status: "APPROVED" } });
+        await postVendorBillTx(tx, { orgId, vendorBillId: approval.docId, actorId: userId });
       } else if (approval.docType === "payment-run") {
         await tx.paymentRun.update({
           where: { id: approval.docId },
-          data: {
-            status: "APPROVED",
-            approvedByUserId: userId,
-            approvedAt: new Date(),
-          },
+          data: { status: "APPROVED", approvedByUserId: userId, approvedAt: new Date() },
         });
       }
     });
 
     const docNumber = await getDocNumber(approval.docType, approval.docId);
 
-    // Notify requester
     await createNotification({
       userId: approval.requestedById,
       orgId,
@@ -625,7 +601,7 @@ export async function approveRequest(
       link: `/app/flow/approvals/${requestId}`,
     });
 
-    revalidateApprovalDocumentPaths(approval.docType, approval.docId);
+    revalidateApprovalDocumentPaths(approval.docType as ApprovalDocType, approval.docId);
     revalidatePath("/app/flow/approvals");
     revalidatePath(`/app/flow/approvals/${requestId}`);
     return { success: true, data: undefined };
@@ -649,7 +625,7 @@ export async function rejectRequest(
     }
 
     const approval = await db.approvalRequest.findFirst({
-      where: { id: requestId, orgId, status: "PENDING" },
+      where: { id: requestId, orgId, status: { in: ["PENDING", "ESCALATED"] } },
     });
 
     if (!approval) {
@@ -675,6 +651,9 @@ export async function rejectRequest(
 
     const approverName = profile?.name ?? "Unknown User";
 
+    // Record decision in the chain (always terminal for rejections)
+    await advanceApprovalChain(requestId, userId, approverName, "REJECTED", note.trim());
+
     await db.$transaction(async (tx) => {
       await tx.approvalRequest.update({
         where: { id: requestId },
@@ -689,24 +668,16 @@ export async function rejectRequest(
 
       if (isFinanceApprovalDocType(approval.docType)) {
         if (approval.docType === "vendor-bill") {
-          await tx.vendorBill.update({
-            where: { id: approval.docId },
-            data: { status: "DRAFT" },
-          });
+          await tx.vendorBill.update({ where: { id: approval.docId }, data: { status: "DRAFT" } });
         }
-
         if (approval.docType === "payment-run") {
-          await tx.paymentRun.update({
-            where: { id: approval.docId },
-            data: { status: "DRAFT" },
-          });
+          await tx.paymentRun.update({ where: { id: approval.docId }, data: { status: "DRAFT" } });
         }
       }
     });
 
     const docNumber = await getDocNumber(approval.docType, approval.docId);
 
-    // Notify requester
     await createNotification({
       userId: approval.requestedById,
       orgId,
@@ -716,7 +687,7 @@ export async function rejectRequest(
       link: `/app/flow/approvals/${requestId}`,
     });
 
-    revalidateApprovalDocumentPaths(approval.docType, approval.docId);
+    revalidateApprovalDocumentPaths(approval.docType as ApprovalDocType, approval.docId);
     revalidatePath("/app/flow/approvals");
     revalidatePath(`/app/flow/approvals/${requestId}`);
     return { success: true, data: undefined };
