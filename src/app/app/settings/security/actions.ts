@@ -12,7 +12,13 @@ import {
   hashRecoveryCode,
   findRecoveryCodeIndex,
 } from "@/lib/totp";
-import { createSupabaseServer } from "@/lib/supabase/server";
+import {
+  signChallengeToken,
+  TOTP_CHALLENGE_COOKIE,
+  TOTP_SESSION_DURATION_SECONDS,
+} from "@/lib/totp/challenge-session";
+import { createSupabaseServer, createSupabaseAdmin } from "@/lib/supabase/server";
+import { cookies } from "next/headers";
 import { revalidatePath } from "next/cache";
 
 export type ActionResult<T> =
@@ -94,6 +100,24 @@ export async function verify2faSetup(
       },
     });
 
+    // Sync totpEnabled flag into Supabase user_metadata so the Edge middleware
+    // can read it from the JWT without a database round-trip.
+    const admin = await createSupabaseAdmin();
+    await admin.auth.admin.updateUserById(user.id, {
+      user_metadata: { totpEnabled: true },
+    });
+
+    // Issue the challenge session cookie so the user is not immediately
+    // redirected to the 2FA challenge page after completing setup.
+    const cookieStore = await cookies();
+    cookieStore.set(TOTP_CHALLENGE_COOKIE, signChallengeToken(user.id), {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      path: "/",
+      maxAge: TOTP_SESSION_DURATION_SECONDS,
+    });
+
     revalidatePath(SECURITY_PATH);
     return { success: true, data: { recoveryCodes: codes } };
   } catch (err) {
@@ -130,6 +154,14 @@ export async function disable2fa(
         recoveryCodes: Prisma.JsonNull,
       },
     });
+
+    // Sync flag into Supabase user_metadata and clear the challenge cookie.
+    const admin = await createSupabaseAdmin();
+    await admin.auth.admin.updateUserById(user.id, {
+      user_metadata: { totpEnabled: false },
+    });
+    const cookieStore = await cookies();
+    cookieStore.delete(TOTP_CHALLENGE_COOKIE);
 
     revalidatePath(SECURITY_PATH);
     return { success: true, data: undefined };
@@ -204,6 +236,25 @@ export async function get2faStatus(): Promise<
       success: false,
       error: err instanceof Error ? err.message : "Failed to load 2FA status",
     };
+  }
+}
+
+/**
+ * Verify and consume a recovery code from the security settings page.
+ * Infers the user from the current session — use this in settings UI.
+ */
+export async function verifyRecoveryCode(
+  inputCode: string,
+): Promise<ActionResult<void>> {
+  try {
+    const supabase = await createSupabaseServer();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) return { success: false, error: "Not authenticated" };
+    return consumeRecoveryCode(user.id, inputCode);
+  } catch (err) {
+    return { success: false, error: err instanceof Error ? err.message : "Recovery code error" };
   }
 }
 
