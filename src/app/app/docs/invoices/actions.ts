@@ -6,12 +6,14 @@ import { nextDocumentNumber } from "@/lib/docs";
 import { getSchemaDriftActionMessage, isModelMissingTableError } from "@/lib/prisma-errors";
 import { revalidatePath } from "next/cache";
 import type { Prisma } from "@/generated/prisma/client";
+import { StockEventType } from "@/generated/prisma/client";
 import { reconcileInvoicePayment, validatePaymentAmount } from "@/lib/invoice-reconciliation";
 import { postInvoiceIssueTx, postInvoicePaymentTx, reverseJournalEntryTx } from "@/lib/accounting";
 import { fireWorkflowTrigger } from "@/lib/flow/workflow-engine";
 import { emitInvoiceEvent } from "@/lib/document-events";
 import { syncInvoiceToIndex } from "@/lib/docs-vault";
 import { checkUsageLimit } from "@/lib/usage-metering";
+import { recordStockEventTx } from "@/lib/inventory/stock-events";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -537,6 +539,7 @@ export async function issueInvoice(id: string): Promise<ActionResult<void>> {
 
     const existing = await db.invoice.findFirst({
       where: { id, organizationId: orgId },
+      include: { lineItems: { where: { inventoryItemId: { not: null } } } },
     });
 
     if (!existing) {
@@ -575,6 +578,36 @@ export async function issueInvoice(id: string): Promise<ActionResult<void>> {
         invoiceId: id,
         actorId: userId,
       });
+
+      // Auto-decrement inventory stock for line items linked to inventory items.
+      // Dispatch from the warehouse with the highest available stock for each item.
+      for (const line of existing.lineItems) {
+        if (!line.inventoryItemId) continue;
+
+        const sourceLevel = await tx.stockLevel.findFirst({
+          where: { inventoryItemId: line.inventoryItemId, orgId },
+          orderBy: { availableQty: "desc" },
+        });
+
+        if (!sourceLevel) continue;
+
+        const avgUnitCost =
+          sourceLevel.quantity > 0
+            ? Number(sourceLevel.valuationAmount) / sourceLevel.quantity
+            : 0;
+
+        await recordStockEventTx(tx, {
+          orgId,
+          inventoryItemId: line.inventoryItemId,
+          warehouseId: sourceLevel.warehouseId,
+          eventType: StockEventType.SALES_DISPATCH,
+          quantity: line.quantity,
+          unitCost: avgUnitCost,
+          referenceType: "Invoice",
+          referenceId: id,
+          createdByUserId: userId,
+        });
+      }
     });
 
     // Phase 17.4: Hook workflow trigger

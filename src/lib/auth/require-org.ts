@@ -175,7 +175,7 @@ export async function getOrgContext(): Promise<OrgContext | null> {
  * Roles: owner > admin > member
  */
 export function hasRole(userRole: string, requiredRole: string): boolean {
-  const roleHierarchy = ["member", "admin", "owner"];
+  const roleHierarchy = ["member", "admin", "co_owner", "owner"];
   const userLevel = roleHierarchy.indexOf(userRole);
   const requiredLevel = roleHierarchy.indexOf(requiredRole);
   return userLevel >= requiredLevel;

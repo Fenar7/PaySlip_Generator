@@ -70,7 +70,7 @@ export async function recordStockEventTx(
   });
 
   if (existing) {
-    const newQty = existing.quantity + qtyDelta;
+    const newQty = Math.max(0, existing.quantity + qtyDelta);
     const newValuation = Math.max(0, Number(existing.valuationAmount) + valuationDelta);
     const newAvailable = Math.max(0, newQty - existing.reservedQty);
 

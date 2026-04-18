@@ -3,6 +3,7 @@
 import { db } from "@/lib/db";
 import { requireOrgContext, requireRole } from "@/lib/auth";
 import { nextDocumentNumberTx } from "@/lib/docs/numbering";
+import { validateGstin } from "@/lib/gst/compute";
 import { PurchaseOrderStatus, Prisma } from "@/generated/prisma/client";
 
 export type ActionResult<T> =
@@ -178,6 +179,13 @@ export async function createPurchaseOrder(
 
     if (!vendor || vendor.organizationId !== orgId) {
       return { success: false, error: "Vendor not found" };
+    }
+
+    if (data.supplierGstin) {
+      const gstinValidation = validateGstin(data.supplierGstin);
+      if (!gstinValidation.valid) {
+        return { success: false, error: `Invalid supplier GSTIN: ${gstinValidation.error}` };
+      }
     }
 
     const orgDefaults = await db.orgDefaults.findUnique({

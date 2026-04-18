@@ -65,7 +65,7 @@ export default async function ConsolidationPage({
     );
   }
 
-  const groupId = params.groupId ?? adminGroup.id;
+  const groupId = adminGroup.id; // always use the admin's own group; ignore user-supplied groupId to prevent IDOR
   const startDate = params.startDate;
   const endDate = params.endDate;
 
