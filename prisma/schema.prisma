@@ -154,6 +154,16 @@ model Organization {
   tallyImportLogs              TallyImportLog[]
   payrollRuns                  PayrollRun[]
   payrollSettings              PayrollSettings?
+  // Phase 26: Inventory & Procurement
+  inventoryItems               InventoryItem[]
+  warehouses                   Warehouse[]
+  stockLevels                  StockLevel[]
+  stockEvents                  StockEvent[]
+  stockAdjustments             StockAdjustment[]
+  stockTransfers               StockTransfer[]
+  purchaseOrders               PurchaseOrder[]
+  goodsReceiptNotes            GoodsReceiptNote[]
+  threeWayMatchResults         ThreeWayMatchResult[]
   // Phase 26: Multi-Entity
   entityGroupId                String?                @map("entity_group_id")
   parentOrgId                  String?                @map("parent_org_id")
@@ -293,6 +303,16 @@ model OrgDefaults {
   defaultTdsPayableAccountId      String?
   defaultGatewayClearingAccountId String?
   defaultSuspenseAccountId        String?
+
+  // Phase 26.2: Procurement numbering
+  poPrefix   String @default("PO")
+  poCounter  Int    @default(1)
+  grnPrefix  String @default("GRN")
+  grnCounter Int    @default(1)
+
+  // Phase 26.3: 3-Way Match tolerances
+  matchQtyTolerancePct    Float @default(5.0)
+  matchAmountTolerancePct Float @default(2.0)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -494,6 +514,7 @@ model JournalEntry {
   salarySlipAccrual       SalarySlip?        @relation("SalarySlipJournal")
   salarySlipPayout        SalarySlip?        @relation("SalarySlipPayoutJournal")
   bankAccountOpening      BankAccount?       @relation("BankAccountOpeningJournal")
+  stockAdjustmentPosted   StockAdjustment?   @relation("StockAdjJournal")
 
   @@unique([orgId, entryNumber])
   @@index([orgId, entryDate, status])
@@ -720,22 +741,27 @@ model VendorBill {
   accountingStatus AccountingStatus @default(PENDING)
   journalEntryId   String?          @unique
   postedAt         DateTime?
+  purchaseOrderId  String?
+  matchStatus      MatchStatus      @default(PENDING)
   createdAt        DateTime         @default(now())
   updatedAt        DateTime         @updatedAt
   archivedAt       DateTime?
 
-  organization     Organization        @relation(fields: [orgId], references: [id], onDelete: Cascade)
-  vendor           Vendor?             @relation(fields: [vendorId], references: [id])
-  expenseAccount   GlAccount?          @relation("VendorBillExpenseAccount", fields: [expenseAccountId], references: [id])
-  lines            VendorBillLine[]
-  payments         VendorBillPayment[]
-  paymentRunItems  PaymentRunItem[]
-  attachments      FileAttachment[]    @relation("VendorBillAttachments")
-  journalEntry     JournalEntry?       @relation("VendorBillJournal", fields: [journalEntryId], references: [id])
-  approvalRequests ApprovalRequest[]   @relation("VendorBillApprovals")
+  organization    Organization          @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  vendor          Vendor?               @relation(fields: [vendorId], references: [id])
+  expenseAccount  GlAccount?            @relation("VendorBillExpenseAccount", fields: [expenseAccountId], references: [id])
+  lines           VendorBillLine[]
+  payments        VendorBillPayment[]
+  paymentRunItems PaymentRunItem[]
+  attachments     FileAttachment[]      @relation("VendorBillAttachments")
+  journalEntry    JournalEntry?         @relation("VendorBillJournal", fields: [journalEntryId], references: [id])
+  approvalRequests ApprovalRequest[]    @relation("VendorBillApprovals")
+  purchaseOrder   PurchaseOrder?        @relation("POVendorBills", fields: [purchaseOrderId], references: [id])
+  matchResults    ThreeWayMatchResult[]
 
   @@unique([orgId, billNumber])
   @@index([orgId, status])
+  @@index([purchaseOrderId])
   @@map("vendor_bill")
 }
 
@@ -936,6 +962,7 @@ model Vendor {
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   vouchers     Voucher[]
   bills        VendorBill[]
+  purchaseOrders PurchaseOrder[]
 
   @@index([organizationId])
   @@map("vendor")
@@ -1162,15 +1189,16 @@ model Invoice {
 }
 
 model InvoiceLineItem {
-  id          String  @id @default(cuid())
-  invoiceId   String
-  description String
-  quantity    Float   @default(1)
-  unitPrice   Float   @default(0)
-  taxRate     Float   @default(0)
-  discount    Float   @default(0)
-  amount      Float   @default(0)
-  sortOrder   Int     @default(0)
+  id              String  @id @default(cuid())
+  invoiceId       String
+  inventoryItemId String?
+  description     String
+  quantity        Float   @default(1)
+  unitPrice       Float   @default(0)
+  taxRate         Float   @default(0)
+  discount        Float   @default(0)
+  amount          Float   @default(0)
+  sortOrder       Int     @default(0)
   // Phase 15: GST
   hsnCode     String?
   sacCode     String?
@@ -1181,8 +1209,10 @@ model InvoiceLineItem {
   igstAmount  Float   @default(0)
   cessAmount  Float   @default(0)
 
-  invoice Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  invoice       Invoice        @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  inventoryItem InventoryItem? @relation("LineItemInventory", fields: [inventoryItemId], references: [id])
 
+  @@index([inventoryItemId])
   @@map("invoice_line_item")
 }
 
@@ -3139,6 +3169,8 @@ model HsnSacCode {
   chapter     String?
   section     String?
 
+  inventoryItems InventoryItem[]
+
   @@index([code])
   @@index([description])
   @@map("hsn_sac_code")
@@ -4437,4 +4469,400 @@ model InterCompanyTransfer {
   @@index([sourceOrgId])
   @@index([destinationOrgId])
   @@map("inter_company_transfer")
+}
+
+// ─── Phase 26.2: Item Master & Intelligent Inventory (WMS) ───────────────────
+
+enum InventoryValuationMethod {
+  FIFO
+  LIFO
+  WEIGHTED_AVERAGE
+}
+
+enum StockEventType {
+  PURCHASE_RECEIPT
+  SALES_DISPATCH
+  ADJUSTMENT_IN
+  ADJUSTMENT_OUT
+  TRANSFER_IN
+  TRANSFER_OUT
+  RETURN_IN
+  RETURN_OUT
+  OPENING_BALANCE
+}
+
+enum StockAdjustmentReason {
+  PHYSICAL_COUNT
+  DAMAGE
+  THEFT
+  EXPIRED
+  FOUND
+  CORRECTION
+  OTHER
+}
+
+enum StockAdjustmentStatus {
+  DRAFT
+  PENDING_APPROVAL
+  APPROVED
+  POSTED
+  CANCELLED
+}
+
+enum StockTransferStatus {
+  DRAFT
+  IN_TRANSIT
+  COMPLETED
+  CANCELLED
+}
+
+model InventoryItem {
+  id              String                   @id @default(cuid())
+  orgId           String
+  sku             String
+  name            String
+  description     String?
+  category        String?
+  unit            String                   @default("PCS")
+  hsnSacCodeId    String?
+  gstRate         Float                    @default(0)
+  costPrice       Decimal                  @default(0)
+  sellingPrice    Decimal                  @default(0)
+  reorderLevel    Int                      @default(0)
+  reorderQuantity Int                      @default(0)
+  valuationMethod InventoryValuationMethod @default(FIFO)
+  trackInventory  Boolean                  @default(true)
+  isActive        Boolean                  @default(true)
+  imageUrl        String?
+  metadata        Json?
+  createdAt       DateTime                 @default(now())
+  updatedAt       DateTime                 @updatedAt
+  archivedAt      DateTime?
+
+  organization       Organization       @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  hsnSacCode         HsnSacCode?        @relation(fields: [hsnSacCodeId], references: [id])
+  stockLevels        StockLevel[]
+  stockEvents        StockEvent[]
+  invoiceLineItems   InvoiceLineItem[]  @relation("LineItemInventory")
+  purchaseOrderLines PurchaseOrderLine[]
+  adjustmentLines    StockAdjustmentLine[]
+  transferLines      StockTransferLine[]
+
+  @@unique([orgId, sku])
+  @@index([orgId, isActive])
+  @@index([orgId, category])
+  @@map("inventory_item")
+}
+
+model Warehouse {
+  id        String   @id @default(cuid())
+  orgId     String
+  name      String
+  code      String
+  address   String?
+  city      String?
+  state     String?
+  pincode   String?
+  isDefault Boolean  @default(false)
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  organization    Organization      @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  stockLevels     StockLevel[]
+  stockEvents     StockEvent[]
+  adjustments     StockAdjustment[]
+  transfersFrom   StockTransfer[]   @relation("TransferFrom")
+  transfersTo     StockTransfer[]   @relation("TransferTo")
+  purchaseOrders  PurchaseOrder[]
+  goodsReceipts   GoodsReceiptNote[]
+
+  @@unique([orgId, code])
+  @@index([orgId, isActive])
+  @@map("warehouse")
+}
+
+model StockLevel {
+  id              String    @id @default(cuid())
+  orgId           String
+  inventoryItemId String
+  warehouseId     String
+  quantity        Int       @default(0)
+  reservedQty     Int       @default(0)
+  availableQty    Int       @default(0)
+  valuationAmount Decimal   @default(0)
+  lastEventAt     DateTime?
+  updatedAt       DateTime  @updatedAt
+
+  organization  Organization  @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  inventoryItem InventoryItem @relation(fields: [inventoryItemId], references: [id])
+  warehouse     Warehouse     @relation(fields: [warehouseId], references: [id])
+
+  @@unique([inventoryItemId, warehouseId])
+  @@index([orgId, warehouseId])
+  @@map("stock_level")
+}
+
+model StockEvent {
+  id              String         @id @default(cuid())
+  orgId           String
+  inventoryItemId String
+  warehouseId     String
+  eventType       StockEventType
+  quantity        Int
+  unitCost        Decimal        @default(0)
+  totalCost       Decimal        @default(0)
+  referenceType   String?
+  referenceId     String?
+  note            String?
+  createdByUserId String         @db.Uuid
+  createdAt       DateTime       @default(now())
+
+  organization  Organization  @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  inventoryItem InventoryItem @relation(fields: [inventoryItemId], references: [id])
+  warehouse     Warehouse     @relation(fields: [warehouseId], references: [id])
+
+  @@index([inventoryItemId, warehouseId, createdAt])
+  @@index([orgId, eventType, createdAt])
+  @@index([referenceType, referenceId])
+  @@map("stock_event")
+}
+
+model StockAdjustment {
+  id               String                @id @default(cuid())
+  orgId            String
+  adjustmentNumber String
+  warehouseId      String
+  reason           StockAdjustmentReason
+  notes            String?
+  status           StockAdjustmentStatus @default(DRAFT)
+  journalEntryId   String?               @unique
+  approvedByUserId String?               @db.Uuid
+  approvedAt       DateTime?
+  createdByUserId  String                @db.Uuid
+  createdAt        DateTime              @default(now())
+  updatedAt        DateTime              @updatedAt
+
+  organization Organization          @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  warehouse    Warehouse             @relation(fields: [warehouseId], references: [id])
+  lines        StockAdjustmentLine[]
+  journalEntry JournalEntry?         @relation("StockAdjJournal", fields: [journalEntryId], references: [id])
+
+  @@unique([orgId, adjustmentNumber])
+  @@index([orgId, status])
+  @@map("stock_adjustment")
+}
+
+model StockAdjustmentLine {
+  id              String  @id @default(cuid())
+  adjustmentId    String
+  inventoryItemId String
+  quantityChange  Int
+  unitCost        Decimal @default(0)
+  reason          String?
+
+  adjustment    StockAdjustment @relation(fields: [adjustmentId], references: [id], onDelete: Cascade)
+  inventoryItem InventoryItem   @relation(fields: [inventoryItemId], references: [id])
+
+  @@map("stock_adjustment_line")
+}
+
+model StockTransfer {
+  id                String              @id @default(cuid())
+  orgId             String
+  transferNumber    String
+  fromWarehouseId   String
+  toWarehouseId     String
+  status            StockTransferStatus @default(DRAFT)
+  notes             String?
+  initiatedByUserId String              @db.Uuid
+  approvedByUserId  String?             @db.Uuid
+  approvedAt        DateTime?
+  completedAt       DateTime?
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+
+  organization  Organization        @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  fromWarehouse Warehouse           @relation("TransferFrom", fields: [fromWarehouseId], references: [id])
+  toWarehouse   Warehouse           @relation("TransferTo", fields: [toWarehouseId], references: [id])
+  lines         StockTransferLine[]
+
+  @@unique([orgId, transferNumber])
+  @@index([orgId, status])
+  @@map("stock_transfer")
+}
+
+model StockTransferLine {
+  id              String @id @default(cuid())
+  transferId      String
+  inventoryItemId String
+  quantity        Int
+
+  transfer      StockTransfer @relation(fields: [transferId], references: [id], onDelete: Cascade)
+  inventoryItem InventoryItem @relation(fields: [inventoryItemId], references: [id])
+
+  @@map("stock_transfer_line")
+}
+
+// ─── Phase 26.3: Procurement & Accounts Payable (AP) OS ──────────────────────
+
+enum PurchaseOrderStatus {
+  DRAFT
+  PENDING_APPROVAL
+  APPROVED
+  PARTIALLY_RECEIVED
+  FULLY_RECEIVED
+  CLOSED
+  CANCELLED
+}
+
+enum GrnStatus {
+  DRAFT
+  CONFIRMED
+  CANCELLED
+}
+
+enum MatchStatus {
+  PENDING
+  MATCHED
+  PARTIAL_MATCH
+  MISMATCH
+  RESOLVED
+  WAIVED
+}
+
+model PurchaseOrder {
+  id                 String              @id @default(cuid())
+  orgId              String
+  vendorId           String
+  poNumber           String
+  poDate             String
+  expectedDelivery   String?
+  status             PurchaseOrderStatus @default(DRAFT)
+  formData           Json?
+  subtotalAmount     Decimal             @default(0)
+  taxAmount          Decimal             @default(0)
+  totalAmount        Decimal             @default(0)
+  currency           String              @default("INR")
+  warehouseId        String?
+  notes              String?
+  termsAndConditions String?
+  supplierGstin      String?
+  placeOfSupply      String?
+  gstTotalCgst       Decimal             @default(0)
+  gstTotalSgst       Decimal             @default(0)
+  gstTotalIgst       Decimal             @default(0)
+  approvedByUserId   String?             @db.Uuid
+  approvedAt         DateTime?
+  rejectedByUserId   String?             @db.Uuid
+  rejectedAt         DateTime?
+  rejectionReason    String?
+  createdByUserId    String              @db.Uuid
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+  archivedAt         DateTime?
+
+  organization   Organization          @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  vendor         Vendor                @relation(fields: [vendorId], references: [id])
+  warehouse      Warehouse?            @relation(fields: [warehouseId], references: [id])
+  lines          PurchaseOrderLine[]
+  goodsReceipts  GoodsReceiptNote[]
+  vendorBills    VendorBill[]          @relation("POVendorBills")
+  matchResults   ThreeWayMatchResult[]
+
+  @@unique([orgId, poNumber])
+  @@index([orgId, status])
+  @@index([vendorId])
+  @@map("purchase_order")
+}
+
+model PurchaseOrderLine {
+  id              String  @id @default(cuid())
+  purchaseOrderId String
+  inventoryItemId String?
+  description     String
+  quantity        Decimal @default(1)
+  unitPrice       Decimal @default(0)
+  taxRate         Float   @default(0)
+  discount        Decimal @default(0)
+  lineTotal       Decimal @default(0)
+  sortOrder       Int     @default(0)
+  hsnCode         String?
+  gstRate         Float   @default(0)
+  cgstAmount      Decimal @default(0)
+  sgstAmount      Decimal @default(0)
+  igstAmount      Decimal @default(0)
+  receivedQty     Decimal @default(0)
+  billedQty       Decimal @default(0)
+
+  purchaseOrder PurchaseOrder        @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
+  inventoryItem InventoryItem?       @relation(fields: [inventoryItemId], references: [id])
+  grnLines      GoodsReceiptNoteLine[]
+
+  @@map("purchase_order_line")
+}
+
+model GoodsReceiptNote {
+  id               String    @id @default(cuid())
+  orgId            String
+  purchaseOrderId  String
+  grnNumber        String
+  receiptDate      String
+  warehouseId      String
+  status           GrnStatus @default(DRAFT)
+  notes            String?
+  inspectionNotes  String?
+  receivedByUserId String    @db.Uuid
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  organization  Organization          @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  purchaseOrder PurchaseOrder         @relation(fields: [purchaseOrderId], references: [id])
+  warehouse     Warehouse             @relation(fields: [warehouseId], references: [id])
+  lines         GoodsReceiptNoteLine[]
+
+  @@unique([orgId, grnNumber])
+  @@index([orgId, status])
+  @@index([purchaseOrderId])
+  @@map("goods_receipt_note")
+}
+
+model GoodsReceiptNoteLine {
+  id              String  @id @default(cuid())
+  grnId           String
+  poLineId        String
+  receivedQty     Decimal
+  acceptedQty     Decimal @default(0)
+  rejectedQty     Decimal @default(0)
+  rejectionReason String?
+
+  grn    GoodsReceiptNote  @relation(fields: [grnId], references: [id], onDelete: Cascade)
+  poLine PurchaseOrderLine @relation(fields: [poLineId], references: [id])
+
+  @@map("goods_receipt_note_line")
+}
+
+model ThreeWayMatchResult {
+  id               String      @id @default(cuid())
+  orgId            String
+  purchaseOrderId  String
+  vendorBillId     String
+  matchStatus      MatchStatus @default(PENDING)
+  qtyMatchScore    Float       @default(0)
+  amountMatchScore Float       @default(0)
+  overallScore     Float       @default(0)
+  discrepancies    Json?
+  resolvedByUserId String?     @db.Uuid
+  resolvedAt       DateTime?
+  resolutionNote   String?
+  createdAt        DateTime    @default(now())
+  updatedAt        DateTime    @updatedAt
+
+  organization  Organization  @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  purchaseOrder PurchaseOrder @relation(fields: [purchaseOrderId], references: [id])
+  vendorBill    VendorBill    @relation(fields: [vendorBillId], references: [id])
+
+  @@unique([purchaseOrderId, vendorBillId])
+  @@index([orgId, matchStatus])
+  @@map("three_way_match_result")
 }

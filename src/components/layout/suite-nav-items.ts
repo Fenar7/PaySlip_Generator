@@ -114,6 +114,27 @@ export const suiteNavItems: NavItem[] = [
     ],
   },
   {
+    href: "/app/inventory/items",
+    label: "Inventory",
+    suite: "inventory",
+    children: [
+      { href: "/app/inventory/items", label: "Items" },
+      { href: "/app/inventory/warehouses", label: "Warehouses" },
+      { href: "/app/inventory/adjustments", label: "Adjustments" },
+      { href: "/app/inventory/transfers", label: "Transfers" },
+    ],
+  },
+  {
+    href: "/app/procurement/po",
+    label: "Procurement",
+    suite: "procurement",
+    children: [
+      { href: "/app/procurement/po", label: "Purchase Orders" },
+      { href: "/app/procurement/grn", label: "Goods Receipts" },
+      { href: "/app/procurement/bills", label: "Vendor Bills (AP)" },
+    ],
+  },
+  {
     href: "/app/pixel",
     label: "Pixel",
     suite: "pixel",
