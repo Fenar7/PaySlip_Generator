@@ -110,6 +110,7 @@ model Organization {
   marketplacePayoutItems       MarketplacePayoutItem[]
   marketplacePayoutEvents      MarketplacePayoutEvent[]
   approvalPolicies             ApprovalPolicy[]
+  approvalDelegations          ApprovalDelegation[]
   ticketSlaPolicies            TicketSlaPolicy[]
   ticketEscalationRules        TicketEscalationRule[]
   scheduledActions             ScheduledAction[]
@@ -1517,38 +1518,54 @@ enum ApprovalStatus {
   PENDING
   APPROVED
   REJECTED
+  ESCALATED
+  EXPIRED
 }
 
 model ApprovalPolicy {
   id                String               @id @default(cuid())
   orgId             String
   name              String
+  description       String?
+  // module/eventType retained for backward compat; entityType unifies doc-type routing
   module            String
   eventType         String
+  entityType        String?
   status            ApprovalPolicyStatus @default(ACTIVE)
   stepMode          ApprovalStepMode     @default(SINGLE)
   escalateAfterMins Int?
+  // Amount thresholds for threshold-based routing
+  minAmount         Decimal?             @db.Decimal(14, 2)
+  maxAmount         Decimal?             @db.Decimal(14, 2)
   createdBy         String               @db.Uuid
   createdAt         DateTime             @default(now())
   updatedAt         DateTime             @updatedAt
 
-  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  organization Organization        @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  rules        ApprovalPolicyRule[]
 
   @@index([orgId, module, status])
   @@map("approval_policy")
 }
 
 model ApprovalPolicyRule {
-  id             String   @id @default(cuid())
-  policyId       String
-  sequence       Int
-  minAmount      Decimal? @db.Decimal(14, 2)
-  maxAmount      Decimal? @db.Decimal(14, 2)
-  approverRole   String?
-  approverUserId String?  @db.Uuid
-  fallbackRole   String?
-  fallbackUserId String?  @db.Uuid
-  createdAt      DateTime @default(now())
+  id               String   @id @default(cuid())
+  policyId         String
+  sequence         Int
+  minAmount        Decimal? @db.Decimal(14, 2)
+  maxAmount        Decimal? @db.Decimal(14, 2)
+  approverRole     String?
+  approverUserId   String?  @db.Uuid
+  fallbackRole     String?
+  fallbackUserId   String?  @db.Uuid
+  // Sprint 25.2 extensions
+  approverType     String   @default("role") // "role" | "user"
+  approvalMode     String   @default("any_one") // "any_one" | "all_required"
+  escalateAfterHours Int?
+  allowDelegation  Boolean  @default(true)
+  createdAt        DateTime @default(now())
+
+  policy ApprovalPolicy @relation(fields: [policyId], references: [id], onDelete: Cascade)
 
   @@index([policyId, sequence])
   @@map("approval_policy_rule")
@@ -1734,16 +1751,57 @@ model ApprovalRequest {
   escalatedAt     DateTime?
   escalationLevel Int            @default(0)
   lastReminderAt  DateTime?
+  // Sprint 25.2: chain position tracking
+  currentRuleOrder Int           @default(1)
 
   invoice    Invoice?    @relation("InvoiceApprovals", fields: [docId], references: [id], map: "approval_invoice_fkey")
   voucher    Voucher?    @relation("VoucherApprovals", fields: [docId], references: [id], map: "approval_voucher_fkey")
   vendorBill VendorBill? @relation("VendorBillApprovals", fields: [docId], references: [id], map: "approval_vendor_bill_fkey")
   paymentRun PaymentRun? @relation("PaymentRunApprovals", fields: [docId], references: [id], map: "approval_payment_run_fkey")
   salarySlip SalarySlip? @relation("SalarySlipApprovals", fields: [docId], references: [id], map: "approval_salary_slip_fkey")
+  decisions  ApprovalDecision[]
 
   @@index([orgId, status])
   @@index([docType, docId])
   @@map("approval_request")
+}
+
+/// One decision record per approver per chain step, preserving the full decision trail.
+model ApprovalDecision {
+  id              String   @id @default(cuid())
+  requestId       String
+  ruleOrder       Int
+  decidedById     String   @db.Uuid
+  decidedByName   String?
+  delegatedFromId String?  @db.Uuid // set if the approver acted via delegation
+  decision        String   // "APPROVED" | "REJECTED"
+  comment         String?
+  decidedAt       DateTime @default(now())
+
+  request ApprovalRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+
+  @@index([requestId, ruleOrder])
+  @@map("approval_decision")
+}
+
+/// Out-of-office delegation: routes approval notifications/decisions from one user to another.
+model ApprovalDelegation {
+  id          String   @id @default(cuid())
+  orgId       String
+  fromUserId  String   @db.Uuid
+  toUserId    String   @db.Uuid
+  reason      String?
+  validFrom   DateTime
+  validUntil  DateTime
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@index([orgId, isActive])
+  @@index([fromUserId, isActive])
+  @@map("approval_delegation")
 }
 
 // ─── Phase 5: SW Flow — Notifications ─────────────────────────────────────────

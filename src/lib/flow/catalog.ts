@@ -21,6 +21,7 @@ export const SUPPORTED_TRIGGERS = [
   "manual",
   // Legacy / internal triggers kept for backward compatibility
   "approval.requested",
+  "approval.finalized",
   "approval.breached",
   "vendor_bill.submitted",
   "payment_run.failed",
@@ -74,6 +75,7 @@ export const TRIGGER_LABELS: Record<SupportedTrigger, string> = {
   "schedule.cron": "Scheduled (Daily / Weekly / Monthly)",
   "manual": "Manually Triggered",
   "approval.requested": "Approval Requested",
+  "approval.finalized": "Approval Chain Finalized",
   "approval.breached": "Approval SLA Breached",
   "vendor_bill.submitted": "Vendor Bill Submitted",
   "payment_run.failed": "Payment Run Failed",
