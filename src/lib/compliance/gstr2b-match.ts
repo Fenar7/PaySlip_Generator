@@ -57,6 +57,21 @@ function amountWithinTolerance(a: number, b: number): boolean {
   return Math.abs(a - b) / base <= AMOUNT_TOLERANCE_PCT;
 }
 
+/**
+ * Normalize a date string to YYYY-MM-DD regardless of input format.
+ * Handles DD-MM-YYYY (GST portal), DD/MM/YYYY, and ISO YYYY-MM-DD.
+ * Returns empty string if unparseable.
+ */
+function normalizeDate(raw: string): string {
+  if (!raw) return "";
+  // ISO: YYYY-MM-DD or YYYY-MM-DDTHH:mm:ss
+  if (/^\d{4}-\d{2}-\d{2}/.test(raw)) return raw.slice(0, 10);
+  // DD-MM-YYYY or DD/MM/YYYY
+  const match = raw.match(/^(\d{2})[-/](\d{2})[-/](\d{4})$/);
+  if (match) return `${match[3]}-${match[2]}-${match[1]}`;
+  return raw;
+}
+
 function scoreMatch(entry: Gstr2bEntryInput, bill: BillRecord): number {
   let score = 0;
 
@@ -77,6 +92,13 @@ function scoreMatch(entry: Gstr2bEntryInput, bill: BillRecord): number {
     score += 0.3;
   } else if (normBill.includes(normEntry) || normEntry.includes(normBill)) {
     score += 0.15; // partial doc number match
+  }
+
+  // Date proximity bonus (up to 5% on top): exact date match adds confidence
+  const entryDate = normalizeDate(entry.docDate);
+  const billDate = normalizeDate(bill.billDate);
+  if (entryDate && billDate && entryDate === billDate) {
+    score = Math.min(score + 0.05, 1);
   }
 
   // Amount match (30% weight) — check taxable + total tax
@@ -196,7 +218,7 @@ export function parseGstr2bJson(raw: unknown): Omit<
         result.push({
           supplierGstin: gstin,
           docNumber: String(d.inum ?? ""),
-          docDate: String(d.idt ?? ""),
+          docDate: normalizeDate(String(d.idt ?? "")),
           docType: "B2B",
           taxableAmount: taxable,
           cgst, sgst, igst,
@@ -227,7 +249,7 @@ export function parseGstr2bJson(raw: unknown): Omit<
         result.push({
           supplierGstin: gstin,
           docNumber: String(n.ntnum ?? ""),
-          docDate: String(n.dt ?? ""),
+          docDate: normalizeDate(String(n.dt ?? "")),
           docType: "CDNR",
           taxableAmount: taxable,
           cgst, sgst, igst,

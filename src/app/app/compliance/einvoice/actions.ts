@@ -18,8 +18,8 @@ export async function generateEInvoiceAction(
   const { orgId, userId } = await requireRole("admin");
 
   const [invoice, org, orgDefaults, config] = await Promise.all([
-    db.invoice.findUnique({
-      where: { id: invoiceId },
+    db.invoice.findFirst({
+      where: { id: invoiceId, organizationId: orgId },
       include: { lineItems: true },
     }),
     db.organization.findUnique({ where: { id: orgId } }),

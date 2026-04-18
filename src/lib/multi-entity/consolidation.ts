@@ -251,8 +251,8 @@ export async function getConsolidatedProfitAndLoss(
     },
     entityBreakdown: perOrgPL,
     consolidated: {
-      totalIncome,
-      totalExpenses,
+      totalIncome: roundMoney(totalIncome - ictElimination),
+      totalExpenses: roundMoney(totalExpenses - ictElimination),
       netProfit: roundMoney(totalIncome - totalExpenses),
       interCompanyEliminations: ictElimination,
     },

@@ -115,22 +115,45 @@ export function runThreeWayMatch(input: ThreeWayMatchInput): ThreeWayMatchOutput
       });
     }
 
-    // Amount check: bill unit price vs PO unit price
+    // Amount check: bill unit price AND line total vs PO agreed price.
+    // Expected lineTotal = billed qty × PO unit price. This detects hidden fees/discounts
+    // that aren't explained by the unit price or quantity alone.
     const billedUnitPrice = billLine?.unitPrice ?? 0;
+    const billedLineTotal = billLine?.lineTotal ?? 0;
+    const amountToleranceFraction = amountTolerancePct / 100;
+    // What the line total SHOULD be given the billed quantity at the agreed PO price
+    const expectedLineTotal = billedQty * poLine.unitPrice;
+
     const priceVariance =
       poLine.unitPrice > 0 ? Math.abs(billedUnitPrice - poLine.unitPrice) / poLine.unitPrice : 1;
-    const amountToleranceFraction = amountTolerancePct / 100;
+    const lineTotalVariance =
+      expectedLineTotal > 0
+        ? Math.abs(billedLineTotal - expectedLineTotal) / expectedLineTotal
+        : billedLineTotal > 0
+          ? 1
+          : 0;
 
-    if (priceVariance <= amountToleranceFraction) {
+    if (priceVariance <= amountToleranceFraction && lineTotalVariance <= amountToleranceFraction) {
       amountMatchCount++;
     } else {
-      discrepancies.push({
-        poLineId: poLine.id,
-        field: "unitPrice",
-        expected: poLine.unitPrice,
-        actual: billedUnitPrice,
-        variancePct: parseFloat((priceVariance * 100).toFixed(2)),
-      });
+      if (priceVariance > amountToleranceFraction) {
+        discrepancies.push({
+          poLineId: poLine.id,
+          field: "unitPrice",
+          expected: poLine.unitPrice,
+          actual: billedUnitPrice,
+          variancePct: parseFloat((priceVariance * 100).toFixed(2)),
+        });
+      }
+      if (lineTotalVariance > amountToleranceFraction) {
+        discrepancies.push({
+          poLineId: poLine.id,
+          field: "lineTotal",
+          expected: expectedLineTotal,
+          actual: billedLineTotal,
+          variancePct: parseFloat((lineTotalVariance * 100).toFixed(2)),
+        });
+      }
     }
   }
 
