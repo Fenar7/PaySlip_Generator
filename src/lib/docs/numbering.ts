@@ -3,7 +3,14 @@
 import { db } from "@/lib/db";
 import { Prisma } from "@/generated/prisma/client";
 
-export type DocumentType = "invoice" | "voucher" | "salarySlip" | "quote" | "vendorBill";
+export type DocumentType =
+  | "invoice"
+  | "voucher"
+  | "salarySlip"
+  | "quote"
+  | "vendorBill"
+  | "purchaseOrder"
+  | "grn";
 
 interface NumberingConfig {
   prefixField:
@@ -11,13 +18,17 @@ interface NumberingConfig {
     | "voucherPrefix"
     | "salarySlipPrefix"
     | "quotePrefix"
-    | "vendorBillPrefix";
+    | "vendorBillPrefix"
+    | "poPrefix"
+    | "grnPrefix";
   counterField:
     | "invoiceCounter"
     | "voucherCounter"
     | "salarySlipCounter"
     | "quoteCounter"
-    | "vendorBillCounter";
+    | "vendorBillCounter"
+    | "poCounter"
+    | "grnCounter";
 }
 
 type PrefixField = NumberingConfig["prefixField"];
@@ -34,6 +45,10 @@ type NumberingFields = {
   quoteCounter: number;
   vendorBillPrefix: string;
   vendorBillCounter: number;
+  poPrefix: string;
+  poCounter: number;
+  grnPrefix: string;
+  grnCounter: number;
 };
 
 const DEFAULT_NUMBERING: NumberingFields = {
@@ -47,6 +62,10 @@ const DEFAULT_NUMBERING: NumberingFields = {
   quoteCounter: 1,
   vendorBillPrefix: "BILL",
   vendorBillCounter: 1,
+  poPrefix: "PO",
+  poCounter: 1,
+  grnPrefix: "GRN",
+  grnCounter: 1,
 };
 
 const CONFIG: Record<DocumentType, NumberingConfig> = {
@@ -69,6 +88,14 @@ const CONFIG: Record<DocumentType, NumberingConfig> = {
   vendorBill: {
     prefixField: "vendorBillPrefix",
     counterField: "vendorBillCounter",
+  },
+  purchaseOrder: {
+    prefixField: "poPrefix",
+    counterField: "poCounter",
+  },
+  grn: {
+    prefixField: "grnPrefix",
+    counterField: "grnCounter",
   },
 };
 
