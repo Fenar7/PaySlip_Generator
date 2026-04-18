@@ -5,8 +5,9 @@ import {
   apiResponse,
   apiError,
   handleApiError,
+  ErrorCode,
 } from "@/app/api/v1/_helpers";
-import db from "@/lib/db";
+import { db } from "@/lib/db";
 
 export const runtime = "nodejs";
 
@@ -39,22 +40,20 @@ export async function GET(
 ) {
   try {
     const auth = await authenticateApiRequest(request);
-    if (!auth.ok) return apiError(401, auth.error);
+    const { orgId } = auth;
 
     const { triggerName } = await params;
 
     if (!ALLOWED_TRIGGERS.includes(triggerName as TriggerName)) {
       return apiError(
-        404,
+        ErrorCode.NOT_FOUND,
         `Unknown trigger "${triggerName}". Valid triggers: ${ALLOWED_TRIGGERS.join(", ")}`
       );
     }
 
     const scope = triggerToScope(triggerName as TriggerName);
-    const scopeCheck = requireScope(auth.scopes, scope);
-    if (!scopeCheck.ok) return apiError(403, scopeCheck.error);
+    requireScope(auth.scopes, scope);
 
-    const { orgId } = auth;
     const url = new URL(request.url);
     const sinceParam = url.searchParams.get("since");
     const limit = Math.min(
@@ -103,7 +102,7 @@ async function fetchTriggerData(
         where: {
           organizationId: orgId,
           updatedAt: { gte: since },
-          status: { not: "draft" },
+          status: { not: "DRAFT" },
         },
         orderBy: { updatedAt: "desc" },
         take: limit,
@@ -118,29 +117,24 @@ async function fetchTriggerData(
       });
 
     case "payment.received": {
-      // Journal entries that represent payment receipt (debit bank account)
-      const entries = await db.journalEntry.findMany({
-        where: {
-          organizationId: orgId,
-          createdAt: { gte: since },
-          reference: { contains: "INV" },
-        },
+      const payments = await db.invoicePayment.findMany({
+        where: { orgId, createdAt: { gte: since } },
         orderBy: { createdAt: "desc" },
         take: limit,
         select: {
           id: true,
-          reference: true,
           amount: true,
-          narration: true,
-          createdAt: true,
+          method: true,
+          paidAt: true,
+          invoice: { select: { invoiceNumber: true } },
         },
       });
-      return entries.map((e) => ({
-        id: e.id,
-        invoiceReference: e.reference,
-        amountPaid: Number(e.amount),
-        method: "bank",
-        receivedAt: e.createdAt,
+      return payments.map((p) => ({
+        id: p.id,
+        invoiceReference: p.invoice.invoiceNumber,
+        amountPaid: p.amount,
+        method: p.method ?? "bank",
+        receivedAt: p.paidAt,
       }));
     }
 
@@ -162,9 +156,9 @@ async function fetchTriggerData(
     case "quote.accepted":
       return db.quote.findMany({
         where: {
-          organizationId: orgId,
+          orgId,
           updatedAt: { gte: since },
-          status: "accepted",
+          status: "ACCEPTED",
         },
         orderBy: { updatedAt: "desc" },
         take: limit,
@@ -179,17 +173,17 @@ async function fetchTriggerData(
       });
 
     case "ticket.opened":
-      return db.ticket.findMany({
-        where: { organizationId: orgId, createdAt: { gte: since } },
+      return db.invoiceTicket.findMany({
+        where: { orgId, createdAt: { gte: since } },
         orderBy: { createdAt: "desc" },
         take: limit,
         select: {
           id: true,
-          subject: true,
+          description: true,
           status: true,
           priority: true,
           createdAt: true,
-          customer: { select: { id: true, name: true } },
+          invoice: { select: { id: true, invoiceNumber: true } },
         },
       });
 
