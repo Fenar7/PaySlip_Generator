@@ -1,15 +1,15 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import React, { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { requestEmployeeOtp, verifyEmployeeOtp } from "../actions";
 
 export default function EmployeeLoginPage({
   params,
 }: {
-  params: { orgSlug: string };
+  params: Promise<{ orgSlug: string }>;
 }) {
-  const { orgSlug } = params;
+  const { orgSlug } = React.use(params);
   const router = useRouter();
   const [step, setStep] = useState<"email" | "otp">("email");
   const [email, setEmail] = useState("");
