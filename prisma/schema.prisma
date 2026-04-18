@@ -76,6 +76,8 @@ model Organization {
   closeTasks                   CloseTask[]
   proxyGrants                  ProxyGrant[]
   auditLogs                    AuditLog[]
+  auditChainVerifications      AuditChainVerification[]
+  auditPackageExports          AuditPackageExport[]
   subscription                 Subscription?
   usageRecords                 UsageRecord[]
   storageUsage                 StorageUsage[]
@@ -2253,10 +2255,10 @@ model ProxyGrant {
 }
 
 model AuditLog {
-  id            String   @id @default(cuid())
+  id            String      @id @default(cuid())
   orgId         String
-  actorId       String   @db.Uuid
-  representedId String?  @db.Uuid
+  actorId       String      @db.Uuid
+  representedId String?     @db.Uuid
   proxyGrantId  String?
   action        String
   entityType    String?
@@ -2264,16 +2266,80 @@ model AuditLog {
   metadata      Json?
   ipAddress     String?
   userAgent     String?
-  createdAt     DateTime @default(now())
+  // Forensic chain fields (Sprint 27.3)
+  sequenceNum   BigInt?
+  entryHash     String?
+  prevHash      String?
+  chainStatus   ChainStatus @default(UNVERIFIED)
+  createdAt     DateTime    @default(now())
 
   organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
   actor        Profile      @relation("AuditActor", fields: [actorId], references: [id])
   represented  Profile?     @relation("AuditRepresented", fields: [representedId], references: [id])
 
   @@index([orgId, createdAt])
+  @@index([orgId, sequenceNum])
   @@index([actorId])
   @@index([entityType, entityId])
   @@map("audit_log")
+}
+
+enum ChainStatus {
+  VALID
+  BROKEN
+  UNVERIFIED
+}
+
+enum ChainVerificationStatus {
+  INTACT
+  BROKEN
+  EMPTY
+}
+
+enum AuditExportStatus {
+  GENERATING
+  COMPLETED
+  FAILED
+}
+
+model AuditChainVerification {
+  id              String                  @id @default(cuid())
+  orgId           String
+  totalEntries    Int
+  verifiedEntries Int
+  status          ChainVerificationStatus
+  firstBreakSeq   BigInt?
+  firstBreakHash  String?
+  gapsDetected    Json?
+  durationMs      Int
+  triggeredBy     String                  @default("CRON")
+  verifiedAt      DateTime                @default(now())
+
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@index([orgId, verifiedAt(sort: Desc)])
+  @@map("audit_chain_verification")
+}
+
+model AuditPackageExport {
+  id               String            @id @default(cuid())
+  orgId            String
+  dateRangeStart   DateTime
+  dateRangeEnd     DateTime
+  entryCount       Int
+  fileSizeBytes    BigInt?
+  storageKey       String?
+  downloadUrl      String?
+  downloadExpiry   DateTime?
+  exportedByUserId String            @db.Uuid
+  status           AuditExportStatus @default(GENERATING)
+  errorMessage     String?
+  createdAt        DateTime          @default(now())
+
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@index([orgId, createdAt(sort: Desc)])
+  @@map("audit_package_export")
 }
 
 // ─── Phase 10: Storage Usage Tracking ─────────────────────────────────────────

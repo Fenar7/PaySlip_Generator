@@ -146,6 +146,7 @@ export const suiteNavItems: NavItem[] = [
       { href: "/app/compliance/einvoice", label: "E-Invoice (IRN)" },
       { href: "/app/compliance/tds", label: "TDS Ledger" },
       { href: "/app/settings/compliance/einvoice", label: "E-Invoice Config" },
+      { href: "/app/admin/audit/integrity", label: "Audit Integrity" },
     ],
   },
   {
