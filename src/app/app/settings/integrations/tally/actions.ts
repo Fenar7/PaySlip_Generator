@@ -1,7 +1,12 @@
 "use server";
 
 import { requireOrgContext, requireRole } from "@/lib/auth";
-import db from "@/lib/db";
+import { db } from "@/lib/db";
+import { Prisma, InvoiceStatus } from "@/generated/prisma/client";
+
+function dateToStr(d: Date): string {
+  return d.toISOString().split("T")[0];
+}
 import {
   batchInvoicesToTallyXML,
   batchVouchersToTallyXML,
@@ -46,8 +51,8 @@ export async function exportTallyData(
       const invoices = await db.invoice.findMany({
         where: {
           organizationId: orgId,
-          invoiceDate: { gte: from, lte: to },
-          status: { not: "draft" },
+          invoiceDate: { gte: dateToStr(from), lte: dateToStr(to) },
+          status: { not: "DRAFT" },
         },
         select: {
           id: true,
@@ -64,10 +69,7 @@ export async function exportTallyData(
       invoiceData = invoices.map((inv) => ({
         id: inv.id,
         invoiceNumber: inv.invoiceNumber,
-        invoiceDate:
-          inv.invoiceDate instanceof Date
-            ? inv.invoiceDate.toISOString().split("T")[0]
-            : String(inv.invoiceDate),
+        invoiceDate: inv.invoiceDate,
         totalAmount: Number(inv.totalAmount),
         notes: inv.notes,
         formData: (inv.formData as Record<string, unknown>) ?? {},
@@ -83,32 +85,33 @@ export async function exportTallyData(
       const vouchers = await db.voucher.findMany({
         where: {
           organizationId: orgId,
-          voucherDate: { gte: from, lte: to },
+          voucherDate: { gte: dateToStr(from), lte: dateToStr(to) },
         },
         select: {
           id: true,
           voucherNumber: true,
           voucherDate: true,
-          voucherType: true,
-          amount: true,
-          notes: true,
-          partyName: true,
+          type: true,
+          totalAmount: true,
+          formData: true,
         },
       });
 
-      voucherData = vouchers.map((v) => ({
-        id: v.id,
-        voucherNumber: v.voucherNumber,
-        date:
-          v.voucherDate instanceof Date
-            ? v.voucherDate.toISOString().split("T")[0]
-            : String(v.voucherDate),
-        voucherType: mapVoucherType(v.voucherType),
-        debitLedger: v.partyName ?? "Cash",
-        creditLedger: mapCreditLedger(v.voucherType),
-        amount: Number(v.amount),
-        narration: v.notes ?? undefined,
-      }));
+      voucherData = vouchers.map((v) => {
+        const fd = (v.formData ?? {}) as Record<string, unknown>;
+        const partyName = (fd.partyName as string | undefined) ?? "Cash";
+        const notes = (fd.notes as string | undefined) ?? undefined;
+        return {
+          id: v.id,
+          voucherNumber: v.voucherNumber,
+          date: v.voucherDate,
+          voucherType: mapVoucherType(v.type),
+          debitLedger: partyName,
+          creditLedger: mapCreditLedger(v.type),
+          amount: Number(v.totalAmount),
+          narration: notes,
+        };
+      });
     }
 
     const xml =
@@ -241,9 +244,9 @@ export async function confirmTallyImport(
         data: {
           organizationId: orgId,
           invoiceNumber: sv.voucherNumber,
-          invoiceDate: new Date(year, month - 1, day),
+          invoiceDate: `${String(year)}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`,
           totalAmount: sv.totalAmount,
-          status: "sent",
+          status: InvoiceStatus.ISSUED,
           formData: {
             importSource: "tally",
             partyName: sv.partyName,
@@ -270,7 +273,7 @@ export async function confirmTallyImport(
           : imported > 0
             ? "partial"
             : "failed",
-      errorDetails: errors.length > 0 ? errors : null,
+      errorDetails: errors.length > 0 ? (errors as Prisma.JsonArray) : Prisma.JsonNull,
     },
   });
 

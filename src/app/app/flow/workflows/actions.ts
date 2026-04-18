@@ -16,7 +16,7 @@ export type ActionResult<T> =
 export type WorkflowStepInput = {
   actionType: string;
   config: Record<string, unknown>;
-  conditionJson?: { field: string; operator: string; value: unknown } | null;
+  conditionJson?: Record<string, unknown> | null;
   label?: string;
 };
 

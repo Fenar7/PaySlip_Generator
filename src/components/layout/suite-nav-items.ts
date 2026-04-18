@@ -53,6 +53,7 @@ export const suiteNavItems: NavItem[] = [
       { href: "/app/pay/reconciliation", label: "Bank Reconciliation" },
       { href: "/app/pay/collections-intelligence", label: "Collections Intelligence" },
       { href: "/app/pay/intelligence/aging", label: "Aging Analysis" },
+      { href: "/app/pay/payroll", label: "Payroll Runs" },
     ],
   },
   {

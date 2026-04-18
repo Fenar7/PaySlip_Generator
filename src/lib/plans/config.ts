@@ -157,6 +157,8 @@ export const PLAN_LIMITS: Record<PlanId, PlanLimits> = {
     activeShareBundles: 10,
     pixelJobsSaved: 20,
     activeWorkflowAutomations: 0,
+  },
+  starter: {
     invoicesPerMonth: 100,
     vouchersPerMonth: 100,
     salarySlipsPerMonth: 50,

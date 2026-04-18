@@ -1,5 +1,6 @@
 import type { Prisma } from "@/generated/prisma/client";
 import { db } from "@/lib/db";
+import { logAudit } from "@/lib/audit";
 import { sendEmail } from "@/lib/email";
 import { createNotification, notifyOrgAdmins } from "@/lib/notifications";
 import { createApprovalRequest } from "./approvals";
@@ -337,8 +338,10 @@ async function executeStep(
       if (!VALID_STATUSES.includes(newStatus)) {
         throw new Error(`update_invoice_status: invalid status "${newStatus}"`);
       }
+      const inv = await db.invoice.findFirst({ where: { id: invoiceId, organizationId: orgId }, select: { id: true } });
+      if (!inv) throw new Error("update_invoice_status: invoice not found or unauthorized");
       await db.invoice.update({
-        where: { id: invoiceId, orgId },
+        where: { id: invoiceId },
         data: { status: newStatus as never },
       });
       return { invoiceId, newStatus };
@@ -359,10 +362,10 @@ async function executeStep(
 
     // ── Audit log ──────────────────────────────────────────────────────────
     case "add_audit_log": {
-      await db.auditLog.create({
-        data: {
+      if (event.actorId) {
+        await logAudit({
           orgId,
-          actorId: event.actorId ?? null,
+          actorId: event.actorId,
           action: interpolate((config.action as string) ?? "workflow_action", event.payload),
           entityType: (config.entityType as string) ?? event.sourceEntityType ?? "Workflow",
           entityId: (config.entityId as string) ?? event.sourceEntityId,
@@ -371,8 +374,8 @@ async function executeStep(
             triggerType: event.triggerType,
             payload: event.payload,
           },
-        },
-      });
+        });
+      }
       return {};
     }
 
