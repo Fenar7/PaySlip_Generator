@@ -18,10 +18,10 @@ model Profile {
   updatedAt DateTime @updatedAt
 
   // Phase 24.5: TOTP 2FA
-  totpSecret         String?   // AES-256-CBC encrypted TOTP secret
+  totpSecret         String? // AES-256-CBC encrypted TOTP secret
   totpEnabled        Boolean   @default(false)
   totpEnabledAt      DateTime?
-  recoveryCodes      Json?     // array of bcrypt-hashed 8 recovery codes
+  recoveryCodes      Json? // array of bcrypt-hashed 8 recovery codes
   twoFaEnforcedByOrg Boolean   @default(false)
 
   members             Member[]
@@ -165,16 +165,16 @@ model Organization {
   goodsReceiptNotes            GoodsReceiptNote[]
   threeWayMatchResults         ThreeWayMatchResult[]
   // Phase 26: Multi-Entity
-  entityGroupId                String?                @map("entity_group_id")
-  parentOrgId                  String?                @map("parent_org_id")
-  entityType                   EntityType             @default(STANDALONE) @map("entity_type")
-  consolidationCurrency        String                 @default("INR") @map("consolidation_currency")
-  entityGroup                  EntityGroup?           @relation("GroupMembers", fields: [entityGroupId], references: [id])
-  parentOrg                    Organization?          @relation("ParentChild", fields: [parentOrgId], references: [id])
-  childOrgs                    Organization[]         @relation("ParentChild")
-  adminEntityGroup             EntityGroup?           @relation("GroupAdmin")
-  sourceTransfers              InterCompanyTransfer[] @relation("ICTSource")
-  destinationTransfers         InterCompanyTransfer[] @relation("ICTDestination")
+  entityGroupId                String?                       @map("entity_group_id")
+  parentOrgId                  String?                       @map("parent_org_id")
+  entityType                   EntityType                    @default(STANDALONE) @map("entity_type")
+  consolidationCurrency        String                        @default("INR") @map("consolidation_currency")
+  entityGroup                  EntityGroup?                  @relation("GroupMembers", fields: [entityGroupId], references: [id])
+  parentOrg                    Organization?                 @relation("ParentChild", fields: [parentOrgId], references: [id])
+  childOrgs                    Organization[]                @relation("ParentChild")
+  adminEntityGroup             EntityGroup?                  @relation("GroupAdmin")
+  sourceTransfers              InterCompanyTransfer[]        @relation("ICTSource")
+  destinationTransfers         InterCompanyTransfer[]        @relation("ICTDestination")
   // Sprint 26.4: Compliance
   gstr2bImports                Gstr2bImport[]
   eInvoiceRequests             EInvoiceRequest[]
@@ -182,6 +182,11 @@ model Organization {
   // Sprint 26.5: CRM & SOP
   crmNotes                     CrmNote[]
   sopDocuments                 SopDocument[]
+  // Phase 27: Forecast & Tax
+  forecastSnapshots            ForecastSnapshot[]
+  taxConfigs                   TaxConfig[]
+  taxLiabilityEstimates        TaxLiabilityEstimate[]
+  primaryTaxRegion             TaxRegion?                    @map("primary_tax_region")
 
   @@index([entityGroupId])
   @@map("organization")
@@ -278,12 +283,12 @@ model OrgDefaults {
   highValuePaymentThreshold  Float   @default(100000)
   requireDualApprovalPayment Boolean @default(false)
   // Phase 14: Quotes
-  quotePrefix                  String  @default("QTE")
-  quoteCounter                 Int     @default(1)
-  quoteValidityDays            Int     @default(14)
-  quoteHeaderLabel             String  @default("QUOTE")
+  quotePrefix                String  @default("QTE")
+  quoteCounter               Int     @default(1)
+  quoteValidityDays          Int     @default(14)
+  quoteHeaderLabel           String  @default("QUOTE")
   // Phase 14: Dunning
-  defaultDunningSeqId          String?
+  defaultDunningSeqId        String?
 
   // Phase 15.2: i18n + Country
   defaultLanguage    String   @default("en")
@@ -754,17 +759,17 @@ model VendorBill {
   updatedAt        DateTime         @updatedAt
   archivedAt       DateTime?
 
-  organization    Organization          @relation(fields: [orgId], references: [id], onDelete: Cascade)
-  vendor          Vendor?               @relation(fields: [vendorId], references: [id])
-  expenseAccount  GlAccount?            @relation("VendorBillExpenseAccount", fields: [expenseAccountId], references: [id])
-  lines           VendorBillLine[]
-  payments        VendorBillPayment[]
-  paymentRunItems PaymentRunItem[]
-  attachments     FileAttachment[]      @relation("VendorBillAttachments")
-  journalEntry    JournalEntry?         @relation("VendorBillJournal", fields: [journalEntryId], references: [id])
-  approvalRequests ApprovalRequest[]    @relation("VendorBillApprovals")
-  purchaseOrder   PurchaseOrder?        @relation("POVendorBills", fields: [purchaseOrderId], references: [id])
-  matchResults    ThreeWayMatchResult[]
+  organization     Organization          @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  vendor           Vendor?               @relation(fields: [vendorId], references: [id])
+  expenseAccount   GlAccount?            @relation("VendorBillExpenseAccount", fields: [expenseAccountId], references: [id])
+  lines            VendorBillLine[]
+  payments         VendorBillPayment[]
+  paymentRunItems  PaymentRunItem[]
+  attachments      FileAttachment[]      @relation("VendorBillAttachments")
+  journalEntry     JournalEntry?         @relation("VendorBillJournal", fields: [journalEntryId], references: [id])
+  approvalRequests ApprovalRequest[]     @relation("VendorBillApprovals")
+  purchaseOrder    PurchaseOrder?        @relation("POVendorBills", fields: [purchaseOrderId], references: [id])
+  matchResults     ThreeWayMatchResult[]
 
   @@unique([orgId, billNumber])
   @@index([orgId, status])
@@ -935,9 +940,9 @@ model Customer {
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
-  paymentHealthScore  Int     @default(100)
-  preferredLanguage   String?
-  razorpayCustomerId  String? @unique
+  paymentHealthScore Int     @default(100)
+  preferredLanguage  String?
+  razorpayCustomerId String? @unique
 
   // Sprint 26.5: CRM fields
   industry          String?
@@ -962,7 +967,7 @@ model Customer {
   statements       CustomerStatement[]
   quotes           Quote[]
   arrangements     PaymentArrangement[]
-  crmNotes         CrmNote[]               @relation("CustomerNotes")
+  crmNotes         CrmNote[]                 @relation("CustomerNotes")
 
   @@index([organizationId])
   @@map("customer")
@@ -981,20 +986,20 @@ model Vendor {
   updatedAt      DateTime @updatedAt
 
   // Sprint 26.5: CRM fields
-  category          String?
-  paymentTermsDays  Int     @default(30)
-  rating            Int?
-  complianceStatus  VendorComplianceStatus @default(PENDING)
-  totalBilled       Decimal                @default(0)
-  totalPaid         Decimal                @default(0)
-  lastOrderAt       DateTime?
-  tags              String[]               @default([])
+  category         String?
+  paymentTermsDays Int                    @default(30)
+  rating           Int?
+  complianceStatus VendorComplianceStatus @default(PENDING)
+  totalBilled      Decimal                @default(0)
+  totalPaid        Decimal                @default(0)
+  lastOrderAt      DateTime?
+  tags             String[]               @default([])
 
-  organization   Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  organization   Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   vouchers       Voucher[]
   bills          VendorBill[]
   purchaseOrders PurchaseOrder[]
-  crmNotes       CrmNote[]     @relation("VendorNotes")
+  crmNotes       CrmNote[]       @relation("VendorNotes")
 
   @@index([organizationId])
   @@map("vendor")
@@ -1015,19 +1020,19 @@ model Employee {
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
-  employmentType    String?
-  ctcAnnual         Decimal?
-  effectiveFrom     DateTime?
-  pfAccountNumber   String?
-  esiNumber         String?
-  taxRegime         String    @default("new")
-  pfOptOut          Boolean   @default(false)
-  esiOptOut         Boolean   @default(false)
+  employmentType  String?
+  ctcAnnual       Decimal?
+  effectiveFrom   DateTime?
+  pfAccountNumber String?
+  esiNumber       String?
+  taxRegime       String    @default("new")
+  pfOptOut        Boolean   @default(false)
+  esiOptOut       Boolean   @default(false)
 
-  organization   Organization           @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  salarySlips    SalarySlip[]
-  ctcComponents  EmployeeCtcComponent[]
-  payrollItems   PayrollRunItem[]
+  organization  Organization           @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  salarySlips   SalarySlip[]
+  ctcComponents EmployeeCtcComponent[]
+  payrollItems  PayrollRunItem[]
 
   @@index([organizationId])
   @@map("employee")
@@ -1234,14 +1239,14 @@ model InvoiceLineItem {
   amount          Float   @default(0)
   sortOrder       Int     @default(0)
   // Phase 15: GST
-  hsnCode     String?
-  sacCode     String?
-  gstRate     Float   @default(0)
-  gstType     GstType @default(INTRASTATE)
-  cgstAmount  Float   @default(0)
-  sgstAmount  Float   @default(0)
-  igstAmount  Float   @default(0)
-  cessAmount  Float   @default(0)
+  hsnCode         String?
+  sacCode         String?
+  gstRate         Float   @default(0)
+  gstType         GstType @default(INTRASTATE)
+  cgstAmount      Float   @default(0)
+  sgstAmount      Float   @default(0)
+  igstAmount      Float   @default(0)
+  cessAmount      Float   @default(0)
 
   invoice       Invoice        @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
   inventoryItem InventoryItem? @relation("LineItemInventory", fields: [inventoryItemId], references: [id])
@@ -1633,7 +1638,7 @@ model ApprovalPolicy {
   createdAt         DateTime             @default(now())
   updatedAt         DateTime             @updatedAt
 
-  organization Organization        @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  organization Organization         @relation(fields: [orgId], references: [id], onDelete: Cascade)
   rules        ApprovalPolicyRule[]
 
   @@index([orgId, module, status])
@@ -1641,21 +1646,21 @@ model ApprovalPolicy {
 }
 
 model ApprovalPolicyRule {
-  id               String   @id @default(cuid())
-  policyId         String
-  sequence         Int
-  minAmount        Decimal? @db.Decimal(14, 2)
-  maxAmount        Decimal? @db.Decimal(14, 2)
-  approverRole     String?
-  approverUserId   String?  @db.Uuid
-  fallbackRole     String?
-  fallbackUserId   String?  @db.Uuid
+  id                 String   @id @default(cuid())
+  policyId           String
+  sequence           Int
+  minAmount          Decimal? @db.Decimal(14, 2)
+  maxAmount          Decimal? @db.Decimal(14, 2)
+  approverRole       String?
+  approverUserId     String?  @db.Uuid
+  fallbackRole       String?
+  fallbackUserId     String?  @db.Uuid
   // Sprint 25.2 extensions
-  approverType     String   @default("role") // "role" | "user"
-  approvalMode     String   @default("any_one") // "any_one" | "all_required"
+  approverType       String   @default("role") // "role" | "user"
+  approvalMode       String   @default("any_one") // "any_one" | "all_required"
   escalateAfterHours Int?
-  allowDelegation  Boolean  @default(true)
-  createdAt        DateTime @default(now())
+  allowDelegation    Boolean  @default(true)
+  createdAt          DateTime @default(now())
 
   policy ApprovalPolicy @relation(fields: [policyId], references: [id], onDelete: Cascade)
 
@@ -1750,7 +1755,7 @@ model WorkflowDefinition {
   name          String
   description   String?
   triggerType   String
-  triggerConfig Json?          // trigger-specific configuration (e.g., { daysPastDue: 3 })
+  triggerConfig Json? // trigger-specific configuration (e.g., { daysPastDue: 3 })
   status        WorkflowStatus @default(DRAFT)
   version       Int            @default(1)
   config        Json
@@ -1772,8 +1777,8 @@ model WorkflowStep {
   sequence      Int
   actionType    String
   config        Json
-  conditionJson Json?    // optional pre-condition: { field, operator, value }
-  label         String?  // human-readable step label
+  conditionJson Json? // optional pre-condition: { field, operator, value }
+  label         String? // human-readable step label
   createdAt     DateTime @default(now())
 
   workflow WorkflowDefinition @relation(fields: [workflowId], references: [id], onDelete: Cascade)
@@ -1825,32 +1830,32 @@ model WorkflowStepRun {
 }
 
 model ApprovalRequest {
-  id              String         @id @default(cuid())
-  docType         String
-  docId           String
-  orgId           String
-  requestedById   String         @db.Uuid
-  requestedByName String?
-  approverId      String?        @db.Uuid
-  approverName    String?
-  status          ApprovalStatus @default(PENDING)
-  note            String?
-  createdAt       DateTime       @default(now())
-  decidedAt       DateTime?
-  policyId        String?
-  policyRuleId    String?
-  dueAt           DateTime?
-  escalatedAt     DateTime?
-  escalationLevel Int            @default(0)
-  lastReminderAt  DateTime?
+  id               String         @id @default(cuid())
+  docType          String
+  docId            String
+  orgId            String
+  requestedById    String         @db.Uuid
+  requestedByName  String?
+  approverId       String?        @db.Uuid
+  approverName     String?
+  status           ApprovalStatus @default(PENDING)
+  note             String?
+  createdAt        DateTime       @default(now())
+  decidedAt        DateTime?
+  policyId         String?
+  policyRuleId     String?
+  dueAt            DateTime?
+  escalatedAt      DateTime?
+  escalationLevel  Int            @default(0)
+  lastReminderAt   DateTime?
   // Sprint 25.2: chain position tracking
-  currentRuleOrder Int           @default(1)
+  currentRuleOrder Int            @default(1)
 
-  invoice    Invoice?    @relation("InvoiceApprovals", fields: [docId], references: [id], map: "approval_invoice_fkey")
-  voucher    Voucher?    @relation("VoucherApprovals", fields: [docId], references: [id], map: "approval_voucher_fkey")
-  vendorBill VendorBill? @relation("VendorBillApprovals", fields: [docId], references: [id], map: "approval_vendor_bill_fkey")
-  paymentRun PaymentRun? @relation("PaymentRunApprovals", fields: [docId], references: [id], map: "approval_payment_run_fkey")
-  salarySlip SalarySlip? @relation("SalarySlipApprovals", fields: [docId], references: [id], map: "approval_salary_slip_fkey")
+  invoice    Invoice?           @relation("InvoiceApprovals", fields: [docId], references: [id], map: "approval_invoice_fkey")
+  voucher    Voucher?           @relation("VoucherApprovals", fields: [docId], references: [id], map: "approval_voucher_fkey")
+  vendorBill VendorBill?        @relation("VendorBillApprovals", fields: [docId], references: [id], map: "approval_vendor_bill_fkey")
+  paymentRun PaymentRun?        @relation("PaymentRunApprovals", fields: [docId], references: [id], map: "approval_payment_run_fkey")
+  salarySlip SalarySlip?        @relation("SalarySlipApprovals", fields: [docId], references: [id], map: "approval_salary_slip_fkey")
   decisions  ApprovalDecision[]
 
   @@index([orgId, status])
@@ -1866,7 +1871,7 @@ model ApprovalDecision {
   decidedById     String   @db.Uuid
   decidedByName   String?
   delegatedFromId String?  @db.Uuid // set if the approver acted via delegation
-  decision        String   // "APPROVED" | "REJECTED"
+  decision        String // "APPROVED" | "REJECTED"
   comment         String?
   decidedAt       DateTime @default(now())
 
@@ -1878,16 +1883,16 @@ model ApprovalDecision {
 
 /// Out-of-office delegation: routes approval notifications/decisions from one user to another.
 model ApprovalDelegation {
-  id          String   @id @default(cuid())
-  orgId       String
-  fromUserId  String   @db.Uuid
-  toUserId    String   @db.Uuid
-  reason      String?
-  validFrom   DateTime
-  validUntil  DateTime
-  isActive    Boolean  @default(true)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id         String   @id @default(cuid())
+  orgId      String
+  fromUserId String   @db.Uuid
+  toUserId   String   @db.Uuid
+  reason     String?
+  validFrom  DateTime
+  validUntil DateTime
+  isActive   Boolean  @default(true)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
 
   organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
 
@@ -3817,6 +3822,10 @@ enum IntelInsightCategory {
   MARKETPLACE
   INTEGRATIONS
   SYSTEM
+  // Phase 27: Forecast & Tax
+  SPENDING_ANOMALY
+  FORECAST_DEVIATION
+  TAX_LIABILITY
 }
 
 enum InsightSourceType {
@@ -4322,7 +4331,7 @@ model TallyImportLog {
   importedBy   String
   recordCount  Int
   errorCount   Int
-  status       String   // "completed" | "partial" | "failed"
+  status       String // "completed" | "partial" | "failed"
   errorDetails Json?
 
   organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
@@ -4342,13 +4351,13 @@ enum PayrollStatus {
 }
 
 model EmployeeCtcComponent {
-  id              String   @id @default(cuid())
+  id              String  @id @default(cuid())
   employeeId      String
   componentName   String
-  componentType   String   // "earning" | "deduction" | "employer_contribution"
-  calculationType String   // "fixed" | "percent_of_basic" | "percent_of_ctc"
+  componentType   String // "earning" | "deduction" | "employer_contribution"
+  calculationType String // "fixed" | "percent_of_basic" | "percent_of_ctc"
   value           Decimal
-  isActive        Boolean  @default(true)
+  isActive        Boolean @default(true)
 
   employee Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
 
@@ -4359,7 +4368,7 @@ model EmployeeCtcComponent {
 model PayrollRun {
   id               String        @id @default(cuid())
   orgId            String
-  period           String        // "YYYY-MM"
+  period           String // "YYYY-MM"
   status           PayrollStatus @default(DRAFT)
   workingDays      Int           @default(26)
   totalGross       Decimal       @default(0)
@@ -4373,7 +4382,7 @@ model PayrollRun {
   finalizedAt      DateTime?
   finalizedBy      String?
 
-  organization Organization    @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  organization Organization     @relation(fields: [orgId], references: [id], onDelete: Cascade)
   runItems     PayrollRunItem[]
 
   @@unique([orgId, period])
@@ -4415,13 +4424,13 @@ model PayrollRunItem {
 }
 
 model PayrollSettings {
-  id                   String   @id @default(cuid())
-  orgId                String   @unique
-  pfEnabled            Boolean  @default(true)
-  esiEnabled           Boolean  @default(true)
-  defaultTaxRegime     String   @default("new")
+  id                   String  @id @default(cuid())
+  orgId                String  @unique
+  pfEnabled            Boolean @default(true)
+  esiEnabled           Boolean @default(true)
+  defaultTaxRegime     String  @default("new")
   professionalTaxState String?
-  professionalTaxSlabs Json     @default("[]")
+  professionalTaxSlabs Json    @default("[]")
 
   organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
 
@@ -4429,13 +4438,13 @@ model PayrollSettings {
 }
 
 model EmployeeOtp {
-  id         String    @id @default(cuid())
-  email      String
-  orgId      String
-  otpHash    String
-  expiresAt  DateTime
-  usedAt     DateTime?
-  createdAt  DateTime  @default(now())
+  id        String    @id @default(cuid())
+  email     String
+  orgId     String
+  otpHash   String
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
 
   @@unique([email, orgId])
   @@index([orgId])
@@ -4488,8 +4497,8 @@ model InterCompanyTransfer {
   status                    InterCompanyTransferStatus @default(DRAFT)
   sourceJournalEntryId      String?                    @map("source_journal_entry_id")
   destinationJournalEntryId String?                    @map("destination_journal_entry_id")
-  createdByUserId           String                     @db.Uuid @map("created_by_user_id")
-  approvedByUserId          String?                    @db.Uuid @map("approved_by_user_id")
+  createdByUserId           String                     @map("created_by_user_id") @db.Uuid
+  approvedByUserId          String?                    @map("approved_by_user_id") @db.Uuid
   postedAt                  DateTime?                  @map("posted_at")
   cancelledAt               DateTime?                  @map("cancelled_at")
   createdAt                 DateTime                   @default(now())
@@ -4573,11 +4582,11 @@ model InventoryItem {
   updatedAt       DateTime                 @updatedAt
   archivedAt      DateTime?
 
-  organization       Organization       @relation(fields: [orgId], references: [id], onDelete: Cascade)
-  hsnSacCode         HsnSacCode?        @relation(fields: [hsnSacCodeId], references: [id])
+  organization       Organization          @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  hsnSacCode         HsnSacCode?           @relation(fields: [hsnSacCodeId], references: [id])
   stockLevels        StockLevel[]
   stockEvents        StockEvent[]
-  invoiceLineItems   InvoiceLineItem[]  @relation("LineItemInventory")
+  invoiceLineItems   InvoiceLineItem[]     @relation("LineItemInventory")
   purchaseOrderLines PurchaseOrderLine[]
   adjustmentLines    StockAdjustmentLine[]
   transferLines      StockTransferLine[]
@@ -4602,14 +4611,14 @@ model Warehouse {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  organization    Organization      @relation(fields: [orgId], references: [id], onDelete: Cascade)
-  stockLevels     StockLevel[]
-  stockEvents     StockEvent[]
-  adjustments     StockAdjustment[]
-  transfersFrom   StockTransfer[]   @relation("TransferFrom")
-  transfersTo     StockTransfer[]   @relation("TransferTo")
-  purchaseOrders  PurchaseOrder[]
-  goodsReceipts   GoodsReceiptNote[]
+  organization   Organization       @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  stockLevels    StockLevel[]
+  stockEvents    StockEvent[]
+  adjustments    StockAdjustment[]
+  transfersFrom  StockTransfer[]    @relation("TransferFrom")
+  transfersTo    StockTransfer[]    @relation("TransferTo")
+  purchaseOrders PurchaseOrder[]
+  goodsReceipts  GoodsReceiptNote[]
 
   @@unique([orgId, code])
   @@index([orgId, isActive])
@@ -4796,13 +4805,13 @@ model PurchaseOrder {
   updatedAt          DateTime            @updatedAt
   archivedAt         DateTime?
 
-  organization   Organization          @relation(fields: [orgId], references: [id], onDelete: Cascade)
-  vendor         Vendor                @relation(fields: [vendorId], references: [id])
-  warehouse      Warehouse?            @relation(fields: [warehouseId], references: [id])
-  lines          PurchaseOrderLine[]
-  goodsReceipts  GoodsReceiptNote[]
-  vendorBills    VendorBill[]          @relation("POVendorBills")
-  matchResults   ThreeWayMatchResult[]
+  organization  Organization          @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  vendor        Vendor                @relation(fields: [vendorId], references: [id])
+  warehouse     Warehouse?            @relation(fields: [warehouseId], references: [id])
+  lines         PurchaseOrderLine[]
+  goodsReceipts GoodsReceiptNote[]
+  vendorBills   VendorBill[]          @relation("POVendorBills")
+  matchResults  ThreeWayMatchResult[]
 
   @@unique([orgId, poNumber])
   @@index([orgId, status])
@@ -4829,8 +4838,8 @@ model PurchaseOrderLine {
   receivedQty     Decimal @default(0)
   billedQty       Decimal @default(0)
 
-  purchaseOrder PurchaseOrder        @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
-  inventoryItem InventoryItem?       @relation(fields: [inventoryItemId], references: [id])
+  purchaseOrder PurchaseOrder          @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
+  inventoryItem InventoryItem?         @relation(fields: [inventoryItemId], references: [id])
   grnLines      GoodsReceiptNoteLine[]
 
   @@map("purchase_order_line")
@@ -4850,9 +4859,9 @@ model GoodsReceiptNote {
   createdAt        DateTime  @default(now())
   updatedAt        DateTime  @updatedAt
 
-  organization  Organization          @relation(fields: [orgId], references: [id], onDelete: Cascade)
-  purchaseOrder PurchaseOrder         @relation(fields: [purchaseOrderId], references: [id])
-  warehouse     Warehouse             @relation(fields: [warehouseId], references: [id])
+  organization  Organization           @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  purchaseOrder PurchaseOrder          @relation(fields: [purchaseOrderId], references: [id])
+  warehouse     Warehouse              @relation(fields: [warehouseId], references: [id])
   lines         GoodsReceiptNoteLine[]
 
   @@unique([orgId, grnNumber])
@@ -4946,21 +4955,21 @@ enum EInvoiceStatus {
 }
 
 model Gstr2bImport {
-  id             String              @id @default(cuid())
-  orgId          String
-  period         String              // "2026-03" (YYYY-MM)
-  fileKey        String?             // S3/storage key of the uploaded JSON file
-  rawJson        Json?
-  importedByUserId String            @db.Uuid
-  status         Gstr2bImportStatus  @default(UPLOADED)
-  totalEntries   Int                 @default(0)
-  matchedCount   Int                 @default(0)
-  unmatchedCount Int                 @default(0)
-  mismatchCount  Int                 @default(0)
-  notInBooksCount Int                @default(0)
-  errorMessage   String?
-  createdAt      DateTime            @default(now())
-  updatedAt      DateTime            @updatedAt
+  id               String             @id @default(cuid())
+  orgId            String
+  period           String // "2026-03" (YYYY-MM)
+  fileKey          String? // S3/storage key of the uploaded JSON file
+  rawJson          Json?
+  importedByUserId String             @db.Uuid
+  status           Gstr2bImportStatus @default(UPLOADED)
+  totalEntries     Int                @default(0)
+  matchedCount     Int                @default(0)
+  unmatchedCount   Int                @default(0)
+  mismatchCount    Int                @default(0)
+  notInBooksCount  Int                @default(0)
+  errorMessage     String?
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
 
   organization Organization  @relation(fields: [orgId], references: [id], onDelete: Cascade)
   entries      Gstr2bEntry[]
@@ -4971,29 +4980,29 @@ model Gstr2bImport {
 }
 
 model Gstr2bEntry {
-  id               String           @id @default(cuid())
-  importId         String
-  orgId            String
-  supplierGstin    String
-  supplierName     String?
-  docNumber        String
-  docDate          String
-  docType          String           // "B2B", "CDNR", "ISD"
-  taxableAmount    Decimal          @db.Decimal(15, 2)
-  cgst             Decimal          @default(0) @db.Decimal(15, 2)
-  sgst             Decimal          @default(0) @db.Decimal(15, 2)
-  igst             Decimal          @default(0) @db.Decimal(15, 2)
-  cess             Decimal          @default(0) @db.Decimal(15, 2)
-  totalTax         Decimal          @default(0) @db.Decimal(15, 2)
-  matchStatus      Gstr2bMatchStatus @default(UNMATCHED)
-  matchedBillId    String?
-  matchConfidence  Float?           // 0.0 – 1.0
-  matchNote        String?
-  reconciledByUserId String?        @db.Uuid
-  reconciledAt     DateTime?
-  createdAt        DateTime         @default(now())
+  id                 String            @id @default(cuid())
+  importId           String
+  orgId              String
+  supplierGstin      String
+  supplierName       String?
+  docNumber          String
+  docDate            String
+  docType            String // "B2B", "CDNR", "ISD"
+  taxableAmount      Decimal           @db.Decimal(15, 2)
+  cgst               Decimal           @default(0) @db.Decimal(15, 2)
+  sgst               Decimal           @default(0) @db.Decimal(15, 2)
+  igst               Decimal           @default(0) @db.Decimal(15, 2)
+  cess               Decimal           @default(0) @db.Decimal(15, 2)
+  totalTax           Decimal           @default(0) @db.Decimal(15, 2)
+  matchStatus        Gstr2bMatchStatus @default(UNMATCHED)
+  matchedBillId      String?
+  matchConfidence    Float? // 0.0 – 1.0
+  matchNote          String?
+  reconciledByUserId String?           @db.Uuid
+  reconciledAt       DateTime?
+  createdAt          DateTime          @default(now())
 
-  import  Gstr2bImport @relation(fields: [importId], references: [id], onDelete: Cascade)
+  import Gstr2bImport @relation(fields: [importId], references: [id], onDelete: Cascade)
 
   @@index([importId, matchStatus])
   @@index([orgId, supplierGstin])
@@ -5002,24 +5011,24 @@ model Gstr2bEntry {
 }
 
 model EInvoiceRequest {
-  id              String              @id @default(cuid())
-  orgId           String
-  invoiceId       String
-  requestType     EInvoiceRequestType
-  status          EInvoiceStatus      @default(PENDING)
-  requestPayload  Json?
-  responsePayload Json?
-  irnNumber       String?
-  ackNumber       String?
-  ackDate         DateTime?
-  signedQrCode    String?             @db.Text
-  errorCode       String?
-  errorMessage    String?
-  cancelReason    String?
-  cancelledAt     DateTime?
-  triggeredByUserId String?           @db.Uuid
-  createdAt       DateTime            @default(now())
-  updatedAt       DateTime            @updatedAt
+  id                String              @id @default(cuid())
+  orgId             String
+  invoiceId         String
+  requestType       EInvoiceRequestType
+  status            EInvoiceStatus      @default(PENDING)
+  requestPayload    Json?
+  responsePayload   Json?
+  irnNumber         String?
+  ackNumber         String?
+  ackDate           DateTime?
+  signedQrCode      String?             @db.Text
+  errorCode         String?
+  errorMessage      String?
+  cancelReason      String?
+  cancelledAt       DateTime?
+  triggeredByUserId String?             @db.Uuid
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
 
   organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
   invoice      Invoice      @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
@@ -5031,20 +5040,20 @@ model EInvoiceRequest {
 }
 
 model EInvoiceConfig {
-  id                      String   @id @default(cuid())
-  orgId                   String   @unique
-  enabled                 Boolean  @default(false)
-  irpEnvironment          String   @default("sandbox")
+  id                      String    @id @default(cuid())
+  orgId                   String    @unique
+  enabled                 Boolean   @default(false)
+  irpEnvironment          String    @default("sandbox")
   gstin                   String?
   encryptedUsername       String?
   encryptedPassword       String?
-  authTokenCache          String?  @db.Text
+  authTokenCache          String?   @db.Text
   tokenExpiresAt          DateTime?
-  autoGenerateIrn         Boolean  @default(false)
-  autoGenerateEwb         Boolean  @default(false)
+  autoGenerateIrn         Boolean   @default(false)
+  autoGenerateEwb         Boolean   @default(false)
   ewbDefaultTransportMode String?
-  createdAt               DateTime @default(now())
-  updatedAt               DateTime @updatedAt
+  createdAt               DateTime  @default(now())
+  updatedAt               DateTime  @updatedAt
 
   organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
 
@@ -5083,15 +5092,15 @@ enum SopDocumentStatus {
 }
 
 model CrmNote {
-  id               String   @id @default(cuid())
-  orgId            String
-  entityType       String   // "customer" | "vendor"
-  entityId         String
-  content          String   @db.Text
-  isPinned         Boolean  @default(false)
-  createdByUserId  String   @db.Uuid
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
+  id              String   @id @default(cuid())
+  orgId           String
+  entityType      String // "customer" | "vendor"
+  entityId        String
+  content         String   @db.Text
+  isPinned        Boolean  @default(false)
+  createdByUserId String   @db.Uuid
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 
   organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
   customer     Customer?    @relation("CustomerNotes", fields: [entityId], references: [id], map: "crm_note_customer_fk")
@@ -5103,27 +5112,125 @@ model CrmNote {
 }
 
 model SopDocument {
-  id                  String            @id @default(cuid())
-  orgId               String
-  title               String
-  slug                String
-  category            String?
-  content             String            @db.Text
-  excerpt             String?
-  status              SopDocumentStatus @default(DRAFT)
-  sortOrder           Int               @default(0)
-  isPinned            Boolean           @default(false)
-  publishedAt         DateTime?
-  publishedByUserId   String?           @db.Uuid
-  createdByUserId     String            @db.Uuid
-  lastEditedByUserId  String?           @db.Uuid
-  createdAt           DateTime          @default(now())
-  updatedAt           DateTime          @updatedAt
-  archivedAt          DateTime?
+  id                 String            @id @default(cuid())
+  orgId              String
+  title              String
+  slug               String
+  category           String?
+  content            String            @db.Text
+  excerpt            String?
+  status             SopDocumentStatus @default(DRAFT)
+  sortOrder          Int               @default(0)
+  isPinned           Boolean           @default(false)
+  publishedAt        DateTime?
+  publishedByUserId  String?           @db.Uuid
+  createdByUserId    String            @db.Uuid
+  lastEditedByUserId String?           @db.Uuid
+  createdAt          DateTime          @default(now())
+  updatedAt          DateTime          @updatedAt
+  archivedAt         DateTime?
 
   organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
 
   @@unique([orgId, slug])
   @@index([orgId, status, category])
   @@map("sop_document")
+}
+
+// ─── Phase 27 Sprint 27.1: AI Financial Forecaster ──────────────────────────
+
+model ForecastSnapshot {
+  id             String          @id @default(cuid())
+  orgId          String
+  generatedAt    DateTime        @default(now())
+  baseCurrency   String          @default("INR")
+  smoothingAlpha Float           @default(0.5)
+  /// JSON: MonthlyAggregate[] — historical data used
+  historicalData Json
+  /// JSON: ForecastMonth[] — 30/60/90-day projections
+  projections    Json
+  /// JSON: RunRateMetrics
+  revenueRunRate Json
+  /// JSON: SpendingAnomaly[]
+  anomalies      Json?
+  /// JSON: { [month]: { actualInflow, actualOutflow, accuracyPct } }
+  actualValues   Json?
+  triggerType    ForecastTrigger @default(SCHEDULED)
+  createdAt      DateTime        @default(now())
+
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@index([orgId, generatedAt(sort: Desc)])
+  @@map("forecast_snapshot")
+}
+
+enum ForecastTrigger {
+  SCHEDULED
+  MANUAL
+}
+
+// ─── Phase 27 Sprint 27.2: Global Tax Engine ────────────────────────────────
+
+model TaxConfig {
+  id                 String             @id @default(cuid())
+  orgId              String
+  region             TaxRegion
+  registrationNumber String
+  registrationName   String?
+  isDefault          Boolean            @default(false)
+  /// JSON: Region-specific config (gstin, vatNumber, nexusStates, etc.)
+  config             Json
+  thresholdAmount    Decimal?           @db.Decimal(15, 2)
+  filingFrequency    TaxFilingFrequency @default(MONTHLY)
+  isActive           Boolean            @default(true)
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+
+  organization       Organization           @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  liabilityEstimates TaxLiabilityEstimate[]
+
+  @@unique([orgId, region, registrationNumber])
+  @@index([orgId, isActive])
+  @@map("tax_config")
+}
+
+enum TaxRegion {
+  IN_GST
+  UK_VAT
+  EU_VAT
+  US_SALES
+  AU_GST
+  NZ_GST
+  SG_GST
+  EXEMPT
+}
+
+enum TaxFilingFrequency {
+  MONTHLY
+  QUARTERLY
+  ANNUAL
+}
+
+model TaxLiabilityEstimate {
+  id             String   @id @default(cuid())
+  orgId          String
+  taxConfigId    String
+  periodStart    DateTime
+  periodEnd      DateTime
+  /// JSON: TaxBreakdownLine[]
+  outputTax      Json
+  outputTaxTotal Decimal  @db.Decimal(15, 2)
+  /// JSON: TaxBreakdownLine[]
+  inputTax       Json
+  inputTaxTotal  Decimal  @db.Decimal(15, 2)
+  netLiability   Decimal  @db.Decimal(15, 2)
+  currency       String   @default("INR")
+  generatedAt    DateTime @default(now())
+
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  taxConfig    TaxConfig    @relation(fields: [taxConfigId], references: [id], onDelete: Cascade)
+
+  @@index([orgId, periodStart, periodEnd])
+  @@index([taxConfigId])
+  @@map("tax_liability_estimate")
 }
