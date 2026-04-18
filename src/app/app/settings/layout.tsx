@@ -18,6 +18,7 @@ const navItems = [
   { label: "Usage & Limits", href: "/app/settings/billing/usage" },
   { label: "Language & Currency", href: "/app/settings/i18n" },
   { label: "Enterprise", href: "/app/settings/enterprise" },
+  { label: "Entity Groups", href: "/app/settings/entities" },
   { label: "Audit Log", href: "/app/settings/audit" },
 ];
 

@@ -81,6 +81,23 @@ export interface PlanLimits {
   // Phase 25: automation limits
   /** Max concurrently-ACTIVE workflow automations (0 = feature unavailable) */
   activeWorkflowAutomations: number;
+  // Phase 26: Multi-Entity & ERP
+  /** Whether the org can create/join an EntityGroup */
+  multiEntity: boolean;
+  /** Max child entities in the group (0 = not available) */
+  maxEntitiesPerGroup: number;
+  /** Whether inventory management (WMS) is available */
+  inventoryManagement: boolean;
+  /** Max warehouses per org (0 = not available) */
+  maxWarehouses: number;
+  /** Whether procurement/AP module is available */
+  procurementAp: boolean;
+  /** Whether advanced e-invoicing (IRN v2) is available */
+  eInvoicingV2: boolean;
+  /** Whether enterprise CRM module is available */
+  enterpriseCrm: boolean;
+  /** Whether the SOP knowledge base is available */
+  sopKnowledgeBase: boolean;
 }
 
 export interface PlanConfig {
@@ -157,6 +174,14 @@ export const PLAN_LIMITS: Record<PlanId, PlanLimits> = {
     activeShareBundles: 10,
     pixelJobsSaved: 20,
     activeWorkflowAutomations: 0,
+    multiEntity: false,
+    maxEntitiesPerGroup: 0,
+    inventoryManagement: false,
+    maxWarehouses: 0,
+    procurementAp: false,
+    eInvoicingV2: false,
+    enterpriseCrm: false,
+    sopKnowledgeBase: false,
   },
   starter: {
     invoicesPerMonth: 100,
@@ -220,6 +245,14 @@ export const PLAN_LIMITS: Record<PlanId, PlanLimits> = {
     activeShareBundles: 50,
     pixelJobsSaved: 200,
     activeWorkflowAutomations: 5,
+    multiEntity: false,
+    maxEntitiesPerGroup: 0,
+    inventoryManagement: false,
+    maxWarehouses: 0,
+    procurementAp: false,
+    eInvoicingV2: false,
+    enterpriseCrm: false,
+    sopKnowledgeBase: false,
   },
   pro: {
     invoicesPerMonth: 1000,
@@ -283,6 +316,14 @@ export const PLAN_LIMITS: Record<PlanId, PlanLimits> = {
     activeShareBundles: 500,
     pixelJobsSaved: 2000,
     activeWorkflowAutomations: 25,
+    multiEntity: false,
+    maxEntitiesPerGroup: 0,
+    inventoryManagement: true,
+    maxWarehouses: 2,
+    procurementAp: true,
+    eInvoicingV2: true,
+    enterpriseCrm: false,
+    sopKnowledgeBase: false,
   },
   enterprise: {
     invoicesPerMonth: -1, // unlimited
@@ -346,6 +387,14 @@ export const PLAN_LIMITS: Record<PlanId, PlanLimits> = {
     activeShareBundles: -1,
     pixelJobsSaved: -1,
     activeWorkflowAutomations: -1,
+    multiEntity: true,
+    maxEntitiesPerGroup: -1,
+    inventoryManagement: true,
+    maxWarehouses: -1,
+    procurementAp: true,
+    eInvoicingV2: true,
+    enterpriseCrm: true,
+    sopKnowledgeBase: true,
   },
 };
 

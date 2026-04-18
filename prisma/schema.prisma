@@ -154,7 +154,19 @@ model Organization {
   tallyImportLogs              TallyImportLog[]
   payrollRuns                  PayrollRun[]
   payrollSettings              PayrollSettings?
+  // Phase 26: Multi-Entity
+  entityGroupId                String?                @map("entity_group_id")
+  parentOrgId                  String?                @map("parent_org_id")
+  entityType                   EntityType             @default(STANDALONE) @map("entity_type")
+  consolidationCurrency        String                 @default("INR") @map("consolidation_currency")
+  entityGroup                  EntityGroup?           @relation("GroupMembers", fields: [entityGroupId], references: [id])
+  parentOrg                    Organization?          @relation("ParentChild", fields: [parentOrgId], references: [id])
+  childOrgs                    Organization[]         @relation("ParentChild")
+  adminEntityGroup             EntityGroup?           @relation("GroupAdmin")
+  sourceTransfers              InterCompanyTransfer[] @relation("ICTSource")
+  destinationTransfers         InterCompanyTransfer[] @relation("ICTDestination")
 
+  @@index([entityGroupId])
   @@map("organization")
 }
 
@@ -4362,4 +4374,67 @@ model EmployeeOtp {
   @@unique([email, orgId])
   @@index([orgId])
   @@map("employee_otp")
+}
+
+// ─── Phase 26: Multi-Entity Operations ────────────────────────────────────────
+
+enum EntityType {
+  STANDALONE
+  HOLDING
+  SUBSIDIARY
+  BRANCH
+}
+
+enum InterCompanyTransferStatus {
+  DRAFT
+  PENDING_APPROVAL
+  APPROVED
+  POSTED
+  CANCELLED
+}
+
+model EntityGroup {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  adminOrgId  String   @unique @map("admin_org_id")
+  currency    String   @default("INR")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  adminOrg  Organization           @relation("GroupAdmin", fields: [adminOrgId], references: [id])
+  members   Organization[]         @relation("GroupMembers")
+  transfers InterCompanyTransfer[]
+
+  @@map("entity_group")
+}
+
+model InterCompanyTransfer {
+  id                        String                     @id @default(cuid())
+  entityGroupId             String                     @map("entity_group_id")
+  sourceOrgId               String                     @map("source_org_id")
+  destinationOrgId          String                     @map("destination_org_id")
+  amount                    Decimal                    @db.Decimal(18, 2)
+  currency                  String                     @default("INR")
+  description               String
+  transferDate              DateTime                   @map("transfer_date")
+  referenceNumber           String?                    @map("reference_number")
+  status                    InterCompanyTransferStatus @default(DRAFT)
+  sourceJournalEntryId      String?                    @map("source_journal_entry_id")
+  destinationJournalEntryId String?                    @map("destination_journal_entry_id")
+  createdByUserId           String                     @db.Uuid @map("created_by_user_id")
+  approvedByUserId          String?                    @db.Uuid @map("approved_by_user_id")
+  postedAt                  DateTime?                  @map("posted_at")
+  cancelledAt               DateTime?                  @map("cancelled_at")
+  createdAt                 DateTime                   @default(now())
+  updatedAt                 DateTime                   @updatedAt
+
+  entityGroup    EntityGroup  @relation(fields: [entityGroupId], references: [id])
+  sourceOrg      Organization @relation("ICTSource", fields: [sourceOrgId], references: [id])
+  destinationOrg Organization @relation("ICTDestination", fields: [destinationOrgId], references: [id])
+
+  @@index([entityGroupId, status])
+  @@index([sourceOrgId])
+  @@index([destinationOrgId])
+  @@map("inter_company_transfer")
 }
