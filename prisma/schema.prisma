@@ -78,6 +78,8 @@ model Organization {
   auditLogs                    AuditLog[]
   auditChainVerifications      AuditChainVerification[]
   auditPackageExports          AuditPackageExport[]
+  paymentOptimizationRuns      PaymentOptimizationRun[]
+  cashFlowAlertConfig          CashFlowAlertConfig?
   subscription                 Subscription?
   usageRecords                 UsageRecord[]
   storageUsage                 StorageUsage[]
@@ -5299,4 +5301,43 @@ model TaxLiabilityEstimate {
   @@index([orgId, periodStart, periodEnd])
   @@index([taxConfigId])
   @@map("tax_liability_estimate")
+}
+
+// ─── Sprint 27.4: Cash-Flow Optimizer ───────────────────────────────────────
+
+model PaymentOptimizationRun {
+  id                       String   @id @default(cuid())
+  orgId                    String
+  currentBalance           Decimal  @db.Decimal(15, 2)
+  projectedInflows30d      Decimal  @db.Decimal(15, 2)
+  liquidityTarget          Decimal  @db.Decimal(15, 2)
+  totalDiscountCapturable  Decimal  @db.Decimal(15, 2)
+  totalDiscountRecommended Decimal  @db.Decimal(15, 2)
+  discountCaptureRate      Float
+  /// JSON: BillPaymentRecommendation[]
+  recommendations          Json
+  generatedAt              DateTime @default(now())
+
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@index([orgId, generatedAt(sort: Desc)])
+  @@map("payment_optimization_run")
+}
+
+model CashFlowAlertConfig {
+  id                   String   @id @default(cuid())
+  orgId                String   @unique
+  liquidityTargetPct   Float    @default(20)
+  forecastDeviationPct Float    @default(20)
+  largeOutflowPct      Float    @default(20)
+  discountExpiryHours  Int      @default(48)
+  dsoSpikePct          Float    @default(15)
+  collectionStallDays  Int      @default(7)
+  isActive             Boolean  @default(true)
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@map("cashflow_alert_config")
 }
