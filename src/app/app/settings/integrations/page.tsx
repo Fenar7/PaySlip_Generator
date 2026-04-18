@@ -95,24 +95,85 @@ export default function IntegrationsPage() {
                 Tally Prime
               </h2>
               <p className="text-sm text-[#666] mt-1">
-                Export invoices as Tally-compatible XML files for import.
+                Import/export invoices and vouchers with Tally ERP 9 / Prime.
               </p>
             </div>
             <span className="inline-flex items-center rounded-full bg-blue-50 px-2.5 py-0.5 text-xs font-medium text-blue-700">
-              Export
+              Import &amp; Export
             </span>
           </div>
         </CardHeader>
         <CardContent>
-          <Button
-            variant="secondary"
-            size="sm"
-            onClick={() => {
-              window.open("/api/export/tally", "_blank");
-            }}
-          >
-            Export to Tally XML
-          </Button>
+          <a href="/app/settings/integrations/tally">
+            <Button variant="secondary" size="sm">
+              Open Tally Hub
+            </Button>
+          </a>
+        </CardContent>
+      </Card>
+
+      {/* Zapier */}
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-lg font-semibold text-[#1a1a1a]">Zapier</h2>
+              <p className="text-sm text-[#666] mt-1">
+                Connect Slipwise to 6,000+ apps via Zapier polling triggers.
+              </p>
+            </div>
+            <span className="inline-flex items-center rounded-full bg-orange-50 px-2.5 py-0.5 text-xs font-medium text-orange-700">
+              API Key
+            </span>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-2">
+          <p className="text-sm text-[#666]">
+            Use your API key at{" "}
+            <code className="rounded bg-[#f5f5f5] px-1 py-0.5 text-xs">
+              GET /api/v1/zapier/triggers/&#123;triggerName&#125;
+            </code>{" "}
+            as polling triggers. Supported: <span className="font-mono text-xs">invoice.created</span>,{" "}
+            <span className="font-mono text-xs">invoice.status_changed</span>,{" "}
+            <span className="font-mono text-xs">payment.received</span>,{" "}
+            <span className="font-mono text-xs">customer.created</span>.
+          </p>
+          <a href="/app/settings/developer/tokens">
+            <Button variant="secondary" size="sm">
+              Manage API Keys
+            </Button>
+          </a>
+        </CardContent>
+      </Card>
+
+      {/* Make.com */}
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-lg font-semibold text-[#1a1a1a]">
+                Make.com (Integromat)
+              </h2>
+              <p className="text-sm text-[#666] mt-1">
+                Receive instant webhook events in Make.com scenarios.
+              </p>
+            </div>
+            <span className="inline-flex items-center rounded-full bg-purple-50 px-2.5 py-0.5 text-xs font-medium text-purple-700">
+              Webhook
+            </span>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-2">
+          <p className="text-sm text-[#666]">
+            Register a Make.com webhook URL under{" "}
+            <strong>Webhook Endpoints</strong>. Slipwise will fire real-time
+            events to your scenario on every matching action.
+          </p>
+          <a href="/app/settings/developer/webhooks/v2">
+            <Button variant="secondary" size="sm">
+              Configure Webhooks
+            </Button>
+          </a>
         </CardContent>
       </Card>
 
