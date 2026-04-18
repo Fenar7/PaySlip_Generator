@@ -1,13 +1,21 @@
 "use client";
 
-import { SUPPORTED_ACTIONS } from "@/lib/flow/catalog";
+import { useState } from "react";
+import { SUPPORTED_ACTIONS, ACTION_LABELS } from "@/lib/flow/catalog";
 import { validateActionType } from "@/lib/flow/workflow-validation";
-import { ChevronUp, ChevronDown, Trash2 } from "lucide-react";
+import { ChevronUp, ChevronDown, Trash2, ChevronRight } from "lucide-react";
+
+export interface StepDraft {
+  actionType: string;
+  config: Record<string, unknown>;
+  conditionJson?: Record<string, unknown> | null;
+  label?: string;
+}
 
 export interface WorkflowStepEditorProps {
   index: number;
-  step: { actionType: string; config: Record<string, unknown> };
-  onChange: (step: { actionType: string; config: Record<string, unknown> }) => void;
+  step: StepDraft;
+  onChange: (step: StepDraft) => void;
   onRemove: () => void;
   onMoveUp?: () => void;
   onMoveDown?: () => void;
@@ -22,6 +30,7 @@ export function WorkflowStepEditor({
   onMoveDown,
 }: WorkflowStepEditorProps) {
   const { valid: actionValid } = validateActionType(step.actionType);
+  const [showCondition, setShowCondition] = useState(!!step.conditionJson);
 
   let configText = "{}";
   try {
@@ -30,12 +39,32 @@ export function WorkflowStepEditor({
     configText = "{}";
   }
 
+  let conditionText = "";
+  try {
+    conditionText = step.conditionJson ? JSON.stringify(step.conditionJson, null, 2) : "";
+  } catch {
+    conditionText = "";
+  }
+
   const handleConfigChange = (value: string) => {
     try {
       const parsed = JSON.parse(value);
       onChange({ ...step, config: parsed });
     } catch {
-      // Keep raw text in a temp way — won't commit invalid JSON
+      // ignore invalid JSON while typing
+    }
+  };
+
+  const handleConditionChange = (value: string) => {
+    if (!value.trim()) {
+      onChange({ ...step, conditionJson: null });
+      return;
+    }
+    try {
+      const parsed = JSON.parse(value);
+      onChange({ ...step, conditionJson: parsed });
+    } catch {
+      // ignore invalid JSON while typing
     }
   };
 
@@ -80,6 +109,20 @@ export function WorkflowStepEditor({
         </div>
       </div>
 
+      {/* Label */}
+      <div className="flex flex-col gap-1">
+        <label className="text-xs font-medium text-[var(--muted-foreground)]">
+          Step Label <span className="font-normal">(optional)</span>
+        </label>
+        <input
+          type="text"
+          value={step.label ?? ""}
+          onChange={(e) => onChange({ ...step, label: e.target.value || undefined })}
+          placeholder="e.g. Notify customer"
+          className="text-sm rounded-lg border border-zinc-200 dark:border-zinc-700 px-3 py-2 bg-white dark:bg-zinc-950 focus:outline-none focus:ring-2 focus:ring-blue-500"
+        />
+      </div>
+
       {/* Action type select */}
       <div className="flex flex-col gap-1">
         <label className="text-xs font-medium text-[var(--muted-foreground)]">
@@ -96,7 +139,7 @@ export function WorkflowStepEditor({
         >
           {SUPPORTED_ACTIONS.map((action) => (
             <option key={action} value={action}>
-              {action}
+              {ACTION_LABELS[action] ?? action}
             </option>
           ))}
         </select>
@@ -119,9 +162,40 @@ export function WorkflowStepEditor({
           className="text-xs font-mono rounded-lg border border-zinc-200 dark:border-zinc-700 px-3 py-2 bg-white dark:bg-zinc-950 focus:outline-none focus:ring-2 focus:ring-blue-500 resize-y"
         />
         <p className="text-xs text-[var(--muted-foreground)]">
-          Provide JSON configuration for this action. Keys depend on the selected action type.
+          JSON configuration for this action. Keys depend on the action type.
         </p>
       </div>
+
+      {/* Condition toggle */}
+      <button
+        type="button"
+        onClick={() => setShowCondition((v) => !v)}
+        className="flex items-center gap-1.5 text-xs text-blue-600 dark:text-blue-400 hover:underline self-start"
+      >
+        <ChevronRight
+          className={`w-3.5 h-3.5 transition-transform ${showCondition ? "rotate-90" : ""}`}
+        />
+        {showCondition ? "Hide condition" : "Add run condition (optional)"}
+      </button>
+
+      {showCondition && (
+        <div className="flex flex-col gap-1">
+          <label className="text-xs font-medium text-[var(--muted-foreground)]">
+            Condition (JSON)
+          </label>
+          <textarea
+            rows={3}
+            defaultValue={conditionText}
+            onChange={(e) => handleConditionChange(e.target.value)}
+            spellCheck={false}
+            placeholder='{"field": "amount", "operator": "gt", "value": 1000}'
+            className="text-xs font-mono rounded-lg border border-zinc-200 dark:border-zinc-700 px-3 py-2 bg-white dark:bg-zinc-950 focus:outline-none focus:ring-2 focus:ring-blue-500 resize-y"
+          />
+          <p className="text-xs text-[var(--muted-foreground)]">
+            Step only runs if this condition is met. Operators: eq, neq, gt, gte, lt, lte.
+          </p>
+        </div>
+      )}
     </div>
   );
 }

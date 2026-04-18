@@ -93,6 +93,18 @@ export async function saveVoucher(
       metadata: { voucherNumber },
     });
 
+    // Sprint 25.1: fire voucher.created workflow trigger
+    const { fireWorkflowTrigger } = await import("@/lib/flow/workflow-engine");
+    void fireWorkflowTrigger({
+      triggerType: "voucher.created",
+      orgId,
+      sourceModule: "vouchers",
+      sourceEntityType: "Voucher",
+      sourceEntityId: voucher.id,
+      actorId: userId,
+      payload: { voucherNumber, status, totalAmount: voucher.totalAmount, type: voucher.type },
+    });
+
     // Phase 19.1: Sync to DocumentIndex
     void syncVoucherToIndex(orgId, {
       id: voucher.id,

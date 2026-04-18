@@ -53,6 +53,7 @@ export const suiteNavItems: NavItem[] = [
       { href: "/app/pay/reconciliation", label: "Bank Reconciliation" },
       { href: "/app/pay/collections-intelligence", label: "Collections Intelligence" },
       { href: "/app/pay/intelligence/aging", label: "Aging Analysis" },
+      { href: "/app/pay/payroll", label: "Payroll Runs" },
     ],
   },
   {
@@ -90,6 +91,7 @@ export const suiteNavItems: NavItem[] = [
       { href: "/app/flow/notifications", label: "Notifications" },
       { href: "/app/flow/activity", label: "Activity Feed" },
       { href: "/app/flow/jobs", label: "Job Log" },
+      { href: "/app/flow/workflows", label: "Automations" },
     ],
   },
   {

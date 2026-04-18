@@ -110,6 +110,7 @@ model Organization {
   marketplacePayoutItems       MarketplacePayoutItem[]
   marketplacePayoutEvents      MarketplacePayoutEvent[]
   approvalPolicies             ApprovalPolicy[]
+  approvalDelegations          ApprovalDelegation[]
   ticketSlaPolicies            TicketSlaPolicy[]
   ticketEscalationRules        TicketEscalationRule[]
   scheduledActions             ScheduledAction[]
@@ -149,6 +150,10 @@ model Organization {
   pixelJobRecords              PixelJobRecord[]
   usageEvents                  UsageEvent[]
   orgUsageSnapshots            OrgUsageSnapshot[]
+  // Phase 25: Integration Hub + Payroll
+  tallyImportLogs              TallyImportLog[]
+  payrollRuns                  PayrollRun[]
+  payrollSettings              PayrollSettings?
 
   @@map("organization")
 }
@@ -939,8 +944,19 @@ model Employee {
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
-  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  salarySlips  SalarySlip[]
+  employmentType    String?
+  ctcAnnual         Decimal?
+  effectiveFrom     DateTime?
+  pfAccountNumber   String?
+  esiNumber         String?
+  taxRegime         String    @default("new")
+  pfOptOut          Boolean   @default(false)
+  esiOptOut         Boolean   @default(false)
+
+  organization   Organization           @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  salarySlips    SalarySlip[]
+  ctcComponents  EmployeeCtcComponent[]
+  payrollItems   PayrollRunItem[]
 
   @@index([organizationId])
   @@map("employee")
@@ -1232,6 +1248,7 @@ model SalarySlip {
   journalEntry       JournalEntry?     @relation("SalarySlipJournal", fields: [journalEntryId], references: [id])
   payoutJournalEntry JournalEntry?     @relation("SalarySlipPayoutJournal", fields: [payoutJournalEntryId], references: [id])
   approvalRequests   ApprovalRequest[] @relation("SalarySlipApprovals")
+  payrollRunItem     PayrollRunItem?
 
   @@unique([organizationId, slipNumber])
   @@index([organizationId, status])
@@ -1517,38 +1534,54 @@ enum ApprovalStatus {
   PENDING
   APPROVED
   REJECTED
+  ESCALATED
+  EXPIRED
 }
 
 model ApprovalPolicy {
   id                String               @id @default(cuid())
   orgId             String
   name              String
+  description       String?
+  // module/eventType retained for backward compat; entityType unifies doc-type routing
   module            String
   eventType         String
+  entityType        String?
   status            ApprovalPolicyStatus @default(ACTIVE)
   stepMode          ApprovalStepMode     @default(SINGLE)
   escalateAfterMins Int?
+  // Amount thresholds for threshold-based routing
+  minAmount         Decimal?             @db.Decimal(14, 2)
+  maxAmount         Decimal?             @db.Decimal(14, 2)
   createdBy         String               @db.Uuid
   createdAt         DateTime             @default(now())
   updatedAt         DateTime             @updatedAt
 
-  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  organization Organization        @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  rules        ApprovalPolicyRule[]
 
   @@index([orgId, module, status])
   @@map("approval_policy")
 }
 
 model ApprovalPolicyRule {
-  id             String   @id @default(cuid())
-  policyId       String
-  sequence       Int
-  minAmount      Decimal? @db.Decimal(14, 2)
-  maxAmount      Decimal? @db.Decimal(14, 2)
-  approverRole   String?
-  approverUserId String?  @db.Uuid
-  fallbackRole   String?
-  fallbackUserId String?  @db.Uuid
-  createdAt      DateTime @default(now())
+  id               String   @id @default(cuid())
+  policyId         String
+  sequence         Int
+  minAmount        Decimal? @db.Decimal(14, 2)
+  maxAmount        Decimal? @db.Decimal(14, 2)
+  approverRole     String?
+  approverUserId   String?  @db.Uuid
+  fallbackRole     String?
+  fallbackUserId   String?  @db.Uuid
+  // Sprint 25.2 extensions
+  approverType     String   @default("role") // "role" | "user"
+  approvalMode     String   @default("any_one") // "any_one" | "all_required"
+  escalateAfterHours Int?
+  allowDelegation  Boolean  @default(true)
+  createdAt        DateTime @default(now())
+
+  policy ApprovalPolicy @relation(fields: [policyId], references: [id], onDelete: Cascade)
 
   @@index([policyId, sequence])
   @@map("approval_policy_rule")
@@ -1636,17 +1669,18 @@ model DeadLetterAction {
 }
 
 model WorkflowDefinition {
-  id          String         @id @default(cuid())
-  orgId       String
-  name        String
-  description String?
-  triggerType String
-  status      WorkflowStatus @default(DRAFT)
-  version     Int            @default(1)
-  config      Json
-  createdBy   String         @db.Uuid
-  createdAt   DateTime       @default(now())
-  updatedAt   DateTime       @updatedAt
+  id            String         @id @default(cuid())
+  orgId         String
+  name          String
+  description   String?
+  triggerType   String
+  triggerConfig Json?          // trigger-specific configuration (e.g., { daysPastDue: 3 })
+  status        WorkflowStatus @default(DRAFT)
+  version       Int            @default(1)
+  config        Json
+  createdBy     String         @db.Uuid
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
 
   organization Organization   @relation(fields: [orgId], references: [id], onDelete: Cascade)
   steps        WorkflowStep[]
@@ -1657,12 +1691,14 @@ model WorkflowDefinition {
 }
 
 model WorkflowStep {
-  id         String   @id @default(cuid())
-  workflowId String
-  sequence   Int
-  actionType String
-  config     Json
-  createdAt  DateTime @default(now())
+  id            String   @id @default(cuid())
+  workflowId    String
+  sequence      Int
+  actionType    String
+  config        Json
+  conditionJson Json?    // optional pre-condition: { field, operator, value }
+  label         String?  // human-readable step label
+  createdAt     DateTime @default(now())
 
   workflow WorkflowDefinition @relation(fields: [workflowId], references: [id], onDelete: Cascade)
   stepRuns WorkflowStepRun[]
@@ -1731,16 +1767,57 @@ model ApprovalRequest {
   escalatedAt     DateTime?
   escalationLevel Int            @default(0)
   lastReminderAt  DateTime?
+  // Sprint 25.2: chain position tracking
+  currentRuleOrder Int           @default(1)
 
   invoice    Invoice?    @relation("InvoiceApprovals", fields: [docId], references: [id], map: "approval_invoice_fkey")
   voucher    Voucher?    @relation("VoucherApprovals", fields: [docId], references: [id], map: "approval_voucher_fkey")
   vendorBill VendorBill? @relation("VendorBillApprovals", fields: [docId], references: [id], map: "approval_vendor_bill_fkey")
   paymentRun PaymentRun? @relation("PaymentRunApprovals", fields: [docId], references: [id], map: "approval_payment_run_fkey")
   salarySlip SalarySlip? @relation("SalarySlipApprovals", fields: [docId], references: [id], map: "approval_salary_slip_fkey")
+  decisions  ApprovalDecision[]
 
   @@index([orgId, status])
   @@index([docType, docId])
   @@map("approval_request")
+}
+
+/// One decision record per approver per chain step, preserving the full decision trail.
+model ApprovalDecision {
+  id              String   @id @default(cuid())
+  requestId       String
+  ruleOrder       Int
+  decidedById     String   @db.Uuid
+  decidedByName   String?
+  delegatedFromId String?  @db.Uuid // set if the approver acted via delegation
+  decision        String   // "APPROVED" | "REJECTED"
+  comment         String?
+  decidedAt       DateTime @default(now())
+
+  request ApprovalRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+
+  @@index([requestId, ruleOrder])
+  @@map("approval_decision")
+}
+
+/// Out-of-office delegation: routes approval notifications/decisions from one user to another.
+model ApprovalDelegation {
+  id          String   @id @default(cuid())
+  orgId       String
+  fromUserId  String   @db.Uuid
+  toUserId    String   @db.Uuid
+  reason      String?
+  validFrom   DateTime
+  validUntil  DateTime
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@index([orgId, isActive])
+  @@index([fromUserId, isActive])
+  @@map("approval_delegation")
 }
 
 // ─── Phase 5: SW Flow — Notifications ─────────────────────────────────────────
@@ -4155,4 +4232,134 @@ model OrgUsageSnapshot {
   @@unique([orgId, periodStart])
   @@index([orgId, periodStart])
   @@map("org_usage_snapshot")
+}
+
+// ─── Phase 25: Integration Hub ────────────────────────────────────────────────
+
+model TallyImportLog {
+  id           String   @id @default(cuid())
+  orgId        String
+  fileName     String
+  importedAt   DateTime @default(now())
+  importedBy   String
+  recordCount  Int
+  errorCount   Int
+  status       String   // "completed" | "partial" | "failed"
+  errorDetails Json?
+
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@index([orgId, importedAt])
+  @@map("tally_import_log")
+}
+
+// ─── Phase 25: Payroll Operations Foundation ──────────────────────────────────
+
+enum PayrollStatus {
+  DRAFT
+  PROCESSING
+  REVIEW
+  FINALIZED
+  CANCELLED
+}
+
+model EmployeeCtcComponent {
+  id              String   @id @default(cuid())
+  employeeId      String
+  componentName   String
+  componentType   String   // "earning" | "deduction" | "employer_contribution"
+  calculationType String   // "fixed" | "percent_of_basic" | "percent_of_ctc"
+  value           Decimal
+  isActive        Boolean  @default(true)
+
+  employee Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@index([employeeId, isActive])
+  @@map("employee_ctc_component")
+}
+
+model PayrollRun {
+  id               String        @id @default(cuid())
+  orgId            String
+  period           String        // "YYYY-MM"
+  status           PayrollStatus @default(DRAFT)
+  workingDays      Int           @default(26)
+  totalGross       Decimal       @default(0)
+  totalDeductions  Decimal       @default(0)
+  totalNetPay      Decimal       @default(0)
+  totalPfEmployer  Decimal       @default(0)
+  totalEsiEmployer Decimal       @default(0)
+  createdBy        String
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+  finalizedAt      DateTime?
+  finalizedBy      String?
+
+  organization Organization    @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  runItems     PayrollRunItem[]
+
+  @@unique([orgId, period])
+  @@index([orgId, status])
+  @@map("payroll_run")
+}
+
+model PayrollRunItem {
+  id               String  @id @default(cuid())
+  runId            String
+  employeeId       String
+  salarySlipId     String? @unique
+  attendedDays     Int
+  lossOfPayDays    Int     @default(0)
+  grossPay         Decimal
+  basicPay         Decimal
+  hra              Decimal @default(0)
+  specialAllowance Decimal @default(0)
+  otherEarnings    Decimal @default(0)
+  pfEmployee       Decimal @default(0)
+  esiEmployee      Decimal @default(0)
+  tdsDeduction     Decimal @default(0)
+  professionalTax  Decimal @default(0)
+  otherDeductions  Decimal @default(0)
+  totalDeductions  Decimal
+  netPay           Decimal
+  pfEmployer       Decimal @default(0)
+  esiEmployer      Decimal @default(0)
+  status           String  @default("draft") // "draft" | "finalized" | "on_hold"
+  holdReason       String?
+
+  run        PayrollRun  @relation(fields: [runId], references: [id], onDelete: Cascade)
+  employee   Employee    @relation(fields: [employeeId], references: [id])
+  salarySlip SalarySlip? @relation(fields: [salarySlipId], references: [id])
+
+  @@unique([runId, employeeId])
+  @@index([runId])
+  @@map("payroll_run_item")
+}
+
+model PayrollSettings {
+  id                   String   @id @default(cuid())
+  orgId                String   @unique
+  pfEnabled            Boolean  @default(true)
+  esiEnabled           Boolean  @default(true)
+  defaultTaxRegime     String   @default("new")
+  professionalTaxState String?
+  professionalTaxSlabs Json     @default("[]")
+
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@map("payroll_settings")
+}
+
+model EmployeeOtp {
+  id         String    @id @default(cuid())
+  email      String
+  orgId      String
+  otpHash    String
+  expiresAt  DateTime
+  usedAt     DateTime?
+  createdAt  DateTime  @default(now())
+
+  @@unique([email, orgId])
+  @@index([orgId])
+  @@map("employee_otp")
 }

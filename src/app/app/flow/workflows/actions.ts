@@ -4,8 +4,9 @@ import { db } from "@/lib/db";
 import { requireRole } from "@/lib/auth";
 import { revalidatePath } from "next/cache";
 import { SUPPORTED_TRIGGERS, SUPPORTED_ACTIONS } from "@/lib/flow/catalog";
-import { validateActionType, validateTriggerType } from "@/lib/flow/workflow-validation";
+import { validateActionType, validateTriggerType, validateWorkflowForActivation } from "@/lib/flow/workflow-validation";
 import { logFlowConfigChange } from "@/lib/flow/audit";
+import { getOrgPlan } from "@/lib/plans/enforcement";
 import { Prisma } from "@/generated/prisma/client";
 
 export type ActionResult<T> =
@@ -15,11 +16,15 @@ export type ActionResult<T> =
 export type WorkflowStepInput = {
   actionType: string;
   config: Record<string, unknown>;
+  conditionJson?: Record<string, unknown> | null;
+  label?: string;
 };
 
 export async function createWorkflow(input: {
   name: string;
+  description?: string;
   triggerType: string;
+  triggerConfig?: Record<string, unknown>;
   steps: WorkflowStepInput[];
 }): Promise<ActionResult<{ id: string }>> {
   const { orgId, userId } = await requireRole("admin");
@@ -38,7 +43,9 @@ export async function createWorkflow(input: {
     data: {
       orgId,
       name: input.name,
+      description: input.description ?? null,
       triggerType: input.triggerType,
+      triggerConfig: (input.triggerConfig ?? {}) as Prisma.InputJsonValue,
       status: "DRAFT",
       config: {},
       createdBy: userId,
@@ -47,6 +54,10 @@ export async function createWorkflow(input: {
           sequence: index + 1,
           actionType: step.actionType,
           config: step.config as Prisma.InputJsonValue,
+          conditionJson: step.conditionJson
+            ? (step.conditionJson as Prisma.InputJsonValue)
+            : Prisma.JsonNull,
+          label: step.label ?? null,
         })),
       },
     },
@@ -75,8 +86,28 @@ export async function activateWorkflow(
   });
 
   if (!workflow) return { success: false, error: "Workflow not found" };
-  if (workflow.steps.length === 0) {
-    return { success: false, error: "Cannot activate a workflow with no steps" };
+
+  const validation = validateWorkflowForActivation(workflow);
+  if (!validation.valid) {
+    return { success: false, error: validation.errors.join("; ") };
+  }
+
+  // Plan gate: count currently ACTIVE workflows for this org
+  const { limits } = await getOrgPlan(orgId);
+  const limit = limits.activeWorkflowAutomations;
+  if (limit === 0) {
+    return { success: false, error: "Workflow automation is not available on your current plan." };
+  }
+  if (limit > 0) {
+    const activeCount = await db.workflowDefinition.count({
+      where: { orgId, status: "ACTIVE" },
+    });
+    if (activeCount >= limit) {
+      return {
+        success: false,
+        error: `Your plan allows a maximum of ${limit} active automation${limit === 1 ? "" : "s"}. Pause another workflow to activate this one.`,
+      };
+    }
   }
 
   await db.workflowDefinition.update({
@@ -142,7 +173,12 @@ export async function archiveWorkflow(
 
 export async function updateWorkflow(
   workflowId: string,
-  input: { name?: string; description?: string; triggerType?: string }
+  input: {
+    name?: string;
+    description?: string;
+    triggerType?: string;
+    triggerConfig?: Record<string, unknown>;
+  }
 ): Promise<ActionResult<{ id: string }>> {
   const { orgId, userId } = await requireRole("admin");
 
@@ -169,6 +205,9 @@ export async function updateWorkflow(
       ...(input.name !== undefined && { name: input.name }),
       ...(input.description !== undefined && { description: input.description }),
       ...(input.triggerType !== undefined && { triggerType: input.triggerType }),
+      ...(input.triggerConfig !== undefined && {
+        triggerConfig: input.triggerConfig as Prisma.InputJsonValue,
+      }),
     },
   });
 
@@ -187,7 +226,7 @@ export async function updateWorkflow(
 
 export async function updateWorkflowSteps(
   workflowId: string,
-  steps: { actionType: string; config: Record<string, unknown> }[]
+  steps: WorkflowStepInput[]
 ): Promise<ActionResult<{ count: number }>> {
   const { orgId, userId } = await requireRole("admin");
 
@@ -208,7 +247,7 @@ export async function updateWorkflowSteps(
     if (!check.valid) return { success: false, error: check.error! };
   }
 
-  // Delete existing steps and recreate in sequence
+  // Replace all steps atomically: delete old, recreate in sequence
   await db.workflowStep.deleteMany({ where: { workflowId } });
   await db.workflowStep.createMany({
     data: steps.map((step, index) => ({
@@ -216,6 +255,10 @@ export async function updateWorkflowSteps(
       sequence: index + 1,
       actionType: step.actionType,
       config: step.config as Prisma.InputJsonValue,
+      conditionJson: step.conditionJson
+        ? (step.conditionJson as Prisma.InputJsonValue)
+        : Prisma.JsonNull,
+      label: step.label ?? null,
     })),
   });
 
@@ -230,6 +273,103 @@ export async function updateWorkflowSteps(
     metadata: { stepCount: steps.length },
   });
   return { success: true, data: { count: steps.length } };
+}
+
+export async function duplicateWorkflow(
+  workflowId: string
+): Promise<ActionResult<{ id: string }>> {
+  const { orgId, userId } = await requireRole("admin");
+
+  const source = await db.workflowDefinition.findFirst({
+    where: { id: workflowId, orgId },
+    include: { steps: { orderBy: { sequence: "asc" } } },
+  });
+  if (!source) return { success: false, error: "Workflow not found" };
+
+  const copy = await db.workflowDefinition.create({
+    data: {
+      orgId,
+      name: `${source.name} (copy)`,
+      description: source.description,
+      triggerType: source.triggerType,
+      triggerConfig: source.triggerConfig ?? Prisma.JsonNull,
+      status: "DRAFT",
+      config: {},
+      createdBy: userId,
+      steps: {
+        create: source.steps.map((s) => ({
+          sequence: s.sequence,
+          actionType: s.actionType,
+          config: s.config as Prisma.InputJsonValue,
+          conditionJson: s.conditionJson ?? Prisma.JsonNull,
+          label: s.label,
+        })),
+      },
+    },
+  });
+
+  revalidatePath("/app/flow/workflows");
+  return { success: true, data: { id: copy.id } };
+}
+
+export async function triggerWorkflowManually(
+  workflowId: string
+): Promise<ActionResult<{ runId: string }>> {
+  const { orgId, userId } = await requireRole("admin");
+
+  const workflow = await db.workflowDefinition.findFirst({
+    where: { id: workflowId, orgId },
+    include: { steps: { orderBy: { sequence: "asc" } } },
+  });
+  if (!workflow) return { success: false, error: "Workflow not found" };
+  if (workflow.status !== "ACTIVE") {
+    return { success: false, error: "Only ACTIVE workflows can be manually triggered." };
+  }
+
+  const { fireWorkflowTrigger } = await import("@/lib/flow/workflow-engine");
+  await fireWorkflowTrigger({
+    triggerType: "manual",
+    orgId,
+    sourceModule: "manual",
+    sourceEntityType: "WorkflowDefinition",
+    sourceEntityId: workflowId,
+    actorId: userId,
+    payload: { triggeredBy: userId, workflowId },
+  });
+
+  // Fetch the run that was just created
+  const latestRun = await db.workflowRun.findFirst({
+    where: { workflowId, orgId },
+    orderBy: { startedAt: "desc" },
+  });
+
+  return { success: true, data: { runId: latestRun?.id ?? workflowId } };
+}
+
+export async function cancelWorkflowRun(runId: string): Promise<ActionResult<void>> {
+  const { orgId, userId } = await requireRole("admin");
+
+  const run = await db.workflowRun.findFirst({
+    where: { id: runId, orgId },
+  });
+  if (!run) return { success: false, error: "Run not found" };
+  if (!["PENDING", "RUNNING"].includes(run.status)) {
+    return { success: false, error: "Only PENDING or RUNNING runs can be cancelled." };
+  }
+
+  await db.workflowRun.update({
+    where: { id: runId },
+    data: { status: "CANCELLED", completedAt: new Date() },
+  });
+
+  await logFlowConfigChange({
+    orgId,
+    actorId: userId,
+    action: "workflow_run.cancelled",
+    entityType: "WorkflowRun",
+    entityId: runId,
+  });
+  return { success: true, data: undefined };
 }
 
 export async function getWorkflowWithRuns(workflowId: string) {

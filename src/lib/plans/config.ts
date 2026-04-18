@@ -78,6 +78,9 @@ export interface PlanLimits {
   activeShareBundles: number;
   /** Max pixel jobs saved to the document vault (0 = not available) */
   pixelJobsSaved: number;
+  // Phase 25: automation limits
+  /** Max concurrently-ACTIVE workflow automations (0 = feature unavailable) */
+  activeWorkflowAutomations: number;
 }
 
 export interface PlanConfig {
@@ -153,6 +156,7 @@ export const PLAN_LIMITS: Record<PlanId, PlanLimits> = {
     activePortalSessions: 5,
     activeShareBundles: 10,
     pixelJobsSaved: 20,
+    activeWorkflowAutomations: 0,
   },
   starter: {
     invoicesPerMonth: 100,
@@ -215,6 +219,7 @@ export const PLAN_LIMITS: Record<PlanId, PlanLimits> = {
     activePortalSessions: 25,
     activeShareBundles: 50,
     pixelJobsSaved: 200,
+    activeWorkflowAutomations: 5,
   },
   pro: {
     invoicesPerMonth: 1000,
@@ -277,6 +282,7 @@ export const PLAN_LIMITS: Record<PlanId, PlanLimits> = {
     activePortalSessions: 200,
     activeShareBundles: 500,
     pixelJobsSaved: 2000,
+    activeWorkflowAutomations: 25,
   },
   enterprise: {
     invoicesPerMonth: -1, // unlimited
@@ -339,6 +345,7 @@ export const PLAN_LIMITS: Record<PlanId, PlanLimits> = {
     activePortalSessions: -1,
     activeShareBundles: -1,
     pixelJobsSaved: -1,
+    activeWorkflowAutomations: -1,
   },
 };
 
