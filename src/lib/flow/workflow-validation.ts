@@ -36,15 +36,5 @@ export function validateWorkflowForActivation(workflow: {
     }
   }
 
-  // Check for duplicate sequences (by index position — they should be unique)
-  const seen = new Set<string>();
-  for (const step of workflow.steps) {
-    if (seen.has(step.actionType)) {
-      // Duplicate action types are allowed by design, but duplicate sequence numbers are not.
-      // Since sequences are derived from array index we only flag truly duplicated step entries.
-    }
-    seen.add(step.actionType);
-  }
-
   return { valid: errors.length === 0, errors };
 }

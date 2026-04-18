@@ -69,6 +69,22 @@ export async function submitTicket(
       },
     });
 
+    // Sprint 25.1: fire ticket.opened workflow trigger
+    const { fireWorkflowTrigger } = await import("@/lib/flow/workflow-engine");
+    void fireWorkflowTrigger({
+      triggerType: "ticket.opened",
+      orgId: publicToken.orgId,
+      sourceModule: "tickets",
+      sourceEntityType: "InvoiceTicket",
+      sourceEntityId: ticket.id,
+      actorId: "public",
+      payload: {
+        invoiceId: publicToken.invoiceId,
+        category: data.category,
+        submitterEmail: data.submitterEmail.trim(),
+      },
+    });
+
     return { success: true, data: { ticketId: ticket.id } };
   } catch (error) {
     console.error("submitTicket error:", error);

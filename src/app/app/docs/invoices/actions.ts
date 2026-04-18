@@ -186,6 +186,22 @@ export async function saveInvoice(
           customerId: invoice.customerId,
         },
       });
+    } else {
+      // Draft created
+      void fireWorkflowTrigger({
+        triggerType: "invoice.created",
+        orgId,
+        sourceModule: "invoices",
+        sourceEntityType: "Invoice",
+        sourceEntityId: invoice.id,
+        actorId: userId,
+        payload: {
+          invoiceNumber: invoice.invoiceNumber,
+          totalAmount: invoice.totalAmount,
+          customerId: invoice.customerId,
+          status: invoice.status,
+        },
+      });
     }
 
     // Phase 19.2: emit normalized document event
@@ -743,6 +759,27 @@ export async function recordPayment(
     });
 
     await reconcileInvoicePayment(invoiceId, userId);
+
+    // Sprint 25.1: fire invoice.paid trigger once invoice reaches PAID status
+    const updated = await db.invoice.findUnique({
+      where: { id: invoiceId },
+      select: { status: true, invoiceNumber: true, totalAmount: true, customerId: true, organizationId: true },
+    });
+    if (updated?.status === "PAID") {
+      void fireWorkflowTrigger({
+        triggerType: "invoice.paid",
+        orgId,
+        sourceModule: "invoices",
+        sourceEntityType: "Invoice",
+        sourceEntityId: invoiceId,
+        actorId: userId,
+        payload: {
+          invoiceNumber: updated.invoiceNumber,
+          totalAmount: updated.totalAmount,
+          customerId: updated.customerId,
+        },
+      });
+    }
 
     revalidatePath("/app/docs/invoices");
     revalidatePath(`/app/docs/invoices/${invoiceId}`);
