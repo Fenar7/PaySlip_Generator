@@ -1,6 +1,9 @@
 import { db } from "@/lib/db";
 import type { ScheduledAction } from "@/generated/prisma/client";
 import { fireWorkflowTrigger } from "./workflow-engine";
+import { processApprovalEscalations } from "./approvals";
+import { sendEmail } from "@/lib/email";
+import { notifyOrgAdmins } from "@/lib/notifications";
 
 export async function processScheduledActions() {
   const now = new Date();
@@ -34,18 +37,83 @@ async function executeAction(action: ScheduledAction) {
   });
 
   try {
-    // Scaffold boundaries for Sprint 17.2 acceptance
+    const payload =
+      action.payload && typeof action.payload === "object"
+        ? (action.payload as Record<string, unknown>)
+        : {};
+
+    if ("simulate_fail" in payload && payload.simulate_fail) {
+      throw new Error("Simulated transient failure for testing");
+    }
+
     switch (action.actionType) {
-      case "send_invoice_email":
-      case "escalate_ticket":
-      case "escalate_approval":
-      default:
-        // By default we simulate execution
-        console.log(`[FlowScheduler] Executing ${action.actionType} for org ${action.orgId}`);
-        const payloadObj = action.payload && typeof action.payload === 'object' ? action.payload : {};
-        if ('simulate_fail' in payloadObj && payloadObj.simulate_fail) {
-           throw new Error("Simulated transient failure for testing");
+      case "send_invoice_email": {
+        const { invoiceId, recipientEmail, subject, bodyHtml } = payload as {
+          invoiceId?: string;
+          recipientEmail?: string;
+          subject?: string;
+          bodyHtml?: string;
+        };
+        if (invoiceId && recipientEmail) {
+          const invoice = await db.invoice.findUnique({
+            where: { id: invoiceId },
+            select: { invoiceNumber: true, id: true },
+          });
+          if (invoice) {
+            await sendEmail({
+              to: recipientEmail,
+              subject: subject ?? `Invoice ${invoice.invoiceNumber} from Slipwise`,
+              html: bodyHtml ?? `<p>Your invoice <strong>${invoice.invoiceNumber}</strong> is ready.</p>`,
+            });
+          }
         }
+        break;
+      }
+
+      case "escalate_approval": {
+        const { approvalRequestId } = payload as { approvalRequestId?: string };
+        if (approvalRequestId) {
+          // Attempt to advance the specific request; fall back to batch escalation.
+          const approval = await db.approvalRequest.findUnique({
+            where: { id: approvalRequestId },
+            select: { id: true, status: true, dueAt: true },
+          });
+          if (approval && ["PENDING", "ESCALATED"].includes(approval.status)) {
+            // Force dueAt to now so processApprovalEscalations picks it up immediately.
+            await db.approvalRequest.update({
+              where: { id: approvalRequestId },
+              data: { dueAt: new Date(0) },
+            });
+          }
+        }
+        // Always run the escalation sweep so any overdue requests are advanced.
+        await processApprovalEscalations();
+        break;
+      }
+
+      case "escalate_ticket": {
+        const { ticketId } = payload as { ticketId?: string };
+        if (ticketId) {
+          const ticket = await db.invoiceTicket.findUnique({
+            where: { id: ticketId },
+            select: { id: true, orgId: true, description: true, status: true },
+          });
+          if (ticket && ticket.status !== "CLOSED") {
+            await notifyOrgAdmins({
+              orgId: ticket.orgId,
+              type: "ticket_escalated",
+              title: "Support Ticket Escalated",
+              body: `Ticket ${ticketId} has exceeded its SLA and requires immediate attention.`,
+              link: `/app/support/tickets/${ticketId}`,
+            });
+          }
+        }
+        break;
+      }
+
+      default:
+        // Unknown action types are logged and succeeded to avoid indefinite retries.
+        console.warn(`[FlowScheduler] Unknown actionType "${action.actionType}" for action ${action.id}`);
         break;
     }
 
@@ -87,7 +155,7 @@ async function executeAction(action: ScheduledAction) {
         })
       ]);
 
-      // Phase 17.4: Hook terminal failure trigger
+      // Hook terminal failure trigger
       await fireWorkflowTrigger({
         triggerType: "scheduled_action.dead_lettered",
         orgId: action.orgId,
@@ -102,7 +170,7 @@ async function executeAction(action: ScheduledAction) {
       });
 
     } else {
-      // Exponential backoff logic (5 mins * 2^(attempts-1))
+      // Exponential backoff: 5 min × 2^(attempts-1)
       const nextRetryAt = new Date();
       nextRetryAt.setMinutes(nextRetryAt.getMinutes() + (5 * Math.pow(2, incrementedAttempts - 1)));
 

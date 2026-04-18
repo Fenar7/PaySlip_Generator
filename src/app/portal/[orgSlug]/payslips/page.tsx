@@ -30,7 +30,7 @@ export default async function EmployeePayslipsPage({
     },
   });
 
-  const result = await getMyPayslips(orgSlug, session.employeeId);
+  const result = await getMyPayslips(orgSlug);
   const slips = result.success ? result.data : [];
 
   const org = await db.organization.findUnique({

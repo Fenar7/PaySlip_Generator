@@ -5,6 +5,7 @@ import {
   createOtpForEmployee,
   verifyOtpAndIssueSession,
   clearEmployeeSession,
+  requireEmployeeSession,
 } from "@/lib/employee-portal-auth";
 import { redirect } from "next/navigation";
 
@@ -47,8 +48,7 @@ export async function logoutEmployee(orgSlug: string): Promise<void> {
 }
 
 export async function getMyPayslips(
-  orgSlug: string,
-  employeeId: string
+  orgSlug: string
 ): Promise<
   ActionResult<
     Array<{
@@ -63,6 +63,9 @@ export async function getMyPayslips(
     }>
   >
 > {
+  // Derive employeeId from the authenticated session — never trust client input.
+  const session = await requireEmployeeSession(orgSlug);
+
   const org = await db.organization.findUnique({
     where: { slug: orgSlug },
     select: { id: true },
@@ -70,7 +73,7 @@ export async function getMyPayslips(
   if (!org) return { success: false, error: "Not found" };
 
   const slips = await db.salarySlip.findMany({
-    where: { organizationId: org.id, employeeId, status: "final" },
+    where: { organizationId: org.id, employeeId: session.employeeId, status: "final" },
     orderBy: [{ year: "desc" }, { month: "desc" }],
     select: {
       id: true,
