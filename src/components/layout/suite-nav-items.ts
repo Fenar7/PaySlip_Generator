@@ -135,6 +135,37 @@ export const suiteNavItems: NavItem[] = [
     ],
   },
   {
+    href: "/app/compliance",
+    label: "Compliance",
+    suite: "compliance",
+    children: [
+      { href: "/app/compliance", label: "Overview" },
+      { href: "/app/compliance/gst/reconciliation", label: "GSTR-2B Reconciliation" },
+      { href: "/app/compliance/einvoice", label: "E-Invoice (IRN)" },
+      { href: "/app/compliance/tds", label: "TDS Ledger" },
+      { href: "/app/settings/compliance/einvoice", label: "E-Invoice Config" },
+    ],
+  },
+  {
+    href: "/app/crm",
+    label: "CRM",
+    suite: "crm",
+    children: [
+      { href: "/app/crm", label: "Dashboard" },
+      { href: "/app/data/customers", label: "Customers" },
+      { href: "/app/data/vendors", label: "Vendors" },
+    ],
+  },
+  {
+    href: "/app/sop",
+    label: "Knowledge Base",
+    suite: "sop",
+    children: [
+      { href: "/app/sop", label: "All SOPs" },
+      { href: "/app/sop/new", label: "+ New SOP" },
+    ],
+  },
+  {
     href: "/app/pixel",
     label: "Pixel",
     suite: "pixel",

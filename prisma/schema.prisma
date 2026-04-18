@@ -175,6 +175,13 @@ model Organization {
   adminEntityGroup             EntityGroup?           @relation("GroupAdmin")
   sourceTransfers              InterCompanyTransfer[] @relation("ICTSource")
   destinationTransfers         InterCompanyTransfer[] @relation("ICTDestination")
+  // Sprint 26.4: Compliance
+  gstr2bImports                Gstr2bImport[]
+  eInvoiceRequests             EInvoiceRequest[]
+  eInvoiceConfig               EInvoiceConfig?
+  // Sprint 26.5: CRM & SOP
+  crmNotes                     CrmNote[]
+  sopDocuments                 SopDocument[]
 
   @@index([entityGroupId])
   @@map("organization")
@@ -932,6 +939,19 @@ model Customer {
   preferredLanguage   String?
   razorpayCustomerId  String? @unique
 
+  // Sprint 26.5: CRM fields
+  industry          String?
+  segment           String?
+  lifecycleStage    CustomerLifecycleStage @default(PROSPECT)
+  source            String?
+  assignedToUserId  String?                @db.Uuid
+  nextFollowUpAt    DateTime?
+  lifetimeValue     Decimal                @default(0)
+  totalInvoiced     Decimal                @default(0)
+  totalPaid         Decimal                @default(0)
+  lastInteractionAt DateTime?
+  tags              String[]               @default([])
+
   organization     Organization              @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   invoices         Invoice[]
   virtualAccounts  CustomerVirtualAccount[]
@@ -942,6 +962,7 @@ model Customer {
   statements       CustomerStatement[]
   quotes           Quote[]
   arrangements     PaymentArrangement[]
+  crmNotes         CrmNote[]               @relation("CustomerNotes")
 
   @@index([organizationId])
   @@map("customer")
@@ -959,10 +980,21 @@ model Vendor {
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
-  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  vouchers     Voucher[]
-  bills        VendorBill[]
+  // Sprint 26.5: CRM fields
+  category          String?
+  paymentTermsDays  Int     @default(30)
+  rating            Int?
+  complianceStatus  VendorComplianceStatus @default(PENDING)
+  totalBilled       Decimal                @default(0)
+  totalPaid         Decimal                @default(0)
+  lastOrderAt       DateTime?
+  tags              String[]               @default([])
+
+  organization   Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  vouchers       Voucher[]
+  bills          VendorBill[]
   purchaseOrders PurchaseOrder[]
+  crmNotes       CrmNote[]     @relation("VendorNotes")
 
   @@index([organizationId])
   @@map("vendor")
@@ -1182,6 +1214,8 @@ model Invoice {
   arrangement         PaymentArrangement?
   postedJournalEntry  JournalEntry?         @relation("InvoicePostedJournal", fields: [postedJournalEntryId], references: [id])
   tdsRecords          TdsRecord[]
+
+  eInvoiceRequests EInvoiceRequest[]
 
   @@unique([organizationId, invoiceNumber])
   @@index([organizationId, status])
@@ -4865,4 +4899,231 @@ model ThreeWayMatchResult {
   @@unique([purchaseOrderId, vendorBillId])
   @@index([orgId, matchStatus])
   @@map("three_way_match_result")
+}
+
+// ─── Sprint 26.4: Advanced Compliance & E-Invoicing v2 ───────────────────────
+
+enum Gstr2bImportStatus {
+  UPLOADED
+  PARSING
+  PARSED
+  RECONCILING
+  RECONCILED
+  FAILED
+
+  @@map("gstr2b_import_status")
+}
+
+enum Gstr2bMatchStatus {
+  UNMATCHED
+  AUTO_MATCHED
+  SUGGESTED
+  MANUALLY_MATCHED
+  MISMATCH
+  NOT_IN_BOOKS
+  NOT_IN_GSTR2B
+
+  @@map("gstr2b_match_status")
+}
+
+enum EInvoiceRequestType {
+  GENERATE_IRN
+  CANCEL_IRN
+  GENERATE_EWAY_BILL
+  CANCEL_EWAY_BILL
+
+  @@map("e_invoice_request_type")
+}
+
+enum EInvoiceStatus {
+  PENDING
+  SUBMITTED
+  SUCCESS
+  FAILED
+  CANCELLED
+
+  @@map("e_invoice_status")
+}
+
+model Gstr2bImport {
+  id             String              @id @default(cuid())
+  orgId          String
+  period         String              // "2026-03" (YYYY-MM)
+  fileKey        String?             // S3/storage key of the uploaded JSON file
+  rawJson        Json?
+  importedByUserId String            @db.Uuid
+  status         Gstr2bImportStatus  @default(UPLOADED)
+  totalEntries   Int                 @default(0)
+  matchedCount   Int                 @default(0)
+  unmatchedCount Int                 @default(0)
+  mismatchCount  Int                 @default(0)
+  notInBooksCount Int                @default(0)
+  errorMessage   String?
+  createdAt      DateTime            @default(now())
+  updatedAt      DateTime            @updatedAt
+
+  organization Organization  @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  entries      Gstr2bEntry[]
+
+  @@index([orgId, period])
+  @@index([orgId, status])
+  @@map("gstr2b_import")
+}
+
+model Gstr2bEntry {
+  id               String           @id @default(cuid())
+  importId         String
+  orgId            String
+  supplierGstin    String
+  supplierName     String?
+  docNumber        String
+  docDate          String
+  docType          String           // "B2B", "CDNR", "ISD"
+  taxableAmount    Decimal          @db.Decimal(15, 2)
+  cgst             Decimal          @default(0) @db.Decimal(15, 2)
+  sgst             Decimal          @default(0) @db.Decimal(15, 2)
+  igst             Decimal          @default(0) @db.Decimal(15, 2)
+  cess             Decimal          @default(0) @db.Decimal(15, 2)
+  totalTax         Decimal          @default(0) @db.Decimal(15, 2)
+  matchStatus      Gstr2bMatchStatus @default(UNMATCHED)
+  matchedBillId    String?
+  matchConfidence  Float?           // 0.0 – 1.0
+  matchNote        String?
+  reconciledByUserId String?        @db.Uuid
+  reconciledAt     DateTime?
+  createdAt        DateTime         @default(now())
+
+  import  Gstr2bImport @relation(fields: [importId], references: [id], onDelete: Cascade)
+
+  @@index([importId, matchStatus])
+  @@index([orgId, supplierGstin])
+  @@index([orgId, docNumber])
+  @@map("gstr2b_entry")
+}
+
+model EInvoiceRequest {
+  id              String              @id @default(cuid())
+  orgId           String
+  invoiceId       String
+  requestType     EInvoiceRequestType
+  status          EInvoiceStatus      @default(PENDING)
+  requestPayload  Json?
+  responsePayload Json?
+  irnNumber       String?
+  ackNumber       String?
+  ackDate         DateTime?
+  signedQrCode    String?             @db.Text
+  errorCode       String?
+  errorMessage    String?
+  cancelReason    String?
+  cancelledAt     DateTime?
+  triggeredByUserId String?           @db.Uuid
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  invoice      Invoice      @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  @@index([orgId, status])
+  @@index([invoiceId])
+  @@index([irnNumber])
+  @@map("e_invoice_request")
+}
+
+model EInvoiceConfig {
+  id                      String   @id @default(cuid())
+  orgId                   String   @unique
+  enabled                 Boolean  @default(false)
+  irpEnvironment          String   @default("sandbox")
+  gstin                   String?
+  encryptedUsername       String?
+  encryptedPassword       String?
+  authTokenCache          String?  @db.Text
+  tokenExpiresAt          DateTime?
+  autoGenerateIrn         Boolean  @default(false)
+  autoGenerateEwb         Boolean  @default(false)
+  ewbDefaultTransportMode String?
+  createdAt               DateTime @default(now())
+  updatedAt               DateTime @updatedAt
+
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@map("e_invoice_config")
+}
+
+// ─── Sprint 26.5: Enterprise CRM & SOP Knowledge Base ───────────────────────
+
+enum CustomerLifecycleStage {
+  PROSPECT
+  QUALIFIED
+  NEGOTIATION
+  WON
+  ACTIVE
+  AT_RISK
+  CHURNED
+
+  @@map("customer_lifecycle_stage")
+}
+
+enum VendorComplianceStatus {
+  PENDING
+  VERIFIED
+  SUSPENDED
+  BLOCKED
+
+  @@map("vendor_compliance_status")
+}
+
+enum SopDocumentStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+
+  @@map("sop_document_status")
+}
+
+model CrmNote {
+  id               String   @id @default(cuid())
+  orgId            String
+  entityType       String   // "customer" | "vendor"
+  entityId         String
+  content          String   @db.Text
+  isPinned         Boolean  @default(false)
+  createdByUserId  String   @db.Uuid
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  customer     Customer?    @relation("CustomerNotes", fields: [entityId], references: [id], map: "crm_note_customer_fk")
+  vendor       Vendor?      @relation("VendorNotes", fields: [entityId], references: [id], map: "crm_note_vendor_fk")
+
+  @@index([orgId, entityType, entityId])
+  @@index([entityId, createdAt])
+  @@map("crm_note")
+}
+
+model SopDocument {
+  id                  String            @id @default(cuid())
+  orgId               String
+  title               String
+  slug                String
+  category            String?
+  content             String            @db.Text
+  excerpt             String?
+  status              SopDocumentStatus @default(DRAFT)
+  sortOrder           Int               @default(0)
+  isPinned            Boolean           @default(false)
+  publishedAt         DateTime?
+  publishedByUserId   String?           @db.Uuid
+  createdByUserId     String            @db.Uuid
+  lastEditedByUserId  String?           @db.Uuid
+  createdAt           DateTime          @default(now())
+  updatedAt           DateTime          @updatedAt
+  archivedAt          DateTime?
+
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@unique([orgId, slug])
+  @@index([orgId, status, category])
+  @@map("sop_document")
 }
