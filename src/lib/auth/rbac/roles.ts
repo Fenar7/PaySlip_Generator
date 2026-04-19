@@ -17,7 +17,7 @@ type ActionResult<T> = { success: true; data: T } | { success: false; error: str
 export async function listCustomRoles(): Promise<
   ActionResult<Array<{ id: string; name: string; description: string | null; permissions: unknown; isSystem: boolean; memberCount: number }>>
 > {
-  const { organizationId } = await requireRole("admin");
+  const { orgId: organizationId } = await requireRole("admin");
 
   const roles = await db.customRole.findMany({
     where: { orgId: organizationId },
@@ -41,7 +41,7 @@ export async function listCustomRoles(): Promise<
 export async function getCustomRole(
   roleId: string
 ): Promise<ActionResult<{ id: string; name: string; description: string | null; permissions: unknown; isSystem: boolean }>> {
-  const { organizationId } = await requireRole("admin");
+  const { orgId: organizationId } = await requireRole("admin");
 
   const role = await db.customRole.findFirst({
     where: { id: roleId, orgId: organizationId },
@@ -70,7 +70,7 @@ export async function createCustomRole(input: {
   description?: string;
   permissions: PermissionSet;
 }): Promise<ActionResult<{ id: string }>> {
-  const { organizationId } = await requireRole("admin");
+  const { orgId: organizationId } = await requireRole("admin");
 
   if (!input.name || input.name.trim().length < 2) {
     return { success: false, error: "Role name must be at least 2 characters" };
@@ -105,7 +105,7 @@ export async function updateCustomRole(
   roleId: string,
   input: { name?: string; description?: string; permissions?: PermissionSet }
 ): Promise<ActionResult<{ id: string }>> {
-  const { organizationId } = await requireRole("admin");
+  const { orgId: organizationId } = await requireRole("admin");
 
   const role = await db.customRole.findFirst({
     where: { id: roleId, orgId: organizationId },
@@ -155,7 +155,7 @@ export async function updateCustomRole(
 }
 
 export async function deleteCustomRole(roleId: string): Promise<ActionResult<void>> {
-  const { organizationId } = await requireRole("admin");
+  const { orgId: organizationId } = await requireRole("admin");
 
   const role = await db.customRole.findFirst({
     where: { id: roleId, orgId: organizationId },
@@ -188,7 +188,7 @@ export async function assignCustomRole(
   memberId: string,
   customRoleId: string | null
 ): Promise<ActionResult<void>> {
-  const { organizationId } = await requireRole("admin");
+  const { orgId: organizationId } = await requireRole("admin");
 
   const member = await db.member.findFirst({
     where: { id: memberId, organizationId },

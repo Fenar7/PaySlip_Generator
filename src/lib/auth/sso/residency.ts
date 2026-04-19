@@ -41,7 +41,7 @@ const REGION_ENDPOINTS: Record<DataResidencyRegion, { endpoint: string; bucket: 
 export async function getDataResidencyConfig(): Promise<
   ActionResult<{ region: DataResidencyRegion; enforced: boolean; endpoint: string } | null>
 > {
-  const { organizationId } = await requireRole("admin");
+  const { orgId: organizationId } = await requireRole("admin");
 
   const config = await db.dataResidencyConfig.findUnique({
     where: { orgId: organizationId },
@@ -68,7 +68,7 @@ export async function getDataResidencyConfig(): Promise<
 export async function setDataResidency(
   region: DataResidencyRegion
 ): Promise<ActionResult<void>> {
-  const { organizationId } = await requireRole("admin");
+  const { orgId: organizationId } = await requireRole("admin");
 
   const validRegions: DataResidencyRegion[] = ["US", "EU", "IN"];
   if (!validRegions.includes(region)) {

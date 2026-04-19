@@ -25,7 +25,7 @@ export type SsoConfigSummary = {
 // ─── Queries ──────────────────────────────────────────────────────────────────
 
 export async function getSsoConfig(): Promise<ActionResult<SsoConfigSummary | null>> {
-  const { organizationId } = await requireRole("admin");
+  const { orgId: organizationId } = await requireRole("admin");
 
   const config = await db.ssoConfig.findUnique({
     where: { orgId: organizationId },
@@ -59,7 +59,7 @@ export async function configureSaml(input: {
   entityId: string;
   acsUrl: string;
 }): Promise<ActionResult<{ id: string }>> {
-  const { organizationId } = await requireRole("admin");
+  const { orgId: organizationId } = await requireRole("admin");
 
   if (!input.metadataUrl && !input.metadataXml) {
     return { success: false, error: "Either metadata URL or XML must be provided" };
@@ -112,7 +112,7 @@ export async function configureOidc(input: {
   scopes?: string[];
   emailDomains?: string[];
 }): Promise<ActionResult<{ id: string }>> {
-  const { organizationId } = await requireRole("admin");
+  const { orgId: organizationId } = await requireRole("admin");
 
   if (!input.issuerUrl || !input.clientId || !input.clientSecret) {
     return { success: false, error: "Issuer URL, Client ID, and Client Secret are required" };
@@ -172,7 +172,7 @@ export async function configureOidc(input: {
 export async function toggleSsoEnforcement(
   enforced: boolean
 ): Promise<ActionResult<void>> {
-  const { organizationId } = await requireRole("admin");
+  const { orgId: organizationId } = await requireRole("admin");
 
   const config = await db.ssoConfig.findUnique({
     where: { orgId: organizationId },
@@ -200,7 +200,7 @@ export async function toggleSsoEnforcement(
 }
 
 export async function markSsoTested(): Promise<ActionResult<void>> {
-  const { organizationId } = await requireRole("admin");
+  const { orgId: organizationId } = await requireRole("admin");
 
   await db.ssoConfig.update({
     where: { orgId: organizationId },
@@ -215,7 +215,7 @@ export async function markSsoTested(): Promise<ActionResult<void>> {
 }
 
 export async function deactivateSso(): Promise<ActionResult<void>> {
-  const { organizationId } = await requireRole("admin");
+  const { orgId: organizationId } = await requireRole("admin");
 
   await db.ssoConfig.update({
     where: { orgId: organizationId },
@@ -235,7 +235,7 @@ export async function upsertGroupMapping(input: {
   role: string;
   customRoleId?: string;
 }): Promise<ActionResult<{ id: string }>> {
-  const { organizationId } = await requireRole("admin");
+  const { orgId: organizationId } = await requireRole("admin");
 
   const config = await db.ssoConfig.findUnique({
     where: { orgId: organizationId },
@@ -268,7 +268,7 @@ export async function upsertGroupMapping(input: {
 }
 
 export async function deleteGroupMapping(mappingId: string): Promise<ActionResult<void>> {
-  const { organizationId } = await requireRole("admin");
+  const { orgId: organizationId } = await requireRole("admin");
 
   const config = await db.ssoConfig.findUnique({
     where: { orgId: organizationId },
