@@ -23,6 +23,7 @@ const PUBLIC_PREFIXES = [
   "/quote",
   "/unsubscribe",
   "/developers",
+  "/help",
   "/_next",
   "/favicon",
   "/public",
@@ -30,6 +31,49 @@ const PUBLIC_PREFIXES = [
   "/sw.js",
   "/offline",
 ];
+
+// ─── Security Headers ─────────────────────────────────────────────────────────
+
+const SECURITY_HEADERS: Record<string, string> = {
+  "X-Frame-Options": "DENY",
+  "X-Content-Type-Options": "nosniff",
+  "X-XSS-Protection": "1; mode=block",
+  "Referrer-Policy": "strict-origin-when-cross-origin",
+  "Permissions-Policy": "camera=(), microphone=(), geolocation=(self), payment=(self)",
+  "Strict-Transport-Security": "max-age=63072000; includeSubDomains; preload",
+};
+
+/**
+ * Build Content-Security-Policy header.
+ * Allows inline styles (required by styled components) and specific script sources.
+ */
+function buildCsp(): string {
+  const directives = [
+    "default-src 'self'",
+    "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://js.stripe.com https://checkout.razorpay.com",
+    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+    "img-src 'self' data: blob: https: http:",
+    "font-src 'self' https://fonts.gstatic.com data:",
+    "connect-src 'self' https://*.supabase.co https://api.stripe.com https://*.amazonaws.com wss://*.supabase.co",
+    "frame-src https://js.stripe.com https://checkout.razorpay.com",
+    "frame-ancestors 'none'",
+    "base-uri 'self'",
+    "form-action 'self'",
+    "object-src 'none'",
+  ];
+  return directives.join("; ");
+}
+
+/**
+ * Apply security headers to a response.
+ */
+export function applySecurityHeaders(response: NextResponse): NextResponse {
+  for (const [key, value] of Object.entries(SECURITY_HEADERS)) {
+    response.headers.set(key, value);
+  }
+  response.headers.set("Content-Security-Policy", buildCsp());
+  return response;
+}
 
 // ─── 2FA challenge enforcement ────────────────────────────────────────────────
 
@@ -128,7 +172,7 @@ export async function middleware(request: NextRequest) {
   // Always refresh the Supabase session (sets cookies)
   const { user, supabaseResponse } = await updateSession(request);
 
-  if (isPublic) return supabaseResponse;
+  if (isPublic) return applySecurityHeaders(supabaseResponse);
 
   if (pathname.startsWith("/app") || pathname.startsWith("/onboarding")) {
     if (!user) {
@@ -150,7 +194,7 @@ export async function middleware(request: NextRequest) {
     }
   }
 
-  return supabaseResponse;
+  return applySecurityHeaders(supabaseResponse);
 }
 
 export const config = {

@@ -1,0 +1,72 @@
+{
+  "categories": [
+    {
+      "slug": "onboarding",
+      "title": "Getting Started",
+      "description": "Set up your account and organization",
+      "articles": [
+        {
+          "slug": "getting-started",
+          "title": "Getting Started with Slipwise One",
+          "file": "onboarding/getting-started.md"
+        },
+        {
+          "slug": "organization-setup",
+          "title": "Organization Setup",
+          "file": "onboarding/organization-setup.md"
+        }
+      ]
+    },
+    {
+      "slug": "billing",
+      "title": "Billing & Subscriptions",
+      "description": "Plans, payments, and invoicing",
+      "articles": [
+        {
+          "slug": "plans-and-pricing",
+          "title": "Subscription Plans & Billing",
+          "file": "billing/plans-and-pricing.md"
+        },
+        {
+          "slug": "payment-issues",
+          "title": "Payment Issues & Dunning",
+          "file": "billing/payment-issues.md"
+        }
+      ]
+    },
+    {
+      "slug": "api",
+      "title": "API & Integrations",
+      "description": "Public API, webhooks, and developer tools",
+      "articles": [
+        {
+          "slug": "public-api",
+          "title": "Public API v1.0",
+          "file": "api/public-api.md"
+        },
+        {
+          "slug": "webhooks",
+          "title": "Webhook Configuration",
+          "file": "api/webhooks.md"
+        }
+      ]
+    },
+    {
+      "slug": "troubleshooting",
+      "title": "Troubleshooting",
+      "description": "Common issues and error codes",
+      "articles": [
+        {
+          "slug": "common-issues",
+          "title": "Common Issues & Solutions",
+          "file": "troubleshooting/common-issues.md"
+        },
+        {
+          "slug": "error-codes",
+          "title": "Error Codes Reference",
+          "file": "troubleshooting/error-codes.md"
+        }
+      ]
+    }
+  ]
+}

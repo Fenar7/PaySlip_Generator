@@ -1,0 +1,17 @@
+variable "app_name" { type = string }
+variable "environment" { type = string }
+variable "aws_region" { type = string }
+variable "cpu" { type = number }
+variable "memory" { type = number }
+variable "desired_count" { type = number }
+variable "min_count" { type = number }
+variable "max_count" { type = number }
+variable "vpc_id" { type = string }
+variable "public_subnet_ids" { type = list(string) }
+variable "private_subnet_ids" { type = list(string) }
+variable "alb_security_group_id" { type = string }
+variable "ecs_security_group_id" { type = string }
+variable "certificate_arn" { type = string }
+variable "s3_bucket_arn" { type = string }
+variable "db_url_secret_arn" { type = string }
+variable "nextauth_secret_arn" { type = string }
