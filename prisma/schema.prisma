@@ -198,6 +198,10 @@ model Organization {
   // Phase 28: Billing & Subscription
   billingAccount               BillingAccount?
   billingDunningAttempts       BillingDunningAttempt[]
+  // Phase 28: Governance & Platform
+  customRoles                  CustomRole[]
+  dataResidencyConfig          DataResidencyConfig?
+  webhookDeadLetters           WebhookDeadLetter[]
 
   @@index([entityGroupId])
   @@map("organization")
@@ -208,12 +212,15 @@ model Member {
   organizationId String
   userId         String   @db.Uuid
   role           String   @default("member")
+  customRoleId   String?
   createdAt      DateTime @default(now())
 
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   user         Profile      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  customRole   CustomRole?  @relation(fields: [customRoleId], references: [id], onDelete: SetNull)
 
   @@unique([organizationId, userId])
+  @@index([customRoleId])
   @@map("member")
 }
 
@@ -2681,18 +2688,19 @@ model BillingInvoice {
 // ─── Phase 12: API Platform ──────────────────────────────────────────────────
 
 model ApiKey {
-  id         String    @id @default(cuid())
-  orgId      String
-  name       String
-  keyHash    String    @unique
-  keyPrefix  String
-  scopes     String[]
-  lastUsedAt DateTime?
-  expiresAt  DateTime?
-  isActive   Boolean   @default(true)
-  createdBy  String    @db.Uuid
-  createdAt  DateTime  @default(now())
-  revokedAt  DateTime?
+  id            String    @id @default(cuid())
+  orgId         String
+  name          String
+  keyHash       String    @unique
+  keyPrefix     String
+  scopes        String[]
+  rateLimitTier String    @default("free")
+  lastUsedAt    DateTime?
+  expiresAt     DateTime?
+  isActive      Boolean   @default(true)
+  createdBy     String    @db.Uuid
+  createdAt     DateTime  @default(now())
+  revokedAt     DateTime?
 
   organization Organization    @relation(fields: [orgId], references: [id], onDelete: Cascade)
   requestLogs  ApiRequestLog[]
@@ -2722,8 +2730,9 @@ model ApiWebhookEndpoint {
   lastDeliveryAt   DateTime?
   lastSuccessAt    DateTime?
 
-  organization Organization         @relation(fields: [orgId], references: [id], onDelete: Cascade)
-  deliveries   ApiWebhookDelivery[]
+  organization      Organization         @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  deliveries        ApiWebhookDelivery[]
+  deadLetterEntries WebhookDeadLetter[]
 
   @@index([orgId, isActive])
   @@map("api_webhook_endpoint")
@@ -2785,6 +2794,7 @@ enum SsoAuthnRequestMode {
 model SsoConfig {
   id                    String            @id @default(cuid())
   orgId                 String            @unique
+  protocol              String            @default("SAML")
   provider              String
   metadataUrl           String?
   metadataXml           String?           @db.Text
@@ -2794,6 +2804,14 @@ model SsoConfig {
   idpSsoUrl             String?
   idpSsoBinding         String?
   idpCertificates       Json?
+  // OIDC-specific fields
+  oidcIssuerUrl         String?
+  oidcClientId          String?
+  oidcClientSecret      String?
+  oidcJwksUrl           String?
+  oidcScopes            String[]          @default([])
+  oidcEmailDomains      String[]          @default([])
+  // Common fields
   metadataStatus        SsoMetadataStatus @default(PENDING)
   metadataError         String?           @db.Text
   metadataLastFetchedAt DateTime?
@@ -2808,7 +2826,8 @@ model SsoConfig {
   createdAt             DateTime          @default(now())
   updatedAt             DateTime          @updatedAt
 
-  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  organization  Organization      @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  groupMappings SsoGroupMapping[]
 
   @@map("sso_config")
 }
@@ -5536,4 +5555,80 @@ model BillingDunningAttempt {
   @@index([orgId, subscriptionId])
   @@index([status, scheduledAt])
   @@map("billing_dunning_attempt")
+}
+
+// ─── Phase 28.3: Governance — Custom Roles & Residency ────────────────────────
+
+model CustomRole {
+  id          String   @id @default(cuid())
+  orgId       String
+  name        String
+  description String?
+  permissions Json
+  isSystem    Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  members      Member[]
+
+  @@unique([orgId, name], map: "custom_role_org_name_unique")
+  @@index([orgId])
+  @@map("custom_role")
+}
+
+model DataResidencyConfig {
+  id             String   @id @default(cuid())
+  orgId          String   @unique
+  region         String   @default("IN")
+  bucketEndpoint String?
+  enforced       Boolean  @default(false)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@map("data_residency_config")
+}
+
+model SsoGroupMapping {
+  id            String   @id @default(cuid())
+  ssoConfigId   String
+  externalGroup String
+  role          String
+  customRoleId  String?
+  createdAt     DateTime @default(now())
+
+  ssoConfig SsoConfig @relation(fields: [ssoConfigId], references: [id], onDelete: Cascade)
+
+  @@unique([ssoConfigId, externalGroup], map: "sso_group_mapping_config_group_unique")
+  @@index([ssoConfigId])
+  @@map("sso_group_mapping")
+}
+
+// ─── Phase 28.4: Webhook Dead Letter Queue ────────────────────────────────────
+
+model WebhookDeadLetter {
+  id            String    @id @default(cuid())
+  endpointId    String
+  orgId         String
+  eventType     String
+  payload       Json
+  status        String    @default("pending")
+  attempts      Int       @default(0)
+  maxAttempts   Int       @default(5)
+  lastAttemptAt DateTime?
+  nextRetryAt   DateTime?
+  lastError     String?   @db.Text
+  lastStatus    Int?
+  resolvedAt    DateTime?
+  createdAt     DateTime  @default(now())
+
+  endpoint     ApiWebhookEndpoint @relation(fields: [endpointId], references: [id], onDelete: Cascade)
+  organization Organization       @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@index([status, nextRetryAt])
+  @@index([orgId, status])
+  @@index([endpointId])
+  @@map("webhook_dead_letter")
 }

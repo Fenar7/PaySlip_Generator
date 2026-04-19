@@ -10,7 +10,7 @@ import {
   parseOidcState,
   fetchDiscoveryDocument,
   exchangeCodeForTokens,
-  decodeJwtUnsafe,
+  verifyIdTokenSignature,
   validateIdTokenClaims,
 } from "@/lib/auth/sso/oidc";
 
@@ -74,14 +74,14 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       scopes: ssoConfig.oidcScopes.length > 0 ? ssoConfig.oidcScopes : ["openid", "email", "profile"],
     };
 
-    // Exchange code for tokens (PKCE verifier stored in cookie/session)
-    // Note: In production, codeVerifier would come from a secure session store.
-    // For this implementation, we use the state-embedded approach.
+    // Exchange code for tokens
+    // The code verifier is embedded in the state for stateless PKCE support.
+    // The state itself is cryptographically signed + time-bounded (10 min TTL).
     const tokens = await exchangeCodeForTokens(
       oidcConfig,
       discovery,
       code,
-      "" // PKCE verifier — in full impl, retrieve from session
+      stateData.codeVerifier || ""
     );
 
     if (!tokens.id_token) {
@@ -90,8 +90,8 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       );
     }
 
-    // Decode and validate ID token
-    const { payload: claims } = decodeJwtUnsafe(tokens.id_token);
+    // Verify JWT signature via JWKS and decode claims
+    const claims = await verifyIdTokenSignature(tokens.id_token, discovery.jwks_uri);
     const validation = validateIdTokenClaims(claims, oidcConfig, stateData.nonce);
 
     if (!validation.valid) {
