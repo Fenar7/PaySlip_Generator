@@ -1,10 +1,11 @@
 "use server";
 
 import { requireRole } from "@/lib/auth";
-import { checkFeature } from "@/lib/plans/enforcement";
+import { requireFeature } from "@/lib/plans/enforcement";
 import { db } from "@/lib/db";
 import { runAndPersistVerification } from "@/lib/audit/chain-verifier";
 import { generateAuditPackage } from "@/lib/audit/audit-package";
+import { logAudit } from "@/lib/audit";
 import type { ChainVerificationResult } from "@/lib/audit/chain-verifier";
 
 type ActionResult<T> =
@@ -39,7 +40,7 @@ export interface AuditIntegrityDashboardData {
 export async function getAuditIntegrityData(): Promise<ActionResult<AuditIntegrityDashboardData>> {
   try {
     const { orgId } = await requireRole("admin");
-    await checkFeature(orgId, "forensicAudit");
+    await requireFeature(orgId, "forensicAudit");
 
     const [chainedCount, unchainedCount, latestVerification, recentExports] =
       await Promise.all([
@@ -93,7 +94,7 @@ export async function getAuditIntegrityData(): Promise<ActionResult<AuditIntegri
 export async function verifyChainAction(): Promise<ActionResult<ChainVerificationResult>> {
   try {
     const { orgId, userId } = await requireRole("admin");
-    await checkFeature(orgId, "forensicAudit");
+    await requireFeature(orgId, "forensicAudit");
 
     const result = await runAndPersistVerification(orgId, userId);
     return { success: true, data: result };
@@ -111,7 +112,7 @@ export async function exportAuditPackageAction(
 ): Promise<ActionResult<{ exportId: string; entryCount: number; chainIntact: boolean; base64Zip: string }>> {
   try {
     const { orgId, userId } = await requireRole("owner");
-    await checkFeature(orgId, "forensicAudit");
+    await requireFeature(orgId, "forensicAudit");
 
     const result = await generateAuditPackage(
       orgId,
@@ -119,6 +120,20 @@ export async function exportAuditPackageAction(
       new Date(dateRangeEnd),
       userId,
     );
+
+    await logAudit({
+      orgId,
+      actorId: userId,
+      action: "audit_package.exported",
+      entityType: "AuditPackageExport",
+      entityId: result.exportId,
+      metadata: {
+        dateRangeStart,
+        dateRangeEnd,
+        entryCount: result.entryCount,
+        chainIntact: result.chainIntact,
+      },
+    });
 
     return {
       success: true,

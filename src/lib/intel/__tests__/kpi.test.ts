@@ -108,9 +108,10 @@ describe("computeRunway", () => {
     expect(result.unit).toBe("months");
   });
 
-  it("returns 0 when burn is zero (infinite runway → capped)", () => {
+  it("returns 999 when burn is zero (infinite runway)", () => {
     const result = computeRunway({ currentBalance: 100000, monthlyBurn: 0 });
-    expect(result.currentValue).toBe(0); // safeDivide returns 0
+    expect(result.currentValue).toBe(999);
+    expect(result.trendIsPositive).toBe(true);
   });
 
   it("flags low runway correctly", () => {

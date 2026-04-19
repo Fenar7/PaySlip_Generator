@@ -1,7 +1,7 @@
 "use server";
 
 import { requireOrgContext, requireRole } from "@/lib/auth";
-import { checkFeature } from "@/lib/plans/enforcement";
+import { requireFeature } from "@/lib/plans/enforcement";
 import { db } from "@/lib/db";
 import { listSupportedRegions } from "@/lib/tax";
 import { computeTaxLiability, getLatestLiabilityEstimate } from "@/lib/tax/liability";
@@ -36,7 +36,7 @@ export interface TaxDashboardData {
 export async function getTaxDashboardData(): Promise<ActionResult<TaxDashboardData>> {
   try {
     const { orgId } = await requireOrgContext();
-    await checkFeature(orgId, "globalTax");
+    await requireFeature(orgId, "globalTax");
 
     const [configs, org] = await Promise.all([
       db.taxConfig.findMany({
@@ -88,7 +88,7 @@ export async function computeTaxLiabilityAction(
 ): Promise<ActionResult<LiabilityEstimateResult>> {
   try {
     const { orgId, userId } = await requireRole("admin");
-    await checkFeature(orgId, "globalTax");
+    await requireFeature(orgId, "globalTax");
 
     const result = await computeTaxLiability(
       orgId,
@@ -126,7 +126,7 @@ export async function upsertTaxConfigAction(data: {
 }): Promise<ActionResult<{ id: string }>> {
   try {
     const { orgId, userId } = await requireRole("admin");
-    await checkFeature(orgId, "globalTax");
+    await requireFeature(orgId, "globalTax");
 
     if (data.id) {
       // Verify ownership

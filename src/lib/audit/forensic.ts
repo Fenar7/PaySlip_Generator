@@ -60,10 +60,20 @@ export function computeEntryHash(data: AuditEntryData): string {
 export const GENESIS_HASH = "GENESIS";
 
 /**
- * Timing-safe comparison of two hex hash strings.
- * Returns true if they are identical.
+ * Timing-safe comparison of two hash strings.
+ * For 64-char hex SHA-256 hashes, uses constant-time buffer comparison.
+ * For non-hex strings (e.g. GENESIS), falls back to length + byte comparison.
  */
 export function hashesMatch(a: string, b: string): boolean {
   if (a.length !== b.length) return false;
-  return timingSafeEqual(Buffer.from(a, "hex"), Buffer.from(b, "hex"));
+  // SHA-256 hex hashes are exactly 64 chars; use timing-safe compare for real hashes
+  const isHex = /^[0-9a-f]{64}$/i;
+  if (isHex.test(a) && isHex.test(b)) {
+    return timingSafeEqual(Buffer.from(a, "hex"), Buffer.from(b, "hex"));
+  }
+  // For non-hex strings (e.g. GENESIS), use timing-safe byte compare on UTF-8
+  const bufA = Buffer.from(a, "utf8");
+  const bufB = Buffer.from(b, "utf8");
+  if (bufA.length !== bufB.length) return false;
+  return timingSafeEqual(bufA, bufB);
 }

@@ -1,7 +1,7 @@
 "use server";
 
 import { requireOrgContext, requireRole } from "@/lib/auth";
-import { checkFeature } from "@/lib/plans/enforcement";
+import { requireFeature, checkFeature } from "@/lib/plans/enforcement";
 import { generateForecast, getLatestForecast } from "@/lib/intel/forecast";
 import type { ForecastResult } from "@/lib/intel/forecast";
 
@@ -16,7 +16,7 @@ type ActionResult<T> =
 export async function getForecastData(): Promise<ActionResult<ForecastResult | null>> {
   try {
     const { orgId } = await requireOrgContext();
-    await checkFeature(orgId, "forecastBasic");
+    await requireFeature(orgId, "forecastBasic");
     const data = await getLatestForecast(orgId);
     return { success: true, data };
   } catch (err) {
@@ -33,7 +33,7 @@ export async function regenerateForecastAction(
 ): Promise<ActionResult<ForecastResult>> {
   try {
     const { orgId } = await requireRole("admin");
-    await checkFeature(orgId, "forecastBasic");
+    await requireFeature(orgId, "forecastBasic");
 
     // Determine max horizon based on plan
     let maxHorizon = 1;
