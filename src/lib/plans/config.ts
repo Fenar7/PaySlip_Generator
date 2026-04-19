@@ -109,6 +109,8 @@ export interface PlanLimits {
   forensicAudit: boolean;
   /** Cash-flow optimizer + intelligent dunning */
   cashFlowOptimizer: boolean;
+  /** Executive dashboard + flash reports */
+  executiveHub: boolean;
 }
 
 export interface PlanConfig {
@@ -198,6 +200,7 @@ export const PLAN_LIMITS: Record<PlanId, PlanLimits> = {
     globalTax: false,
     forensicAudit: false,
     cashFlowOptimizer: false,
+    executiveHub: false,
   },
   starter: {
     invoicesPerMonth: 100,
@@ -274,6 +277,7 @@ export const PLAN_LIMITS: Record<PlanId, PlanLimits> = {
     globalTax: false,
     forensicAudit: false,
     cashFlowOptimizer: false,
+    executiveHub: false,
   },
   pro: {
     invoicesPerMonth: 1000,
@@ -350,6 +354,7 @@ export const PLAN_LIMITS: Record<PlanId, PlanLimits> = {
     globalTax: true,
     forensicAudit: true,
     cashFlowOptimizer: true,
+    executiveHub: true,
   },
   enterprise: {
     invoicesPerMonth: -1, // unlimited
@@ -426,6 +431,7 @@ export const PLAN_LIMITS: Record<PlanId, PlanLimits> = {
     globalTax: true,
     forensicAudit: true,
     cashFlowOptimizer: true,
+    executiveHub: true,
   },
 };
 
