@@ -98,6 +98,13 @@ export interface PlanLimits {
   enterpriseCrm: boolean;
   /** Whether the SOP knowledge base is available */
   sopKnowledgeBase: boolean;
+  // Phase 27: Intel Pro
+  /** 30-day forecast available (starter+) */
+  forecastBasic: boolean;
+  /** 60/90-day forecast + anomaly detection (pro+) */
+  forecastPro: boolean;
+  /** Multi-region tax engine available */
+  globalTax: boolean;
 }
 
 export interface PlanConfig {
@@ -182,6 +189,9 @@ export const PLAN_LIMITS: Record<PlanId, PlanLimits> = {
     eInvoicingV2: false,
     enterpriseCrm: false,
     sopKnowledgeBase: false,
+    forecastBasic: false,
+    forecastPro: false,
+    globalTax: false,
   },
   starter: {
     invoicesPerMonth: 100,
@@ -253,6 +263,9 @@ export const PLAN_LIMITS: Record<PlanId, PlanLimits> = {
     eInvoicingV2: false,
     enterpriseCrm: false,
     sopKnowledgeBase: false,
+    forecastBasic: true,
+    forecastPro: false,
+    globalTax: false,
   },
   pro: {
     invoicesPerMonth: 1000,
@@ -324,6 +337,9 @@ export const PLAN_LIMITS: Record<PlanId, PlanLimits> = {
     eInvoicingV2: true,
     enterpriseCrm: false,
     sopKnowledgeBase: false,
+    forecastBasic: true,
+    forecastPro: true,
+    globalTax: true,
   },
   enterprise: {
     invoicesPerMonth: -1, // unlimited
@@ -395,6 +411,9 @@ export const PLAN_LIMITS: Record<PlanId, PlanLimits> = {
     eInvoicingV2: true,
     enterpriseCrm: true,
     sopKnowledgeBase: true,
+    forecastBasic: true,
+    forecastPro: true,
+    globalTax: true,
   },
 };
 
