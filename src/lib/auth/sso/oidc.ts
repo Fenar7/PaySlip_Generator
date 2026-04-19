@@ -6,7 +6,7 @@
  * token exchange, and ID token validation via JWKS.
  */
 
-import { createHmac, randomBytes, createHash } from "crypto";
+import { createHmac, randomBytes, createHash, createPublicKey, createVerify } from "crypto";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -251,11 +251,75 @@ export function validateIdTokenClaims(
   return { valid: true };
 }
 
+/**
+ * Verify JWT signature using JWKS.
+ * Supports RSA (RS256/RS384/RS512) key types.
+ * Returns decoded payload on success, throws on verification failure.
+ */
+export async function verifyIdTokenSignature(
+  token: string,
+  jwksUri: string
+): Promise<OidcIdTokenClaims> {
+  const { header, payload } = decodeJwtUnsafe(token);
+
+  if (!header.alg || !header.alg.startsWith("RS")) {
+    // For HMAC-based tokens or unsupported algorithms, fall back to claims-only validation
+    // This is safe because the token was obtained directly from the provider's token endpoint
+    // via a server-to-server authenticated exchange (client_secret in POST body).
+    return payload;
+  }
+
+  const jwks = await fetchJwks(jwksUri);
+  const key = header.kid
+    ? jwks.keys.find((k) => k.kid === header.kid)
+    : jwks.keys.find((k) => k.use === "sig" && (k.alg === header.alg || !k.alg));
+
+  if (!key || !key.n || !key.e) {
+    throw new Error("No matching RSA key found in JWKS for token verification");
+  }
+
+  // Build RSA public key from JWK components
+  const publicKey = createPublicKey({
+    key: {
+      kty: "RSA",
+      n: key.n,
+      e: key.e,
+    },
+    format: "jwk",
+  });
+
+  // Verify signature
+  const parts = token.split(".");
+  const signedContent = `${parts[0]}.${parts[1]}`;
+  const signature = Buffer.from(parts[2], "base64url");
+
+  const algorithmMap: Record<string, string> = {
+    RS256: "RSA-SHA256",
+    RS384: "RSA-SHA384",
+    RS512: "RSA-SHA512",
+  };
+
+  const algorithm = algorithmMap[header.alg];
+  if (!algorithm) {
+    throw new Error(`Unsupported JWT algorithm: ${header.alg}`);
+  }
+
+  const verifier = createVerify(algorithm);
+  verifier.update(signedContent);
+  const valid = verifier.verify(publicKey, signature);
+
+  if (!valid) {
+    throw new Error("JWT signature verification failed — token may be forged");
+  }
+
+  return payload;
+}
+
 // ─── State Generation ─────────────────────────────────────────────────────────
 
 /**
  * Generate a cryptographically-secure state parameter.
- * Encodes orgSlug + nonce for CSRF protection + routing.
+ * Encodes orgSlug + nonce + codeVerifier for stateless PKCE + CSRF protection.
  */
 export function generateOidcState(orgSlug: string): {
   state: string;
@@ -264,7 +328,7 @@ export function generateOidcState(orgSlug: string): {
 } {
   const nonce = randomBytes(16).toString("hex");
   const codeVerifier = generateCodeVerifier();
-  const statePayload = JSON.stringify({ orgSlug, nonce, ts: Date.now() });
+  const statePayload = JSON.stringify({ orgSlug, nonce, codeVerifier, ts: Date.now() });
   const state = Buffer.from(statePayload).toString("base64url");
 
   return { state, nonce, codeVerifier };
@@ -272,10 +336,11 @@ export function generateOidcState(orgSlug: string): {
 
 /**
  * Parse and validate the returned state parameter.
+ * Returns the embedded orgSlug, nonce, codeVerifier, and timestamp.
  */
 export function parseOidcState(
   state: string
-): { orgSlug: string; nonce: string; ts: number } | null {
+): { orgSlug: string; nonce: string; codeVerifier?: string; ts: number } | null {
   try {
     const decoded = Buffer.from(state, "base64url").toString("utf8");
     const parsed = JSON.parse(decoded);

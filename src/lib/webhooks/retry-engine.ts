@@ -29,11 +29,11 @@ export interface DeliveryResult {
 // ─── Backoff Schedule ─────────────────────────────────────────────────────────
 
 const BACKOFF_DELAYS_MS = [
-  30_000,       // 30 seconds
-  120_000,      // 2 minutes
-  600_000,      // 10 minutes
-  3_600_000,    // 1 hour
-  14_400_000,   // 4 hours
+  300_000,      // 5 minutes
+  1_800_000,    // 30 minutes
+  7_200_000,    // 2 hours
+  43_200_000,   // 12 hours
+  86_400_000,   // 24 hours
 ];
 
 /**

@@ -3,29 +3,29 @@ import { getBackoffDelay, signWebhookPayload, getDeliveryHeaders } from "../retr
 
 describe("Webhook Retry Engine", () => {
   describe("getBackoffDelay", () => {
-    it("returns 30s for first attempt", () => {
-      expect(getBackoffDelay(0)).toBe(30_000);
+    it("returns 5m for first attempt", () => {
+      expect(getBackoffDelay(0)).toBe(300_000);
     });
 
-    it("returns 2m for second attempt", () => {
-      expect(getBackoffDelay(1)).toBe(120_000);
+    it("returns 30m for second attempt", () => {
+      expect(getBackoffDelay(1)).toBe(1_800_000);
     });
 
-    it("returns 10m for third attempt", () => {
-      expect(getBackoffDelay(2)).toBe(600_000);
+    it("returns 2h for third attempt", () => {
+      expect(getBackoffDelay(2)).toBe(7_200_000);
     });
 
-    it("returns 1h for fourth attempt", () => {
-      expect(getBackoffDelay(3)).toBe(3_600_000);
+    it("returns 12h for fourth attempt", () => {
+      expect(getBackoffDelay(3)).toBe(43_200_000);
     });
 
-    it("returns 4h for fifth attempt", () => {
-      expect(getBackoffDelay(4)).toBe(14_400_000);
+    it("returns 24h for fifth attempt", () => {
+      expect(getBackoffDelay(4)).toBe(86_400_000);
     });
 
     it("caps at maximum delay for attempts beyond schedule", () => {
-      expect(getBackoffDelay(10)).toBe(14_400_000);
-      expect(getBackoffDelay(100)).toBe(14_400_000);
+      expect(getBackoffDelay(10)).toBe(86_400_000);
+      expect(getBackoffDelay(100)).toBe(86_400_000);
     });
 
     it("follows exponential growth pattern", () => {
