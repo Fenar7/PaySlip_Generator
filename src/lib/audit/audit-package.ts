@@ -1,5 +1,6 @@
 import "server-only";
 
+import { createHash } from "crypto";
 import JSZip from "jszip";
 import { db } from "@/lib/db";
 import { computeEntryHash, GENESIS_HASH } from "./forensic";
@@ -113,13 +114,17 @@ export async function generateAuditPackage(
     generator: "Slipwise One Forensic Audit v1.0",
   };
 
-  const chainProof = {
+  const chainProofContent = {
     totalChainedEntries: chainedEntries.length,
     firstEntryHash: firstHash,
     lastEntryHash: lastHash,
     chainIntact,
     verifiedAt: new Date().toISOString(),
   };
+  // Add self-integrity hash so the chain-proof.json can be verified independently
+  const proofCanonical = JSON.stringify(chainProofContent, null, 2);
+  const manifestHash = createHash("sha256").update(proofCanonical).digest("hex");
+  const chainProof = { ...chainProofContent, manifestHash };
 
   const readme = [
     "SLIPWISE ONE — FORENSIC AUDIT PACKAGE",

@@ -202,8 +202,13 @@ export function computeBurnRate(data: ExpenseData): KpiResult {
 
 /** 3. Runway — Months of cash remaining at current burn rate */
 export function computeRunway(data: CashData): KpiResult {
-  const months = round2(safeDivide(data.currentBalance, data.monthlyBurn));
-  // No previous/sparkline data — caller can supply from cache
+  let months: number;
+  if (data.monthlyBurn <= 0 && data.currentBalance > 0) {
+    // No burn with positive balance = effectively infinite runway (cap at 999)
+    months = 999;
+  } else {
+    months = round2(safeDivide(data.currentBalance, data.monthlyBurn));
+  }
   return {
     id: "runway",
     label: "Runway",

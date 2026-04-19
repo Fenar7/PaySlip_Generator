@@ -1,7 +1,7 @@
 import "server-only";
 
 import { db } from "@/lib/db";
-import { computeEntryHash, GENESIS_HASH } from "./forensic";
+import { computeEntryHash, GENESIS_HASH, hashesMatch } from "./forensic";
 import { Prisma } from "@/generated/prisma/client";
 
 export interface ChainVerificationResult {
@@ -78,8 +78,8 @@ export async function verifyAuditChain(orgId: string): Promise<ChainVerification
     }
     expectedSeq = seq + 1;
 
-    // Verify prevHash linkage
-    if (!firstBreak && entry.prevHash !== expectedPrevHash) {
+    // Verify prevHash linkage (timing-safe comparison)
+    if (!firstBreak && !hashesMatch(entry.prevHash ?? "", expectedPrevHash)) {
       firstBreak = {
         sequenceNum: seq,
         expectedHash: expectedPrevHash,
@@ -104,7 +104,7 @@ export async function verifyAuditChain(orgId: string): Promise<ChainVerification
         prevHash: entry.prevHash ?? GENESIS_HASH,
       });
 
-      if (recomputed !== entry.entryHash) {
+      if (!hashesMatch(recomputed, entry.entryHash ?? "")) {
         firstBreak = {
           sequenceNum: seq,
           expectedHash: recomputed,

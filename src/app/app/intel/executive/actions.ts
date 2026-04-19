@@ -1,7 +1,7 @@
 "use server";
 
 import { requireOrgContext, requireRole } from "@/lib/auth";
-import { checkFeature } from "@/lib/plans/enforcement";
+import { requireFeature } from "@/lib/plans/enforcement";
 import { computeExecutiveKpis } from "@/lib/intel/kpi-service";
 import {
   generateFlashReport,
@@ -22,7 +22,7 @@ export async function getExecutiveKpisAction(
 ): Promise<ActionResult<Awaited<ReturnType<typeof computeExecutiveKpis>>>> {
   try {
     const { orgId } = await requireOrgContext();
-    await checkFeature(orgId, "executiveHub");
+    await requireFeature(orgId, "executiveHub");
     const snapshot = await computeExecutiveKpis(orgId, period);
 
     // Cache the result
@@ -58,7 +58,8 @@ export async function generateFlashReportAction(
 ): Promise<ActionResult<Awaited<ReturnType<typeof generateFlashReport>>>> {
   try {
     const { orgId } = await requireOrgContext();
-    await checkFeature(orgId, "executiveHub");
+    await requireFeature(orgId, "executiveHub");
+    await requireFeature(orgId, "flashReports");
     const report = await generateFlashReport(orgId, period);
     return { success: true, data: report };
   } catch (err) {
@@ -76,7 +77,8 @@ export async function sendFlashReportNowAction(
 ): Promise<ActionResult<{ delivered: boolean }>> {
   try {
     const { orgId, userId } = await requireOrgContext();
-    await checkFeature(orgId, "executiveHub");
+    await requireFeature(orgId, "executiveHub");
+    await requireFeature(orgId, "flashReports");
 
     const schedule = await db.flashReportSchedule.findUnique({
       where: { id: scheduleId },
@@ -118,7 +120,8 @@ export async function getFlashReportSchedulesAction(): Promise<
 > {
   try {
     const { orgId } = await requireOrgContext();
-    await checkFeature(orgId, "executiveHub");
+    await requireFeature(orgId, "executiveHub");
+    await requireFeature(orgId, "flashReports");
 
     const schedules = await db.flashReportSchedule.findMany({
       where: { orgId },
@@ -143,7 +146,8 @@ export async function upsertFlashReportScheduleAction(input: {
 }): Promise<ActionResult<{ id: string }>> {
   try {
     const { orgId, userId } = await requireRole("admin");
-    await checkFeature(orgId, "executiveHub");
+    await requireFeature(orgId, "executiveHub");
+    await requireFeature(orgId, "flashReports");
 
     const record = await db.flashReportSchedule.upsert({
       where: {
@@ -196,7 +200,8 @@ export async function deleteFlashReportScheduleAction(
 ): Promise<ActionResult<null>> {
   try {
     const { orgId, userId } = await requireRole("admin");
-    await checkFeature(orgId, "executiveHub");
+    await requireFeature(orgId, "executiveHub");
+    await requireFeature(orgId, "flashReports");
 
     const schedule = await db.flashReportSchedule.findUnique({
       where: { id: scheduleId },

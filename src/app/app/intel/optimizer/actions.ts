@@ -2,7 +2,7 @@
 
 import { db } from "@/lib/db";
 import { requireRole } from "@/lib/auth";
-import { checkFeature } from "@/lib/plans/enforcement";
+import { requireFeature } from "@/lib/plans/enforcement";
 import { logAudit } from "@/lib/audit";
 import {
   computeOptimizationPlan,
@@ -28,7 +28,7 @@ export async function generateOptimizationPlanAction(): Promise<
   ActionResult<PaymentOptimizationPlan>
 > {
   const { orgId, userId } = await requireRole("admin");
-  await checkFeature(orgId, "cashFlowOptimizer");
+  await requireFeature(orgId, "cashFlowOptimizer");
 
   // Fetch unpaid vendor bills
   const bills = await db.vendorBill.findMany({
@@ -138,7 +138,7 @@ export async function getCustomerBehaviorScoresAction(): Promise<
   ActionResult<CustomerBehaviorScore[]>
 > {
   const { orgId } = await requireRole("admin");
-  await checkFeature(orgId, "cashFlowOptimizer");
+  await requireFeature(orgId, "cashFlowOptimizer");
 
   // Get all customers with their invoices and payments
   const customers = await db.customer.findMany({
@@ -163,12 +163,21 @@ export async function getCustomerBehaviorScoresAction(): Promise<
 
     const invoices = customer.invoices.map((inv) => {
       const firstPayment = inv.payments[0];
+      // Derive payment terms from invoice dates; fallback to 30 days
+      let daysToPayTerms = 30;
+      if (inv.dueDate && inv.invoiceDate) {
+        const due = new Date(inv.dueDate).getTime();
+        const issued = new Date(inv.invoiceDate).getTime();
+        if (due > issued && Number.isFinite(due) && Number.isFinite(issued)) {
+          daysToPayTerms = Math.round((due - issued) / (1000 * 60 * 60 * 24));
+        }
+      }
       return {
         invoiceId: inv.id,
         issuedAt: inv.issuedAt ?? inv.createdAt,
         paidAt: firstPayment?.paidAt ?? null,
         totalAmount: inv.totalAmount,
-        daysToPayTerms: 30,
+        daysToPayTerms,
       };
     });
 
@@ -211,7 +220,7 @@ export async function getCustomerBehaviorScoresAction(): Promise<
 
 export async function getDSOAction(): Promise<ActionResult<DSOResult>> {
   const { orgId } = await requireRole("admin");
-  await checkFeature(orgId, "cashFlowOptimizer");
+  await requireFeature(orgId, "cashFlowOptimizer");
 
   // Accounts receivable: sum of remaining amounts on ISSUED/OVERDUE invoices
   const arResult = await db.invoice.aggregate({
@@ -249,7 +258,7 @@ export async function evaluateCashFlowAlertsAction(): Promise<
   ActionResult<CashFlowAlert[]>
 > {
   const { orgId } = await requireRole("admin");
-  await checkFeature(orgId, "cashFlowOptimizer");
+  await requireFeature(orgId, "cashFlowOptimizer");
 
   // Current balance
   const latestTxn = await db.bankTransaction.findFirst({
@@ -387,7 +396,7 @@ export async function getAlertConfigAction(): Promise<
   }>
 > {
   const { orgId } = await requireRole("admin");
-  await checkFeature(orgId, "cashFlowOptimizer");
+  await requireFeature(orgId, "cashFlowOptimizer");
 
   const config = await db.cashFlowAlertConfig.findUnique({
     where: { orgId },
@@ -411,7 +420,7 @@ export async function updateAlertConfigAction(input: {
   liquidityTargetPct: number;
 }): Promise<ActionResult<{ updated: boolean }>> {
   const { orgId, userId } = await requireRole("admin");
-  await checkFeature(orgId, "cashFlowOptimizer");
+  await requireFeature(orgId, "cashFlowOptimizer");
 
   await db.cashFlowAlertConfig.upsert({
     where: { orgId },
@@ -450,7 +459,7 @@ export async function getOptimizationHistoryAction(): Promise<
   >
 > {
   const { orgId } = await requireRole("admin");
-  await checkFeature(orgId, "cashFlowOptimizer");
+  await requireFeature(orgId, "cashFlowOptimizer");
 
   const runs = await db.paymentOptimizationRun.findMany({
     where: { orgId },

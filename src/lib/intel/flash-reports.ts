@@ -58,11 +58,12 @@ function toSummary(kpi: KpiResult): KpiSummary {
 
 function idempotencyKey(
   orgId: string,
+  scheduleId: string,
   channel: string,
   period: string,
   dateKey: string
 ): string {
-  return `${orgId}:${channel}:${period}:${dateKey}`;
+  return `${orgId}:${scheduleId}:${channel}:${period}:${dateKey}`;
 }
 
 function todayKey(): string {
@@ -110,7 +111,15 @@ export async function deliverFlashReport(
   channel: "EMAIL" | "PUSH" | "WHATSAPP",
   period: "MTD" | "QTD" | "YTD" = "MTD"
 ): Promise<{ delivered: boolean; deliveryId: string | null }> {
-  const key = idempotencyKey(orgId, channel, period, todayKey());
+  // Verify schedule belongs to this org (IDOR prevention)
+  const schedule = await db.flashReportSchedule.findFirst({
+    where: { id: scheduleId, orgId },
+  });
+  if (!schedule) {
+    throw new Error("Flash report schedule not found or access denied");
+  }
+
+  const key = idempotencyKey(orgId, scheduleId, channel, period, todayKey());
 
   // Idempotency check
   const existing = await db.flashReportDelivery.findUnique({
@@ -198,8 +207,8 @@ async function deliverViaEmail(
   scheduleId: string,
   payload: FlashReportPayload
 ): Promise<void> {
-  const schedule = await db.flashReportSchedule.findUnique({
-    where: { id: scheduleId },
+  const schedule = await db.flashReportSchedule.findFirst({
+    where: { id: scheduleId, orgId },
     include: { user: { select: { email: true, name: true } } },
   });
   if (!schedule) return;
@@ -220,8 +229,8 @@ async function deliverViaPush(
   scheduleId: string,
   payload: FlashReportPayload
 ): Promise<void> {
-  const schedule = await db.flashReportSchedule.findUnique({
-    where: { id: scheduleId },
+  const schedule = await db.flashReportSchedule.findFirst({
+    where: { id: scheduleId, orgId },
     include: { user: { select: { id: true } } },
   });
   if (!schedule) return;

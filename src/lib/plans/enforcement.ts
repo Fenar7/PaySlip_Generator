@@ -80,6 +80,22 @@ export async function checkFeature(
   return typeof value === "boolean" ? value : false;
 }
 
+/**
+ * Like checkFeature but throws if the feature is not available.
+ * Use in server actions to enforce plan gates.
+ */
+export async function requireFeature(
+  orgId: string,
+  feature: keyof PlanLimits
+): Promise<void> {
+  const allowed = await checkFeature(orgId, feature);
+  if (!allowed) {
+    throw new Error(
+      `This feature requires a plan that includes "${feature}". Please upgrade your plan.`
+    );
+  }
+}
+
 export async function requirePlan(
   orgId: string,
   minimumPlan: PlanId
