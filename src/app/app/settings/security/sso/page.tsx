@@ -16,11 +16,9 @@ import {
   Trash2,
 } from "lucide-react";
 
-type SsoProvider = "okta" | "azure" | "google" | "saml_custom" | "oidc_custom";
-type SsoProtocol = "SAML" | "OIDC";
+type SsoProvider = "okta" | "azure" | "google" | "saml_custom";
 
 interface SsoConfigData {
-  protocol: SsoProtocol;
   provider: SsoProvider;
   metadataUrl: string | null;
   metadataXml: string | null;
@@ -41,19 +39,13 @@ interface SsoConfigData {
   lastLoginAt: string | null;
   lastLoginEmail: string | null;
   certificateCount: number;
-  // OIDC fields
-  oidcIssuerUrl: string | null;
-  oidcClientId: string | null;
-  oidcScopes: string[];
-  oidcEmailDomains: string[];
 }
 
-const PROVIDERS: { value: SsoProvider; label: string; protocol: SsoProtocol }[] = [
-  { value: "okta", label: "Okta", protocol: "SAML" },
-  { value: "azure", label: "Azure AD", protocol: "SAML" },
-  { value: "google", label: "Google Workspace", protocol: "OIDC" },
-  { value: "saml_custom", label: "Custom SAML", protocol: "SAML" },
-  { value: "oidc_custom", label: "Custom OIDC", protocol: "OIDC" },
+const PROVIDERS: { value: SsoProvider; label: string }[] = [
+  { value: "okta", label: "Okta" },
+  { value: "azure", label: "Azure AD" },
+  { value: "google", label: "Google Workspace" },
+  { value: "saml_custom", label: "Custom SAML" },
 ];
 
 const FAILURE_LABELS: Record<string, string> = {

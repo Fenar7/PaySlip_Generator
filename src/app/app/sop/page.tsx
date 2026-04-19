@@ -20,7 +20,7 @@ export default function SopPage() {
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [search, setSearch] = useState("");
 
-  async function load() {
+  async function reload() {
     const [docsResult, cats] = await Promise.all([
       listSopDocuments({
         category: categoryFilter !== "all" ? categoryFilter : undefined,
@@ -31,15 +31,33 @@ export default function SopPage() {
     ]);
     setDocs(docsResult);
     setCategories(cats);
-    setLoading(false);
   }
 
-  useEffect(() => { load(); }, [categoryFilter, statusFilter, search]);
+  useEffect(() => {
+    let cancelled = false;
+    async function run() {
+      const [docsResult, cats] = await Promise.all([
+        listSopDocuments({
+          category: categoryFilter !== "all" ? categoryFilter : undefined,
+          status: statusFilter !== "all" ? (statusFilter as "DRAFT" | "PUBLISHED" | "ARCHIVED") : undefined,
+          search: search.trim() || undefined,
+        }),
+        listSopCategories(),
+      ]);
+      if (!cancelled) {
+        setDocs(docsResult);
+        setCategories(cats);
+        setLoading(false);
+      }
+    }
+    run();
+    return () => { cancelled = true; };
+  }, [categoryFilter, statusFilter, search]);
 
   async function handleArchive(id: string) {
     if (!confirm("Archive this SOP?")) return;
     await archiveSopDocument(id);
-    await load();
+    await reload();
   }
 
   return (
