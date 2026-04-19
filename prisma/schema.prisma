@@ -24,16 +24,17 @@ model Profile {
   recoveryCodes      Json? // array of bcrypt-hashed 8 recovery codes
   twoFaEnforcedByOrg Boolean   @default(false)
 
-  members             Member[]
-  auditActorLogs      AuditLog[]           @relation("AuditActor")
-  auditRepLogs        AuditLog[]           @relation("AuditRepresented")
-  referrals           Referral[]
-  onboardingProgress  OnboardingProgress?
-  pushSubscriptions   PushSubscription[]
-  orgPreferences      UserOrgPreference[]
-  quotes              Quote[]
-  arrangements        PaymentArrangement[]
-  oauthAuthorizations OAuthAuthorization[]
+  members              Member[]
+  auditActorLogs       AuditLog[]            @relation("AuditActor")
+  auditRepLogs         AuditLog[]            @relation("AuditRepresented")
+  referrals            Referral[]
+  onboardingProgress   OnboardingProgress?
+  pushSubscriptions    PushSubscription[]
+  orgPreferences       UserOrgPreference[]
+  quotes               Quote[]
+  arrangements         PaymentArrangement[]
+  oauthAuthorizations  OAuthAuthorization[]
+  flashReportSchedules FlashReportSchedule[]
 
   @@map("profiles")
 }
@@ -80,6 +81,9 @@ model Organization {
   auditPackageExports          AuditPackageExport[]
   paymentOptimizationRuns      PaymentOptimizationRun[]
   cashFlowAlertConfig          CashFlowAlertConfig?
+  flashReportSchedules         FlashReportSchedule[]
+  flashReportDeliveries        FlashReportDelivery[]
+  executiveKpiCaches           ExecutiveKpiCache[]
   subscription                 Subscription?
   usageRecords                 UsageRecord[]
   storageUsage                 StorageUsage[]
@@ -5340,4 +5344,85 @@ model CashFlowAlertConfig {
   organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
 
   @@map("cashflow_alert_config")
+}
+
+// ─── Phase 27.5: Executive Intel Hub ──────────────────────────────────────────
+
+enum FlashReportChannel {
+  PUSH
+  EMAIL
+  WHATSAPP
+}
+
+enum FlashReportFrequency {
+  DAILY_9AM
+  WEEKLY_MONDAY
+  MONTHLY_1ST
+  CUSTOM_CRON
+}
+
+enum FlashDeliveryStatus {
+  DELIVERED
+  FAILED
+  PENDING
+}
+
+model FlashReportSchedule {
+  id                 String               @id @default(cuid())
+  orgId              String
+  userId             String               @db.Uuid
+  channel            FlashReportChannel
+  schedule           FlashReportFrequency
+  timezone           String               @default("Asia/Kolkata")
+  customCron         String?
+  whatsappNumber     String?
+  isActive           Boolean              @default(true)
+  lastDeliveredAt    DateTime?
+  lastDeliveryStatus FlashDeliveryStatus?
+  createdAt          DateTime             @default(now())
+  updatedAt          DateTime             @updatedAt
+
+  organization Organization          @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  user         Profile               @relation(fields: [userId], references: [id])
+  deliveries   FlashReportDelivery[]
+
+  @@unique([orgId, userId, channel])
+  @@index([isActive, schedule])
+  @@map("flash_report_schedule")
+}
+
+model FlashReportDelivery {
+  id             String              @id @default(cuid())
+  scheduleId     String
+  orgId          String
+  channel        FlashReportChannel
+  payload        Json
+  status         FlashDeliveryStatus @default(PENDING)
+  deliveredAt    DateTime?
+  errorMessage   String?
+  retryCount     Int                 @default(0)
+  idempotencyKey String              @unique
+  createdAt      DateTime            @default(now())
+
+  schedule       FlashReportSchedule @relation(fields: [scheduleId], references: [id], onDelete: Cascade)
+  organization   Organization?       @relation(fields: [organizationId], references: [id])
+  organizationId String?
+
+  @@index([orgId, createdAt(sort: Desc)])
+  @@index([status, retryCount])
+  @@map("flash_report_delivery")
+}
+
+model ExecutiveKpiCache {
+  id         String   @id @default(cuid())
+  orgId      String
+  period     String
+  kpis       Json
+  computedAt DateTime @default(now())
+  expiresAt  DateTime
+
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@unique([orgId, period])
+  @@map("executive_kpi_cache")
 }
