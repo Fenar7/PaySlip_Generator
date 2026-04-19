@@ -105,6 +105,10 @@ export interface PlanLimits {
   forecastPro: boolean;
   /** Multi-region tax engine available */
   globalTax: boolean;
+  /** Forensic audit chain verification + export */
+  forensicAudit: boolean;
+  /** Cash-flow optimizer + intelligent dunning */
+  cashFlowOptimizer: boolean;
 }
 
 export interface PlanConfig {
@@ -192,6 +196,8 @@ export const PLAN_LIMITS: Record<PlanId, PlanLimits> = {
     forecastBasic: false,
     forecastPro: false,
     globalTax: false,
+    forensicAudit: false,
+    cashFlowOptimizer: false,
   },
   starter: {
     invoicesPerMonth: 100,
@@ -266,6 +272,8 @@ export const PLAN_LIMITS: Record<PlanId, PlanLimits> = {
     forecastBasic: true,
     forecastPro: false,
     globalTax: false,
+    forensicAudit: false,
+    cashFlowOptimizer: false,
   },
   pro: {
     invoicesPerMonth: 1000,
@@ -340,6 +348,8 @@ export const PLAN_LIMITS: Record<PlanId, PlanLimits> = {
     forecastBasic: true,
     forecastPro: true,
     globalTax: true,
+    forensicAudit: true,
+    cashFlowOptimizer: true,
   },
   enterprise: {
     invoicesPerMonth: -1, // unlimited
@@ -414,6 +424,8 @@ export const PLAN_LIMITS: Record<PlanId, PlanLimits> = {
     forecastBasic: true,
     forecastPro: true,
     globalTax: true,
+    forensicAudit: true,
+    cashFlowOptimizer: true,
   },
 };
 
