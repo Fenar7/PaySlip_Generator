@@ -27,14 +27,25 @@ export default function VendorCrmPage() {
   const [noteText, setNoteText] = useState("");
   const [submittingNote, setSubmittingNote] = useState(false);
 
-  async function load() {
+  async function reload() {
     if (!params.id) return;
     const result = await getVendorTimeline(params.id);
     setData(result);
-    setLoading(false);
   }
 
-  useEffect(() => { load(); }, [params.id]);
+  useEffect(() => {
+    if (!params.id) return;
+    let cancelled = false;
+    async function run() {
+      const result = await getVendorTimeline(params.id);
+      if (!cancelled) {
+        setData(result);
+        setLoading(false);
+      }
+    }
+    run();
+    return () => { cancelled = true; };
+  }, [params.id]);
 
   async function handleNoteSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -48,14 +59,14 @@ export default function VendorCrmPage() {
     setSubmittingNote(false);
     if (result.success) {
       setNoteText("");
-      await load();
+      await reload();
     }
   }
 
   async function handleComplianceChange(status: string) {
     if (!params.id) return;
     await updateVendorCrmFields(params.id, { complianceStatus: status as Parameters<typeof updateVendorCrmFields>[1]["complianceStatus"] });
-    await load();
+    await reload();
   }
 
   if (loading) return <div className="p-8 text-center text-slate-400">Loading…</div>;

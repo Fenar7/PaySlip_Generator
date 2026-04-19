@@ -30,14 +30,25 @@ export default function CustomerCrmPage() {
   const [submittingNote, setSubmittingNote] = useState(false);
   const [noteError, setNoteError] = useState<string | null>(null);
 
-  async function load() {
+  async function reload() {
     if (!params.id) return;
     const result = await getCustomerTimeline(params.id);
     setData(result);
-    setLoading(false);
   }
 
-  useEffect(() => { load(); }, [params.id]);
+  useEffect(() => {
+    if (!params.id) return;
+    let cancelled = false;
+    async function run() {
+      const result = await getCustomerTimeline(params.id);
+      if (!cancelled) {
+        setData(result);
+        setLoading(false);
+      }
+    }
+    run();
+    return () => { cancelled = true; };
+  }, [params.id]);
 
   async function handleNoteSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -52,7 +63,7 @@ export default function CustomerCrmPage() {
     setSubmittingNote(false);
     if (result.success) {
       setNoteText("");
-      await load();
+      await reload();
     } else {
       setNoteError(result.error);
     }
@@ -61,7 +72,7 @@ export default function CustomerCrmPage() {
   async function handleLifecycleChange(stage: string) {
     if (!params.id) return;
     await updateCustomerCrmFields(params.id, { lifecycleStage: stage as Parameters<typeof updateCustomerCrmFields>[1]["lifecycleStage"] });
-    await load();
+    await reload();
   }
 
   if (loading) return <div className="p-8 text-center text-slate-400">Loading…</div>;

@@ -27,6 +27,9 @@ export default function TokensPage() {
   const [newKey, setNewKey] = useState<NewKey | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [minExpiryDate] = useState<string>(
+    () => new Date(Date.now() + 86400000).toISOString().split("T")[0]
+  );
 
   // Form state
   const [formName, setFormName] = useState("");
@@ -211,7 +214,7 @@ export default function TokensPage() {
               value={formExpiry}
               onChange={(e) => setFormExpiry(e.target.value)}
               className="w-48 px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              min={new Date(Date.now() + 86400000).toISOString().split("T")[0]}
+              min={minExpiryDate}
             />
           </div>
           <div className="flex gap-3 pt-2">

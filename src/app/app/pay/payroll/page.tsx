@@ -109,7 +109,13 @@ export default function PayrollPage() {
   }
 
   useEffect(() => {
-    loadRuns();
+    let cancelled = false;
+    async function run() {
+      const result = await listPayrollRuns();
+      if (!cancelled && result.success) setRuns(result.data);
+    }
+    run();
+    return () => { cancelled = true; };
   }, []);
 
   function handleCreateRun() {
