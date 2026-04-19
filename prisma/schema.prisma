@@ -195,6 +195,9 @@ model Organization {
   taxConfigs                   TaxConfig[]
   taxLiabilityEstimates        TaxLiabilityEstimate[]
   primaryTaxRegion             TaxRegion?                    @map("primary_tax_region")
+  // Phase 28: Billing & Subscription
+  billingAccount               BillingAccount?
+  billingDunningAttempts       BillingDunningAttempt[]
 
   @@index([entityGroupId])
   @@map("organization")
@@ -2397,6 +2400,8 @@ model Subscription {
   razorpayCustomerId String?   @unique
   razorpaySubId      String?   @unique
   razorpayPlanId     String?
+  stripeCustomerId   String?   @unique
+  stripeSubId        String?   @unique
   trialEndsAt        DateTime?
   currentPeriodStart DateTime?
   currentPeriodEnd   DateTime?
@@ -2408,7 +2413,8 @@ model Subscription {
   createdAt          DateTime  @default(now())
   updatedAt          DateTime  @updatedAt
 
-  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  organization    Organization            @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  dunningAttempts BillingDunningAttempt[]
 
   @@map("subscription")
 }
@@ -5425,4 +5431,109 @@ model ExecutiveKpiCache {
 
   @@unique([orgId, period])
   @@map("executive_kpi_cache")
+}
+
+// ─── Phase 28: Unified Billing & Subscription ──────────────────────────────────
+
+enum BillingGateway {
+  STRIPE
+  RAZORPAY
+}
+
+enum BillingAccountStatus {
+  ACTIVE
+  SUSPENDED
+  CLOSED
+}
+
+model BillingAccount {
+  id                 String               @id @default(cuid())
+  orgId              String               @unique
+  gateway            BillingGateway
+  billingEmail       String
+  billingCountry     String               @default("IN")
+  currency           String               @default("INR")
+  stripeCustomerId   String?              @unique
+  razorpayCustomerId String?              @unique
+  status             BillingAccountStatus @default(ACTIVE)
+  createdAt          DateTime             @default(now())
+  updatedAt          DateTime             @updatedAt
+
+  organization Organization   @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  events       BillingEvent[]
+  overageLines OverageLine[]
+
+  @@index([gateway, status])
+  @@map("billing_account")
+}
+
+enum BillingEventType {
+  CHECKOUT_INITIATED
+  SUBSCRIPTION_CREATED
+  SUBSCRIPTION_ACTIVATED
+  PAYMENT_SUCCEEDED
+  PAYMENT_FAILED
+  SUBSCRIPTION_PAUSED
+  SUBSCRIPTION_RESUMED
+  SUBSCRIPTION_CANCELED
+  INVOICE_GENERATED
+  OVERAGE_CHARGED
+  DUNNING_ATTEMPT
+  REFUND_ISSUED
+}
+
+model BillingEvent {
+  id               String           @id @default(cuid())
+  billingAccountId String
+  type             BillingEventType
+  gatewayEventId   String?          @unique
+  amount           BigInt?
+  currency         String?
+  metadata         Json?
+  createdAt        DateTime         @default(now())
+
+  billingAccount BillingAccount @relation(fields: [billingAccountId], references: [id], onDelete: Cascade)
+
+  @@index([billingAccountId, createdAt(sort: Desc)])
+  @@index([type])
+  @@map("billing_event")
+}
+
+model OverageLine {
+  id               String    @id @default(cuid())
+  billingAccountId String
+  resource         String
+  periodMonth      String
+  includedUnits    Int
+  usedUnits        Int
+  overageUnits     Int
+  overageRate      BigInt
+  overageAmount    BigInt
+  settledAt        DateTime?
+  createdAt        DateTime  @default(now())
+
+  billingAccount BillingAccount @relation(fields: [billingAccountId], references: [id], onDelete: Cascade)
+
+  @@unique([billingAccountId, resource, periodMonth])
+  @@index([billingAccountId, periodMonth])
+  @@map("overage_line")
+}
+
+model BillingDunningAttempt {
+  id             String    @id @default(cuid())
+  orgId          String
+  subscriptionId String
+  attemptNumber  Int
+  scheduledAt    DateTime
+  executedAt     DateTime?
+  status         String    @default("SCHEDULED")
+  metadata       Json?
+  createdAt      DateTime  @default(now())
+
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  subscription Subscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+
+  @@index([orgId, subscriptionId])
+  @@index([status, scheduledAt])
+  @@map("billing_dunning_attempt")
 }
