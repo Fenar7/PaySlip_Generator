@@ -198,6 +198,11 @@ model Organization {
   // Phase 28: Billing & Subscription
   billingAccount               BillingAccount?
   billingDunningAttempts       BillingDunningAttempt[]
+  // Phase 28: Governance & Identity
+  customRoles                  CustomRole[]
+  dataResidencyConfig          DataResidencyConfig?
+  // Phase 28: Developer Platform
+  webhookDeadLetters           WebhookDeadLetter[]
 
   @@index([entityGroupId])
   @@map("organization")
@@ -208,10 +213,12 @@ model Member {
   organizationId String
   userId         String   @db.Uuid
   role           String   @default("member")
+  customRoleId   String?
   createdAt      DateTime @default(now())
 
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   user         Profile      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  customRole   CustomRole?  @relation("MemberCustomRole", fields: [customRoleId], references: [id], onDelete: SetNull)
 
   @@unique([organizationId, userId])
   @@map("member")
@@ -2681,18 +2688,20 @@ model BillingInvoice {
 // ─── Phase 12: API Platform ──────────────────────────────────────────────────
 
 model ApiKey {
-  id         String    @id @default(cuid())
-  orgId      String
-  name       String
-  keyHash    String    @unique
-  keyPrefix  String
-  scopes     String[]
-  lastUsedAt DateTime?
-  expiresAt  DateTime?
-  isActive   Boolean   @default(true)
-  createdBy  String    @db.Uuid
-  createdAt  DateTime  @default(now())
-  revokedAt  DateTime?
+  id            String    @id @default(cuid())
+  orgId         String
+  name          String
+  keyHash       String    @unique
+  keyPrefix     String
+  scopes        String[]
+  lastUsedAt    DateTime?
+  expiresAt     DateTime?
+  isActive      Boolean   @default(true)
+  createdBy     String    @db.Uuid
+  createdAt     DateTime  @default(now())
+  revokedAt     DateTime?
+  apiVersion    String    @default("v1")
+  rateLimitTier String    @default("free") // free, pro, enterprise
 
   organization Organization    @relation(fields: [orgId], references: [id], onDelete: Cascade)
   requestLogs  ApiRequestLog[]
@@ -2724,6 +2733,7 @@ model ApiWebhookEndpoint {
 
   organization Organization         @relation(fields: [orgId], references: [id], onDelete: Cascade)
   deliveries   ApiWebhookDelivery[]
+  deadLetters  WebhookDeadLetter[]
 
   @@index([orgId, isActive])
   @@map("api_webhook_endpoint")
@@ -2747,6 +2757,30 @@ model ApiWebhookDelivery {
 
   @@index([endpointId, deliveredAt])
   @@map("api_webhook_delivery")
+}
+
+model WebhookDeadLetter {
+  id            String    @id @default(cuid())
+  endpointId    String
+  orgId         String
+  eventType     String
+  payload       Json
+  attempts      Int       @default(0)
+  maxAttempts   Int       @default(5)
+  lastAttemptAt DateTime?
+  nextRetryAt   DateTime?
+  lastError     String?   @db.Text
+  lastStatus    Int?
+  status        String    @default("pending") // pending, retrying, exhausted, resolved
+  createdAt     DateTime  @default(now())
+  resolvedAt    DateTime?
+
+  endpoint     ApiWebhookEndpoint @relation(fields: [endpointId], references: [id], onDelete: Cascade)
+  organization Organization       @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@index([orgId, status])
+  @@index([status, nextRetryAt])
+  @@map("webhook_dead_letter")
 }
 
 model ApiRequestLog {
@@ -2782,10 +2816,23 @@ enum SsoAuthnRequestMode {
   TEST
 }
 
+enum SsoProtocol {
+  SAML
+  OIDC
+}
+
+enum DataResidencyRegion {
+  US
+  EU
+  IN
+}
+
 model SsoConfig {
   id                    String            @id @default(cuid())
   orgId                 String            @unique
+  protocol              SsoProtocol       @default(SAML)
   provider              String
+  // SAML fields
   metadataUrl           String?
   metadataXml           String?           @db.Text
   acsUrl                String
@@ -2798,6 +2845,14 @@ model SsoConfig {
   metadataError         String?           @db.Text
   metadataLastFetchedAt DateTime?
   metadataNextRefreshAt DateTime?
+  // OIDC fields
+  oidcIssuerUrl         String?
+  oidcClientId          String?
+  oidcClientSecret      String?           @db.Text
+  oidcJwksUrl           String?
+  oidcScopes            String[]
+  oidcEmailDomains      String[]
+  // Common
   ssoEnforced           Boolean           @default(false)
   isActive              Boolean           @default(true)
   testedAt              DateTime?
@@ -2808,9 +2863,56 @@ model SsoConfig {
   createdAt             DateTime          @default(now())
   updatedAt             DateTime          @updatedAt
 
-  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  organization  Organization      @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  groupMappings SsoGroupMapping[]
 
   @@map("sso_config")
+}
+
+model SsoGroupMapping {
+  id            String  @id @default(cuid())
+  ssoConfigId   String
+  externalGroup String
+  role          String
+  customRoleId  String?
+
+  ssoConfig  SsoConfig   @relation(fields: [ssoConfigId], references: [id], onDelete: Cascade)
+  customRole CustomRole? @relation(fields: [customRoleId], references: [id], onDelete: SetNull)
+
+  @@unique([ssoConfigId, externalGroup])
+  @@map("sso_group_mapping")
+}
+
+model CustomRole {
+  id          String   @id @default(cuid())
+  orgId       String
+  name        String
+  description String?
+  permissions Json
+  isSystem    Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  organization  Organization      @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  members       Member[]          @relation("MemberCustomRole")
+  groupMappings SsoGroupMapping[]
+
+  @@unique([orgId, name])
+  @@map("custom_role")
+}
+
+model DataResidencyConfig {
+  id             String              @id @default(cuid())
+  orgId          String              @unique
+  region         DataResidencyRegion @default(IN)
+  bucketEndpoint String?
+  enforced       Boolean             @default(false)
+  createdAt      DateTime            @default(now())
+  updatedAt      DateTime            @updatedAt
+
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@map("data_residency_config")
 }
 
 model SsoBreakGlassCode {
