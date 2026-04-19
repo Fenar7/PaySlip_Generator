@@ -175,7 +175,86 @@ All cron routes validate `CRON_SECRET` header — set this in EventBridge HTTP t
 
 ---
 
-## 8. References
+## 8. Production Cutover CLI Sequence
+
+### 8.1 Initialize Terraform State Backend
+
+```bash
+aws s3api create-bucket --bucket slipwise-terraform-state --region ap-south-1 \
+  --create-bucket-configuration LocationConstraint=ap-south-1
+aws s3api put-bucket-versioning --bucket slipwise-terraform-state \
+  --versioning-configuration Status=Enabled
+aws dynamodb create-table --table-name slipwise-terraform-locks \
+  --attribute-definitions AttributeName=LockID,AttributeType=S \
+  --key-schema AttributeName=LockID,KeyType=HASH --billing-mode PAY_PER_REQUEST
+```
+
+### 8.2 Deploy Infrastructure (Staging → Production)
+
+```bash
+cd infra/terraform/environments/staging
+terraform init && terraform plan -out=staging.tfplan && terraform apply staging.tfplan
+
+cd ../production
+terraform init && terraform plan -out=production.tfplan && terraform apply production.tfplan
+```
+
+### 8.3 Database Migration
+
+```bash
+# Export from Supabase
+pg_dump --format=custom --no-owner --no-privileges \
+  --exclude-table='auth.*' --exclude-table='storage.*' $SUPABASE_DB_URL > backup.dump
+
+# Import to RDS
+RDS_ENDPOINT=$(terraform output -raw rds_endpoint)
+pg_restore --host=$RDS_ENDPOINT --port=5432 --username=slipwise_admin \
+  --dbname=slipwise --no-owner --jobs=4 backup.dump
+
+# Apply migrations
+DATABASE_URL="postgresql://slipwise_admin:$DB_PASS@$RDS_ENDPOINT:5432/slipwise" npx prisma migrate deploy
+```
+
+### 8.4 Build & Deploy Docker Image
+
+```bash
+ECR_URL=$(terraform output -raw ecr_repository_url)
+aws ecr get-login-password | docker login --username AWS --password-stdin $ECR_URL
+docker build --platform linux/amd64 -t $ECR_URL:$(git rev-parse --short HEAD) -t $ECR_URL:latest .
+docker push $ECR_URL --all-tags
+aws ecs update-service --cluster slipwise-production --service slipwise-production --force-new-deployment
+aws ecs wait services-stable --cluster slipwise-production --services slipwise-production
+```
+
+### 8.5 DNS Cutover
+
+```bash
+CF_DOMAIN=$(terraform output -raw cloudfront_domain)
+# Update DNS: app.slipwise.in → CNAME → $CF_DOMAIN
+# Verify: dig +short app.slipwise.in
+```
+
+### 8.6 Rollback (if needed)
+
+```bash
+# DNS rollback: revert CNAME to cname.vercel-dns.com
+# ECS rollback: aws ecs update-service --task-definition <previous-revision>
+```
+
+---
+
+## 9. Disaster Recovery
+
+| Scenario | RTO | RPO |
+|----------|-----|-----|
+| Single AZ failure | 0 min (Multi-AZ) | 0 |
+| Region failure | < 1 hour | < 5 min |
+| Data corruption | < 30 min | Point-in-time |
+| Full infrastructure loss | < 4 hours | Last backup |
+
+---
+
+## 10. References
 
 - [Prisma migrate deploy docs](https://www.prisma.io/docs/orm/reference/prisma-cli-reference#migrate-deploy)
 - [Next.js standalone Docker guide](https://nextjs.org/docs/pages/building-your-application/deploying#docker-image)
