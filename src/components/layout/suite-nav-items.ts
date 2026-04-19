@@ -141,6 +141,7 @@ export const suiteNavItems: NavItem[] = [
     suite: "compliance",
     children: [
       { href: "/app/compliance", label: "Overview" },
+      { href: "/app/compliance/global", label: "Global Tax Engine" },
       { href: "/app/compliance/gst/reconciliation", label: "GSTR-2B Reconciliation" },
       { href: "/app/compliance/einvoice", label: "E-Invoice (IRN)" },
       { href: "/app/compliance/tds", label: "TDS Ledger" },
