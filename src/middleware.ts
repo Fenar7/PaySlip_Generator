@@ -40,21 +40,44 @@ const SECURITY_HEADERS: Record<string, string> = {
   "X-XSS-Protection": "1; mode=block",
   "Referrer-Policy": "strict-origin-when-cross-origin",
   "Permissions-Policy": "camera=(), microphone=(), geolocation=(self), payment=(self)",
-  "Strict-Transport-Security": "max-age=63072000; includeSubDomains; preload",
+  // HSTS only makes sense in production (served over HTTPS).
+  // Setting it locally would pin the browser to HTTPS and break local dev.
+  ...(process.env.NODE_ENV !== "development"
+    ? { "Strict-Transport-Security": "max-age=63072000; includeSubDomains; preload" }
+    : {}),
 };
 
 /**
  * Build Content-Security-Policy header.
- * Allows inline styles (required by styled components) and specific script sources.
+ * In development, extends connect-src to allow local Supabase (http://127.0.0.1:*)
+ * so the browser can reach the local GoTrue auth service without CSP violations.
  */
 function buildCsp(): string {
+  const isDev = process.env.NODE_ENV === "development";
+
+  // Derive the Supabase URL so local instances on non-standard ports are allowed.
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
+  const supabaseHost = supabaseUrl ? new URL(supabaseUrl).origin : "";
+
+  const connectSrc = [
+    "'self'",
+    "https://*.supabase.co",
+    "wss://*.supabase.co",
+    "https://api.stripe.com",
+    "https://*.amazonaws.com",
+    // Allow the configured Supabase origin (handles local or custom-domain deployments)
+    supabaseHost,
+    // In development, allow all local ports (HMR websocket, local services)
+    ...(isDev ? ["http://127.0.0.1:*", "ws://127.0.0.1:*", "http://localhost:*", "ws://localhost:*"] : []),
+  ].filter(Boolean).join(" ");
+
   const directives = [
     "default-src 'self'",
     "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://js.stripe.com https://checkout.razorpay.com",
     "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
     "img-src 'self' data: blob: https: http:",
     "font-src 'self' https://fonts.gstatic.com data:",
-    "connect-src 'self' https://*.supabase.co https://api.stripe.com https://*.amazonaws.com wss://*.supabase.co",
+    `connect-src ${connectSrc}`,
     "frame-src https://js.stripe.com https://checkout.razorpay.com",
     "frame-ancestors 'none'",
     "base-uri 'self'",
