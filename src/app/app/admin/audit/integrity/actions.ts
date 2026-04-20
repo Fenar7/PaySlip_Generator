@@ -20,6 +20,8 @@ export interface AuditIntegrityDashboardData {
     verifiedAt: string;
     totalEntries: number;
     verifiedEntries: number;
+    firstBreakSeq: number | null;
+    firstBreakHash: string | null;
     durationMs: number;
     gapsDetected: number[];
     triggeredBy: string;
@@ -68,6 +70,10 @@ export async function getAuditIntegrityData(): Promise<ActionResult<AuditIntegri
               verifiedAt: latestVerification.verifiedAt.toISOString(),
               totalEntries: latestVerification.totalEntries,
               verifiedEntries: latestVerification.verifiedEntries,
+              firstBreakSeq: latestVerification.firstBreakSeq
+                ? Number(latestVerification.firstBreakSeq)
+                : null,
+              firstBreakHash: latestVerification.firstBreakHash,
               durationMs: latestVerification.durationMs,
               gapsDetected: (latestVerification.gapsDetected as number[]) ?? [],
               triggeredBy: latestVerification.triggeredBy,
@@ -97,6 +103,19 @@ export async function verifyChainAction(): Promise<ActionResult<ChainVerificatio
     await requireFeature(orgId, "forensicAudit");
 
     const result = await runAndPersistVerification(orgId, userId);
+    await logAudit({
+      orgId,
+      actorId: userId,
+      action: "audit.chain_verified",
+      entityType: "AuditChainVerification",
+      metadata: {
+        status: result.status,
+        totalEntries: result.totalEntries,
+        verified: result.verified,
+        firstBreakAt: result.firstBreakAt ?? null,
+        gapsDetected: result.gapsDetected,
+      },
+    });
     return { success: true, data: result };
   } catch (err) {
     return { success: false, error: err instanceof Error ? err.message : "Verification failed" };

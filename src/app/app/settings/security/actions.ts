@@ -27,6 +27,16 @@ export type ActionResult<T> =
 
 const SECURITY_PATH = "/app/settings/security";
 
+async function sync2faMetadata(
+  userId: string,
+  metadata: { totpEnabled: boolean; twoFaEnforcedByOrg: boolean }
+) {
+  const admin = await createSupabaseAdmin();
+  await admin.auth.admin.updateUserById(userId, {
+    user_metadata: metadata,
+  });
+}
+
 /** Initiate 2FA setup: generate secret, return URI for QR code display. */
 export async function initiate2faSetup(): Promise<
   ActionResult<{ secret: string; uri: string; userId: string }>
@@ -74,7 +84,7 @@ export async function verify2faSetup(
 
     const profile = await db.profile.findUnique({
       where: { id: user.id },
-      select: { totpSecret: true, totpEnabled: true },
+      select: { totpSecret: true, totpEnabled: true, twoFaEnforcedByOrg: true },
     });
     if (!profile?.totpSecret) {
       return { success: false, error: "No pending 2FA setup. Start setup again." };
@@ -102,9 +112,9 @@ export async function verify2faSetup(
 
     // Sync totpEnabled flag into Supabase user_metadata so the Edge middleware
     // can read it from the JWT without a database round-trip.
-    const admin = await createSupabaseAdmin();
-    await admin.auth.admin.updateUserById(user.id, {
-      user_metadata: { totpEnabled: true },
+    await sync2faMetadata(user.id, {
+      totpEnabled: true,
+      twoFaEnforcedByOrg: profile.twoFaEnforcedByOrg,
     });
 
     // Issue the challenge session cookie so the user is not immediately
@@ -156,9 +166,14 @@ export async function disable2fa(
     });
 
     // Sync flag into Supabase user_metadata and clear the challenge cookie.
-    const admin = await createSupabaseAdmin();
-    await admin.auth.admin.updateUserById(user.id, {
-      user_metadata: { totpEnabled: false },
+    const existingProfile = await db.profile.findUnique({
+      where: { id: user.id },
+      select: { twoFaEnforcedByOrg: true },
+    });
+
+    await sync2faMetadata(user.id, {
+      totpEnabled: false,
+      twoFaEnforcedByOrg: existingProfile?.twoFaEnforcedByOrg ?? false,
     });
     const cookieStore = await cookies();
     cookieStore.delete(TOTP_CHALLENGE_COOKIE);
@@ -199,6 +214,20 @@ export async function enforce2faForOrg(): Promise<ActionResult<void>> {
       where: { id: { in: members.map((m) => m.userId) } },
       data: { twoFaEnforcedByOrg: true },
     });
+
+    const profiles = await db.profile.findMany({
+      where: { id: { in: members.map((m) => m.userId) } },
+      select: { id: true, totpEnabled: true, twoFaEnforcedByOrg: true },
+    });
+
+    await Promise.all(
+      profiles.map((profile) =>
+        sync2faMetadata(profile.id, {
+          totpEnabled: profile.totpEnabled,
+          twoFaEnforcedByOrg: profile.twoFaEnforcedByOrg,
+        })
+      )
+    );
 
     revalidatePath(SECURITY_PATH);
     return { success: true, data: undefined };

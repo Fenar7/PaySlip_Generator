@@ -20,13 +20,30 @@ export async function logAudit(params: AuditParams): Promise<void> {
     const ipAddress =
       hdrs.get("x-forwarded-for") || hdrs.get("x-real-ip") || null;
     const userAgent = hdrs.get("user-agent") || null;
+    const activeProxy =
+      params.representedId || params.proxyGrantId
+        ? null
+        : await db.proxyGrant.findFirst({
+            where: {
+              orgId: params.orgId,
+              actorId: params.actorId,
+              status: "ACTIVE",
+              expiresAt: { gt: new Date() },
+            },
+            orderBy: { createdAt: "desc" },
+            select: {
+              id: true,
+              representedId: true,
+            },
+          });
 
     await db.auditLog.create({
       data: {
         orgId: params.orgId,
         actorId: params.actorId,
-        representedId: params.representedId ?? null,
-        proxyGrantId: params.proxyGrantId ?? null,
+        representedId:
+          params.representedId ?? activeProxy?.representedId ?? null,
+        proxyGrantId: params.proxyGrantId ?? activeProxy?.id ?? null,
         action: params.action,
         entityType: params.entityType ?? null,
         entityId: params.entityId ?? null,
@@ -58,6 +75,7 @@ export const AUDIT_ACTION_LABELS: Record<string, string> = {
   "proxy.granted": "Granted proxy access",
   "proxy.revoked": "Revoked proxy access",
   "proxy.action": "Acted via proxy",
+  "audit.chain_verified": "Verified audit hash chain",
   "invoice.issued": "Issued invoice",
   "invoice.cancelled": "Cancelled invoice",
   "invoice.reissued": "Reissued invoice",
@@ -121,6 +139,7 @@ export function getAuditCategory(action: string): string {
   )
     return "Documents";
   if (action.startsWith("gst.")) return "Compliance";
+  if (action.startsWith("audit.")) return "System";
   if (action.startsWith("org.")) return "Settings";
   if (action.startsWith("marketplace.")) return "Marketplace";
   if (

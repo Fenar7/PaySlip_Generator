@@ -6,6 +6,8 @@
  */
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { createSupabaseAdmin, createSupabaseServer } from "@/lib/supabase/server";
+import { logAudit } from "@/lib/audit";
 import {
   parseOidcState,
   fetchDiscoveryDocument,
@@ -23,13 +25,13 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   if (error) {
     const errorDescription = searchParams.get("error_description") || "Unknown error";
     return NextResponse.redirect(
-      new URL(`/login?error=sso_failed&detail=${encodeURIComponent(errorDescription)}`, request.url)
+      new URL(`/auth/login?error=sso_failed&detail=${encodeURIComponent(errorDescription)}`, request.url)
     );
   }
 
   if (!code || !state) {
     return NextResponse.redirect(
-      new URL("/login?error=sso_invalid_response", request.url)
+      new URL("/auth/login?error=sso_invalid_response", request.url)
     );
   }
 
@@ -37,7 +39,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   const stateData = parseOidcState(state);
   if (!stateData) {
     return NextResponse.redirect(
-      new URL("/login?error=sso_state_expired", request.url)
+      new URL("/auth/login?error=sso_state_expired", request.url)
     );
   }
 
@@ -50,7 +52,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
 
     if (!org?.ssoConfig || org.ssoConfig.protocol !== "OIDC") {
       return NextResponse.redirect(
-        new URL("/login?error=sso_not_configured", request.url)
+        new URL("/auth/login?error=sso_not_configured", request.url)
       );
     }
 
@@ -58,7 +60,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
 
     if (!ssoConfig.oidcIssuerUrl || !ssoConfig.oidcClientId || !ssoConfig.oidcClientSecret) {
       return NextResponse.redirect(
-        new URL("/login?error=sso_incomplete_config", request.url)
+        new URL("/auth/login?error=sso_incomplete_config", request.url)
       );
     }
 
@@ -86,7 +88,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
 
     if (!tokens.id_token) {
       return NextResponse.redirect(
-        new URL("/login?error=sso_no_id_token", request.url)
+        new URL("/auth/login?error=sso_no_id_token", request.url)
       );
     }
 
@@ -103,7 +105,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
         },
       });
       return NextResponse.redirect(
-        new URL(`/login?error=sso_token_invalid&detail=${encodeURIComponent(validation.reason)}`, request.url)
+        new URL(`/auth/login?error=sso_token_invalid&detail=${encodeURIComponent(validation.reason)}`, request.url)
       );
     }
 
@@ -111,7 +113,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     const email = claims.email;
     if (!email) {
       return NextResponse.redirect(
-        new URL("/login?error=sso_no_email", request.url)
+        new URL("/auth/login?error=sso_no_email", request.url)
       );
     }
 
@@ -122,27 +124,132 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       );
       if (!allowed) {
         return NextResponse.redirect(
-          new URL("/login?error=sso_domain_not_allowed", request.url)
+          new URL("/auth/login?error=sso_domain_not_allowed", request.url)
         );
       }
     }
 
+    const displayName = claims.name?.trim() || claims.preferred_username?.trim() || email.split("@")[0];
+    const supabaseAdmin = await createSupabaseAdmin();
+    const { data: linkData, error: linkError } =
+      await supabaseAdmin.auth.admin.generateLink({
+        type: "magiclink",
+        email,
+        options: {
+          data: { full_name: displayName, name: displayName },
+        },
+      });
+
+    if (linkError || !linkData.user || !linkData.properties.hashed_token) {
+      throw new Error(linkError?.message ?? "Failed to issue a local session for the OIDC user.");
+    }
+
+    const existingProfileByEmail = await db.profile.findUnique({
+      where: { email },
+      select: { id: true },
+    });
+
+    if (existingProfileByEmail && existingProfileByEmail.id !== linkData.user.id) {
+      throw new Error("Existing profile email does not match the OIDC auth user.");
+    }
+
+    const existingMembership = await db.member.findUnique({
+      where: {
+        organizationId_userId: {
+          organizationId: org.id,
+          userId: linkData.user.id,
+        },
+      },
+      select: { role: true },
+    });
+
     // Update SSO config with last successful login
-    await db.ssoConfig.update({
-      where: { orgId: org.id },
-      data: {
-        lastLoginAt: new Date(),
-        lastLoginEmail: email,
-        metadataStatus: "VALID",
+    await db.$transaction(async (tx) => {
+      await tx.profile.upsert({
+        where: { id: linkData.user.id },
+        update: {
+          email,
+          name: displayName,
+        },
+        create: {
+          id: linkData.user.id,
+          email,
+          name: displayName,
+        },
+      });
+
+      if (!existingMembership) {
+        await tx.member.create({
+          data: {
+            organizationId: org.id,
+            userId: linkData.user.id,
+            role: "member",
+          },
+        });
+      }
+
+      await tx.userOrgPreference.upsert({
+        where: { userId: linkData.user.id },
+        create: { userId: linkData.user.id, activeOrgId: org.id },
+        update: { activeOrgId: org.id },
+      });
+
+      await tx.ssoConfig.update({
+        where: { orgId: org.id },
+        data: {
+          lastLoginAt: new Date(),
+          lastLoginEmail: email,
+          metadataStatus: "VALID",
+          lastFailureAt: null,
+          lastFailureReason: null,
+          testedAt: ssoConfig.testedAt ?? new Date(),
+        },
+      });
+    });
+
+    const supabase = await createSupabaseServer();
+    const { error: otpError } = await supabase.auth.verifyOtp({
+      token_hash: linkData.properties.hashed_token,
+      type: "magiclink",
+    });
+
+    if (otpError) {
+      throw new Error(otpError.message);
+    }
+
+    await logAudit({
+      orgId: org.id,
+      actorId: linkData.user.id,
+      action: "sso.login_succeeded",
+      entityType: "sso_config",
+      entityId: ssoConfig.id,
+      metadata: {
+        email,
+        protocol: "OIDC",
+        issuer: claims.iss,
+        provisionedMembership: !existingMembership,
       },
     });
 
-    // Redirect to app (in production, would issue a session via Supabase)
+    if (!existingMembership) {
+      await logAudit({
+        orgId: org.id,
+        actorId: linkData.user.id,
+        action: "sso.member_provisioned",
+        entityType: "member",
+        entityId: linkData.user.id,
+        metadata: {
+          email,
+          protocol: "OIDC",
+        },
+      });
+    }
+
     return NextResponse.redirect(new URL("/app", request.url));
   } catch (err) {
     const message = err instanceof Error ? err.message : "Unknown error";
     return NextResponse.redirect(
-      new URL(`/login?error=sso_exception&detail=${encodeURIComponent(message)}`, request.url)
+      new URL(`/auth/login?error=sso_exception&detail=${encodeURIComponent(message)}`, request.url)
     );
   }
 }

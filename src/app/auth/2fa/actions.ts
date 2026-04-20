@@ -36,11 +36,12 @@ export async function verifyTotpChallenge(
       select: { totpSecret: true, totpEnabled: true },
     });
 
-    // If TOTP is somehow not enabled in the DB (metadata desync), issue the
-    // cookie immediately so the user is not stuck in an infinite loop.
     if (!profile?.totpEnabled || !profile.totpSecret) {
-      await issueCookie(user.id);
-      return { success: true, data: { callbackUrl: sanitizeCallbackUrl(rawCallbackUrl) } };
+      return {
+        success: false,
+        error:
+          "Two-factor authentication is not configured for this account. Complete enrollment from Security Settings first.",
+      };
     }
 
     const plainSecret = decryptTotpSecret(profile.totpSecret);

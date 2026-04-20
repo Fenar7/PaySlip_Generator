@@ -6,7 +6,14 @@
  * token exchange, and ID token validation via JWKS.
  */
 
-import { createHmac, randomBytes, createHash, createPublicKey, createVerify } from "crypto";
+import {
+  createHmac,
+  randomBytes,
+  createHash,
+  createPublicKey,
+  createVerify,
+  timingSafeEqual,
+} from "crypto";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -64,6 +71,27 @@ export interface JwksKey {
 
 export interface JwksDocument {
   keys: JwksKey[];
+}
+
+function getOidcStateSecret(): string {
+  const secret =
+    process.env.SSO_SESSION_SECRET ??
+    process.env.PORTAL_JWT_SECRET ??
+    process.env.CRON_SECRET;
+
+  if (!secret) {
+    throw new Error(
+      "OIDC state signing secret is not configured. Set SSO_SESSION_SECRET, PORTAL_JWT_SECRET, or CRON_SECRET."
+    );
+  }
+
+  return secret;
+}
+
+function signOidcStateBody(body: string): string {
+  return createHmac("sha256", getOidcStateSecret())
+    .update(body)
+    .digest("base64url");
 }
 
 // ─── Discovery ────────────────────────────────────────────────────────────────
@@ -329,7 +357,9 @@ export function generateOidcState(orgSlug: string): {
   const nonce = randomBytes(16).toString("hex");
   const codeVerifier = generateCodeVerifier();
   const statePayload = JSON.stringify({ orgSlug, nonce, codeVerifier, ts: Date.now() });
-  const state = Buffer.from(statePayload).toString("base64url");
+  const body = Buffer.from(statePayload).toString("base64url");
+  const signature = signOidcStateBody(body);
+  const state = `${body}.${signature}`;
 
   return { state, nonce, codeVerifier };
 }
@@ -342,7 +372,18 @@ export function parseOidcState(
   state: string
 ): { orgSlug: string; nonce: string; codeVerifier?: string; ts: number } | null {
   try {
-    const decoded = Buffer.from(state, "base64url").toString("utf8");
+    const [body, signature] = state.split(".");
+    if (!body || !signature) return null;
+
+    const expectedSignature = signOidcStateBody(body);
+    const expected = Buffer.from(expectedSignature, "base64url");
+    const actual = Buffer.from(signature, "base64url");
+
+    if (expected.length !== actual.length || !timingSafeEqual(expected, actual)) {
+      return null;
+    }
+
+    const decoded = Buffer.from(body, "base64url").toString("utf8");
     const parsed = JSON.parse(decoded);
     if (!parsed.orgSlug || !parsed.nonce || !parsed.ts) return null;
     // Reject states older than 10 minutes

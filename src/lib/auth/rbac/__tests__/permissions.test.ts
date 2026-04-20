@@ -219,6 +219,15 @@ describe("RBAC Permission Engine", () => {
       expect(canManageRole("admin", "owner")).toBe(false);
     });
 
+    it("admin cannot manage co-owner", () => {
+      expect(canManageRole("admin", "co_owner")).toBe(false);
+    });
+
+    it("finance manager can manage viewer but not admin", () => {
+      expect(canManageRole("finance_manager", "viewer")).toBe(true);
+      expect(canManageRole("finance_manager", "admin")).toBe(false);
+    });
+
     it("member cannot manage anyone", () => {
       expect(canManageRole("member", "admin")).toBe(false);
       expect(canManageRole("member", "member")).toBe(false);

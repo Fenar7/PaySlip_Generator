@@ -43,9 +43,16 @@ export type PermissionSet = Partial<Record<Resource, ResourceAction[]>>;
 
 export type SystemRole = "owner" | "admin" | "member";
 
-const ROLE_HIERARCHY: Record<SystemRole, number> = {
+const ROLE_HIERARCHY: Record<string, number> = {
+  deactivated: -1,
+  viewer: 10,
   owner: 100,
+  co_owner: 90,
   admin: 80,
+  finance_manager: 40,
+  hr_manager: 40,
+  invoice_operator: 20,
+  voucher_operator: 20,
   member: 10,
 };
 
@@ -190,7 +197,7 @@ export function validatePermissionSet(
  * Returns true if actor's role is >= target's role.
  */
 export function canManageRole(actorRole: string, targetRole: string): boolean {
-  const actorLevel = ROLE_HIERARCHY[actorRole as SystemRole] ?? 0;
-  const targetLevel = ROLE_HIERARCHY[targetRole as SystemRole] ?? 0;
+  const actorLevel = ROLE_HIERARCHY[actorRole] ?? 0;
+  const targetLevel = ROLE_HIERARCHY[targetRole] ?? 0;
   return actorLevel > targetLevel;
 }
