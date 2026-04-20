@@ -2,7 +2,8 @@ import "server-only";
 
 import { NextRequest, NextResponse } from "next/server";
 import { validateApiKey } from "@/lib/api-keys";
-import { checkFeature } from "@/lib/plans/enforcement";
+import { checkFeature, getOrgPlan } from "@/lib/plans/enforcement";
+import { rateLimitByOrg } from "@/lib/rate-limit";
 import { db } from "@/lib/db";
 
 export const ErrorCode = {
@@ -30,6 +31,20 @@ export type AuthResult = {
   apiKeyId: string;
   scopes: string[];
 };
+
+function getApiRateLimitConfig(planId: string): {
+  perMinute: number;
+  perDay: number;
+} {
+  switch (planId) {
+    case "enterprise":
+      return { perMinute: 1000, perDay: 100000 };
+    case "pro":
+      return { perMinute: 300, perDay: 10000 };
+    default:
+      return { perMinute: 60, perDay: 1000 };
+  }
+}
 
 export async function authenticateApiRequest(
   request: NextRequest
@@ -60,6 +75,28 @@ export async function authenticateApiRequest(
       ErrorCode.PLAN_LIMIT_REACHED,
       "API access requires the Pro plan or higher. Upgrade at https://slipwise.in/pricing",
       402
+    );
+  }
+
+  const orgPlan = await getOrgPlan(result.orgId);
+  const rateLimitConfig = getApiRateLimitConfig(orgPlan.planId);
+
+  const [minuteLimit, dayLimit] = await Promise.all([
+    rateLimitByOrg(result.orgId, {
+      maxRequests: rateLimitConfig.perMinute,
+      window: "60 s",
+    }),
+    rateLimitByOrg(result.orgId, {
+      maxRequests: rateLimitConfig.perDay,
+      window: "1440 m",
+    }),
+  ]);
+
+  if (!minuteLimit.success || !dayLimit.success) {
+    throw new ApiError(
+      ErrorCode.RATE_LIMITED,
+      "API rate limit exceeded for the current billing tier.",
+      429,
     );
   }
 

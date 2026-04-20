@@ -13,7 +13,7 @@ import { fireWorkflowTrigger } from "@/lib/flow/workflow-engine";
 import { emitInvoiceEvent } from "@/lib/document-events";
 import { syncInvoiceToIndex } from "@/lib/docs-vault";
 import { checkUsageLimit } from "@/lib/usage-metering";
-import { recordStockEventTx } from "@/lib/inventory/stock-events";
+import { getOutboundUnitCostTx, recordStockEventTx } from "@/lib/inventory/stock-events";
 import {
   fromMinorUnits,
   multiplyMoneyToMinorUnits,
@@ -205,10 +205,12 @@ async function dispatchInvoiceInventoryTx(
       throw new Error(`Insufficient stock to issue invoice line "${line.description}".`);
     }
 
-    const avgUnitCost =
-      sourceLevel.quantity > 0
-        ? Number(sourceLevel.valuationAmount) / sourceLevel.quantity
-        : 0;
+    const outboundUnitCost = await getOutboundUnitCostTx(tx, {
+      orgId: input.orgId,
+      inventoryItemId: line.inventoryItemId,
+      warehouseId: sourceLevel.warehouseId,
+      quantity: dispatchQty,
+    });
 
     await recordStockEventTx(tx, {
       orgId: input.orgId,
@@ -216,7 +218,7 @@ async function dispatchInvoiceInventoryTx(
       warehouseId: sourceLevel.warehouseId,
       eventType: StockEventType.SALES_DISPATCH,
       quantity: dispatchQty,
-      unitCost: avgUnitCost,
+      unitCost: outboundUnitCost,
       referenceType: "Invoice",
       referenceId: input.invoiceId,
       note: `Issued from invoice ${input.invoiceId}`,

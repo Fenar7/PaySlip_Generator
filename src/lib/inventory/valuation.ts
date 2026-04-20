@@ -12,18 +12,20 @@ export interface ValuationResult {
   remainingLayers: FifoLayer[];
 }
 
+type StockHistoryEvent = {
+  id: string;
+  eventType: StockEventType;
+  quantity: number;
+  unitCost: Prisma.Decimal;
+  createdAt: Date;
+};
+
 /**
  * Build FIFO cost layers from PURCHASE_RECEIPT and OPENING_BALANCE stock events.
  * Events must be sorted ascending by createdAt.
  */
 export function buildFifoLayers(
-  events: Array<{
-    id: string;
-    eventType: StockEventType;
-    quantity: number;
-    unitCost: Prisma.Decimal;
-    createdAt: Date;
-  }>
+  events: StockHistoryEvent[]
 ): FifoLayer[] {
   const layers: FifoLayer[] = [];
 
@@ -43,6 +45,85 @@ export function buildFifoLayers(
         });
       }
     }
+  }
+
+  return layers;
+}
+
+function isInboundEventType(eventType: StockEventType): boolean {
+  return (
+    eventType === StockEventType.PURCHASE_RECEIPT ||
+    eventType === StockEventType.OPENING_BALANCE ||
+    eventType === StockEventType.RETURN_IN ||
+    eventType === StockEventType.ADJUSTMENT_IN ||
+    eventType === StockEventType.TRANSFER_IN
+  );
+}
+
+function consumeLayers(
+  layers: FifoLayer[],
+  quantity: number,
+  mode: "fifo" | "lifo",
+): FifoLayer[] {
+  let remaining = quantity;
+  const nextLayers = layers.map((layer) => ({ ...layer }));
+  const indexes =
+    mode === "fifo"
+      ? nextLayers.map((_, index) => index)
+      : nextLayers.map((_, index) => nextLayers.length - 1 - index);
+
+  for (const index of indexes) {
+    if (remaining <= 0) {
+      break;
+    }
+
+    const layer = nextLayers[index];
+    if (!layer || layer.quantity <= 0) {
+      continue;
+    }
+
+    const consumed = Math.min(layer.quantity, remaining);
+    layer.quantity -= consumed;
+    remaining -= consumed;
+  }
+
+  return nextLayers.filter((layer) => layer.quantity > 0);
+}
+
+export function replayRemainingLayers(
+  events: StockHistoryEvent[],
+  method: InventoryValuationMethod,
+): FifoLayer[] {
+  if (method === InventoryValuationMethod.WEIGHTED_AVERAGE) {
+    return [];
+  }
+
+  let layers: FifoLayer[] = [];
+
+  for (const event of events) {
+    if (isInboundEventType(event.eventType)) {
+      if (event.quantity <= 0) {
+        continue;
+      }
+
+      layers.push({
+        quantity: event.quantity,
+        unitCost: Number(event.unitCost),
+        eventId: event.id,
+        createdAt: event.createdAt,
+      });
+      continue;
+    }
+
+    if (event.quantity <= 0) {
+      continue;
+    }
+
+    layers = consumeLayers(
+      layers,
+      event.quantity,
+      method === InventoryValuationMethod.LIFO ? "lifo" : "fifo",
+    );
   }
 
   return layers;

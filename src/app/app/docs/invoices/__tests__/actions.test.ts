@@ -60,6 +60,7 @@ vi.mock("@/lib/docs-vault", () => ({
 }));
 
 vi.mock("@/lib/inventory/stock-events", () => ({
+  getOutboundUnitCostTx: vi.fn().mockResolvedValue(125),
   recordStockEventTx: vi.fn().mockResolvedValue(undefined),
 }));
 

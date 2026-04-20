@@ -7,6 +7,7 @@ vi.mock("@/lib/api-keys", () => ({
 
 vi.mock("@/lib/plans/enforcement", () => ({
   checkFeature: vi.fn(),
+  getOrgPlan: vi.fn(),
 }));
 
 vi.mock("@/lib/db", () => ({
@@ -15,8 +16,13 @@ vi.mock("@/lib/db", () => ({
   },
 }));
 
+vi.mock("@/lib/rate-limit", () => ({
+  rateLimitByOrg: vi.fn(),
+}));
+
 import { validateApiKey } from "@/lib/api-keys";
-import { checkFeature } from "@/lib/plans/enforcement";
+import { checkFeature, getOrgPlan } from "@/lib/plans/enforcement";
+import { rateLimitByOrg } from "@/lib/rate-limit";
 import {
   authenticateApiRequest,
   requireScope,
@@ -29,6 +35,8 @@ import {
 
 const mockValidate = vi.mocked(validateApiKey);
 const mockCheck = vi.mocked(checkFeature);
+const mockGetOrgPlan = vi.mocked(getOrgPlan);
+const mockRateLimitByOrg = vi.mocked(rateLimitByOrg);
 
 function makeRequest(headers: Record<string, string> = {}): NextRequest {
   return new NextRequest(new URL("http://localhost/api/v1/invoices"), { headers });
@@ -37,6 +45,16 @@ function makeRequest(headers: Record<string, string> = {}): NextRequest {
 describe("authenticateApiRequest", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockGetOrgPlan.mockResolvedValue({
+      planId: "pro",
+      status: "active",
+      limits: {} as never,
+      trialEndsAt: null,
+    });
+    mockRateLimitByOrg.mockResolvedValue({
+      success: true,
+      remaining: 299,
+    });
   });
 
   it("throws UNAUTHORIZED when no key is provided", async () => {
@@ -58,6 +76,7 @@ describe("authenticateApiRequest", () => {
     const result = await authenticateApiRequest(req);
     expect(mockValidate).toHaveBeenCalledWith("slw_live_abc123");
     expect(result).toEqual({ orgId: "org-1", apiKeyId: "key-1", scopes: ["invoices:read"] });
+    expect(mockRateLimitByOrg).toHaveBeenCalledTimes(2);
   });
 
   it("reads token from X-API-Key header (fallback)", async () => {
@@ -92,6 +111,31 @@ describe("authenticateApiRequest", () => {
     await expect(authenticateApiRequest(req)).rejects.toSatisfy(
       (e: unknown) =>
         e instanceof ApiError && e.code === ErrorCode.PLAN_LIMIT_REACHED && e.status === 402
+    );
+  });
+
+  it("throws RATE_LIMITED when the org exceeds its tier limit", async () => {
+    mockValidate.mockResolvedValue({
+      orgId: "org-pro",
+      apiKeyId: "key-4",
+      scopes: ["invoices:read"],
+    });
+    mockCheck.mockResolvedValue(true);
+    mockRateLimitByOrg
+      .mockResolvedValueOnce({
+        success: false,
+        remaining: 0,
+        retryAfter: 60,
+      })
+      .mockResolvedValueOnce({
+        success: true,
+        remaining: 9999,
+      });
+
+    const req = makeRequest({ authorization: "Bearer slw_live_pro" });
+
+    await expect(authenticateApiRequest(req)).rejects.toSatisfy(
+      (e: unknown) => e instanceof ApiError && e.code === ErrorCode.RATE_LIMITED,
     );
   });
 

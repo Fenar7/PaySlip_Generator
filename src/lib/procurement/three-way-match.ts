@@ -100,7 +100,8 @@ export function runThreeWayMatch(input: ThreeWayMatchInput): ThreeWayMatchOutput
 
     // Quantity check: bill qty vs GRN accepted qty
     const billedQty = billLine?.quantity ?? 0;
-    const qtyVariance = grnQty > 0 ? Math.abs(billedQty - grnQty) / grnQty : 1;
+    const qtyVariance =
+      grnQty > 0 ? Math.abs(billedQty - grnQty) / grnQty : billedQty === 0 ? 0 : 1;
     const qtyToleranceFraction = qtyTolerancePct / 100;
 
     if (qtyVariance <= qtyToleranceFraction) {
@@ -125,7 +126,11 @@ export function runThreeWayMatch(input: ThreeWayMatchInput): ThreeWayMatchOutput
     const expectedLineTotal = billedQty * poLine.unitPrice;
 
     const priceVariance =
-      poLine.unitPrice > 0 ? Math.abs(billedUnitPrice - poLine.unitPrice) / poLine.unitPrice : 1;
+      poLine.unitPrice > 0
+        ? Math.abs(billedUnitPrice - poLine.unitPrice) / poLine.unitPrice
+        : billedUnitPrice === 0
+          ? 0
+          : 1;
     const lineTotalVariance =
       expectedLineTotal > 0
         ? Math.abs(billedLineTotal - expectedLineTotal) / expectedLineTotal

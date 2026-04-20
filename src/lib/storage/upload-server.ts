@@ -1,12 +1,45 @@
 "use server";
 
 import { createSupabaseServer } from "@/lib/supabase/server";
+import { db } from "@/lib/db";
 
 export type StorageBucket = "logos" | "attachments" | "proofs";
 
 export interface UploadResult {
   storageKey: string;
   publicUrl?: string;
+}
+
+function extractOrgIdFromStorageKey(storageKey: string): string | null {
+  const [orgId] = storageKey.split("/");
+  return orgId?.trim() || null;
+}
+
+async function assertResidencyCompatible(
+  storageKey: string,
+  operation: "upload" | "read",
+): Promise<void> {
+  const orgId = extractOrgIdFromStorageKey(storageKey);
+  if (!orgId) {
+    return;
+  }
+
+  const residency = await db.dataResidencyConfig.findUnique({
+    where: { orgId },
+    select: { enforced: true, region: true },
+  });
+
+  if (!residency?.enforced) {
+    return;
+  }
+
+  if (process.env.STORAGE_PROVIDER === "s3") {
+    return;
+  }
+
+  throw new Error(
+    `Data residency is enforced for this organisation (${residency.region}). Configure region-aware S3 storage before ${operation === "upload" ? "uploading new files" : "issuing file access URLs"}.`,
+  );
 }
 
 /**
@@ -18,6 +51,7 @@ export async function uploadFileServer(
   fileBuffer: Buffer,
   contentType: string
 ): Promise<UploadResult> {
+  await assertResidencyCompatible(path, "upload");
   const supabase = await createSupabaseServer();
 
   const { data, error } = await supabase.storage
@@ -55,6 +89,7 @@ export async function getSignedUrlServer(
   storageKey: string,
   expiresInSeconds: number = 3600
 ): Promise<string> {
+  await assertResidencyCompatible(storageKey, "read");
   const supabase = await createSupabaseServer();
 
   const { data, error } = await supabase.storage

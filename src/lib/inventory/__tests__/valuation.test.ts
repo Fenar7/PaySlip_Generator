@@ -5,8 +5,9 @@ import {
   computeLifoCogs,
   computeWeightedAverageCogs,
   computeNewWeightedAverage,
+  replayRemainingLayers,
 } from "../valuation";
-import { StockEventType } from "@/generated/prisma/enums";
+import { InventoryValuationMethod, StockEventType } from "@/generated/prisma/enums";
 import { Prisma } from "@/generated/prisma/client";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -266,5 +267,37 @@ describe("computeNewWeightedAverage", () => {
     const result = computeNewWeightedAverage(90, 200, 10, 100);
 
     expect(result).toBeCloseTo(190, 4);
+  });
+});
+
+describe("replayRemainingLayers", () => {
+  it("replays FIFO history so remaining layers reflect prior dispatches", () => {
+    const events = [
+      makeEvent("e1", StockEventType.PURCHASE_RECEIPT, 10, 100, new Date("2024-01-01")),
+      makeEvent("e2", StockEventType.PURCHASE_RECEIPT, 5, 120, new Date("2024-01-02")),
+      makeEvent("e3", StockEventType.SALES_DISPATCH, 8, 0, new Date("2024-01-03")),
+    ];
+
+    const layers = replayRemainingLayers(events, InventoryValuationMethod.FIFO);
+
+    expect(layers).toEqual([
+      expect.objectContaining({ eventId: "e1", quantity: 2, unitCost: 100 }),
+      expect.objectContaining({ eventId: "e2", quantity: 5, unitCost: 120 }),
+    ]);
+  });
+
+  it("replays LIFO history from the newest layers first", () => {
+    const events = [
+      makeEvent("e1", StockEventType.PURCHASE_RECEIPT, 10, 100, new Date("2024-01-01")),
+      makeEvent("e2", StockEventType.PURCHASE_RECEIPT, 5, 120, new Date("2024-01-02")),
+      makeEvent("e3", StockEventType.TRANSFER_OUT, 4, 0, new Date("2024-01-03")),
+    ];
+
+    const layers = replayRemainingLayers(events, InventoryValuationMethod.LIFO);
+
+    expect(layers).toEqual([
+      expect.objectContaining({ eventId: "e1", quantity: 10, unitCost: 100 }),
+      expect.objectContaining({ eventId: "e2", quantity: 1, unitCost: 120 }),
+    ]);
   });
 });

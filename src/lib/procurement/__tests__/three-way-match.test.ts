@@ -252,4 +252,17 @@ describe("runThreeWayMatch", () => {
     expect(result.qtyMatchScore).toBeCloseTo(0, 4);
     expect(result.discrepancies.some((d) => d.field === "quantity")).toBe(true);
   });
+
+  it("treats zero-quantity and zero-price lines as matched when both sides are zero", () => {
+    const poLines = [makePoLine("pl-1", 1, 0)];
+    const grnLines = [makeGrnLine("pl-1", 0)];
+    const billLines = [makeBillLine("pl-1", 0, 0)];
+
+    const result = runThreeWayMatch(
+      makeInput({ poLines, grnLines, billLines, qtyTolerancePct: 5, amountTolerancePct: 2 })
+    );
+
+    expect(result.matchStatus).toBe(MatchStatus.MATCHED);
+    expect(result.discrepancies).toHaveLength(0);
+  });
 });
