@@ -86,6 +86,14 @@ export const OVERAGE_RATES_PAISE: Record<string, bigint> = {
   email_sends: BigInt(50),     // ₹0.50 per extra email
 };
 
+export const OVERAGE_BILLING_UNIT_SIZES: Record<string, number> = {
+  pdf_jobs: 1,
+  pixel_jobs: 1,
+  api_requests: 1000,
+  storage_gb: 1,
+  email_sends: 1,
+};
+
 /**
  * Valid subscription state transitions.
  * Key = current state, Value = array of allowed target states.

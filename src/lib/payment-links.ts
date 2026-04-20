@@ -4,6 +4,8 @@ import { createPaymentLink, getRazorpay } from "@/lib/razorpay";
 import { reconcileInvoicePayment } from "@/lib/invoice-reconciliation";
 import type { Prisma } from "@/generated/prisma/client";
 import { postInvoicePaymentTx } from "@/lib/accounting";
+import { fromMinorUnits, toMinorUnits } from "@/lib/money";
+import { logAudit } from "@/lib/audit";
 
 type ActionResult<T> =
   | { success: true; data: T }
@@ -35,7 +37,7 @@ export async function createInvoicePaymentLink(
   }
 
   // Use remainingAmount so returning customers pay only the outstanding balance
-  const amountPaise = Math.round(invoice.remainingAmount * 100);
+  const amountPaise = toMinorUnits(invoice.remainingAmount);
   if (amountPaise <= 0) {
     return { success: false, error: "Invoice amount must be greater than zero" };
   }
@@ -112,16 +114,16 @@ export async function handlePaymentLinkPaid(
   });
 
   // If invoice is already fully paid, record an OVERPAID_REVIEW ledger row — do NOT reconcile
-  if (invoice.amountPaid >= invoice.totalAmount) {
+  if (toMinorUnits(invoice.amountPaid) >= toMinorUnits(invoice.totalAmount)) {
     console.warn(
       `[PaymentLinks] Received payment ${paymentId} for already-PAID invoice ${invoice.id} — recording as OVERPAID_REVIEW`
     );
     await db.invoicePayment.create({
-      data: {
-        invoiceId: invoice.id,
-        orgId: invoice.organizationId,
-        amount: amount / 100,
-        currency: "INR",
+        data: {
+          invoiceId: invoice.id,
+          orgId: invoice.organizationId,
+          amount: fromMinorUnits(amount),
+          currency: "INR",
         method: "razorpay_payment_link",
         source: "razorpay_payment_link",
         status: "OVERPAID_REVIEW",
@@ -132,17 +134,25 @@ export async function handlePaymentLinkPaid(
         paidAt: new Date(),
       },
     });
+    await logAudit({
+      orgId: invoice.organizationId,
+      actorId: "system",
+      action: "pay.payment_link_overpayment_recorded",
+      entityType: "Invoice",
+      entityId: invoice.id,
+      metadata: { paymentId, paymentLinkId, amountPaise: String(amount) },
+    });
     return { success: true, data: { invoiceId: invoice.id } };
   }
 
   // Normal flow: create a SETTLED ledger row and reconcile
   await db.$transaction(async (tx) => {
     const payment = await tx.invoicePayment.create({
-      data: {
-        invoiceId: invoice.id,
-        orgId: invoice.organizationId,
-        amount: amount / 100,
-        currency: "INR",
+        data: {
+          invoiceId: invoice.id,
+          orgId: invoice.organizationId,
+          amount: fromMinorUnits(amount),
+          currency: "INR",
         method: "razorpay_payment_link",
         source: "razorpay_payment_link",
         status: "SETTLED",
@@ -161,6 +171,14 @@ export async function handlePaymentLinkPaid(
   });
 
   await reconcileInvoicePayment(invoice.id);
+  await logAudit({
+    orgId: invoice.organizationId,
+    actorId: "system",
+    action: "pay.payment_link_settled",
+    entityType: "Invoice",
+    entityId: invoice.id,
+    metadata: { paymentId, paymentLinkId, amountPaise: String(amount) },
+  });
 
   return { success: true, data: { invoiceId: invoice.id } };
 }

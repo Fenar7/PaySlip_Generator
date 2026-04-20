@@ -108,13 +108,13 @@ describe("tryAutoMatchUnmatchedPayment", () => {
     expect(result).toBeNull();
   });
 
-  it("returns AUTO_EXACT when received amount is within ₹1 of remaining balance", async () => {
+  it("returns AUTO_EXACT only when received amount exactly matches the remaining balance", async () => {
     mockDb.unmatchedPayment.findUnique.mockResolvedValue(
       makePayment({ amountPaise: BigInt(100000) }) // ₹1000
     );
     mockDb.customerVirtualAccount.findFirst.mockResolvedValue({ customerId: "cust_1", orgId: "org_1" });
     mockDb.invoice.findMany.mockResolvedValue([
-      { id: "inv_1", remainingAmount: 1000.5, status: "ISSUED" }, // within ₹1
+      { id: "inv_1", remainingAmount: 1000, status: "ISSUED" },
     ]);
     const result = await tryAutoMatchUnmatchedPayment("up_1");
     expect(result?.mode).toBe("AUTO_EXACT");
@@ -122,14 +122,14 @@ describe("tryAutoMatchUnmatchedPayment", () => {
     expect(result?.confidence).toBe(1.0);
   });
 
-  it("does NOT auto-match when difference exceeds ₹1", async () => {
+  it("does NOT auto-match when the remaining balance differs even by paise", async () => {
     mockDb.unmatchedPayment.findUnique.mockResolvedValue(
       makePayment({ amountPaise: BigInt(100000) }) // ₹1000
     );
     mockDb.customerVirtualAccount.findFirst.mockResolvedValue({ customerId: "cust_1", orgId: "org_1" });
     mockDb.invoice.findMany.mockResolvedValue([
-      { id: "inv_1", remainingAmount: 1500, status: "ISSUED" }, // ₹500 off — not exact
-      { id: "inv_2", remainingAmount: 800, status: "ISSUED" }, // ₹200 off — not exact
+      { id: "inv_1", remainingAmount: 1000.01, status: "ISSUED" },
+      { id: "inv_2", remainingAmount: 800, status: "ISSUED" },
     ]);
     const result = await tryAutoMatchUnmatchedPayment("up_1");
     // 2 invoices, no exact → no suggestion either

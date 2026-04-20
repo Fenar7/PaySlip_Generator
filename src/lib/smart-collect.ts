@@ -2,6 +2,8 @@ import "server-only";
 import { db } from "@/lib/db";
 import { createVirtualAccount, getRazorpay } from "@/lib/razorpay";
 import { postInvoicePaymentTx } from "@/lib/accounting";
+import { fromMinorUnits, toMinorUnits } from "@/lib/money";
+import { logAudit } from "@/lib/audit";
 
 type ActionResult<T> =
   | { success: true; data: T }
@@ -111,18 +113,18 @@ export async function handleVirtualAccountCredited(
     orderBy: { createdAt: "asc" },
   });
 
-  const invoiceAmountPaise = matchingInvoice
-    ? Math.round(matchingInvoice.totalAmount * 100)
+  const invoiceRemainingPaise = matchingInvoice
+    ? toMinorUnits(matchingInvoice.remainingAmount)
     : 0;
 
-  if (matchingInvoice && invoiceAmountPaise === amountPaise) {
+  if (matchingInvoice && invoiceRemainingPaise === amountPaise) {
     // Exact match — auto-apply payment
     await db.$transaction(async (tx) => {
       const invoicePayment = await tx.invoicePayment.create({
         data: {
           invoiceId: matchingInvoice.id,
           orgId: va.orgId,
-          amount: amountPaise / 100,
+          amount: fromMinorUnits(amountPaise),
           currency: "INR",
           method: "virtual_account",
           source: "virtual_account",
@@ -139,8 +141,26 @@ export async function handleVirtualAccountCredited(
 
       await tx.invoice.update({
         where: { id: matchingInvoice.id },
-        data: { status: "PAID", paidAt: new Date() },
+        data: {
+          amountPaid: { increment: fromMinorUnits(amountPaise) },
+          remainingAmount: 0,
+          status: "PAID",
+          paidAt: new Date(),
+        },
       });
+    });
+
+    await logAudit({
+      orgId: va.orgId,
+      actorId: "system",
+      action: "pay.virtual_account_auto_settled",
+      entityType: "Invoice",
+      entityId: matchingInvoice.id,
+      metadata: {
+        virtualAccountId: va.id,
+        razorpayPaymentId: payerInfo.razorpayPaymentId,
+        amountPaise: String(amountPaise),
+      },
     });
 
     return {
@@ -195,7 +215,7 @@ export async function matchUnmatchedPayment(
       data: {
         invoiceId: invoice.id,
         orgId: payment.orgId,
-        amount: Number(payment.amountPaise) / 100,
+        amount: fromMinorUnits(Number(payment.amountPaise)),
         currency: "INR",
         method: "virtual_account",
         source: "virtual_account",
@@ -210,12 +230,16 @@ export async function matchUnmatchedPayment(
       invoicePaymentId: invoicePayment.id,
     });
 
-    const totalPaid = Number(payment.amountPaise) / 100;
-    const isFullyPaid = totalPaid >= invoice.totalAmount;
+    const invoiceRemainingPaise = toMinorUnits(invoice.remainingAmount);
+    const paymentAmountPaise = Number(payment.amountPaise);
+    const newRemainingPaise = Math.max(0, invoiceRemainingPaise - paymentAmountPaise);
+    const isFullyPaid = newRemainingPaise === 0;
 
     await tx.invoice.update({
       where: { id: invoice.id },
       data: {
+        amountPaid: { increment: fromMinorUnits(paymentAmountPaise) },
+        remainingAmount: fromMinorUnits(newRemainingPaise),
         status: isFullyPaid ? "PAID" : "PARTIALLY_PAID",
         ...(isFullyPaid && { paidAt: new Date() }),
       },
@@ -229,6 +253,19 @@ export async function matchUnmatchedPayment(
         resolvedAt: new Date(),
       },
     });
+  });
+
+  await logAudit({
+    orgId: payment.orgId,
+    actorId: "system",
+    action: "pay.virtual_account_manually_matched",
+    entityType: "UnmatchedPayment",
+    entityId: paymentId,
+    metadata: {
+      invoiceId,
+      amountPaise: payment.amountPaise.toString(),
+      razorpayPaymentId: payment.razorpayPaymentId,
+    },
   });
 
   return { success: true, data: { matched: true } };

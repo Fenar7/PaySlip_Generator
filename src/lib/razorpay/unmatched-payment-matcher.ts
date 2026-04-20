@@ -1,5 +1,6 @@
 import "server-only";
 import { db } from "@/lib/db";
+import { fromMinorUnits, toMinorUnits } from "@/lib/money";
 
 export type MatchMode = "AUTO_EXACT" | "SUGGESTED" | "MANUALLY_MATCHED";
 
@@ -13,7 +14,7 @@ interface MatchResult {
  * Attempt to automatically match an UnmatchedPayment to an open invoice.
  *
  * Rules (from PRD §7.2):
- *   AUTO_EXACT    — amount within ₹1 of remaining balance → auto-confirm + settle
+ *   AUTO_EXACT    — exact remaining balance match in paise → auto-confirm + settle
  *   SUGGESTED     — single open invoice for the customer → suggest (confidence 0.85), no auto-confirm
  *   Otherwise     — leave UNMATCHED for manual reconciliation
  */
@@ -34,7 +35,7 @@ export async function tryAutoMatchUnmatchedPayment(
 
   if (!va || va.orgId !== payment.orgId) return null;
 
-  const receivedRupees = Number(payment.amountPaise) / 100;
+  const receivedPaise = Number(payment.amountPaise);
 
   // Find open invoices for this customer with a remaining balance
   const openInvoices = await db.invoice.findMany({
@@ -53,9 +54,9 @@ export async function tryAutoMatchUnmatchedPayment(
 
   if (openInvoices.length === 0) return null;
 
-  // Look for an exact (within ₹1) match
+  // Look for an exact remaining-balance match in minor units.
   const exactMatch = openInvoices.find(
-    (inv) => Math.abs(inv.remainingAmount - receivedRupees) < 1.0
+    (inv) => toMinorUnits(inv.remainingAmount) === receivedPaise
   );
 
   if (exactMatch) {
@@ -86,7 +87,7 @@ export async function confirmMatch(
   invoice: { id: string; remainingAmount: number; status: string },
   mode: MatchMode
 ): Promise<void> {
-  const paidAmountRupees = Number(payment.amountPaise) / 100;
+  const paidAmountPaise = Number(payment.amountPaise);
   const now = new Date();
 
   await db.$transaction(async (tx) => {
@@ -97,15 +98,16 @@ export async function confirmMatch(
     });
     if (existingPayment) return;
 
-    const newRemaining = Math.max(0, invoice.remainingAmount - paidAmountRupees);
-    const isFullyPaid = newRemaining < 0.01;
+    const invoiceRemainingPaise = toMinorUnits(invoice.remainingAmount);
+    const newRemainingPaise = Math.max(0, invoiceRemainingPaise - paidAmountPaise);
+    const isFullyPaid = newRemainingPaise === 0;
     const newStatus = isFullyPaid ? "PAID" : "PARTIALLY_PAID";
 
     await tx.invoicePayment.create({
       data: {
         invoiceId: invoice.id,
         orgId: payment.orgId,
-        amount: paidAmountRupees,
+        amount: fromMinorUnits(paidAmountPaise),
         paidAt: now,
         method: "bank_transfer",
         source: "razorpay_virtual_account",
@@ -118,8 +120,8 @@ export async function confirmMatch(
     await tx.invoice.update({
       where: { id: invoice.id },
       data: {
-        amountPaid: { increment: paidAmountRupees },
-        remainingAmount: newRemaining,
+        amountPaid: { increment: fromMinorUnits(paidAmountPaise) },
+        remainingAmount: fromMinorUnits(newRemainingPaise),
         status: newStatus as "PAID" | "PARTIALLY_PAID",
         lastPaymentAt: now,
         lastPaymentMethod: "bank_transfer",
@@ -169,8 +171,6 @@ export async function suggestMatch(
   });
 
   // Store confidence in a structured way — we extend the existing record
-  // by encoding it in the status field since the schema has no confidence column.
-  // A future migration can add a dedicatedcolumn; for now suggested + matchedInvoiceId
-  // is enough for the UI to offer a pre-filled reconcile action.
+  // by encoding it in the response path since the schema has no confidence column.
   void confidence; // acknowledged, used by caller for response metadata
 }

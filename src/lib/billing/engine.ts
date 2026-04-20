@@ -17,6 +17,15 @@ import { MAX_PAUSE_DAYS, SUBSCRIPTION_STATUS_TRANSITIONS } from "./types";
 import { createStripeCheckout, cancelStripeSubscription, pauseStripeSubscription, resumeStripeSubscription, retryStripePayment } from "./stripe";
 import { createRazorpayCheckout, cancelRazorpaySubscription, pauseRazorpaySubscription, resumeRazorpaySubscription, retryRazorpayPayment } from "./razorpay";
 
+function normalizeBillingCountry(billingCountry: string): string {
+  const normalized = billingCountry.trim().toUpperCase();
+  return normalized || "IN";
+}
+
+function resolveCurrencyForCountry(billingCountry: string): string {
+  return normalizeBillingCountry(billingCountry) === "IN" ? "INR" : "USD";
+}
+
 /**
  * Determine the correct payment gateway based on billing country and currency.
  * India + INR → Razorpay; everything else → Stripe.
@@ -54,17 +63,21 @@ export async function initiateCheckout(params: {
   successUrl: string;
   cancelUrl: string;
 }): Promise<CheckoutResult> {
-  const currency = params.billingCountry.toUpperCase() === "IN" ? "INR" : "USD";
-  const gateway = resolveGateway(params.billingCountry, currency);
+  const billingCountry = normalizeBillingCountry(params.billingCountry);
+  const currency = resolveCurrencyForCountry(billingCountry);
+  const gateway = resolveGateway(billingCountry, currency);
 
   // Ensure BillingAccount exists with correct gateway
   await db.billingAccount.upsert({
     where: { orgId: params.orgId },
-    update: { gateway, billingCountry: params.billingCountry, currency, billingEmail: params.billingEmail },
-    create: { orgId: params.orgId, gateway, billingCountry: params.billingCountry, currency, billingEmail: params.billingEmail },
+    update: { gateway, billingCountry, currency, billingEmail: params.billingEmail },
+    create: { orgId: params.orgId, gateway, billingCountry, currency, billingEmail: params.billingEmail },
   });
 
-  const checkoutParams: CheckoutParams = { ...params };
+  const checkoutParams: CheckoutParams = {
+    ...params,
+    billingCountry,
+  };
 
   if (gateway === "STRIPE") {
     return createStripeCheckout(checkoutParams);
@@ -86,16 +99,25 @@ export async function recordBillingEvent(params: {
   const account = await db.billingAccount.findUnique({ where: { orgId: params.orgId } });
   if (!account) return null;
 
-  return db.billingEvent.create({
-    data: {
-      billingAccountId: account.id,
-      type: params.type,
-      gatewayEventId: params.gatewayEventId,
-      amount: params.amountPaise,
-      currency: params.currency,
-      metadata: params.metadata ? JSON.parse(JSON.stringify(params.metadata)) : undefined,
-    },
-  });
+  try {
+    return await db.billingEvent.create({
+      data: {
+        billingAccountId: account.id,
+        type: params.type,
+        gatewayEventId: params.gatewayEventId,
+        amount: params.amountPaise,
+        currency: params.currency,
+        metadata: params.metadata ? JSON.parse(JSON.stringify(params.metadata)) : undefined,
+      },
+    });
+  } catch (error) {
+    if ((error as { code?: string }).code === "P2002" && params.gatewayEventId) {
+      return db.billingEvent.findUnique({
+        where: { gatewayEventId: params.gatewayEventId },
+      });
+    }
+    throw error;
+  }
 }
 
 /**

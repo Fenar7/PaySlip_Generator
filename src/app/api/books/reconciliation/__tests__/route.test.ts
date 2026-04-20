@@ -17,6 +17,10 @@ vi.mock("@/lib/accounting", () => ({
   rejectBankTransactionMatch: vi.fn(),
 }));
 
+vi.mock("@/lib/audit", () => ({
+  logAudit: vi.fn(),
+}));
+
 import { getOrgContext, hasRole } from "@/lib/auth";
 import { checkFeature } from "@/lib/plans";
 import {
@@ -25,6 +29,7 @@ import {
   ignoreBankTransaction,
   rejectBankTransactionMatch,
 } from "@/lib/accounting";
+import { logAudit } from "@/lib/audit";
 import { GET as getSuggestions } from "../suggestions/route";
 import { POST as postConfirm } from "../confirm/route";
 import { POST as postIgnore } from "../ignore/route";
@@ -37,6 +42,7 @@ const mockedGetReconciliationWorkspace = vi.mocked(getReconciliationWorkspace);
 const mockedConfirmBankTransactionMatch = vi.mocked(confirmBankTransactionMatch);
 const mockedIgnoreBankTransaction = vi.mocked(ignoreBankTransaction);
 const mockedRejectBankTransactionMatch = vi.mocked(rejectBankTransactionMatch);
+const mockedLogAudit = vi.mocked(logAudit);
 
 function makeRequest(url: string, init?: RequestInit): NextRequest {
   return new NextRequest(new URL(url), init);
@@ -127,6 +133,14 @@ describe("Books reconciliation API routes", () => {
       matchId: "match-1",
       matchedAmount: 125.75,
     });
+    expect(mockedLogAudit).toHaveBeenCalledWith({
+      orgId: "org-1",
+      actorId: "user-1",
+      action: "books.reconciliation_confirmed",
+      entityType: "BankTransaction",
+      entityId: "txn-1",
+      metadata: { matchId: "match-1" },
+    });
   });
 
   it("blocks ignore writes for members without admin access", async () => {
@@ -175,6 +189,37 @@ describe("Books reconciliation API routes", () => {
       actorId: "user-1",
       bankTransactionId: "txn-2",
       matchId: "match-2",
+    });
+    expect(mockedLogAudit).toHaveBeenCalledWith({
+      orgId: "org-1",
+      actorId: "user-1",
+      action: "books.reconciliation_rejected",
+      entityType: "BankTransaction",
+      entityId: "txn-2",
+      metadata: { matchId: "match-2" },
+    });
+  });
+
+  it("audits ignored transactions", async () => {
+    mockedIgnoreBankTransaction.mockResolvedValue(undefined);
+
+    const response = await postIgnore(
+      makeRequest("http://localhost/api/books/reconciliation/ignore", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ bankTransactionId: "txn-7" }),
+      }),
+    );
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body.data).toEqual({ id: "txn-7" });
+    expect(mockedLogAudit).toHaveBeenCalledWith({
+      orgId: "org-1",
+      actorId: "user-1",
+      action: "books.reconciliation_ignored",
+      entityType: "BankTransaction",
+      entityId: "txn-7",
     });
   });
 });

@@ -3,7 +3,7 @@ import { PDFDocument, rgb, StandardFonts } from "pdf-lib";
 import { PASSPORT_PRESETS } from "@/features/pixel/data/passport-presets";
 import { db } from "@/lib/db";
 import { redis } from "@/lib/redis-client";
-import { recordUsageEvent } from "@/lib/usage-metering";
+import { recordUsage } from "@/lib/billing/metering";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -217,14 +217,8 @@ export async function POST(request: NextRequest) {
     }
 
     const pdfBytes = await pdfDoc.save();
-
-    // Log usage event (fire-and-forget, do not block response)
     if (orgId) {
-      void recordUsageEvent(orgId, "PIXEL_JOB_SAVED", 1, `pdf:${presetId}:${paperSize}`).catch(
-        () => {
-          // Non-fatal
-        },
-      );
+      void recordUsage(orgId, "pdf_jobs", 1).catch(() => {});
     }
 
     return new NextResponse(Buffer.from(pdfBytes), {

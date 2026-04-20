@@ -6,6 +6,7 @@ import { db } from "@/lib/db";
 import { requireOrgContext } from "@/lib/auth";
 import { checkUsageLimit, recordUsageEvent } from "@/lib/usage-metering";
 import type { PixelToolType } from "@/generated/prisma/client";
+import { recordUsage } from "@/lib/billing/metering";
 
 type ActionResult<T> = { success: true; data: T } | { success: false; error: string };
 
@@ -62,6 +63,7 @@ export async function savePixelJobToVault(
     void recordUsageEvent(orgId, "PIXEL_JOB_SAVED", 1, record.id).catch(() => {
       // Non-fatal; snapshot will pick it up on next compute
     });
+    void recordUsage(orgId, "pixel_jobs", 1).catch(() => {});
 
     revalidatePath("/app/pixel/history");
     return { success: true, data: { id: record.id } };

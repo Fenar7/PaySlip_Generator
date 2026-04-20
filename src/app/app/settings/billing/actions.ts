@@ -11,12 +11,48 @@ import { requireOrgContext, requireRole } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { initiateCheckout, cancelSubscription, pauseSubscription, resumeSubscription } from "@/lib/billing/engine";
 import { listBillingInvoices } from "@/lib/billing/invoicing";
-import { getDunningHistory, getNextDunningAttempt } from "@/lib/billing/dunning";
+import { getNextDunningAttempt } from "@/lib/billing/dunning";
 import { getCurrentUsage } from "@/lib/billing/metering";
+import { logAudit } from "@/lib/audit";
 
 type ActionResult<T> =
   | { success: true; data: T }
   | { success: false; error: string };
+
+async function resolveCheckoutContext(orgId: string, userId: string) {
+  const org = await db.organization.findUniqueOrThrow({
+    where: { id: orgId },
+    select: {
+      id: true,
+      billingAccount: {
+        select: {
+          billingCountry: true,
+          billingEmail: true,
+        },
+      },
+      defaults: {
+        select: {
+          country: true,
+        },
+      },
+      members: {
+        where: { userId },
+        select: { user: { select: { email: true } } },
+      },
+    },
+  });
+
+  return {
+    billingEmail:
+      org.billingAccount?.billingEmail ||
+      org.members[0]?.user?.email ||
+      "",
+    billingCountry:
+      org.billingAccount?.billingCountry ||
+      org.defaults?.country ||
+      "IN",
+  };
+}
 
 export async function initiatePlanCheckoutAction(params: {
   planId: string;
@@ -25,28 +61,33 @@ export async function initiatePlanCheckoutAction(params: {
   cancelUrl: string;
 }): Promise<ActionResult<{ checkoutUrl: string }>> {
   const { orgId, userId } = await requireRole("admin");
-
-  const org = await db.organization.findUniqueOrThrow({
-    where: { id: orgId },
-    select: {
-      id: true,
-      members: {
-        where: { userId },
-        select: { user: { select: { email: true } } },
-      },
-    },
-  });
-
-  const billingEmail = org.members[0]?.user?.email ?? "";
+  const { billingEmail, billingCountry } = await resolveCheckoutContext(
+    orgId,
+    userId,
+  );
 
   const result = await initiateCheckout({
     orgId,
     planId: params.planId,
     billingInterval: params.billingInterval,
     billingEmail,
-    billingCountry: "IN", // Default; can be enhanced with org country
+    billingCountry,
     successUrl: params.successUrl,
     cancelUrl: params.cancelUrl,
+  });
+
+  await logAudit({
+    orgId,
+    actorId: userId,
+    action: "billing.checkout_initiated",
+    entityType: "Subscription",
+    entityId: orgId,
+    metadata: {
+      planId: params.planId,
+      billingInterval: params.billingInterval,
+      gateway: result.gateway,
+      billingCountry,
+    },
   });
 
   return { success: true, data: { checkoutUrl: result.checkoutUrl } };
@@ -55,25 +96,51 @@ export async function initiatePlanCheckoutAction(params: {
 export async function cancelSubscriptionAction(params: {
   atPeriodEnd: boolean;
 }): Promise<ActionResult<{ status: string }>> {
-  const { orgId } = await requireRole("admin");
+  const { orgId, userId } = await requireRole("admin");
 
   await cancelSubscription(orgId, params.atPeriodEnd);
-  return { success: true, data: { status: "canceled" } };
+  await logAudit({
+    orgId,
+    actorId: userId,
+    action: "billing.subscription_canceled",
+    entityType: "Subscription",
+    entityId: orgId,
+    metadata: { atPeriodEnd: params.atPeriodEnd },
+  });
+  return {
+    success: true,
+    data: { status: params.atPeriodEnd ? "scheduled_for_cancel" : "canceled" },
+  };
 }
 
 export async function pauseSubscriptionAction(params: {
   reason?: string;
 }): Promise<ActionResult<{ status: string }>> {
-  const { orgId } = await requireRole("admin");
+  const { orgId, userId } = await requireRole("admin");
 
   await pauseSubscription(orgId, params.reason);
+  await logAudit({
+    orgId,
+    actorId: userId,
+    action: "billing.subscription_paused",
+    entityType: "Subscription",
+    entityId: orgId,
+    metadata: { reason: params.reason ?? null },
+  });
   return { success: true, data: { status: "paused" } };
 }
 
 export async function resumeSubscriptionAction(): Promise<ActionResult<{ status: string }>> {
-  const { orgId } = await requireRole("admin");
+  const { orgId, userId } = await requireRole("admin");
 
   await resumeSubscription(orgId);
+  await logAudit({
+    orgId,
+    actorId: userId,
+    action: "billing.subscription_resumed",
+    entityType: "Subscription",
+    entityId: orgId,
+  });
   return { success: true, data: { status: "active" } };
 }
 

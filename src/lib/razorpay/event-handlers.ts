@@ -2,6 +2,7 @@ import "server-only";
 import { db } from "@/lib/db";
 import { recordUsageEvent } from "@/lib/usage-metering";
 import { tryAutoMatchUnmatchedPayment } from "@/lib/razorpay/unmatched-payment-matcher";
+import { fromMinorUnits, toMinorUnits } from "@/lib/money";
 
 interface PaymentLinkPaidPayload {
   id: string;
@@ -92,16 +93,17 @@ async function handlePaymentLinkPaid(
   if (invoice.status === "PAID") return; // Already processed
 
   const paidAmountPaise = paymentLink.amount ?? 0;
-  const paidAmountRupees = paidAmountPaise / 100;
 
   const latestPayment = paymentLink.payments?.items?.[0];
   const externalPaymentId = latestPayment?.id ?? null;
   const method = latestPayment?.method ?? "razorpay";
   const paidAt = latestPayment ? new Date(latestPayment.created_at * 1000) : new Date();
 
-  const newAmountPaid = invoice.amountPaid + paidAmountRupees;
-  const newRemaining = Math.max(0, invoice.totalAmount - newAmountPaid);
-  const isFullyPaid = newRemaining < 0.01;
+  const invoiceAmountPaidPaise = toMinorUnits(invoice.amountPaid);
+  const invoiceTotalPaise = toMinorUnits(invoice.totalAmount);
+  const newAmountPaidPaise = invoiceAmountPaidPaise + paidAmountPaise;
+  const newRemainingPaise = Math.max(0, invoiceTotalPaise - newAmountPaidPaise);
+  const isFullyPaid = newRemainingPaise === 0;
   const newStatus = isFullyPaid ? "PAID" : "PARTIALLY_PAID";
 
   await db.$transaction(async (tx) => {
@@ -115,12 +117,12 @@ async function handlePaymentLinkPaid(
     }
 
     await tx.invoicePayment.create({
-      data: {
-        invoiceId: invoice.id,
-        orgId,
-        amount: paidAmountRupees,
-        paidAt,
-        method,
+        data: {
+          invoiceId: invoice.id,
+          orgId,
+          amount: fromMinorUnits(paidAmountPaise),
+          paidAt,
+          method,
         source: "razorpay_payment_link",
         status: "SETTLED",
         externalPaymentId,
@@ -128,14 +130,14 @@ async function handlePaymentLinkPaid(
       },
     });
 
-    await tx.invoice.update({
-      where: { id: invoice.id },
-      data: {
-        status: newStatus as "PAID" | "PARTIALLY_PAID",
-        amountPaid: newAmountPaid,
-        remainingAmount: newRemaining,
-        lastPaymentAt: paidAt,
-        lastPaymentMethod: method,
+      await tx.invoice.update({
+        where: { id: invoice.id },
+        data: {
+          status: newStatus as "PAID" | "PARTIALLY_PAID",
+          amountPaid: fromMinorUnits(newAmountPaidPaise),
+          remainingAmount: fromMinorUnits(newRemainingPaise),
+          lastPaymentAt: paidAt,
+          lastPaymentMethod: method,
         paidAt: isFullyPaid ? paidAt : undefined,
         paymentLinkStatus: "paid",
         paymentLinkLastEventAt: new Date(),
@@ -165,7 +167,6 @@ async function handleVirtualAccountCredited(
 
   const paymentId = (payment?.id as string) ?? null;
   const amountPaise = (payment?.amount as number) ?? 0;
-  const method = (payment?.method as string) ?? "bank_transfer";
 
   // Record as unmatched payment for manual/auto reconciliation
   const existing = await db.unmatchedPayment.findFirst({
