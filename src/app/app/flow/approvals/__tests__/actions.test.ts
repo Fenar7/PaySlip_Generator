@@ -29,6 +29,8 @@ const mocks = vi.hoisted(() => ({
   txPaymentRunUpdate: vi.fn(),
   txSalarySlipUpdate: vi.fn(),
   txVoucherUpdate: vi.fn(),
+  createApprovalRequest: vi.fn(),
+  advanceApprovalChain: vi.fn(),
 }));
 
 vi.mock("@/lib/db", () => ({
@@ -89,6 +91,11 @@ vi.mock("@/lib/notifications", () => ({
   notifyOrgAdmins: vi.fn(),
 }));
 
+vi.mock("@/lib/flow/approvals", () => ({
+  createApprovalRequest: mocks.createApprovalRequest,
+  advanceApprovalChain: mocks.advanceApprovalChain,
+}));
+
 vi.mock("@/lib/accounting", () => ({
   postVendorBillTx: vi.fn(),
   postVoucherTx: vi.fn(),
@@ -132,6 +139,8 @@ describe("Flow approval authorization", () => {
     mocks.txPaymentRunUpdate.mockResolvedValue({});
     mocks.txSalarySlipUpdate.mockResolvedValue({});
     mocks.txVoucherUpdate.mockResolvedValue({});
+    mocks.createApprovalRequest.mockResolvedValue({ id: "approval-1" });
+    mocks.advanceApprovalChain.mockResolvedValue({ status: "APPROVED" });
   });
 
   it("allows finance managers to request vendor bill approvals", async () => {
@@ -141,17 +150,16 @@ describe("Flow approval authorization", () => {
       success: true,
       data: { id: "approval-1" },
     });
-    expect(mocks.approvalRequestCreate).toHaveBeenCalledWith({
-      data: {
-        docType: "vendor-bill",
-        docId: "bill-1",
-        orgId: "org-1",
-        requestedById: "user-1",
-        requestedByName: "Approver",
-        status: "PENDING",
-      },
+    expect(mocks.createApprovalRequest).toHaveBeenCalledWith({
+      docType: "vendor-bill",
+      docId: "bill-1",
+      orgId: "org-1",
+      requestedById: "user-1",
+      requestedByName: "Approver",
+      docNumber: "BILL-001",
     });
-    expect(notifyOrgAdmins).toHaveBeenCalled();
+    expect(mocks.approvalRequestCreate).not.toHaveBeenCalled();
+    expect(notifyOrgAdmins).not.toHaveBeenCalled();
   });
 
   it("blocks non-finance roles from requesting vendor bill approvals", async () => {
@@ -251,6 +259,13 @@ describe("Flow approval authorization", () => {
       success: true,
       data: undefined,
     });
+    expect(mocks.advanceApprovalChain).toHaveBeenCalledWith(
+      "approval-2",
+      "hr-1",
+      "Approver",
+      "APPROVED",
+      "Looks good",
+    );
     expect(mocks.txApprovalRequestUpdate).toHaveBeenCalledWith({
       where: { id: "approval-2" },
       data: expect.objectContaining({
@@ -283,6 +298,13 @@ describe("Flow approval authorization", () => {
       success: true,
       data: undefined,
     });
+    expect(mocks.advanceApprovalChain).toHaveBeenCalledWith(
+      "approval-3",
+      "user-1",
+      "Approver",
+      "REJECTED",
+      "Need updated bill lines",
+    );
     expect(mocks.txApprovalRequestUpdate).toHaveBeenCalledWith({
       where: { id: "approval-3" },
       data: expect.objectContaining({

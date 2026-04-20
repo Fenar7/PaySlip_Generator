@@ -1,5 +1,6 @@
 import type { VoucherDocument, VoucherFormValues } from "@/features/docs/voucher/types";
 import { amountToWords } from "@/features/docs/voucher/utils/amount-to-words";
+import { normalizeMoney } from "@/lib/money";
 
 function formatCurrency(value: number) {
   return new Intl.NumberFormat("en-IN", {
@@ -27,7 +28,7 @@ function formatDate(value: string) {
 }
 
 export function normalizeVoucher(values: VoucherFormValues): VoucherDocument {
-  const amount = Number(values.amount || 0);
+  const amount = normalizeMoney(values.amount);
   const isPayment = values.voucherType === "payment";
   const visibility = values.visibility;
 

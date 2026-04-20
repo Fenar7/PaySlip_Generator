@@ -9,6 +9,7 @@ import { postVoucherTx } from "@/lib/accounting";
 import { emitVoucherEvent } from "@/lib/document-events";
 import { syncVoucherToIndex } from "@/lib/docs-vault";
 import { checkUsageLimit } from "@/lib/usage-metering";
+import { fromMinorUnits, normalizeMoney, sumMinorUnits } from "@/lib/money";
 
 export type ActionResult<T> = 
   | { success: true; data: T }
@@ -32,6 +33,44 @@ export interface VoucherInput {
   lines: VoucherLineInput[];
 }
 
+function normalizeVoucherLines(lines: VoucherLineInput[]): { lines: VoucherLineInput[]; totalAmount: number } {
+  const normalizedLines = lines.map((line) => ({
+    ...line,
+    description: line.description.trim(),
+    amount: normalizeMoney(line.amount),
+    category: line.category?.trim() || undefined,
+    date: line.date || undefined,
+    time: line.time || undefined,
+  }));
+
+  return {
+    lines: normalizedLines,
+    totalAmount: fromMinorUnits(sumMinorUnits(normalizedLines.map((line) => line.amount))),
+  };
+}
+
+async function syncVoucherRecordToIndex(orgId: string, voucherId: string): Promise<void> {
+  const voucher = await db.voucher.findFirst({
+    where: { id: voucherId, organizationId: orgId },
+    include: { vendor: true },
+  });
+
+  if (!voucher) {
+    return;
+  }
+
+  await syncVoucherToIndex(orgId, {
+    id: voucher.id,
+    voucherNumber: voucher.voucherNumber,
+    status: voucher.status,
+    voucherDate: voucher.voucherDate,
+    totalAmount: voucher.totalAmount,
+    type: voucher.type,
+    archivedAt: voucher.archivedAt,
+    vendor: voucher.vendor ?? undefined,
+  });
+}
+
 export async function saveVoucher(
   input: VoucherInput,
   status: "draft" | "approved" = "draft"
@@ -49,7 +88,7 @@ export async function saveVoucher(
     
     const voucherNumber = await nextDocumentNumber(orgId, "voucher");
     
-    const totalAmount = input.lines.reduce((sum, line) => sum + line.amount, 0);
+    const normalizedVoucher = normalizeVoucherLines(input.lines);
     
     const voucher = await db.$transaction(async (tx) => {
       const created = await tx.voucher.create({
@@ -62,9 +101,9 @@ export async function saveVoucher(
           status,
           isMultiLine: input.isMultiLine ?? false,
           formData: input.formData as Prisma.InputJsonValue,
-          totalAmount,
+          totalAmount: normalizedVoucher.totalAmount,
           lines: {
-            create: input.lines.map((line, index) => ({
+            create: normalizedVoucher.lines.map((line, index) => ({
               description: line.description,
               date: line.date || null,
               time: line.time || null,
@@ -88,7 +127,7 @@ export async function saveVoucher(
     });
     
     // Phase 19.2: emit normalized document event
-    void emitVoucherEvent(orgId, voucher.id, status === "approved" ? "approved" : "created", {
+    await emitVoucherEvent(orgId, voucher.id, status === "approved" ? "approved" : "created", {
       actorId: userId,
       metadata: { voucherNumber },
     });
@@ -106,21 +145,13 @@ export async function saveVoucher(
     });
 
     // Phase 19.1: Sync to DocumentIndex
-    void syncVoucherToIndex(orgId, {
-      id: voucher.id,
-      voucherNumber,
-      status,
-      voucherDate: input.voucherDate,
-      totalAmount: voucher.totalAmount,
-      type: voucher.type,
-      archivedAt: null,
-    });
+    await syncVoucherRecordToIndex(orgId, voucher.id);
 
     revalidatePath("/app/docs/vouchers");
     return { success: true, data: { id: voucher.id, voucherNumber } };
   } catch (error) {
     console.error("saveVoucher error:", error);
-    return { success: false, error: "Failed to save voucher" };
+    return { success: false, error: error instanceof Error ? error.message : "Failed to save voucher" };
   }
 }
 
@@ -149,10 +180,7 @@ export async function updateVoucher(
       return { success: false, error: "Posted vouchers cannot be edited. Reverse and recreate instead." };
     }
     
-    let totalAmount = existing.totalAmount;
-    if (input.lines) {
-      totalAmount = input.lines.reduce((sum, line) => sum + line.amount, 0);
-    }
+    const normalizedVoucher = input.lines ? normalizeVoucherLines(input.lines) : null;
 
     await db.$transaction(async (tx) => {
       await tx.voucher.update({
@@ -164,14 +192,14 @@ export async function updateVoucher(
           isMultiLine: input.isMultiLine,
           ...(input.status && { status: input.status }),
           formData: input.formData as Prisma.InputJsonValue | undefined,
-          totalAmount,
+          totalAmount: normalizedVoucher?.totalAmount ?? existing.totalAmount,
         },
       });
 
-      if (input.lines) {
+      if (normalizedVoucher) {
         await tx.voucherLine.deleteMany({ where: { voucherId: id } });
         await tx.voucherLine.createMany({
-          data: input.lines.map((line, index) => ({
+          data: normalizedVoucher.lines.map((line, index) => ({
             voucherId: id,
             description: line.description,
             date: line.date || null,
@@ -194,38 +222,21 @@ export async function updateVoucher(
     });
     
     // Phase 19.2: emit normalized document event
-    void emitVoucherEvent(orgId, id, "updated", { actorId: userId });
-
-    // Phase 19.1: Sync updated voucher to DocumentIndex
-    const updated = await db.voucher.findUnique({
-      where: { id },
-      include: { vendor: true },
-    });
-    if (updated) {
-      void syncVoucherToIndex(orgId, {
-        id: updated.id,
-        voucherNumber: updated.voucherNumber,
-        status: updated.status,
-        voucherDate: updated.voucherDate,
-        totalAmount: updated.totalAmount,
-        type: updated.type,
-        archivedAt: updated.archivedAt,
-        vendor: updated.vendor ?? undefined,
-      });
-    }
+    await emitVoucherEvent(orgId, id, "updated", { actorId: userId });
+    await syncVoucherRecordToIndex(orgId, id);
 
     revalidatePath("/app/docs/vouchers");
     revalidatePath(`/app/docs/vouchers/${id}`);
     return { success: true, data: { id } };
   } catch (error) {
     console.error("updateVoucher error:", error);
-    return { success: false, error: "Failed to update voucher" };
+    return { success: false, error: error instanceof Error ? error.message : "Failed to update voucher" };
   }
 }
 
 export async function archiveVoucher(id: string): Promise<ActionResult<void>> {
   try {
-    const { orgId } = await requireOrgContext();
+    const { orgId, userId } = await requireOrgContext();
     
     await db.voucher.update({
       where: { id, organizationId: orgId },
@@ -233,7 +244,8 @@ export async function archiveVoucher(id: string): Promise<ActionResult<void>> {
     });
 
     // Phase 19.2: emit normalized document event
-    void emitVoucherEvent(orgId, id, "archived");
+    await emitVoucherEvent(orgId, id, "archived", { actorId: userId });
+    await syncVoucherRecordToIndex(orgId, id);
 
     revalidatePath("/app/docs/vouchers");
     return { success: true, data: undefined };

@@ -60,6 +60,7 @@ export const invoiceDefaultValues: InvoiceFormValues = {
   lineItems: [
     {
       description: "HR outsourcing retainer for March 2026",
+      inventoryItemId: "",
       quantity: "1",
       unitPrice: "32000",
       taxRate: "18",
@@ -67,6 +68,7 @@ export const invoiceDefaultValues: InvoiceFormValues = {
     },
     {
       description: "Recruitment coordination support",
+      inventoryItemId: "",
       quantity: "2",
       unitPrice: "7500",
       taxRate: "18",

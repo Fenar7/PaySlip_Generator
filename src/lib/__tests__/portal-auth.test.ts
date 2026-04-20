@@ -48,6 +48,9 @@ vi.mock("@/lib/email", () => ({ sendEmail: mockSendEmail }));
 vi.mock("@/lib/audit", () => ({ logAudit: mockLogAudit }));
 vi.mock("next/headers", () => ({ cookies: mockCookies }));
 vi.mock("next/navigation", () => ({ redirect: vi.fn() }));
+vi.mock("@/lib/flow/workflow-engine", () => ({
+  fireWorkflowTrigger: vi.fn(),
+}));
 
 import {
   requestMagicLink,

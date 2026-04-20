@@ -2,6 +2,7 @@
 
 import { useFieldArray, useFormContext } from "react-hook-form";
 import type { VoucherFormValues } from "../types";
+import { fromMinorUnits, sumMinorUnits, toMinorUnits } from "@/lib/money";
 
 const CATEGORIES = [
   "Meals", "Travel", "Accommodation", "Supplies", "Communication",
@@ -19,14 +20,14 @@ export function MultiLineVoucherEditor() {
 
   const categoryTotals = lineItems.reduce<Record<string, number>>((acc, item) => {
     if (item.category && item.amount) {
-      acc[item.category] = (acc[item.category] ?? 0) + (parseFloat(String(item.amount)) || 0);
+      const nextMinor =
+        toMinorUnits(acc[item.category] ?? 0) + toMinorUnits(String(item.amount));
+      acc[item.category] = fromMinorUnits(nextMinor);
     }
     return acc;
   }, {});
 
-  const grandTotal = lineItems.reduce((sum, item) => {
-    return sum + (parseFloat(String(item.amount)) || 0);
-  }, 0);
+  const grandTotal = fromMinorUnits(sumMinorUnits(lineItems.map((item) => item.amount)));
 
   const addRow = () => {
     append({

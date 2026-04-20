@@ -14,6 +14,7 @@ export type ExistingInvoice = {
   lineItems: Array<{
     id: string;
     description: string;
+    inventoryItemId: string | null;
     quantity: number;
     unitPrice: number;
     taxRate: number;
@@ -39,9 +40,21 @@ interface InvoiceBrandingWrapperProps {
     taxId: string | null;
     gstin: string | null;
   }>;
+  inventoryItems?: Array<{
+    id: string;
+    sku: string;
+    name: string;
+    totalAvailable: number;
+    trackInventory: boolean;
+  }>;
 }
 
-export function InvoiceBrandingWrapper({ existingInvoice, initialTemplateId, customers = [] }: InvoiceBrandingWrapperProps) {
+export function InvoiceBrandingWrapper({
+  existingInvoice,
+  initialTemplateId,
+  customers = [],
+  inventoryItems = [],
+}: InvoiceBrandingWrapperProps) {
   const branding = useOrgBranding();
 
   return (
@@ -54,7 +67,12 @@ export function InvoiceBrandingWrapper({ existingInvoice, initialTemplateId, cus
         } as React.CSSProperties
       }
     >
-      <InvoiceWorkspace existingInvoice={existingInvoice} initialTemplateId={initialTemplateId} customers={customers} />
+      <InvoiceWorkspace
+        existingInvoice={existingInvoice}
+        initialTemplateId={initialTemplateId}
+        customers={customers}
+        inventoryItems={inventoryItems}
+      />
     </div>
   );
 }

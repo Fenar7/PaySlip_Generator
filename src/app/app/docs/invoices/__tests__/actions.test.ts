@@ -5,11 +5,15 @@ vi.mock("@/lib/db", () => ({
     $transaction: vi.fn(),
     invoice: {
       findFirst: vi.fn(),
+      findUnique: vi.fn(),
       update: vi.fn(),
       create: vi.fn(),
     },
     invoiceStateEvent: {
       create: vi.fn(),
+    },
+    stockEvent: {
+      findMany: vi.fn(),
     },
   },
 }));
@@ -51,10 +55,19 @@ vi.mock("@/lib/accounting", () => ({
   reverseJournalEntryTx: vi.fn(),
 }));
 
+vi.mock("@/lib/docs-vault", () => ({
+  syncInvoiceToIndex: vi.fn().mockResolvedValue(undefined),
+}));
+
+vi.mock("@/lib/inventory/stock-events", () => ({
+  recordStockEventTx: vi.fn().mockResolvedValue(undefined),
+}));
+
 import { requireOrgContext } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { nextDocumentNumber } from "@/lib/docs";
 import { reverseJournalEntryTx } from "@/lib/accounting";
+import { recordStockEventTx } from "@/lib/inventory/stock-events";
 import { cancelInvoice, reissueInvoice } from "../actions";
 
 const ORG_ID = "org-1";
@@ -88,6 +101,7 @@ describe("invoice accounting transitions", () => {
     vi.mocked(reverseJournalEntryTx).mockResolvedValue({
       id: "reversal-1",
     } as any);
+    vi.mocked(db.stockEvent.findMany).mockResolvedValue([]);
     vi.mocked(db.invoice.update).mockResolvedValue({} as any);
     vi.mocked(db.invoiceStateEvent.create).mockResolvedValue({} as any);
 
@@ -159,6 +173,7 @@ describe("invoice accounting transitions", () => {
       lineItems: [
         {
           description: "Consulting",
+          inventoryItemId: "item-1",
           quantity: 1,
           unitPrice: 1000,
           taxRate: 18,
@@ -186,6 +201,13 @@ describe("invoice accounting transitions", () => {
         organizationId: ORG_ID,
         invoiceNumber: "INV-002",
         originalId: "inv-1",
+        lineItems: {
+          create: [
+            expect.objectContaining({
+              inventoryItemId: "item-1",
+            }),
+          ],
+        },
       }),
     });
     expect(db.invoice.update).toHaveBeenCalledWith({
@@ -208,5 +230,55 @@ describe("invoice accounting transitions", () => {
         },
       }),
     });
+  });
+
+  it("restores dispatched inventory when cancelling an issued invoice", async () => {
+    vi.mocked(db.invoice.findFirst).mockResolvedValue({
+      id: "inv-1",
+      organizationId: ORG_ID,
+      invoiceNumber: "INV-001",
+      status: "ISSUED",
+      amountPaid: 0,
+      postedJournalEntryId: null,
+      accountingStatus: "PENDING",
+    } as any);
+    vi.mocked(db.stockEvent.findMany).mockResolvedValue([
+      {
+        id: "stock-1",
+        inventoryItemId: "item-1",
+        warehouseId: "wh-1",
+        quantity: 3,
+        unitCost: 125,
+      },
+    ] as any);
+    vi.mocked(db.invoice.update).mockResolvedValue({} as any);
+    vi.mocked(db.invoiceStateEvent.create).mockResolvedValue({} as any);
+    vi.mocked(db.invoice.findUnique).mockResolvedValue({
+      id: "inv-1",
+      organizationId: ORG_ID,
+      invoiceNumber: "INV-001",
+      invoiceDate: "2026-04-01",
+      status: "CANCELLED",
+      totalAmount: 300,
+      displayCurrency: "INR",
+      archivedAt: null,
+      customer: null,
+    } as any);
+
+    const result = await cancelInvoice("inv-1", "Customer cancelled before fulfilment");
+
+    expect(result.success).toBe(true);
+    expect(recordStockEventTx).toHaveBeenCalledWith(
+      db,
+      expect.objectContaining({
+        orgId: ORG_ID,
+        inventoryItemId: "item-1",
+        warehouseId: "wh-1",
+        quantity: 3,
+        eventType: "RETURN_IN",
+        referenceId: "inv-1",
+        createdByUserId: USER_ID,
+      }),
+    );
   });
 });

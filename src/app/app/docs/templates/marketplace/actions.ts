@@ -649,45 +649,60 @@ export async function submitReview(
   try {
     const { orgId, userId } = await requireOrgContext();
 
-    const purchase = await db.marketplacePurchase.findUnique({
-      where: {
-        orgId_templateId: { orgId, templateId },
-      },
-    });
-
-    if (!purchase) {
-      return {
-        success: false,
-        error: "You must install this template before reviewing it",
-      };
-    }
-
     if (rating < 1 || rating > 5) {
       return { success: false, error: "Rating must be between 1 and 5" };
     }
 
-    const marketplaceReview = await db.marketplaceReview.create({
-      data: {
-        templateId,
-        userId,
-        orgId,
-        rating,
-        review: review ?? null,
-      },
-    });
+    const marketplaceReview = await db.$transaction(async (tx) => {
+      const [template, purchase] = await Promise.all([
+        tx.marketplaceTemplate.findUnique({
+          where: { id: templateId },
+          select: { id: true, status: true, publisherOrgId: true },
+        }),
+        tx.marketplacePurchase.findUnique({
+          where: {
+            orgId_templateId: { orgId, templateId },
+          },
+        }),
+      ]);
 
-    const aggregate = await db.marketplaceReview.aggregate({
-      where: { templateId },
-      _avg: { rating: true },
-      _count: { rating: true },
-    });
+      if (!template) {
+        throw new Error("Template not found");
+      }
 
-    await db.marketplaceTemplate.update({
-      where: { id: templateId },
-      data: {
-        rating: aggregate._avg.rating ?? 0,
-        ratingCount: aggregate._count.rating,
-      },
+      if (template.status !== "PUBLISHED" && template.publisherOrgId !== orgId) {
+        throw new Error("Unpublished templates cannot be reviewed");
+      }
+
+      if (!purchase) {
+        throw new Error("You must install this template before reviewing it");
+      }
+
+      const createdReview = await tx.marketplaceReview.create({
+        data: {
+          templateId,
+          userId,
+          orgId,
+          rating,
+          review: review ?? null,
+        },
+      });
+
+      const aggregate = await tx.marketplaceReview.aggregate({
+        where: { templateId },
+        _avg: { rating: true },
+        _count: { rating: true },
+      });
+
+      await tx.marketplaceTemplate.update({
+        where: { id: templateId },
+        data: {
+          rating: aggregate._avg.rating ?? 0,
+          ratingCount: aggregate._count.rating,
+        },
+      });
+
+      return createdReview;
     });
 
     revalidatePath("/app/docs/templates/marketplace");

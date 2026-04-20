@@ -32,6 +32,7 @@ import {
   prepareDocumentExportDownload,
   startDocumentExportDownload,
 } from "@/lib/browser/document-export-handoff";
+import { normalizeMoney } from "@/lib/money";
 import { cn } from "@/lib/utils";
 import { CustomerPicker } from "./customer-picker";
 import { InvoiceSaveBar } from "./invoice-save-bar";
@@ -67,12 +68,29 @@ function InvoiceEditableCanvas({ document }: { document: InvoiceDocument }) {
 }
 
 
-function InvoiceLineItemsEditor() {
+function InvoiceLineItemsEditor({
+  inventoryItems = [],
+}: {
+  inventoryItems?: Array<{
+    id: string;
+    sku: string;
+    name: string;
+    totalAvailable: number;
+    trackInventory: boolean;
+  }>;
+}) {
   const { control, register, setFocus } = useFormContext<InvoiceFormValues>();
   const { fields, append, remove } = useFieldArray({ control, name: "lineItems" });
 
   const addRow = () => {
-    append({ description: "", quantity: "1", unitPrice: "", taxRate: "18", discountAmount: "0" });
+    append({
+      description: "",
+      inventoryItemId: "",
+      quantity: "1",
+      unitPrice: "",
+      taxRate: "18",
+      discountAmount: "0",
+    });
     setTimeout(() => {
       setFocus(`lineItems.${fields.length}.description`);
     }, 50);
@@ -84,6 +102,7 @@ function InvoiceLineItemsEditor() {
         <thead>
           <tr className="border-b border-[var(--border-soft)]">
             <th className="pb-2 text-left text-xs font-medium text-slate-500 pr-3 min-w-[200px]">Description</th>
+            <th className="pb-2 text-left text-xs font-medium text-slate-500 min-w-[180px] pr-2">Inventory</th>
             <th className="pb-2 text-right text-xs font-medium text-slate-500 w-16 pr-2">Qty</th>
             <th className="pb-2 text-right text-xs font-medium text-slate-500 w-24 pr-2">Rate</th>
             <th className="pb-2 text-right text-xs font-medium text-slate-500 w-16 pr-2">Tax%</th>
@@ -100,6 +119,21 @@ function InvoiceLineItemsEditor() {
                   placeholder="Description"
                   className="w-full rounded border border-transparent bg-transparent px-2 py-1 text-sm focus:border-[var(--accent)] focus:bg-white focus:outline-none"
                 />
+              </td>
+              <td className="py-1.5 pr-2">
+                <select
+                  {...register(`lineItems.${index}.inventoryItemId`)}
+                  className="w-full rounded border border-transparent bg-transparent px-2 py-1 text-sm focus:border-[var(--accent)] focus:bg-white focus:outline-none"
+                >
+                  <option value="">Not linked</option>
+                  {inventoryItems
+                    .filter((item) => item.trackInventory)
+                    .map((item) => (
+                      <option key={item.id} value={item.id}>
+                        {item.name} ({item.sku}) - {item.totalAvailable} available
+                      </option>
+                    ))}
+                </select>
               </td>
               <td className="py-1.5 pr-2">
                 <input
@@ -180,9 +214,16 @@ interface InvoicePanelProps {
     taxId: string | null;
     gstin: string | null;
   }>;
+  inventoryItems?: Array<{
+    id: string;
+    sku: string;
+    name: string;
+    totalAvailable: number;
+    trackInventory: boolean;
+  }>;
 }
 
-function InvoicePanel({ customers = [] }: InvoicePanelProps) {
+function InvoicePanel({ customers = [], inventoryItems = [] }: InvoicePanelProps) {
   const { control, getValues, setValue, trigger } = useFormContextSafe();
   const values = useWatch({ control }) as InvoiceFormValues;
   const [selectedTemplateId, setSelectedTemplateId] = useState<InvoiceFormValues["templateId"]>(() => getValues("templateId") ?? "professional");
@@ -558,7 +599,7 @@ function InvoicePanel({ customers = [] }: InvoicePanelProps) {
                 title="Line items and totals"
                 description="Each line supports quantity, discount, and tax without leaving the form."
               >
-                <InvoiceLineItemsEditor />
+                <InvoiceLineItemsEditor inventoryItems={inventoryItems} />
                 <div className="grid gap-4 sm:grid-cols-2">
                   <TextField<InvoiceFormValues>
                     name="extraCharges"
@@ -725,9 +766,21 @@ interface InvoiceWorkspaceProps {
     taxId: string | null;
     gstin: string | null;
   }>;
+  inventoryItems?: Array<{
+    id: string;
+    sku: string;
+    name: string;
+    totalAvailable: number;
+    trackInventory: boolean;
+  }>;
 }
 
-export function InvoiceWorkspace({ existingInvoice, initialTemplateId, customers = [] }: InvoiceWorkspaceProps) {
+export function InvoiceWorkspace({
+  existingInvoice,
+  initialTemplateId,
+  customers = [],
+  inventoryItems = [],
+}: InvoiceWorkspaceProps) {
   const baseValues = existingInvoice
     ? convertInvoiceToFormValues(existingInvoice)
     : invoiceDefaultValues;
@@ -755,10 +808,11 @@ export function InvoiceWorkspace({ existingInvoice, initialTemplateId, customers
       const values = methods.getValues();
       const lineItems = values.lineItems.map((item) => ({
         description: item.description,
+        inventoryItemId: item.inventoryItemId || undefined,
         quantity: parseFloat(item.quantity) || 1,
-        unitPrice: parseFloat(item.unitPrice) || 0,
+        unitPrice: normalizeMoney(item.unitPrice),
         taxRate: parseFloat(item.taxRate) || 0,
-        discount: parseFloat(item.discountAmount) || 0,
+        discount: normalizeMoney(item.discountAmount),
       }));
       const result = savedId
         ? await updateInvoice(savedId, {
@@ -823,7 +877,7 @@ export function InvoiceWorkspace({ existingInvoice, initialTemplateId, customers
 
   return (
     <FormProvider {...methods}>
-      <InvoicePanel customers={customers} />
+      <InvoicePanel customers={customers} inventoryItems={inventoryItems} />
       <InvoiceSaveBar
         onSaveDraft={() => void handleSaveDraft()}
         onIssue={() => void handleIssue()}
@@ -853,6 +907,7 @@ function convertInvoiceToFormValues(invoice: ExistingInvoice): InvoiceFormValues
     clientName: invoice.customer?.name || "",
     lineItems: invoice.lineItems.map((item) => ({
       description: item.description,
+      inventoryItemId: item.inventoryItemId || "",
       quantity: String(item.quantity),
       unitPrice: String(item.unitPrice),
       taxRate: String(item.taxRate),

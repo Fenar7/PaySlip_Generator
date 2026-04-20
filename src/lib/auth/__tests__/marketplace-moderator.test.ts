@@ -15,6 +15,9 @@ vi.mock("@/lib/db", () => ({
     member: {
       findFirst: vi.fn(),
     },
+    proxyGrant: {
+      findFirst: vi.fn(),
+    },
   },
 }));
 
@@ -34,6 +37,7 @@ describe("marketplace moderator auth", () => {
     delete process.env.MARKETPLACE_MODERATOR_USER_IDS;
     vi.mocked(db.ssoConfig.findUnique).mockResolvedValue(null as never);
     vi.mocked(db.userOrgPreference.findUnique).mockResolvedValue(null as never);
+    vi.mocked(db.proxyGrant.findFirst).mockResolvedValue(null as never);
   });
 
   it("checks moderator membership from the explicit allowlist", () => {

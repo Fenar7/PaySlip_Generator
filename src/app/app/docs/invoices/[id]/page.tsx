@@ -5,6 +5,7 @@ import { listCustomers } from "@/app/app/data/actions";
 import { InvoiceDetailClient } from "./invoice-detail-client";
 import { DocumentAttachments } from "@/components/docs/document-attachments";
 import { getDocAttachments } from "@/app/app/docs/attachment-actions";
+import { listInventoryItems } from "@/app/app/inventory/items/actions";
 
 export const metadata = {
   title: "Edit Invoice | Slipwise",
@@ -16,9 +17,10 @@ export default async function EditInvoicePage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const [invoice, customersResult, events, payments, attachments] = await Promise.all([
+  const [invoice, customersResult, inventoryResult, events, payments, attachments] = await Promise.all([
     getInvoice(id),
     listCustomers({ limit: 200 }).catch(() => ({ customers: [] })),
+    listInventoryItems({ pageSize: 100 }).catch(() => ({ success: false as const, error: "Inventory unavailable" })),
     getInvoiceTimeline(id),
     getInvoicePayments(id),
     getDocAttachments(id, "invoice"),
@@ -34,6 +36,7 @@ export default async function EditInvoicePage({
         <InvoiceBrandingWrapper
           existingInvoice={invoice}
           customers={customersResult.customers}
+          inventoryItems={inventoryResult.success ? inventoryResult.data.items : []}
         />
       </div>
       <aside className="w-full shrink-0 lg:w-80">

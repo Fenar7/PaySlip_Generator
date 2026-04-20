@@ -33,6 +33,7 @@ import {
 } from "@/features/docs/pdf-studio/utils/session-storage";
 import { OcrProgressPanel } from "@/features/docs/pdf-studio/components/ocr-progress-panel";
 import { cancelAllOcr } from "@/features/docs/pdf-studio/utils/ocr-processor";
+import { useActiveOrg } from "@/hooks/use-active-org";
 import { cn } from "@/lib/utils";
 import Link from "next/link";
 
@@ -212,6 +213,8 @@ function GenerationDialog({
 }
 
 export function PdfStudioWorkspace() {
+  const { activeOrg, isLoading: isOrgLoading } = useActiveOrg();
+  const orgScope = activeOrg?.id ?? "anonymous";
   const [images, setImages] = useState<ImageItem[]>([]);
   const [settings, setSettings] = useState<PageSettings>(PDF_STUDIO_DEFAULT_SETTINGS);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
@@ -481,8 +484,12 @@ export function PdfStudioWorkspace() {
   }, [images, settings]);
 
   useEffect(() => {
+    if (isOrgLoading) {
+      return;
+    }
+
     const timeout = window.setTimeout(() => {
-      const session = loadPdfStudioSession();
+      const session = loadPdfStudioSession(orgScope);
 
       if (session) {
         setImages(session.images);
@@ -509,7 +516,7 @@ export function PdfStudioWorkspace() {
     return () => {
       window.clearTimeout(timeout);
     };
-  }, []);
+  }, [orgScope, isOrgLoading]);
 
   useEffect(() => {
     if (!hasHydratedSession) {
@@ -517,14 +524,14 @@ export function PdfStudioWorkspace() {
     }
 
     const timeout = window.setTimeout(() => {
-      const didSave = savePdfStudioSession(images, settings);
+      const didSave = savePdfStudioSession(images, settings, orgScope);
       setSessionStatus(didSave ? "Session saved automatically." : "Could not save this session locally.");
     }, 600);
 
     return () => {
       window.clearTimeout(timeout);
     };
-  }, [hasHydratedSession, images, settings]);
+  }, [hasHydratedSession, images, settings, orgScope]);
 
   useEffect(() => {
     if (!hasHydratedSession) {
@@ -636,12 +643,12 @@ export function PdfStudioWorkspace() {
       setHistoryIndex(0);
       setSelectedIds([]);
       setSettings(PDF_STUDIO_DEFAULT_SETTINGS);
-      clearPdfStudioSession();
+      clearPdfStudioSession(orgScope);
       setSessionStatus("Session cleared. Ready for a new document.");
     }
     setActionState({ status: "idle" });
     setProgress(null);
-  }, [actionState.status]);
+  }, [actionState.status, orgScope]);
 
   const handleRetry = useCallback(() => {
     void handleGenerate();

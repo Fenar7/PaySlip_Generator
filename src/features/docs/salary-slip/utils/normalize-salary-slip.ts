@@ -4,6 +4,7 @@ import type {
   SalarySlipLineItem,
 } from "@/features/docs/salary-slip/types";
 import { amountToWords } from "@/features/docs/voucher/utils/amount-to-words";
+import { fromMinorUnits, normalizeMoney, sumMinorUnits } from "@/lib/money";
 
 function formatCurrency(value: number) {
   return new Intl.NumberFormat("en-IN", {
@@ -62,7 +63,7 @@ function normalizeLineItems(
 
   for (const row of rows) {
     const label = row.label.trim();
-    const amount = Number(row.amount || 0);
+    const amount = normalizeMoney(row.amount);
 
     if (!label && !row.amount && !options?.keepEmpty) {
       continue;
@@ -70,8 +71,8 @@ function normalizeLineItems(
 
     items.push({
       label: label || "Untitled",
-      amount: Number.isFinite(amount) ? amount : 0,
-      amountFormatted: formatCurrency(Number.isFinite(amount) ? amount : 0),
+      amount,
+      amountFormatted: formatCurrency(amount),
     });
   }
 
@@ -81,9 +82,9 @@ function normalizeLineItems(
 export function normalizeSalarySlip(values: SalarySlipFormValues): SalarySlipDocument {
   const earnings = normalizeLineItems(values.earnings);
   const deductions = normalizeLineItems(values.deductions);
-  const totalEarnings = earnings.reduce((sum, row) => sum + row.amount, 0);
-  const totalDeductions = deductions.reduce((sum, row) => sum + row.amount, 0);
-  const netSalary = totalEarnings - totalDeductions;
+  const totalEarnings = fromMinorUnits(sumMinorUnits(earnings.map((row) => row.amount)));
+  const totalDeductions = fromMinorUnits(sumMinorUnits(deductions.map((row) => row.amount)));
+  const netSalary = normalizeMoney(totalEarnings - totalDeductions);
   const visibility = values.visibility;
 
   return {

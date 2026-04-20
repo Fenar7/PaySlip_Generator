@@ -6,6 +6,7 @@ export type InvoiceExportFormat = "pdf" | "png";
 
 export type InvoiceLineItemFormValue = {
   description: string;
+  inventoryItemId?: string;
   quantity: string;
   unitPrice: string;
   taxRate: string;
