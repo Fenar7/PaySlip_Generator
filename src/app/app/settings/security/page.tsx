@@ -1,4 +1,5 @@
 "use client";
+import Image from "next/image";
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { createSupabaseBrowser, signOutSupabaseBrowser } from "@/lib/supabase/client";
@@ -194,7 +195,14 @@ export default function SecuritySettingsPage() {
                 Scan this QR code with your authenticator app, then enter the 6-digit code below.
               </p>
               {qrDataUrl && (
-                <img src={qrDataUrl} alt="TOTP QR code" className="rounded-lg border p-2" width={200} height={200} />
+                <Image
+                  src={qrDataUrl}
+                  alt="TOTP QR code"
+                  className="rounded-lg border p-2"
+                  width={200}
+                  height={200}
+                  unoptimized
+                />
               )}
               <form onSubmit={handleVerify2fa} className="flex gap-2">
                 <Input
@@ -274,4 +282,3 @@ export default function SecuritySettingsPage() {
     </div>
   );
 }
-

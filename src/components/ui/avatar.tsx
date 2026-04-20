@@ -33,7 +33,13 @@ export function Avatar({ name, imageUrl, size = "md", className }: AvatarProps) 
     >
       {imageUrl ? (
         // eslint-disable-next-line @next/next/no-img-element
-        <img src={imageUrl} alt={name ?? "User"} className="h-full w-full object-cover" />
+        <img
+          src={imageUrl}
+          alt={name ?? "User"}
+          className="h-full w-full object-cover"
+          loading="lazy"
+          decoding="async"
+        />
       ) : (
         <span>{name ? getInitials(name) : "?"}</span>
       )}

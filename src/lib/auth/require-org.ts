@@ -34,6 +34,7 @@ export type AuthRoutingContext =
       userId: string;
       hasOrg: true;
       orgId: string;
+      orgName: string;
       orgSlug: string;
       role: string;
       representedId: string | null;
@@ -70,46 +71,32 @@ export async function getAuthRoutingContext(): Promise<AuthRoutingContext> {
     return { isAuthenticated: false };
   }
 
-  const preference = await db.userOrgPreference.findUnique({
-    where: { userId: user.id },
-    select: { activeOrgId: true },
-  });
+  const [preference, members] = await Promise.all([
+    db.userOrgPreference.findUnique({
+      where: { userId: user.id },
+      select: { activeOrgId: true },
+    }),
+    db.member.findMany({
+      where: { userId: user.id },
+      select: {
+        organizationId: true,
+        role: true,
+        organization: {
+          select: {
+            name: true,
+            slug: true,
+          },
+        },
+      },
+      orderBy: { createdAt: "asc" },
+    }),
+  ]);
 
   const preferredMember = preference
-    ? await db.member.findUnique({
-        where: {
-          organizationId_userId: {
-            organizationId: preference.activeOrgId,
-            userId: user.id,
-          },
-        },
-        select: {
-          organizationId: true,
-          role: true,
-          organization: {
-            select: {
-              slug: true,
-            },
-          },
-        },
-      })
+    ? members.find((member) => member.organizationId === preference.activeOrgId) ?? null
     : null;
 
-  const member = preferredMember
-    ? preferredMember
-    : await db.member.findFirst({
-        where: { userId: user.id },
-        select: {
-          organizationId: true,
-          role: true,
-          organization: {
-            select: {
-              slug: true,
-            },
-          },
-        },
-        orderBy: { createdAt: "asc" },
-      });
+  const member = preferredMember ?? members[0];
 
   if (!member) {
     return {
@@ -160,6 +147,7 @@ export async function getAuthRoutingContext(): Promise<AuthRoutingContext> {
     userId: user.id,
     hasOrg: true,
     orgId: member.organizationId,
+    orgName: member.organization.name,
     orgSlug: member.organization.slug,
     role: member.role,
     representedId: activeProxyGrant?.representedId ?? null,

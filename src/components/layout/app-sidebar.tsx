@@ -3,10 +3,11 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
-import { suiteNavItems } from "./suite-nav-items";
+import { getNavigationContext } from "./navigation-context";
 
 export function AppSidebar() {
   const pathname = usePathname();
+  const { switcherItems } = getNavigationContext(pathname);
 
   return (
     <aside className="flex h-full w-[var(--sidebar-width,240px)] flex-col border-r border-[var(--border-soft)] bg-[#1a1a1a]">
@@ -23,9 +24,8 @@ export function AppSidebar() {
       {/* Navigation */}
       <nav className="flex-1 overflow-y-auto px-3 py-4">
         <ul className="space-y-0.5">
-          {suiteNavItems.map((item) => {
-            const isActive =
-              pathname === item.href || pathname.startsWith(`/app/${item.suite}`);
+          {switcherItems.map((item) => {
+            const isActive = item.isActive;
             const isDisabled = item.badge === "Soon";
 
             return (
@@ -57,10 +57,10 @@ export function AppSidebar() {
                         {item.children.map((child) => (
                           <li key={child.href}>
                             <Link
-                              href={child.href}
-                              className={cn(
+                             href={child.href}
+                             className={cn(
                                 "flex items-center rounded-lg px-3 py-2 text-xs transition-colors",
-                                pathname === child.href
+                                pathname === child.href || pathname.startsWith(`${child.href}/`)
                                   ? "text-white font-medium"
                                   : "text-white/50 hover:text-white/80"
                               )}

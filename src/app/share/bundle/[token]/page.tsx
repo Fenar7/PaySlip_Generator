@@ -118,7 +118,15 @@ export default async function BundlePage({
           <div className="flex items-center gap-3">
             {logoUrl ? (
               // eslint-disable-next-line @next/next/no-img-element
-              <img src={logoUrl} alt={bundle.organization.name} className="h-7 w-auto object-contain" />
+              <img
+                src={logoUrl}
+                alt={bundle.organization.name}
+                className="h-7 w-auto object-contain"
+                width={120}
+                height={28}
+                loading="eager"
+                decoding="async"
+              />
             ) : (
               <span className="text-base font-bold text-gray-900">{bundle.organization.name}</span>
             )}
