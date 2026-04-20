@@ -76,7 +76,7 @@ export async function sendFlashReportNowAction(
   period: "MTD" | "QTD" | "YTD" = "MTD"
 ): Promise<ActionResult<{ delivered: boolean }>> {
   try {
-    const { orgId, userId } = await requireOrgContext();
+    const { orgId, userId } = await requireRole("admin");
     await requireFeature(orgId, "executiveHub");
     await requireFeature(orgId, "flashReports");
 

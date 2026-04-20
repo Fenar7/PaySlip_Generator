@@ -7,6 +7,7 @@
 
 import { db } from "@/lib/db";
 import { getOrgPlan } from "@/lib/plans/enforcement";
+import { getOrComputeSnapshot } from "@/lib/usage-metering";
 import type { OverageCalculation } from "./types";
 import { OVERAGE_BILLING_UNIT_SIZES, OVERAGE_RATES_PAISE } from "./types";
 
@@ -19,6 +20,11 @@ const RESOURCE_LIMIT_MAP: Record<string, string> = {
   pixel_jobs: "pixelJobsSaved",
   storage_gb: "storageBytes",
   email_sends: "emailSendsPerMonth",
+};
+
+const SNAPSHOT_USAGE_FIELDS: Partial<Record<string, string>> = {
+  pixel_jobs: "pixelJobsSaved",
+  storage_gb: "storageBytes",
 };
 
 /**
@@ -37,6 +43,10 @@ export function getCurrentPeriod(): { periodMonth: string; periodStart: Date; pe
  * Increments the count atomically via upsert.
  */
 export async function recordUsage(orgId: string, resource: string, units: number = 1): Promise<void> {
+  if (resource in SNAPSHOT_USAGE_FIELDS) {
+    return;
+  }
+
   const { periodMonth } = getCurrentPeriod();
 
   await db.usageRecord.upsert({
@@ -52,15 +62,25 @@ export async function recordUsage(orgId: string, resource: string, units: number
 export async function getCurrentUsage(orgId: string): Promise<Record<string, number>> {
   const { periodMonth } = getCurrentPeriod();
 
-  const records = await db.usageRecord.findMany({
-    where: { orgId, periodMonth },
-    select: { resource: true, count: true },
-  });
+  const [records, snapshot] = await Promise.all([
+    db.usageRecord.findMany({
+      where: { orgId, periodMonth },
+      select: { resource: true, count: true },
+    }),
+    getOrComputeSnapshot(orgId),
+  ]);
 
   const usage: Record<string, number> = {};
   for (const r of records) {
     usage[r.resource] = r.count;
   }
+
+  for (const [resource, field] of Object.entries(SNAPSHOT_USAGE_FIELDS)) {
+    if (field) {
+      usage[resource] = Number(snapshot[field] ?? 0);
+    }
+  }
+
   return usage;
 }
 
@@ -71,7 +91,6 @@ export async function checkResourceLimit(
   orgId: string,
   resource: string,
 ): Promise<{ allowed: boolean; current: number; limit: number; usagePercent: number }> {
-  const { periodMonth } = getCurrentPeriod();
   const { planId, limits } = await getOrgPlan(orgId);
 
   const limitField = RESOURCE_LIMIT_MAP[resource];
@@ -84,12 +103,8 @@ export async function checkResourceLimit(
     return { allowed: true, current: 0, limit: -1, usagePercent: 0 };
   }
 
-  const record = await db.usageRecord.findUnique({
-    where: { orgId_resource_periodMonth: { orgId, resource, periodMonth } },
-    select: { count: true },
-  });
-
-  const current = record?.count ?? 0;
+  const usage = await getCurrentUsage(orgId);
+  const current = usage[resource] ?? 0;
   const usagePercent = limit > 0 ? Math.round((current / limit) * 100) : 0;
 
   // Free tier: hard block at 100%
