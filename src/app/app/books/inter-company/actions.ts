@@ -192,24 +192,43 @@ export async function postInterCompanyTransfer(
         id: true,
         status: true,
         entityGroupId: true,
-        sourceOrgId: true,
-        destinationOrgId: true,
-        amount: true,
-        currency: true,
-        description: true,
-        transferDate: true,
-        referenceNumber: true,
-        entityGroup: { select: { adminOrgId: true } },
-      },
-    });
+      sourceOrgId: true,
+      destinationOrgId: true,
+      amount: true,
+      currency: true,
+      description: true,
+      transferDate: true,
+      referenceNumber: true,
+      sourceJournalEntryId: true,
+      destinationJournalEntryId: true,
+      postedAt: true,
+      entityGroup: { select: { adminOrgId: true } },
+    },
+  });
 
-    if (!transfer) return { success: false, error: "Transfer not found" };
-    if (transfer.entityGroup.adminOrgId !== orgId) {
-      return { success: false, error: "Only the group admin may post transfers" };
+  if (!transfer) return { success: false, error: "Transfer not found" };
+  if (transfer.entityGroup.adminOrgId !== orgId) {
+    return { success: false, error: "Only the group admin may post transfers" };
+  }
+  if (transfer.status === "POSTED") {
+    if (transfer.sourceJournalEntryId && transfer.destinationJournalEntryId) {
+      return { success: true, data: null };
     }
-    if (transfer.status !== "APPROVED") {
-      return { success: false, error: `Cannot post a transfer in status: ${transfer.status}` };
-    }
+
+    return {
+      success: false,
+      error: "Transfer is marked as posted but journal links are missing. Repair the transfer before retrying.",
+    };
+  }
+  if (transfer.sourceJournalEntryId || transfer.destinationJournalEntryId || transfer.postedAt) {
+    return {
+      success: false,
+      error: "Transfer already has posting metadata. Resolve the inconsistent state before retrying.",
+    };
+  }
+  if (transfer.status !== "APPROVED") {
+    return { success: false, error: `Cannot post a transfer in status: ${transfer.status}` };
+  }
 
     const amount = Number(transfer.amount);
     const memo = transfer.referenceNumber
