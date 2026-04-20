@@ -19,6 +19,15 @@ export default async function BillingPage() {
 
   const sub = await db.subscription.findUnique({
     where: { orgId: activeOrg.id },
+    select: {
+      planId: true,
+      status: true,
+      trialEndsAt: true,
+      currentPeriodEnd: true,
+      pauseReason: true,
+      pausedUntil: true,
+      razorpayCustomerId: true,
+    },
   });
 
   const planId = (sub?.planId ?? "free") as PlanId;

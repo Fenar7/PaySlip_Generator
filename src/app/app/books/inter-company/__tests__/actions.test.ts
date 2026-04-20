@@ -48,6 +48,9 @@ describe("postInterCompanyTransfer", () => {
       orgId: "org-admin",
       userId: "user-1",
       role: "admin",
+      representedId: null,
+      proxyGrantId: null,
+      proxyScope: [],
     });
   });
 
