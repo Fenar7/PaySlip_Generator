@@ -27,18 +27,72 @@ type StepCondition = {
   value: unknown;
 };
 
-const MAX_WORKFLOW_DEPTH = 5;
-/** Guard against event storms: skip if a run for the same workflow+entity is in-flight within this window */
-const IDEMPOTENCY_WINDOW_MS = 5 * 60 * 1000;
+type StepExecutionContext = {
+  runId: string;
+  workflowId: string;
+  workflowName: string;
+  workflowCreatedBy: string;
+  stepSequence: number;
+  nextStepSequence: number;
+};
 
-/**
- * Fire all ACTIVE workflow definitions that match the trigger type for the org.
- */
+type StepExecutionResult = {
+  output?: Record<string, unknown>;
+  pauseRun?: boolean;
+};
+
+type WorkflowWithSteps = Awaited<
+  ReturnType<typeof db.workflowDefinition.findMany>
+>[number] & {
+  steps: Awaited<ReturnType<typeof db.workflowStep.findMany>>;
+};
+
+const MAX_WORKFLOW_DEPTH = 5;
+const IDEMPOTENCY_WINDOW_MS = 5 * 60 * 1000;
+const UUID_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+function sanitizeActorId(actorId?: string): string | null {
+  return actorId && UUID_PATTERN.test(actorId) ? actorId : null;
+}
+
+async function recordWorkflowFailure(
+  workflow: WorkflowWithSteps,
+  runId: string,
+  orgId: string,
+  failureReason?: string,
+) {
+  await Promise.all([
+    createNotification({
+      orgId,
+      userId: workflow.createdBy,
+      type: "workflow_run_failed",
+      title: `Automation "${workflow.name}" failed`,
+      body: `Run ${runId.slice(-8)} failed: ${failureReason ?? "unknown error"}`,
+      link: `/app/flow/workflows/${workflow.id}/runs`,
+      sourceModule: "flow",
+      sourceRef: runId,
+    }),
+    logAudit({
+      orgId,
+      actorId: workflow.createdBy,
+      action: "workflow_run_failed",
+      entityType: "WorkflowRun",
+      entityId: runId,
+      metadata: {
+        workflowId: workflow.id,
+        workflowName: workflow.name,
+        failureReason,
+      },
+    }),
+  ]);
+}
+
 export async function fireWorkflowTrigger(event: WorkflowTriggerEvent) {
   const currentDepth = event.depth ?? 0;
   if (currentDepth >= MAX_WORKFLOW_DEPTH) {
     console.warn(
-      `[WorkflowEngine] Max depth reached (${currentDepth}) for org ${event.orgId}. Potential cycle detected for ${event.triggerType}.`
+      `[WorkflowEngine] Max depth reached (${currentDepth}) for org ${event.orgId}. Potential cycle detected for ${event.triggerType}.`,
     );
     return;
   }
@@ -58,20 +112,21 @@ export async function fireWorkflowTrigger(event: WorkflowTriggerEvent) {
   });
 
   for (const workflow of matchingWorkflows) {
-    // Idempotency guard: skip if a run for the same workflow+entity is already in-flight
     if (event.sourceEntityId) {
       const windowStart = new Date(Date.now() - IDEMPOTENCY_WINDOW_MS);
       const recentRun = await db.workflowRun.findFirst({
         where: {
           workflowId: workflow.id,
+          orgId: event.orgId,
           sourceEntityId: event.sourceEntityId,
           startedAt: { gte: windowStart },
           status: { in: ["PENDING", "RUNNING"] },
         },
       });
+
       if (recentRun) {
         console.info(
-          `[WorkflowEngine] Idempotency skip workflow=${workflow.id} entity=${event.sourceEntityId}`
+          `[WorkflowEngine] Idempotency skip workflow=${workflow.id} entity=${event.sourceEntityId}`,
         );
         continue;
       }
@@ -81,15 +136,9 @@ export async function fireWorkflowTrigger(event: WorkflowTriggerEvent) {
   }
 }
 
-type WorkflowWithSteps = Awaited<
-  ReturnType<typeof db.workflowDefinition.findMany>
->[number] & {
-  steps: Awaited<ReturnType<typeof db.workflowStep.findMany>>;
-};
-
 async function executeWorkflow(
   workflow: WorkflowWithSteps,
-  event: WorkflowTriggerEvent
+  event: WorkflowTriggerEvent,
 ) {
   const run = await db.workflowRun.create({
     data: {
@@ -99,30 +148,87 @@ async function executeWorkflow(
       sourceModule: event.sourceModule,
       sourceEntityType: event.sourceEntityType,
       sourceEntityId: event.sourceEntityId,
-      actorId: event.actorId,
+      actorId: sanitizeActorId(event.actorId),
       status: "RUNNING",
     },
   });
 
-  let runStatus: "SUCCEEDED" | "FAILED" = "SUCCEEDED";
-  let failureReason: string | undefined;
+  return continueWorkflowRun({
+    runId: run.id,
+    workflow,
+    event,
+    startSequence: 1,
+  });
+}
 
-  for (const step of workflow.steps) {
-    // Evaluate optional condition before executing the step
+export async function resumeWorkflowRun(input: {
+  workflowRunId: string;
+  orgId: string;
+  event: WorkflowTriggerEvent;
+  startSequence: number;
+}) {
+  const run = await db.workflowRun.findFirst({
+    where: { id: input.workflowRunId, orgId: input.orgId },
+    select: { id: true, workflowId: true, status: true },
+  });
+
+  if (!run || ["CANCELLED", "FAILED", "SUCCEEDED"].includes(run.status)) {
+    return { runId: input.workflowRunId, status: "CANCELLED" as const };
+  }
+
+  const workflow = await db.workflowDefinition.findFirst({
+    where: { id: run.workflowId, orgId: input.orgId },
+    include: { steps: { orderBy: { sequence: "asc" } } },
+  });
+
+  if (!workflow) {
+    throw new Error(`Workflow ${run.workflowId} not found for run ${input.workflowRunId}`);
+  }
+
+  await db.workflowRun.update({
+    where: { id: run.id },
+    data: { status: "RUNNING", completedAt: null, failureReason: null },
+  });
+
+  return continueWorkflowRun({
+    runId: run.id,
+    workflow,
+    event: input.event,
+    startSequence: input.startSequence,
+  });
+}
+
+async function continueWorkflowRun(input: {
+  runId: string;
+  workflow: WorkflowWithSteps;
+  event: WorkflowTriggerEvent;
+  startSequence: number;
+}) {
+  let runStatus: "SUCCEEDED" | "FAILED" | "PENDING" = "SUCCEEDED";
+  let failureReason: string | undefined;
+  const remainingSteps = input.workflow.steps.filter(
+    (step) => step.sequence >= input.startSequence,
+  );
+
+  for (const step of remainingSteps) {
     if (step.conditionJson) {
       const meetsCondition = evaluateCondition(
         step.conditionJson as StepCondition,
-        event.payload
+        input.event.payload,
       );
+
       if (!meetsCondition) {
         await db.workflowStepRun.create({
           data: {
-            workflowRunId: run.id,
+            workflowRunId: input.runId,
             workflowStepId: step.id,
             status: "CANCELLED",
             startedAt: new Date(),
             completedAt: new Date(),
-            outputPayload: { skipped: true, reason: "condition_not_met" } as Prisma.InputJsonValue,
+            outputPayload: {
+              skipped: true,
+              reason: "condition_not_met",
+            } as Prisma.InputJsonValue,
           },
         });
         continue;
@@ -131,7 +237,7 @@ async function executeWorkflow(
 
     const stepRun = await db.workflowStepRun.create({
       data: {
-        workflowRunId: run.id,
+        workflowRunId: input.runId,
         workflowStepId: step.id,
         status: "RUNNING",
         startedAt: new Date(),
@@ -142,7 +248,15 @@ async function executeWorkflow(
       const output = await executeStep(
         step.actionType as SupportedAction,
         step.config as Record<string, unknown>,
-        event
+        input.event,
+        {
+          runId: input.runId,
+          workflowId: input.workflow.id,
+          workflowName: input.workflow.name,
+          workflowCreatedBy: input.workflow.createdBy,
+          stepSequence: step.sequence,
+          nextStepSequence: step.sequence + 1,
+        },
       );
 
       await db.workflowStepRun.update({
@@ -150,119 +264,126 @@ async function executeWorkflow(
         data: {
           status: "SUCCEEDED",
           completedAt: new Date(),
-          outputPayload: (output ?? {}) as Prisma.InputJsonValue,
+          outputPayload: (output.output ?? {}) as Prisma.InputJsonValue,
         },
       });
+
+      if (output.pauseRun) {
+        runStatus = "PENDING";
+        break;
+      }
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : "Unknown error";
+      const message = err instanceof Error ? err.message : "Unknown error";
       await db.workflowStepRun.update({
         where: { id: stepRun.id },
-        data: { status: "FAILED", completedAt: new Date(), failureReason: msg },
+        data: {
+          status: "FAILED",
+          completedAt: new Date(),
+          failureReason: message,
+        },
       });
       runStatus = "FAILED";
-      failureReason = msg;
-      break; // halt on first step failure
+      failureReason = message;
+      break;
     }
   }
 
   await db.workflowRun.update({
-    where: { id: run.id },
-    data: { status: runStatus, completedAt: new Date(), failureReason },
+    where: { id: input.runId },
+    data: {
+      status: runStatus,
+      completedAt: runStatus === "PENDING" ? null : new Date(),
+      failureReason,
+    },
   });
 
   if (runStatus === "FAILED") {
-    await Promise.all([
-      createNotification({
-        orgId: event.orgId,
-        userId: workflow.createdBy,
-        type: "workflow_run_failed",
-        title: `Automation "${workflow.name}" failed`,
-        body: `Run ${run.id.slice(-8)} failed: ${failureReason ?? "unknown error"}`,
-        link: `/app/flow/workflows/${workflow.id}/runs`,
-      }),
-      db.auditLog.create({
-        data: {
-          orgId: event.orgId,
-          actorId: workflow.createdBy,
-          action: "workflow_run_failed",
-          entityType: "WorkflowRun",
-          entityId: run.id,
-          metadata: { workflowId: workflow.id, workflowName: workflow.name, failureReason },
-        },
-      }),
-    ]);
+    await recordWorkflowFailure(
+      input.workflow,
+      input.runId,
+      input.event.orgId,
+      failureReason,
+    );
   }
 
-  return { runId: run.id, status: runStatus };
+  return { runId: input.runId, status: runStatus };
 }
 
-/**
- * Evaluate a simple field-level condition against the trigger event payload.
- */
 export function evaluateCondition(
   condition: StepCondition,
-  context: Record<string, unknown>
+  context: Record<string, unknown>,
 ): boolean {
   const actual = context[condition.field];
   const expected = condition.value;
+
   switch (condition.operator) {
-    case "==":  return actual == expected;
-    case "!=":  return actual != expected;
-    case ">":   return (actual as number) > (expected as number);
-    case "<":   return (actual as number) < (expected as number);
-    case ">=":  return (actual as number) >= (expected as number);
-    case "<=":  return (actual as number) <= (expected as number);
-    default:    return true;
+    case "==":
+      return actual == expected;
+    case "!=":
+      return actual != expected;
+    case ">":
+      return (actual as number) > (expected as number);
+    case "<":
+      return (actual as number) < (expected as number);
+    case ">=":
+      return (actual as number) >= (expected as number);
+    case "<=":
+      return (actual as number) <= (expected as number);
+    default:
+      return true;
   }
 }
 
-/** Interpolate {{variable}} placeholders in a template string using the event payload. */
 function interpolate(template: string, payload: Record<string, unknown>): string {
   return template.replace(/\{\{(\w+)\}\}/g, (_, key: string) => {
-    const val = payload[key];
-    return val !== undefined && val !== null ? String(val) : `{{${key}}}`;
+    const value = payload[key];
+    return value !== undefined && value !== null ? String(value) : `{{${key}}}`;
   });
 }
 
 function interpolateObject(
   obj: Record<string, unknown>,
-  payload: Record<string, unknown>
+  payload: Record<string, unknown>,
 ): Record<string, unknown> {
   const result: Record<string, unknown> = {};
-  for (const [k, v] of Object.entries(obj)) {
-    result[k] = typeof v === "string" ? interpolate(v, payload) : v;
+
+  for (const [key, value] of Object.entries(obj)) {
+    result[key] = typeof value === "string" ? interpolate(value, payload) : value;
   }
+
   return result;
 }
 
 async function executeStep(
   actionType: SupportedAction,
   config: Record<string, unknown>,
-  event: WorkflowTriggerEvent
-): Promise<Record<string, unknown> | undefined> {
+  event: WorkflowTriggerEvent,
+  context: StepExecutionContext,
+): Promise<StepExecutionResult> {
   const orgId = event.orgId;
 
   switch (actionType) {
-    // ── Email ─────────────────────────────────────────────────────────────
     case "send_email": {
       const to = (config.to as string) ?? (event.payload.customerEmail as string);
-      if (!to) throw new Error("send_email: no recipient address");
+      if (!to) {
+        throw new Error("send_email: no recipient address");
+      }
+
       const subject = interpolate(
         (config.subject as string) ?? "Notification from Slipwise",
-        event.payload
+        event.payload,
       );
       const body = interpolate(
         (config.body as string) ?? "<p>You have a new notification.</p>",
-        event.payload
+        event.payload,
       );
       await sendEmail({ to, subject, html: body });
-      return { to, subject };
+      return { output: { to, subject } };
     }
 
-    // ── In-app notifications ───────────────────────────────────────────────
     case "send_notification":
     case "create_notification": {
-      const userId = (config.userId as string) ?? event.actorId;
+      const userId = sanitizeActorId((config.userId as string) ?? event.actorId);
       if (userId) {
         await createNotification({
           orgId,
@@ -271,12 +392,14 @@ async function executeStep(
           title: interpolate((config.title as string) ?? "Workflow Update", event.payload),
           body: interpolate(
             (config.body as string) ?? "A workflow step has been executed.",
-            event.payload
+            event.payload,
           ),
           link: config.link as string | undefined,
+          sourceModule: "flow",
+          sourceRef: context.runId,
         });
       }
-      return { userId };
+      return { output: { userId } };
     }
 
     case "notify_org_admins": {
@@ -286,19 +409,21 @@ async function executeStep(
         title: interpolate((config.title as string) ?? "Workflow Admin Alert", event.payload),
         body: interpolate(
           (config.body as string) ?? "An automated workflow requires attention.",
-          event.payload
+          event.payload,
         ),
         link: config.link as string | undefined,
       });
-      return {};
+      return { output: {} };
     }
 
-    // ── Ticket operations ──────────────────────────────────────────────────
     case "create_ticket": {
       const invoiceId =
         (config.invoiceId as string) ??
         (event.sourceEntityType === "Invoice" ? event.sourceEntityId : undefined);
-      if (!invoiceId) throw new Error("create_ticket: invoiceId required");
+      if (!invoiceId) {
+        throw new Error("create_ticket: invoiceId required");
+      }
+
       const ticket = await db.invoiceTicket.create({
         data: {
           invoiceId,
@@ -308,97 +433,120 @@ async function executeStep(
           category: (config.category as never) ?? "OTHER",
           description: interpolate(
             (config.description as string) ?? "Automated ticket created by workflow.",
-            event.payload
+            event.payload,
           ),
           status: "OPEN",
-          assigneeId: (config.assigneeId as string) ?? null,
+          assigneeId: sanitizeActorId(config.assigneeId as string | undefined),
         },
       });
-      return { ticketId: ticket.id };
+      return { output: { ticketId: ticket.id } };
     }
 
     case "assign_ticket": {
+      const assigneeId = sanitizeActorId(config.assigneeId as string | undefined);
       if (event.sourceEntityType === "InvoiceTicket" && event.sourceEntityId) {
         await db.invoiceTicket.update({
           where: { id: event.sourceEntityId },
-          data: { assigneeId: config.assigneeId as string | undefined },
+          data: { assigneeId },
         });
       }
-      return {};
+      return { output: { assigneeId } };
     }
 
-    // ── Document mutations ─────────────────────────────────────────────────
     case "update_invoice_status": {
       const invoiceId =
         (config.invoiceId as string) ??
         (event.sourceEntityType === "Invoice" ? event.sourceEntityId : undefined);
-      if (!invoiceId) throw new Error("update_invoice_status: invoiceId required");
-      const VALID_STATUSES = ["DRAFT", "ISSUED", "PAID", "VOID", "OVERDUE"];
+      if (!invoiceId) {
+        throw new Error("update_invoice_status: invoiceId required");
+      }
+
+      const validStatuses = ["DRAFT", "ISSUED", "PAID", "VOID", "OVERDUE"];
       const newStatus = config.status as string;
-      if (!VALID_STATUSES.includes(newStatus)) {
+      if (!validStatuses.includes(newStatus)) {
         throw new Error(`update_invoice_status: invalid status "${newStatus}"`);
       }
-      const inv = await db.invoice.findFirst({ where: { id: invoiceId, organizationId: orgId }, select: { id: true } });
-      if (!inv) throw new Error("update_invoice_status: invoice not found or unauthorized");
+
+      const invoice = await db.invoice.findFirst({
+        where: { id: invoiceId, organizationId: orgId },
+        select: { id: true },
+      });
+      if (!invoice) {
+        throw new Error("update_invoice_status: invoice not found or unauthorized");
+      }
+
       await db.invoice.update({
         where: { id: invoiceId },
         data: { status: newStatus as never },
       });
-      return { invoiceId, newStatus };
+      return { output: { invoiceId, newStatus } };
     }
 
-    // ── Approvals ──────────────────────────────────────────────────────────
     case "create_approval_request": {
+      const fallbackRequestedById = sanitizeActorId(event.actorId) ?? context.workflowCreatedBy;
       await createApprovalRequest({
         docType: (config.docType as string) ?? event.sourceEntityType ?? "unknown",
         docId: (config.docId as string) ?? event.sourceEntityId ?? "unknown",
         orgId,
-        requestedById: "system",
+        requestedById: fallbackRequestedById,
+        fallbackRequestedById: context.workflowCreatedBy,
         requestedByName: "SW Flow Automation",
         docNumber: (config.docNumber as string) ?? "Automated Request",
+        amount:
+          typeof config.amount === "number"
+            ? config.amount
+            : typeof event.payload.amount === "number"
+              ? (event.payload.amount as number)
+              : typeof event.payload.totalAmount === "number"
+                ? (event.payload.totalAmount as number)
+                : undefined,
       });
-      return {};
+      return { output: {} };
     }
 
-    // ── Audit log ──────────────────────────────────────────────────────────
     case "add_audit_log": {
-      if (event.actorId) {
-        await logAudit({
-          orgId,
-          actorId: event.actorId,
-          action: interpolate((config.action as string) ?? "workflow_action", event.payload),
-          entityType: (config.entityType as string) ?? event.sourceEntityType ?? "Workflow",
-          entityId: (config.entityId as string) ?? event.sourceEntityId,
-          metadata: {
-            triggeredBy: "workflow",
-            triggerType: event.triggerType,
-            payload: event.payload,
-          },
-        });
-      }
-      return {};
+      const actorId = sanitizeActorId(event.actorId) ?? context.workflowCreatedBy;
+      await logAudit({
+        orgId,
+        actorId,
+        action: interpolate((config.action as string) ?? "workflow_action", event.payload),
+        entityType: (config.entityType as string) ?? event.sourceEntityType ?? "Workflow",
+        entityId: (config.entityId as string) ?? event.sourceEntityId,
+        metadata: {
+          triggeredBy: "workflow",
+          triggerType: event.triggerType,
+          payload: event.payload,
+        },
+      });
+      return { output: {} };
     }
 
-    // ── Delay / scheduling ─────────────────────────────────────────────────
     case "wait": {
-      const delayHours = (config.delayHours as number) ?? 1;
+      const delayHours = Number(config.delayHours ?? 1);
       const scheduledAt = new Date(Date.now() + delayHours * 3_600_000);
       await db.scheduledAction.create({
         data: {
           orgId,
-          actionType: (config.nextActionType as string) ?? "send_notification",
+          actionType: "resume_workflow_run",
           sourceModule: event.sourceModule,
           sourceEntityType: event.sourceEntityType,
           sourceEntityId: event.sourceEntityId,
-          payload: config as Prisma.InputJsonValue,
+          workflowRunId: context.runId,
+          payload: {
+            event,
+            startSequence: context.nextStepSequence,
+          } as Prisma.InputJsonValue,
           scheduledAt,
         },
       });
-      return { scheduledAt: scheduledAt.toISOString() };
+      return {
+        output: { scheduledAt: scheduledAt.toISOString() },
+        pauseRun: true,
+      };
     }
 
     case "schedule_reminder": {
-      const delayMinutes = (config.delayMinutes as number) ?? 60;
+      const delayMinutes = Number(config.delayMinutes ?? 60);
       const scheduledAt = new Date(Date.now() + delayMinutes * 60_000);
       await db.scheduledAction.create({
         data: {
@@ -411,36 +559,41 @@ async function executeStep(
           scheduledAt,
         },
       });
-      return { scheduledAt: scheduledAt.toISOString() };
+      return { output: { scheduledAt: scheduledAt.toISOString() } };
     }
 
-    // ── Outbound webhook ───────────────────────────────────────────────────
     case "webhook_call": {
       const url = config.url as string;
-      if (!url) throw new Error("webhook_call: url is required");
+      if (!url) {
+        throw new Error("webhook_call: url is required");
+      }
+
       const method = ((config.method as string) ?? "POST").toUpperCase();
       const body = JSON.stringify(
         config.bodyTemplate
           ? interpolateObject(config.bodyTemplate as Record<string, unknown>, event.payload)
-          : { event: event.triggerType, payload: event.payload }
+          : { event: event.triggerType, payload: event.payload },
       );
+
       const headers: Record<string, string> = {
         "Content-Type": "application/json",
         ...(config.headers as Record<string, string> | undefined),
       };
+
       const response = await fetch(url, {
         method,
         headers,
         body: ["GET", "HEAD"].includes(method) ? undefined : body,
         signal: AbortSignal.timeout(10_000),
       });
+
       if (!response.ok) {
         throw new Error(`webhook_call: HTTP ${response.status} from ${url}`);
       }
-      return { url, statusCode: response.status };
+
+      return { output: { url, statusCode: response.status } };
     }
 
-    // ── Internal housekeeping ──────────────────────────────────────────────
     case "enqueue_scheduled_action": {
       await db.scheduledAction.create({
         data: {
@@ -453,13 +606,13 @@ async function executeStep(
           scheduledAt: new Date(),
         },
       });
-      return {};
+      return { output: {} };
     }
 
     case "escalate_to_role":
     case "create_follow_up":
       console.info(`[WorkflowEngine] ${actionType} staged → org=${orgId}`, config);
-      return {};
+      return { output: {} };
 
     default:
       throw new Error(`Unsupported action type: ${actionType}`);

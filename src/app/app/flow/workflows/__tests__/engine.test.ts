@@ -82,10 +82,11 @@ vi.mock("@/lib/db", async (importOriginal) => {
         create: vi.fn(),
         update: vi.fn(),
       },
+      scheduledAction: {
+        create: vi.fn(),
+      },
       invoiceTicket: { update: vi.fn() },
       invoice: { update: vi.fn() },
-      notification: { create: vi.fn() },
-      auditLog: { create: vi.fn() },
     },
   };
 });
@@ -99,6 +100,10 @@ vi.mock("@/lib/notifications", () => ({
   notifyOrgAdmins: vi.fn(),
 }));
 
+vi.mock("@/lib/audit", () => ({
+  logAudit: vi.fn(),
+}));
+
 vi.mock("@/lib/flow/approvals", () => ({
   createApprovalRequest: vi.fn(),
 }));
@@ -110,8 +115,7 @@ const dbMock = db as {
   workflowDefinition: { findMany: Mock };
   workflowRun: { create: Mock; update: Mock; findFirst: Mock };
   workflowStepRun: { create: Mock; update: Mock };
-  notification: { create: Mock };
-  auditLog: { create: Mock };
+  scheduledAction: { create: Mock };
 };
 
 const baseEvent = {
@@ -139,8 +143,7 @@ beforeEach(() => {
   dbMock.workflowRun.update.mockResolvedValue({});
   dbMock.workflowStepRun.create.mockResolvedValue({ id: "sr-1" });
   dbMock.workflowStepRun.update.mockResolvedValue({});
-  dbMock.notification.create.mockResolvedValue({});
-  dbMock.auditLog.create.mockResolvedValue({});
+  dbMock.scheduledAction.create.mockResolvedValue({ id: "sa-1" });
 });
 
 describe("fireWorkflowTrigger — unknown trigger", () => {
@@ -225,6 +228,49 @@ describe("fireWorkflowTrigger — step with condition skipped", () => {
       expect.objectContaining({
         data: expect.objectContaining({ status: "CANCELLED" }),
       })
+    );
+  });
+});
+
+describe("fireWorkflowTrigger — wait steps", () => {
+  it("sanitizes invalid actor IDs and pauses the run for resumption", async () => {
+    const workflowWithWait = {
+      ...activeWorkflow,
+      steps: [
+        {
+          id: "step-wait",
+          sequence: 1,
+          actionType: "wait",
+          config: { delayHours: 2 },
+          conditionJson: null,
+          label: "Pause before next step",
+        },
+      ],
+    };
+
+    dbMock.workflowDefinition.findMany.mockResolvedValue([workflowWithWait]);
+    dbMock.workflowRun.findFirst.mockResolvedValue(null);
+
+    await fireWorkflowTrigger({ ...baseEvent, actorId: "public" });
+
+    expect(dbMock.workflowRun.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ actorId: null }),
+      }),
+    );
+    expect(dbMock.scheduledAction.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          actionType: "resume_workflow_run",
+          workflowRunId: "run-1",
+        }),
+      }),
+    );
+    expect(dbMock.workflowRun.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: "run-1" },
+        data: expect.objectContaining({ status: "PENDING", completedAt: null }),
+      }),
     );
   });
 });

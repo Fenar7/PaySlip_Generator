@@ -2,6 +2,8 @@
 
 import { db } from "@/lib/db";
 import { logActivity } from "@/lib/activity";
+import { computeTicketSlaDeadlines } from "@/lib/flow/ticket-sla";
+import { notifyOrgAdmins } from "@/lib/notifications";
 
 export type ActionResult<T> =
   | { success: true; data: T }
@@ -43,6 +45,8 @@ export async function submitTicket(
       return { success: false, error: "This link has expired" };
     }
 
+    const deadlines = await computeTicketSlaDeadlines(publicToken.orgId, null, new Date());
+
     const ticket = await db.invoiceTicket.create({
       data: {
         invoiceId: publicToken.invoiceId,
@@ -53,6 +57,7 @@ export async function submitTicket(
         category: data.category as "BILLING_QUERY" | "AMOUNT_DISPUTE" | "MISSING_ITEM" | "OTHER",
         description: data.description.trim(),
         status: "OPEN",
+        ...deadlines,
       },
     });
 
@@ -67,6 +72,14 @@ export async function submitTicket(
         category: data.category,
         submitterEmail: data.submitterEmail.trim(),
       },
+    });
+
+    await notifyOrgAdmins({
+      orgId: publicToken.orgId,
+      type: "ticket_opened",
+      title: "New support ticket",
+      body: `${data.submitterName.trim()} opened a ${data.category.toLowerCase().replaceAll("_", " ")} ticket for invoice ${publicToken.invoice.invoiceNumber}.`,
+      link: `/app/flow/tickets/${ticket.id}`,
     });
 
     // Sprint 25.1: fire ticket.opened workflow trigger

@@ -1,41 +1,59 @@
-import { db } from "@/lib/db";
 import type { ScheduledAction } from "@/generated/prisma/client";
-import { fireWorkflowTrigger } from "./workflow-engine";
-import { processApprovalEscalations } from "./approvals";
+import { db } from "@/lib/db";
 import { sendEmail } from "@/lib/email";
 import { notifyOrgAdmins } from "@/lib/notifications";
+import { processApprovalEscalations } from "./approvals";
+import { fireWorkflowTrigger, resumeWorkflowRun, type WorkflowTriggerEvent } from "./workflow-engine";
+
+async function claimScheduledAction(actionId: string, now: Date): Promise<ScheduledAction | null> {
+  const claimed = await db.scheduledAction.updateMany({
+    where: {
+      id: actionId,
+      status: "PENDING",
+      OR: [
+        { nextRetryAt: null, scheduledAt: { lte: now } },
+        { nextRetryAt: { lte: now } },
+      ],
+    },
+    data: { status: "RUNNING" },
+  });
+
+  if (claimed.count === 0) {
+    return null;
+  }
+
+  return db.scheduledAction.findUnique({ where: { id: actionId } });
+}
 
 export async function processScheduledActions() {
   const now = new Date();
-
-  // Pick up pending actions ready to roll, or failed ones ready for retry
-  const actions = await db.scheduledAction.findMany({
+  const readyActions = await db.scheduledAction.findMany({
     where: {
       status: "PENDING",
       OR: [
         { nextRetryAt: null, scheduledAt: { lte: now } },
-        { nextRetryAt: { lte: now } }
-      ]
+        { nextRetryAt: { lte: now } },
+      ],
     },
+    orderBy: { scheduledAt: "asc" },
     take: 50,
   });
 
   let processed = 0;
-  for (const action of actions) {
-    await executeAction(action);
+  for (const readyAction of readyActions) {
+    const claimedAction = await claimScheduledAction(readyAction.id, now);
+    if (!claimedAction) {
+      continue;
+    }
+
+    await executeAction(claimedAction);
     processed++;
   }
 
-  return { processed, totalReady: actions.length };
+  return { processed, totalReady: readyActions.length };
 }
 
 async function executeAction(action: ScheduledAction) {
-  // Optimistic lock into RUNNING
-  await db.scheduledAction.update({
-    where: { id: action.id },
-    data: { status: "RUNNING" }
-  });
-
   try {
     const payload =
       action.payload && typeof action.payload === "object"
@@ -47,6 +65,23 @@ async function executeAction(action: ScheduledAction) {
     }
 
     switch (action.actionType) {
+      case "resume_workflow_run": {
+        const event = payload.event as WorkflowTriggerEvent | undefined;
+        const startSequence = payload.startSequence;
+
+        if (!action.workflowRunId || !event || typeof startSequence !== "number") {
+          throw new Error("resume_workflow_run: invalid continuation payload");
+        }
+
+        await resumeWorkflowRun({
+          workflowRunId: action.workflowRunId,
+          orgId: action.orgId,
+          event,
+          startSequence,
+        });
+        break;
+      }
+
       case "send_invoice_email": {
         const { invoiceId, recipientEmail, subject, bodyHtml } = payload as {
           invoiceId?: string;
@@ -54,16 +89,20 @@ async function executeAction(action: ScheduledAction) {
           subject?: string;
           bodyHtml?: string;
         };
+
         if (invoiceId && recipientEmail) {
-          const invoice = await db.invoice.findUnique({
-            where: { id: invoiceId },
+          const invoice = await db.invoice.findFirst({
+            where: { id: invoiceId, organizationId: action.orgId },
             select: { invoiceNumber: true, id: true },
           });
+
           if (invoice) {
             await sendEmail({
               to: recipientEmail,
               subject: subject ?? `Invoice ${invoice.invoiceNumber} from Slipwise`,
-              html: bodyHtml ?? `<p>Your invoice <strong>${invoice.invoiceNumber}</strong> is ready.</p>`,
+              html:
+                bodyHtml ??
+                `<p>Your invoice <strong>${invoice.invoiceNumber}</strong> is ready.</p>`,
             });
           }
         }
@@ -73,20 +112,19 @@ async function executeAction(action: ScheduledAction) {
       case "escalate_approval": {
         const { approvalRequestId } = payload as { approvalRequestId?: string };
         if (approvalRequestId) {
-          // Attempt to advance the specific request; fall back to batch escalation.
           const approval = await db.approvalRequest.findUnique({
             where: { id: approvalRequestId },
-            select: { id: true, status: true, dueAt: true },
+            select: { id: true, status: true },
           });
+
           if (approval && ["PENDING", "ESCALATED"].includes(approval.status)) {
-            // Force dueAt to now so processApprovalEscalations picks it up immediately.
             await db.approvalRequest.update({
               where: { id: approvalRequestId },
               data: { dueAt: new Date(0) },
             });
           }
         }
-        // Always run the escalation sweep so any overdue requests are advanced.
+
         await processApprovalEscalations();
         break;
       }
@@ -96,15 +134,16 @@ async function executeAction(action: ScheduledAction) {
         if (ticketId) {
           const ticket = await db.invoiceTicket.findUnique({
             where: { id: ticketId },
-            select: { id: true, orgId: true, description: true, status: true },
+            select: { id: true, orgId: true, status: true },
           });
+
           if (ticket && ticket.status !== "CLOSED") {
             await notifyOrgAdmins({
               orgId: ticket.orgId,
               type: "ticket_escalated",
               title: "Support Ticket Escalated",
               body: `Ticket ${ticketId} has exceeded its SLA and requires immediate attention.`,
-              link: `/app/support/tickets/${ticketId}`,
+              link: `/app/flow/tickets/${ticketId}`,
             });
           }
         }
@@ -112,36 +151,33 @@ async function executeAction(action: ScheduledAction) {
       }
 
       default:
-        // Unknown action types are logged and succeeded to avoid indefinite retries.
-        console.warn(`[FlowScheduler] Unknown actionType "${action.actionType}" for action ${action.id}`);
+        console.warn(
+          `[FlowScheduler] Unknown actionType "${action.actionType}" for action ${action.id}`,
+        );
         break;
     }
 
-    // Mark as succeeded
     await db.scheduledAction.update({
       where: { id: action.id },
       data: {
         status: "SUCCEEDED",
-        completedAt: new Date()
-      }
+        completedAt: new Date(),
+      },
     });
-
   } catch (error: unknown) {
-    const errorMsg = error instanceof Error ? error.message : "Unknown execution error";
+    const errorMessage = error instanceof Error ? error.message : "Unknown execution error";
     console.error(`[FlowScheduler] Action ${action.id} failed:`, error);
-    
+
     const incrementedAttempts = action.attemptCount + 1;
-    
     if (incrementedAttempts >= action.maxAttempts) {
-      // Create Dead letter gracefully in a transaction
       await db.$transaction([
         db.scheduledAction.update({
           where: { id: action.id },
           data: {
             status: "DEAD_LETTERED",
             attemptCount: incrementedAttempts,
-            lastError: errorMsg
-          }
+            lastError: errorMessage,
+          },
         }),
         db.deadLetterAction.create({
           data: {
@@ -149,13 +185,12 @@ async function executeAction(action: ScheduledAction) {
             orgId: action.orgId,
             actionType: action.actionType,
             sourceModule: action.sourceModule,
-            failureReason: errorMsg,
+            failureReason: errorMessage,
             payload: action.payload !== null ? action.payload : {},
-          }
-        })
+          },
+        }),
       ]);
 
-      // Hook terminal failure trigger
       await fireWorkflowTrigger({
         triggerType: "scheduled_action.dead_lettered",
         orgId: action.orgId,
@@ -164,25 +199,26 @@ async function executeAction(action: ScheduledAction) {
         sourceEntityId: action.sourceEntityId ?? "unknown",
         payload: {
           actionType: action.actionType,
-          error: errorMsg,
+          error: errorMessage,
           attemptCount: incrementedAttempts,
         },
       });
-
-    } else {
-      // Exponential backoff: 5 min × 2^(attempts-1)
-      const nextRetryAt = new Date();
-      nextRetryAt.setMinutes(nextRetryAt.getMinutes() + (5 * Math.pow(2, incrementedAttempts - 1)));
-
-      await db.scheduledAction.update({
-        where: { id: action.id },
-        data: {
-          status: "PENDING",
-          attemptCount: incrementedAttempts,
-          nextRetryAt,
-          lastError: errorMsg
-        }
-      });
+      return;
     }
+
+    const nextRetryAt = new Date();
+    nextRetryAt.setMinutes(
+      nextRetryAt.getMinutes() + 5 * Math.pow(2, incrementedAttempts - 1),
+    );
+
+    await db.scheduledAction.update({
+      where: { id: action.id },
+      data: {
+        status: "PENDING",
+        attemptCount: incrementedAttempts,
+        nextRetryAt,
+        lastError: errorMessage,
+      },
+    });
   }
 }
