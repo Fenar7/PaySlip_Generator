@@ -4,6 +4,8 @@ import { useCallback, useMemo, useState } from "react";
 import Link from "next/link";
 import { Button, Input } from "@/components/ui";
 import { PdfUploadZone } from "@/features/docs/pdf-studio/components/shared/pdf-upload-zone";
+import { usePdfStudioAnalytics } from "@/features/docs/pdf-studio/lib/analytics";
+import { buildPdfStudioOutputName } from "@/features/docs/pdf-studio/lib/output";
 import { readPdfPages } from "@/features/docs/pdf-studio/utils/pdf-reader";
 import type { PdfPageItem } from "@/features/docs/pdf-studio/utils/pdf-reader";
 import { downloadPdfBytes } from "@/features/docs/pdf-studio/utils/zip-builder";
@@ -29,6 +31,7 @@ const SIZE_PRESETS: { key: string; preset: SizePreset }[] = [
 const mmToPt = (mm: number) => mm * (72 / 25.4);
 
 export function ResizePagesWorkspace() {
+  const analytics = usePdfStudioAnalytics("resize-pages");
   const [pages, setPages] = useState<PdfPageItem[]>([]);
   const [pdfBytes, setPdfBytes] = useState<Uint8Array | null>(null);
   const [pdfName, setPdfName] = useState("");
@@ -60,10 +63,11 @@ export function ResizePagesWorkspace() {
 
     try {
       const bytes = new Uint8Array(await file.arrayBuffer());
-      const result = await readPdfPages(file, 200);
+      const result = await readPdfPages(file, { toolId: "resize-pages" });
 
       if (!result.ok) {
         setError(result.error);
+        analytics.trackFail({ stage: "upload", message: result.error });
         setLoading(false);
         return;
       }
@@ -71,8 +75,14 @@ export function ResizePagesWorkspace() {
       setPdfBytes(bytes);
       setPdfName(file.name.replace(/\.pdf$/i, ""));
       setPages(result.data);
+      analytics.trackUpload({
+        fileCount: 1,
+        pageCount: result.data.length,
+        totalBytes: file.size,
+      });
     } catch {
       setError("Failed to read PDF");
+      analytics.trackFail({ stage: "upload", message: "Failed to read PDF" });
     } finally {
       setLoading(false);
     }
@@ -82,6 +92,10 @@ export function ResizePagesWorkspace() {
     if (!pdfBytes) return;
     setProcessing(true);
     setError(null);
+    analytics.trackStart({
+      pageCount: pages.length,
+      fitMode,
+    });
 
     try {
       const srcDoc = await PDFDocument.load(pdfBytes);
@@ -131,9 +145,21 @@ export function ResizePagesWorkspace() {
       }
 
       const resultBytes = await newDoc.save();
-      downloadPdfBytes(resultBytes, `${pdfName}-resized.pdf`);
+      downloadPdfBytes(
+        resultBytes,
+        buildPdfStudioOutputName({
+          toolId: "resize-pages",
+          baseName: `${pdfName}-resized`,
+          extension: "pdf",
+        }),
+      );
+      analytics.trackSuccess({
+        pageCount: pages.length,
+        fitMode,
+      });
     } catch {
       setError("Failed to resize PDF");
+      analytics.trackFail({ stage: "process", message: "Failed to resize PDF" });
     } finally {
       setProcessing(false);
     }
@@ -173,6 +199,7 @@ export function ResizePagesWorkspace() {
       {!pdfBytes && (
         <PdfUploadZone
           onFiles={handleFile}
+          toolId="resize-pages"
           label="Drop your PDF here"
           disabled={loading}
           error={error}

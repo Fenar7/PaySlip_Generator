@@ -1,3 +1,5 @@
+import { validatePdfStudioPageCount } from "@/features/docs/pdf-studio/lib/ingestion";
+
 export interface RenderOptions {
   format: "jpeg" | "png";
   dpi: 72 | 150 | 300;
@@ -28,11 +30,15 @@ export async function renderPdfPagesToImages(
     ).toString();
 
     const pdf = await pdfjsLib.getDocument({ data: pdfBytes }).promise;
-    if (pdf.numPages > PDF_TO_IMAGE_MAX_PAGES) {
+    const pageValidation = validatePdfStudioPageCount(
+      "pdf-to-image",
+      pdf.numPages,
+    );
+    if (!pageValidation.ok) {
       await pdf.destroy();
       return {
         ok: false,
-        error: `PDF has ${pdf.numPages} pages (max ${PDF_TO_IMAGE_MAX_PAGES} for image conversion).`,
+        error: pageValidation.error,
       };
     }
 

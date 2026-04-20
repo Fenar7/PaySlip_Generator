@@ -3,6 +3,10 @@
 import { useCallback, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui";
+import { usePdfStudioAnalytics } from "@/features/docs/pdf-studio/lib/analytics";
+import { validatePdfStudioFiles } from "@/features/docs/pdf-studio/lib/ingestion";
+import { buildPdfStudioOutputName } from "@/features/docs/pdf-studio/lib/output";
+import { downloadPdfBytes } from "@/features/docs/pdf-studio/utils/zip-builder";
 
 type RepairStatus = "idle" | "analyzing" | "repaired" | "partial" | "failed";
 
@@ -113,10 +117,27 @@ function StatusIcon({ status }: { status: RepairStatus }) {
 }
 
 export function RepairWorkspace() {
+  const analytics = usePdfStudioAnalytics("repair");
   const [result, setResult] = useState<RepairResult>(INITIAL_RESULT);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const handleFile = useCallback(async (file: File) => {
+    const fileValidation = validatePdfStudioFiles("repair", [file]);
+    if (!fileValidation.ok) {
+      setResult({
+        ...INITIAL_RESULT,
+        status: "failed",
+        message: fileValidation.error,
+      });
+      analytics.trackFail({ stage: "upload", message: fileValidation.error });
+      return;
+    }
+
+    analytics.trackUpload({
+      fileCount: 1,
+      totalBytes: file.size,
+    });
+    analytics.trackStart({ totalBytes: file.size });
     setResult({
       ...INITIAL_RESULT,
       status: "analyzing",
@@ -146,6 +167,10 @@ export function RepairWorkspace() {
           pageCount: pdfDoc.getPageCount(),
           repairedBytes,
           filename: file.name.replace(/\.pdf$/i, "") + "-repaired.pdf",
+        });
+        analytics.trackSuccess({
+          status: "repaired",
+          pageCount: pdfDoc.getPageCount(),
         });
         return;
       } catch {
@@ -209,6 +234,10 @@ export function RepairWorkspace() {
           repairedBytes,
           filename: file.name.replace(/\.pdf$/i, "") + "-repaired.pdf",
         });
+        analytics.trackSuccess({
+          status: "partial",
+          pageCount,
+        });
         return;
       } catch {
         // Both methods failed
@@ -224,6 +253,11 @@ export function RepairWorkspace() {
         repairedBytes: null,
         filename: "",
       });
+      analytics.trackFail({
+        stage: "process",
+        message:
+          "This PDF is too damaged to repair. Consider using desktop tools like Adobe Acrobat or QPDF.",
+      });
     } catch {
       setResult({
         status: "failed",
@@ -235,22 +269,24 @@ export function RepairWorkspace() {
         repairedBytes: null,
         filename: "",
       });
+      analytics.trackFail({
+        stage: "process",
+        message:
+          "An unexpected error occurred while analyzing the PDF. Please try again with a different file.",
+      });
     }
-  }, []);
+  }, [analytics]);
 
   const handleDownload = useCallback(() => {
     if (!result.repairedBytes) return;
-    const blob = new Blob([result.repairedBytes as BlobPart], {
-      type: "application/pdf",
-    });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = result.filename;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+    downloadPdfBytes(
+      result.repairedBytes,
+      buildPdfStudioOutputName({
+        toolId: "repair",
+        baseName: result.filename.replace(/\.pdf$/i, ""),
+        extension: "pdf",
+      }),
+    );
   }, [result]);
 
   const handleReset = useCallback(() => {
@@ -299,7 +335,7 @@ export function RepairWorkspace() {
           <p className="text-sm font-medium text-[#1a1a1a]">
             Drop your PDF here
           </p>
-          <p className="mt-1 text-xs text-[#666]">PDF • Max 100MB</p>
+          <p className="mt-1 text-xs text-[#666]">PDF • Max 50MB</p>
           <Button
             variant="secondary"
             size="sm"

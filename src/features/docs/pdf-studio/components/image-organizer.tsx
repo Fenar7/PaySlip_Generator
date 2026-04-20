@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useRef, useState } from "react";
+import { usePathname } from "next/navigation";
 import {
   DndContext,
   closestCenter,
@@ -22,9 +23,10 @@ import { ImageThumbnail } from "@/features/docs/pdf-studio/components/image-thum
 import type { ImageItem, ImageRotation } from "@/features/docs/pdf-studio/types";
 import {
   PDF_STUDIO_MAX_IMAGES,
-  PDF_STUDIO_SUPPORTED_FORMATS,
   PDF_STUDIO_SUPPORTED_EXTENSIONS,
 } from "@/features/docs/pdf-studio/constants";
+import { trackPdfStudioLifecycleEvent } from "@/features/docs/pdf-studio/lib/analytics";
+import { validatePdfStudioFiles } from "@/features/docs/pdf-studio/lib/ingestion";
 import { loadImageFromFile } from "@/features/docs/pdf-studio/utils/image-processor";
 import { convertHeicToJpeg } from "@/features/docs/pdf-studio/utils/heic-converter";
 import { processImageForOcr, getOcrServiceStatus } from "@/features/docs/pdf-studio/utils/ocr-processor";
@@ -85,6 +87,7 @@ type ImageOrganizerProps = {
   onBatchRotateRight: () => void;
   onSelectAll: () => void;
   onClearSelection: () => void;
+  onUploadError?: (message?: string) => void;
   onOcrUnavailable?: () => void;
 };
 
@@ -113,8 +116,10 @@ export function ImageOrganizer({
   onBatchRotateRight,
   onSelectAll,
   onClearSelection,
+  onUploadError,
   onOcrUnavailable,
 }: ImageOrganizerProps) {
+  const pathname = usePathname();
   const inputRef = useRef<HTMLInputElement>(null);
   const [cropTargetId, setCropTargetId] = useState<string | null>(null);
 
@@ -137,18 +142,28 @@ export function ImageOrganizer({
 
   const handleFiles = useCallback(
     async (files: FileList | File[]) => {
-      const fileArray = Array.from(files);
-      const remaining = PDF_STUDIO_MAX_IMAGES - images.length;
-
-      if (remaining <= 0) {
+      const validation = validatePdfStudioFiles("create", files, {
+        currentFileCount: images.length,
+      });
+      if (!validation.ok) {
+        onUploadError?.(validation.error);
         return;
       }
 
-      const validFiles = fileArray
-        .filter((f) => PDF_STUDIO_SUPPORTED_FORMATS.includes(f.type) || (f.type === "" && (f.name.endsWith(".heic") || f.name.endsWith(".heif"))))
-        .slice(0, remaining);
+      onUploadError?.(undefined);
+      trackPdfStudioLifecycleEvent("pdf_studio_upload", {
+        subject: "create",
+        surface: pathname.startsWith("/app/docs/pdf-studio")
+          ? "workspace"
+          : "public",
+        route: pathname,
+        executionMode: "browser",
+        fileCount: validation.files.length,
+        totalBytes: validation.totalBytes,
+        fileClasses: validation.fileClasses,
+      });
 
-      validFiles.forEach(async (file) => {
+      validation.files.forEach(async (file) => {
         const isHeic = file.type === "image/heic" || file.type === "image/heif" || file.name.endsWith(".heic") || file.name.endsWith(".heif");
         const id = generateId();
 
@@ -180,6 +195,7 @@ export function ImageOrganizer({
             initialIsConverting = false;
           } catch (error) {
             console.error("HEIC conversion failed:", error);
+            onUploadError?.(`Could not process ${file.name}. Please try a JPG, PNG, or WebP version.`);
             onChange((currentImages: ImageItem[]) => currentImages.filter((img) => img.id !== id));
             return;
           }
@@ -209,7 +225,7 @@ export function ImageOrganizer({
         }
       });
     },
-    [images, onChange, onOcrUnavailable],
+    [images.length, onChange, onOcrUnavailable, onUploadError, pathname],
   );
 
   const handleFileInput = useCallback(

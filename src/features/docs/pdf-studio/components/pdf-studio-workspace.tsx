@@ -32,6 +32,8 @@ import {
   savePdfStudioSession,
 } from "@/features/docs/pdf-studio/utils/session-storage";
 import { OcrProgressPanel } from "@/features/docs/pdf-studio/components/ocr-progress-panel";
+import { usePdfStudioAnalytics } from "@/features/docs/pdf-studio/lib/analytics";
+import { buildPdfStudioOutputName } from "@/features/docs/pdf-studio/lib/output";
 import { cancelAllOcr } from "@/features/docs/pdf-studio/utils/ocr-processor";
 import { useActiveOrg } from "@/hooks/use-active-org";
 import { cn } from "@/lib/utils";
@@ -213,6 +215,7 @@ function GenerationDialog({
 }
 
 export function PdfStudioWorkspace() {
+  const analytics = usePdfStudioAnalytics("create");
   const { activeOrg, isLoading: isOrgLoading } = useActiveOrg();
   const orgScope = activeOrg?.id ?? "anonymous";
   const [images, setImages] = useState<ImageItem[]>([]);
@@ -427,6 +430,10 @@ export function PdfStudioWorkspace() {
 
     setActionState({ status: "generating" });
     setProgress({ current: 0, total: images.length, stage: "loading" });
+    analytics.trackStart({
+      fileCount: images.length,
+      passwordProtected: settings.password.enabled,
+    });
 
     const controller = new AbortController();
     generateCancelRef.current = controller;
@@ -454,13 +461,32 @@ export function PdfStudioWorkspace() {
           },
         }));
 
-        downloadPdfBlob(encryptedBytes, settings.filename);
+        downloadPdfBlob(
+          encryptedBytes,
+          buildPdfStudioOutputName({
+            toolId: "create",
+            baseName: settings.filename,
+            extension: "pdf",
+          }),
+        );
       } else {
         // Case A: no password — download directly
-        downloadPdfBlob(pdfBytes, settings.filename);
+        downloadPdfBlob(
+          pdfBytes,
+          buildPdfStudioOutputName({
+            toolId: "create",
+            baseName: settings.filename,
+            extension: "pdf",
+          }),
+        );
       }
 
       setActionState({ status: "success" });
+      analytics.trackSuccess({
+        fileCount: images.length,
+        passwordProtected: settings.password.enabled,
+        output: "pdf",
+      });
     } catch (error) {
       // Cancelled by user — return to idle silently
       if (error instanceof DOMException && error.name === "AbortError") {
@@ -477,6 +503,10 @@ export function PdfStudioWorkspace() {
             : error instanceof Error
               ? error.message
               : "Unable to generate the PDF. Check the images and try again.",
+      });
+      analytics.trackFail({
+        stage: "generate",
+        message: error instanceof Error ? error.message : "Unable to generate the PDF.",
       });
     } finally {
       generateCancelRef.current = null;
@@ -890,6 +920,12 @@ export function PdfStudioWorkspace() {
                   images={images}
                   onChange={handleImagesChange}
                   error={uploadError}
+                  onUploadError={(message) => {
+                    setUploadError(message);
+                    if (message) {
+                      analytics.trackFail({ stage: "upload", message });
+                    }
+                  }}
                   selectedIds={selectedIds}
                   onSelectionChange={handleSelectionChange}
                   onBatchDelete={handleBatchDelete}

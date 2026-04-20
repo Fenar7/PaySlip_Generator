@@ -4,6 +4,8 @@ import { useCallback, useState } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui";
 import { PdfUploadZone } from "@/features/docs/pdf-studio/components/shared/pdf-upload-zone";
+import { usePdfStudioAnalytics } from "@/features/docs/pdf-studio/lib/analytics";
+import { buildPdfStudioOutputName } from "@/features/docs/pdf-studio/lib/output";
 import {
   PdfPageGrid,
   type PageGridItem,
@@ -13,6 +15,7 @@ import { downloadPdfBytes } from "@/features/docs/pdf-studio/utils/zip-builder";
 import { PDFDocument, degrees } from "pdf-lib";
 
 export function OrganizeWorkspace() {
+  const analytics = usePdfStudioAnalytics("organize");
   const [pages, setPages] = useState<PageGridItem[]>([]);
   const [pdfBytes, setPdfBytes] = useState<Uint8Array | null>(null);
   const [pdfName, setPdfName] = useState("");
@@ -29,10 +32,11 @@ export function OrganizeWorkspace() {
 
     try {
       const bytes = new Uint8Array(await file.arrayBuffer());
-      const result = await readPdfPages(file, 200);
+      const result = await readPdfPages(file, { toolId: "organize" });
 
       if (!result.ok) {
         setError(result.error);
+        analytics.trackFail({ stage: "upload", message: result.error });
         setLoading(false);
         return;
       }
@@ -46,8 +50,14 @@ export function OrganizeWorkspace() {
       setPdfBytes(bytes);
       setPdfName(file.name.replace(/\.pdf$/i, ""));
       setPages(gridPages);
+      analytics.trackUpload({
+        fileCount: 1,
+        pageCount: gridPages.length,
+        totalBytes: file.size,
+      });
     } catch {
       setError("Failed to read PDF");
+      analytics.trackFail({ stage: "upload", message: "Failed to read PDF" });
     } finally {
       setLoading(false);
     }
@@ -78,6 +88,7 @@ export function OrganizeWorkspace() {
     if (!pdfBytes || pages.length === 0) return;
     setProcessing(true);
     setError(null);
+    analytics.trackStart({ pageCount: pages.length });
 
     try {
       const srcDoc = await PDFDocument.load(pdfBytes);
@@ -96,9 +107,18 @@ export function OrganizeWorkspace() {
       });
 
       const resultBytes = await newDoc.save();
-      downloadPdfBytes(resultBytes, `${pdfName}-organized.pdf`);
+      downloadPdfBytes(
+        resultBytes,
+        buildPdfStudioOutputName({
+          toolId: "organize",
+          baseName: `${pdfName}-organized`,
+          extension: "pdf",
+        }),
+      );
+      analytics.trackSuccess({ pageCount: pages.length });
     } catch {
       setError("Failed to organize PDF");
+      analytics.trackFail({ stage: "process", message: "Failed to organize PDF" });
     } finally {
       setProcessing(false);
     }
@@ -131,6 +151,7 @@ export function OrganizeWorkspace() {
       {!pdfBytes && (
         <PdfUploadZone
           onFiles={handleFile}
+          toolId="organize"
           label="Drop your PDF here"
           disabled={loading}
           error={error}

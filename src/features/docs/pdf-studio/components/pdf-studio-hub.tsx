@@ -1,148 +1,73 @@
 "use client";
 
 import Link from "next/link";
-import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui";
+import { cn } from "@/lib/utils";
+import { usePdfStudioAnalytics } from "@/features/docs/pdf-studio/lib/analytics";
+import {
+  getPdfStudioExecutionCopy,
+  listPdfStudioToolsByCategory,
+} from "@/features/docs/pdf-studio/lib/tool-registry";
+import type { PdfStudioToolDefinition } from "@/features/docs/pdf-studio/lib/tool-registry";
+import type { PdfStudioToolSurface } from "@/features/docs/pdf-studio/types";
 
-interface ToolCard {
-  title: string;
-  description: string;
-  icon: string;
-  href: string;
-  available: boolean;
-}
+function ToolCard({
+  surface,
+  tool,
+}: {
+  surface: PdfStudioToolSurface;
+  tool: PdfStudioToolDefinition;
+}) {
+  const href = surface === "public" ? tool.publicPath : tool.workspacePath;
+  const execution = getPdfStudioExecutionCopy(tool.executionMode);
 
-const pageOrganizationTools: ToolCard[] = [
-  {
-    title: "Create PDF",
-    description: "Convert images to a single PDF document",
-    icon: "📄",
-    href: "/app/docs/pdf-studio/create",
-    available: true,
-  },
-  {
-    title: "Merge PDFs",
-    description: "Combine multiple PDFs into one file",
-    icon: "📑",
-    href: "/app/docs/pdf-studio/merge",
-    available: true,
-  },
-  {
-    title: "Split PDF",
-    description: "Divide a PDF into multiple files",
-    icon: "✂️",
-    href: "/app/docs/pdf-studio/split",
-    available: true,
-  },
-  {
-    title: "Delete Pages",
-    description: "Remove unwanted pages from a PDF",
-    icon: "🗑️",
-    href: "/app/docs/pdf-studio/delete-pages",
-    available: true,
-  },
-  {
-    title: "Organize Pages",
-    description: "Reorder, rotate, and manage pages",
-    icon: "🔀",
-    href: "/app/docs/pdf-studio/organize",
-    available: true,
-  },
-  {
-    title: "Resize Pages",
-    description: "Change page dimensions and format",
-    icon: "📐",
-    href: "/app/docs/pdf-studio/resize-pages",
-    available: true,
-  },
-];
-
-const editTools: ToolCard[] = [
-  {
-    title: "Fill & Sign",
-    description: "Add text, signatures, and annotations",
-    icon: "✍️",
-    href: "#",
-    available: false,
-  },
-  {
-    title: "Protect / Unlock",
-    description: "Add or remove PDF password protection",
-    icon: "🔒",
-    href: "#",
-    available: false,
-  },
-  {
-    title: "Header & Footer",
-    description: "Add headers, footers, and page numbers",
-    icon: "📝",
-    href: "#",
-    available: false,
-  },
-];
-
-const convertTools: ToolCard[] = [
-  {
-    title: "PDF to Image",
-    description: "Export PDF pages as JPG or PNG images",
-    icon: "🖼️",
-    href: "/app/docs/pdf-studio/pdf-to-image",
-    available: true,
-  },
-  {
-    title: "Extract Images",
-    description: "Pull embedded raster images out of a PDF file",
-    icon: "🗂️",
-    href: "/app/docs/pdf-studio/extract-images",
-    available: true,
-  },
-];
-
-interface ToolCategoryProps {
-  title: string;
-  tools: ToolCard[];
-}
-
-function ToolCategory({ title, tools }: ToolCategoryProps) {
   return (
-    <div>
-      <h2 className="mb-4 text-sm font-semibold uppercase tracking-[0.15em] text-[var(--muted-foreground)]">
-        {title}
-      </h2>
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-        {tools.map((tool) => (
-          <ToolCardItem key={tool.title} tool={tool} />
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function ToolCardItem({ tool }: { tool: ToolCard }) {
-  const content = (
-    <div
+    <Link
+      href={href}
       className={cn(
-        "group relative flex items-start gap-4 rounded-xl border border-[var(--border-strong)] bg-white p-4 shadow-[var(--shadow-card)] transition-all",
-        tool.available
-          ? "cursor-pointer hover:border-[var(--accent)] hover:shadow-md"
-          : "cursor-default opacity-60"
+        "group relative block rounded-xl border border-[var(--border-strong)] bg-white p-4 shadow-[var(--shadow-card)] transition-all hover:border-[var(--accent)] hover:shadow-md",
       )}
     >
-      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-[var(--surface-soft)] text-xl">
-        {tool.icon}
-      </div>
-      <div className="min-w-0 flex-1">
-        <div className="flex items-center gap-2">
-          <h3 className="text-sm font-semibold text-[var(--foreground)]">
-            {tool.title}
-          </h3>
-          {!tool.available && <Badge variant="soon">Soon</Badge>}
+      <div className="flex items-start gap-4">
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-[var(--surface-soft)] text-xl">
+          {tool.icon}
         </div>
-        <p className="mt-0.5 text-xs leading-relaxed text-[var(--muted-foreground)]">
-          {tool.description}
-        </p>
-      </div>
-      {tool.available && (
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <h3 className="text-sm font-semibold text-[var(--foreground)]">
+              {tool.title}
+            </h3>
+            <Badge
+              variant={
+                tool.executionMode === "browser"
+                  ? "success"
+                  : tool.executionMode === "processing"
+                    ? "warning"
+                    : "default"
+              }
+            >
+              {execution.badge}
+            </Badge>
+          </div>
+          <p className="mt-1 text-xs leading-relaxed text-[var(--muted-foreground)]">
+            {tool.description}
+          </p>
+          <div className="mt-3 flex flex-wrap items-center gap-2 text-[0.68rem] font-medium uppercase tracking-[0.16em] text-[var(--muted-foreground)]">
+            <span>{tool.outputLabel}</span>
+            <span aria-hidden="true">•</span>
+            <span>
+              {tool.limits.maxFiles === 1
+                ? "1 file"
+                : `Up to ${tool.limits.maxFiles} files`}
+            </span>
+            {tool.limits.maxPages ? (
+              <>
+                <span aria-hidden="true">•</span>
+                <span>Up to {tool.limits.maxPages} pages</span>
+              </>
+            ) : null}
+          </div>
+        </div>
         <svg
           className="mt-0.5 h-4 w-4 shrink-0 text-[var(--muted-foreground)] transition-transform group-hover:translate-x-0.5 group-hover:text-[var(--accent)]"
           fill="none"
@@ -156,53 +81,102 @@ function ToolCardItem({ tool }: { tool: ToolCard }) {
             d="M9 5l7 7-7 7"
           />
         </svg>
-      )}
-    </div>
-  );
-
-  if (!tool.available) return content;
-
-  return (
-    <Link href={tool.href} className="block">
-      {content}
+      </div>
     </Link>
   );
 }
 
-export function PdfStudioHub() {
+export function PdfStudioHub({
+  surface = "workspace",
+}: {
+  surface?: PdfStudioToolSurface;
+}) {
+  const categories = listPdfStudioToolsByCategory(surface);
+  const analytics = usePdfStudioAnalytics("hub");
+
   return (
-    <div className="mx-auto max-w-5xl px-4 py-8 sm:px-6 lg:px-8">
-      <div className="mb-8">
-        <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[var(--accent)] text-white shadow-[0_1px_3px_rgba(220,38,38,0.3)]">
-            <svg
-              className="h-5 w-5"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.8"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <path d="M7 3h8l4 4v14H7z" />
-              <path d="M15 3v4h4" />
-            </svg>
-          </div>
-          <div>
-            <h1 className="text-xl font-bold tracking-tight text-[var(--foreground)] sm:text-2xl">
-              PDF Studio
-            </h1>
-            <p className="text-sm text-[var(--muted-foreground)]">
-              All-in-one PDF tools — free, private, browser-based
+    <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:px-8">
+      <div className="rounded-2xl border border-[var(--border-strong)] bg-white p-6 shadow-[var(--shadow-card)] sm:p-8">
+        <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
+          <div className="max-w-3xl">
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[var(--accent)] text-white shadow-[0_1px_3px_rgba(220,38,38,0.3)]">
+                <svg
+                  className="h-5 w-5"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.8"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <path d="M7 3h8l4 4v14H7z" />
+                  <path d="M15 3v4h4" />
+                </svg>
+              </div>
+              <div>
+                <h1 className="text-xl font-bold tracking-tight text-[var(--foreground)] sm:text-2xl">
+                  PDF Studio
+                </h1>
+                <p className="text-sm text-[var(--muted-foreground)]">
+                  {surface === "public"
+                    ? "Crawlable PDF utility hub with live tools, shared limits, and clear browser-vs-processing guidance."
+                    : "Workspace catalog for every live PDF Studio tool — no hidden routes and no false 'Soon' states."}
+                </p>
+              </div>
+            </div>
+
+            <p className="mt-4 max-w-3xl text-sm leading-7 text-[var(--foreground-soft)]">
+              {surface === "public"
+                ? "Browse the full live catalog, open tools directly, and move into the Slipwise workspace whenever you need saved history, future batch workflows, or account-based access."
+                : "Everything listed here links to a real PDF Studio route. Use the public hub for discovery and shareable landing pages, or stay in the workspace for document work inside SW> Docs."}
             </p>
+          </div>
+
+          <div className="flex flex-wrap gap-3">
+            {surface === "public" ? (
+              <>
+                <Link
+                  href="/app/docs/pdf-studio"
+                  className="inline-flex items-center justify-center rounded-full bg-[var(--accent)] px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-[var(--accent-strong)]"
+                >
+                  Open workspace
+                </Link>
+                <Link
+                  href="/pricing"
+                  className="inline-flex items-center justify-center rounded-full border border-[var(--border-strong)] bg-white px-4 py-2.5 text-sm font-medium text-[var(--foreground)] transition-colors hover:bg-[var(--surface-soft)]"
+                  onClick={() =>
+                    analytics.trackUpgradeIntent({ destination: "/pricing" })
+                  }
+                >
+                  See plans
+                </Link>
+              </>
+            ) : (
+              <Link
+                href="/pdf-studio"
+                className="inline-flex items-center justify-center rounded-full border border-[var(--border-strong)] bg-white px-4 py-2.5 text-sm font-medium text-[var(--foreground)] transition-colors hover:bg-[var(--surface-soft)]"
+              >
+                Browse public hub
+              </Link>
+            )}
           </div>
         </div>
       </div>
 
-      <div className="space-y-8">
-        <ToolCategory title="Page Organization" tools={pageOrganizationTools} />
-        <ToolCategory title="Edit & Enhance" tools={editTools} />
-        <ToolCategory title="Convert & Export" tools={convertTools} />
+      <div className="mt-8 space-y-8">
+        {categories.map((category) => (
+          <section key={category.id}>
+            <h2 className="mb-4 text-sm font-semibold uppercase tracking-[0.15em] text-[var(--muted-foreground)]">
+              {category.label}
+            </h2>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              {category.tools.map((tool) => (
+                <ToolCard key={tool.id} surface={surface} tool={tool} />
+              ))}
+            </div>
+          </section>
+        ))}
       </div>
     </div>
   );

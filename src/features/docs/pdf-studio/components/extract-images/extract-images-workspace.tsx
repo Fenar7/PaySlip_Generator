@@ -4,6 +4,8 @@ import { useCallback, useState } from "react";
 import Link from "next/link";
 import { Button, Badge } from "@/components/ui";
 import { PdfUploadZone } from "@/features/docs/pdf-studio/components/shared/pdf-upload-zone";
+import { usePdfStudioAnalytics } from "@/features/docs/pdf-studio/lib/analytics";
+import { buildPdfStudioOutputName } from "@/features/docs/pdf-studio/lib/output";
 import {
   extractImagesFromPdf,
   type ExtractedPdfImage,
@@ -12,6 +14,7 @@ import { downloadBatchZip, type BatchZipItem } from "@/lib/pixel/batch-zip";
 import { cn } from "@/lib/utils";
 
 export function ExtractImagesWorkspace() {
+  const analytics = usePdfStudioAnalytics("extract-images");
   const [images, setImages] = useState<ExtractedPdfImage[]>([]);
   const [loading, setLoading] = useState(false);
   const [progress, setProgress] = useState({ current: 0, total: 0 });
@@ -25,6 +28,13 @@ export function ExtractImagesWorkspace() {
     setError(null);
     setLoading(true);
     setProgress({ current: 0, total: 0 });
+    analytics.trackUpload({
+      fileCount: 1,
+      totalBytes: file.size,
+    });
+    analytics.trackStart({
+      action: "extract-images",
+    });
 
     const bytes = new Uint8Array(await file.arrayBuffer());
     const result = await extractImagesFromPdf(bytes, (current, total) =>
@@ -35,33 +45,66 @@ export function ExtractImagesWorkspace() {
 
     if (!result.ok) {
       setError(result.error);
+      analytics.trackFail({ stage: "upload", message: result.error });
       return;
     }
 
     if (result.images.length === 0) {
       setError("No embedded raster images found in this PDF.");
+      analytics.trackFail({
+        stage: "process",
+        message: "No embedded raster images found in this PDF.",
+      });
       return;
     }
 
     setImages(result.images);
-  }, []);
+    analytics.trackSuccess({
+      action: "extract-images",
+      imageCount: result.images.length,
+    });
+  }, [analytics]);
 
   function downloadSingle(img: ExtractedPdfImage) {
     const anchor = document.createElement("a");
     anchor.href = img.dataUrl;
-    anchor.download = `page${img.pageIndex + 1}_img${img.imageIndex + 1}.png`;
+    anchor.download = buildPdfStudioOutputName({
+      toolId: "extract-images",
+      baseName: `page${img.pageIndex + 1}-image${img.imageIndex + 1}`,
+      extension: "png",
+    });
     anchor.click();
+    analytics.trackSuccess({
+      action: "download-single",
+      imageCount: 1,
+    });
   }
 
   async function downloadAll() {
     if (images.length === 0) return;
     setDownloading(true);
     const items: BatchZipItem[] = images.map((img) => ({
-      filename: `page${img.pageIndex + 1}_img${img.imageIndex + 1}.png`,
+      filename: buildPdfStudioOutputName({
+        toolId: "extract-images",
+        baseName: `page${img.pageIndex + 1}-image${img.imageIndex + 1}`,
+        extension: "png",
+      }),
       dataUrl: img.dataUrl,
     }));
-    await downloadBatchZip(items, "extracted-images");
+    await downloadBatchZip(
+      items,
+      buildPdfStudioOutputName({
+        toolId: "extract-images",
+        baseName: "extracted-images",
+        extension: "zip",
+      }).replace(/\.zip$/u, ""),
+    );
     setDownloading(false);
+    analytics.trackSuccess({
+      action: "download-all",
+      imageCount: images.length,
+      output: "zip",
+    });
   }
 
   return (
@@ -81,7 +124,7 @@ export function ExtractImagesWorkspace() {
         </p>
       </div>
 
-      <PdfUploadZone onFiles={handleFile} />
+      <PdfUploadZone onFiles={handleFile} toolId="extract-images" />
 
       {loading && (
         <div className="space-y-2 text-center">

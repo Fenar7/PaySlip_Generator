@@ -1,5 +1,8 @@
 "use client";
 
+import { validatePdfStudioPageCount } from "@/features/docs/pdf-studio/lib/ingestion";
+import type { PdfStudioToolId } from "@/features/docs/pdf-studio/types";
+
 export interface PdfPageItem {
   pageIndex: number;
   previewUrl: string;
@@ -12,9 +15,16 @@ export type PdfReadResult =
   | { ok: true; data: PdfPageItem[] }
   | { ok: false; error: string };
 
+type PdfReadOptions =
+  | number
+  | {
+      toolId?: PdfStudioToolId;
+      maxPages?: number;
+    };
+
 export async function readPdfPages(
   file: File,
-  maxPages = 50
+  options: PdfReadOptions = 50,
 ): Promise<PdfReadResult> {
   try {
     const pdfjsLib = await import("pdfjs-dist");
@@ -26,10 +36,28 @@ export async function readPdfPages(
     const arrayBuffer = await file.arrayBuffer();
     const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
 
-    if (pdf.numPages > maxPages) {
+    if (typeof options === "number") {
+      if (pdf.numPages > options) {
+        return {
+          ok: false,
+          error: `This PDF has ${pdf.numPages} pages. The current limit is ${options} pages.`,
+        };
+      }
+    } else if (options.toolId) {
+      const pageValidation = validatePdfStudioPageCount(
+        options.toolId,
+        pdf.numPages,
+      );
+      if (!pageValidation.ok) {
+        return {
+          ok: false,
+          error: pageValidation.error,
+        };
+      }
+    } else if (options.maxPages && pdf.numPages > options.maxPages) {
       return {
         ok: false,
-        error: `PDF has ${pdf.numPages} pages (max ${maxPages})`,
+        error: `This PDF has ${pdf.numPages} pages. The current limit is ${options.maxPages} pages.`,
       };
     }
 

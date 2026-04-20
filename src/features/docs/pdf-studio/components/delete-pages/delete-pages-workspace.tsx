@@ -4,6 +4,8 @@ import { useCallback, useState } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui";
 import { PdfUploadZone } from "@/features/docs/pdf-studio/components/shared/pdf-upload-zone";
+import { usePdfStudioAnalytics } from "@/features/docs/pdf-studio/lib/analytics";
+import { buildPdfStudioOutputName } from "@/features/docs/pdf-studio/lib/output";
 import {
   PdfPageGrid,
   type PageGridItem,
@@ -13,6 +15,7 @@ import { deletePages } from "@/features/docs/pdf-studio/utils/pdf-splitter";
 import { downloadPdfBytes } from "@/features/docs/pdf-studio/utils/zip-builder";
 
 export function DeletePagesWorkspace() {
+  const analytics = usePdfStudioAnalytics("delete-pages");
   const [pages, setPages] = useState<PageGridItem[]>([]);
   const [pdfBytes, setPdfBytes] = useState<Uint8Array | null>(null);
   const [pdfName, setPdfName] = useState("");
@@ -33,10 +36,11 @@ export function DeletePagesWorkspace() {
 
     try {
       const bytes = new Uint8Array(await file.arrayBuffer());
-      const result = await readPdfPages(file, 200);
+      const result = await readPdfPages(file, { toolId: "delete-pages" });
 
       if (!result.ok) {
         setError(result.error);
+        analytics.trackFail({ stage: "upload", message: result.error });
         setLoading(false);
         return;
       }
@@ -51,8 +55,14 @@ export function DeletePagesWorkspace() {
       setPages(gridPages);
       setDeletedIds(new Set());
       setUndoStack([]);
+      analytics.trackUpload({
+        fileCount: 1,
+        pageCount: gridPages.length,
+        totalBytes: file.size,
+      });
     } catch {
       setError("Failed to read PDF");
+      analytics.trackFail({ stage: "upload", message: "Failed to read PDF" });
     } finally {
       setLoading(false);
     }
@@ -94,6 +104,10 @@ export function DeletePagesWorkspace() {
     if (!pdfBytes) return;
     setProcessing(true);
     setError(null);
+    analytics.trackStart({
+      pageCount: pages.length,
+      deletedCount: deletedIds.size,
+    });
 
     try {
       const pagesToDelete = pages
@@ -101,8 +115,19 @@ export function DeletePagesWorkspace() {
         .map((p) => p.pageIndex);
 
       if (pagesToDelete.length === 0) {
-        downloadPdfBytes(pdfBytes, `${pdfName}.pdf`);
+        downloadPdfBytes(
+          pdfBytes,
+          buildPdfStudioOutputName({
+            toolId: "delete-pages",
+            baseName: pdfName,
+            extension: "pdf",
+          }),
+        );
         setProcessing(false);
+        analytics.trackSuccess({
+          pageCount: pages.length,
+          deletedCount: 0,
+        });
         return;
       }
 
@@ -112,9 +137,21 @@ export function DeletePagesWorkspace() {
         setProcessing(false);
         return;
       }
-      downloadPdfBytes(result.data, `${pdfName}-cleaned.pdf`);
+      downloadPdfBytes(
+        result.data,
+        buildPdfStudioOutputName({
+          toolId: "delete-pages",
+          baseName: `${pdfName}-cleaned`,
+          extension: "pdf",
+        }),
+      );
+      analytics.trackSuccess({
+        pageCount: pages.length,
+        deletedCount: pagesToDelete.length,
+      });
     } catch {
       setError("Failed to process PDF");
+      analytics.trackFail({ stage: "process", message: "Failed to process PDF" });
     } finally {
       setProcessing(false);
     }
@@ -149,6 +186,7 @@ export function DeletePagesWorkspace() {
       {!pdfBytes && (
         <PdfUploadZone
           onFiles={handleFile}
+          toolId="delete-pages"
           label="Drop your PDF here"
           disabled={loading}
           error={error}

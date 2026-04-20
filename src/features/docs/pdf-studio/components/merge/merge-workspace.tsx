@@ -4,6 +4,8 @@ import { useCallback, useState } from "react";
 import Link from "next/link";
 import { Button, Input } from "@/components/ui";
 import { PdfUploadZone } from "@/features/docs/pdf-studio/components/shared/pdf-upload-zone";
+import { usePdfStudioAnalytics } from "@/features/docs/pdf-studio/lib/analytics";
+import { buildPdfStudioOutputName } from "@/features/docs/pdf-studio/lib/output";
 import {
   PdfPageGrid,
   type PageGridItem,
@@ -21,6 +23,7 @@ interface UploadedPdf {
 }
 
 export function MergeWorkspace() {
+  const analytics = usePdfStudioAnalytics("merge");
   const [pages, setPages] = useState<PageGridItem[]>([]);
   const [uploadedPdfs, setUploadedPdfs] = useState<UploadedPdf[]>([]);
   const [filename, setFilename] = useState("merged-document");
@@ -32,11 +35,6 @@ export function MergeWorkspace() {
 
   const handleFiles = useCallback(
     async (files: File[]) => {
-      if (uploadedPdfs.length + files.length > MAX_FILES) {
-        setError(`Maximum ${MAX_FILES} PDF files allowed`);
-        return;
-      }
-
       setLoading(true);
       setError(null);
 
@@ -46,10 +44,11 @@ export function MergeWorkspace() {
 
         for (const file of files) {
           const bytes = new Uint8Array(await file.arrayBuffer());
-          const result = await readPdfPages(file, MAX_TOTAL_PAGES);
+          const result = await readPdfPages(file, { toolId: "merge" });
 
           if (!result.ok) {
             setError(result.error);
+            analytics.trackFail({ stage: "upload", message: result.error });
             setLoading(false);
             return;
           }
@@ -77,8 +76,17 @@ export function MergeWorkspace() {
 
         setUploadedPdfs((prev) => [...prev, ...newPdfs]);
         setPages(allPages);
+        analytics.trackUpload({
+          fileCount: files.length,
+          pageCount: allPages.length,
+          totalBytes: files.reduce((sum, file) => sum + file.size, 0),
+        });
       } catch {
         setError("Failed to read one or more PDF files");
+        analytics.trackFail({
+          stage: "upload",
+          message: "Failed to read one or more PDF files",
+        });
       } finally {
         setLoading(false);
       }
@@ -94,6 +102,10 @@ export function MergeWorkspace() {
     if (uploadedPdfs.length === 0) return;
     setProcessing(true);
     setError(null);
+    analytics.trackStart({
+      fileCount: uploadedPdfs.length,
+      pageCount: pages.length,
+    });
 
     try {
       const { PDFDocument } = await import("pdf-lib");
@@ -119,9 +131,22 @@ export function MergeWorkspace() {
 
       const resultBytes = await mergedDoc.save();
       const name = filename.trim() || "merged-document";
-      downloadPdfBytes(resultBytes, `${name}.pdf`);
+      downloadPdfBytes(
+        resultBytes,
+        buildPdfStudioOutputName({
+          toolId: "merge",
+          baseName: name,
+          extension: "pdf",
+        }),
+      );
+      analytics.trackSuccess({
+        fileCount: uploadedPdfs.length,
+        pageCount: pages.length,
+        output: "pdf",
+      });
     } catch {
       setError("Failed to merge PDFs");
+      analytics.trackFail({ stage: "process", message: "Failed to merge PDFs" });
     } finally {
       setProcessing(false);
     }
@@ -153,8 +178,9 @@ export function MergeWorkspace() {
 
       <PdfUploadZone
         onFiles={handleFiles}
+        toolId="merge"
         multiple
-        maxFiles={MAX_FILES}
+        currentFileCount={uploadedPdfs.length}
         label={
           pages.length > 0 ? "Add more PDFs" : "Drop your PDFs here"
         }

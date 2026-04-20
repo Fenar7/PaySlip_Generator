@@ -3,6 +3,12 @@
 import { useCallback, useRef, useState } from "react";
 import { Button, Badge } from "@/components/ui";
 import { cn } from "@/lib/utils";
+import { usePdfStudioAnalytics } from "@/features/docs/pdf-studio/lib/analytics";
+import {
+  validatePdfStudioFiles,
+  validatePdfStudioPageCount,
+} from "@/features/docs/pdf-studio/lib/ingestion";
+import { buildPdfStudioOutputName } from "@/features/docs/pdf-studio/lib/output";
 import {
   PDF_TO_IMAGE_MAX_PAGES,
   renderPdfPagesToImages,
@@ -14,6 +20,7 @@ import { buildZip, downloadBlob } from "@/features/docs/pdf-studio/utils/zip-bui
 // ── Component ──────────────────────────────────────────────────────────
 
 export function PdfToImageWorkspace() {
+  const analytics = usePdfStudioAnalytics("pdf-to-image");
   const [file, setFile] = useState<File | null>(null);
   const [format, setFormat] = useState<"png" | "jpeg">("png");
   const [dpi, setDpi] = useState<72 | 150 | 300>(150);
@@ -31,8 +38,14 @@ export function PdfToImageWorkspace() {
   const handleFileSelect = useCallback(
     async (e: React.ChangeEvent<HTMLInputElement>) => {
       const f = e.target.files?.[0];
-      if (!f || f.type !== "application/pdf") {
-        setError("Please select a valid PDF file.");
+      if (!f) {
+        return;
+      }
+
+      const fileValidation = validatePdfStudioFiles("pdf-to-image", [f]);
+      if (!fileValidation.ok) {
+        setError(fileValidation.error);
+        analytics.trackFail({ stage: "upload", message: fileValidation.error });
         return;
       }
 
@@ -54,19 +67,36 @@ export function PdfToImageWorkspace() {
           data: arrayBuffer,
         }).promise;
 
-        if (pdf.numPages > PDF_TO_IMAGE_MAX_PAGES) {
-          setError(`PDF has ${pdf.numPages} pages (max ${PDF_TO_IMAGE_MAX_PAGES} for image conversion).`);
+        const pageValidation = validatePdfStudioPageCount(
+          "pdf-to-image",
+          pdf.numPages,
+        );
+        if (!pageValidation.ok) {
+          setError(pageValidation.error);
           setFile(null);
+          analytics.trackFail({ stage: "upload", message: pageValidation.error });
+          await pdf.destroy();
+          return;
         }
+        analytics.trackUpload({
+          fileCount: 1,
+          pageCount: pdf.numPages,
+          totalBytes: f.size,
+        });
+        await pdf.destroy();
       } catch (err) {
         const msg = err instanceof Error ? err.message : "Unknown error";
         setError(`Failed to read PDF: ${msg}`);
         setFile(null);
+        analytics.trackFail({
+          stage: "upload",
+          message: `Failed to read PDF: ${msg}`,
+        });
       } finally {
         setLoading(false);
       }
     },
-    [],
+    [analytics],
   );
 
   // ── Render pages ─────────────────────────────────────────────────────
@@ -77,6 +107,10 @@ export function PdfToImageWorkspace() {
     setRendering(true);
     setError(null);
     setPages([]);
+    analytics.trackStart({
+      format,
+      dpi,
+    });
 
     try {
       const arrayBuffer = await file.arrayBuffer();
@@ -94,17 +128,27 @@ export function PdfToImageWorkspace() {
 
       if (!result.ok) {
         setError(result.error);
+        analytics.trackFail({ stage: "render", message: result.error });
         return;
       }
 
       setPages(result.data);
+      analytics.trackSuccess({
+        format,
+        dpi,
+        pageCount: result.data.length,
+      });
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Unknown error";
       setError(`Rendering failed: ${msg}`);
+      analytics.trackFail({
+        stage: "render",
+        message: `Rendering failed: ${msg}`,
+      });
     } finally {
       setRendering(false);
     }
-  }, [file, format, dpi, jpegQuality]);
+  }, [analytics, dpi, file, format, jpegQuality]);
 
   // ── Download single page ─────────────────────────────────────────────
 
@@ -113,7 +157,14 @@ export function PdfToImageWorkspace() {
       const ext = format === "png" ? "png" : "jpg";
       const baseName = file?.name.replace(/\.pdf$/i, "") ?? "page";
       const blob = page.blob;
-      downloadBlob(blob, `${baseName}-page${page.pageIndex + 1}.${ext}`);
+      downloadBlob(
+        blob,
+        buildPdfStudioOutputName({
+          toolId: "pdf-to-image",
+          baseName: `${baseName}-page${page.pageIndex + 1}`,
+          extension: ext,
+        }),
+      );
     },
     [file, format],
   );
@@ -135,7 +186,14 @@ export function PdfToImageWorkspace() {
     }
 
     const zip = buildZip(files);
-    downloadBlob(zip, `${baseName}-images.zip`);
+    downloadBlob(
+      zip,
+      buildPdfStudioOutputName({
+        toolId: "pdf-to-image",
+        baseName: `${baseName}-images`,
+        extension: "zip",
+      }),
+    );
   }, [pages, format, file]);
 
   // ── DPI options ──────────────────────────────────────────────────────

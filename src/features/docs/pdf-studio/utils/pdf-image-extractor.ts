@@ -1,3 +1,5 @@
+import { validatePdfStudioPageCount } from "@/features/docs/pdf-studio/lib/ingestion";
+
 /**
  * Extract raster images embedded in a PDF file using pdfjs-dist.
  *
@@ -31,11 +33,15 @@ export async function extractImagesFromPdf(
 
     const pdf = await pdfjsLib.getDocument({ data: pdfBytes }).promise;
     const totalPages = pdf.numPages;
-    if (totalPages > PDF_IMAGE_EXTRACT_MAX_PAGES) {
+    const pageValidation = validatePdfStudioPageCount(
+      "extract-images",
+      totalPages,
+    );
+    if (!pageValidation.ok) {
       await pdf.destroy();
       return {
         ok: false,
-        error: `PDF has ${totalPages} pages (max ${PDF_IMAGE_EXTRACT_MAX_PAGES} for browser image extraction).`,
+        error: pageValidation.error,
       };
     }
 

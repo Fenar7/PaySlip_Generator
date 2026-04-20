@@ -4,6 +4,10 @@ import { useCallback, useRef, useState } from "react";
 import { PDFDocument } from "pdf-lib";
 import { Button, Badge } from "@/components/ui";
 import { cn } from "@/lib/utils";
+import { usePdfStudioAnalytics } from "@/features/docs/pdf-studio/lib/analytics";
+import { validatePdfStudioFiles } from "@/features/docs/pdf-studio/lib/ingestion";
+import { createPdfStudioJobPayload } from "@/features/docs/pdf-studio/lib/job";
+import { buildPdfStudioOutputName } from "@/features/docs/pdf-studio/lib/output";
 import { downloadPdfBytes } from "@/features/docs/pdf-studio/utils/zip-builder";
 
 // ── Types ──────────────────────────────────────────────────────────────
@@ -36,6 +40,7 @@ interface UnlockState {
 // ── Component ──────────────────────────────────────────────────────────
 
 export function ProtectUnlockWorkspace() {
+  const analytics = usePdfStudioAnalytics("protect");
   const [activeTab, setActiveTab] = useState<ActiveTab>("protect");
 
   // Protect state
@@ -67,15 +72,26 @@ export function ProtectUnlockWorkspace() {
   const handleProtectFileSelect = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
       const f = e.target.files?.[0];
-      if (!f || f.type !== "application/pdf") return;
+      if (!f) return;
+      const fileValidation = validatePdfStudioFiles("protect", [f]);
+      if (!fileValidation.ok) {
+        setProtect((prev) => ({ ...prev, error: fileValidation.error }));
+        analytics.trackFail({ stage: "upload", message: fileValidation.error });
+        return;
+      }
       setProtect((prev) => ({
         ...prev,
         file: f,
         status: "idle",
         error: null,
       }));
+      analytics.trackUpload({
+        action: "protect",
+        fileCount: 1,
+        totalBytes: f.size,
+      });
     },
-    [],
+    [analytics],
   );
 
   const handleProtect = useCallback(async () => {
@@ -103,7 +119,19 @@ export function ProtectUnlockWorkspace() {
       return;
     }
 
+    const job = createPdfStudioJobPayload({
+      toolId: "protect",
+      surface: analytics.surface,
+      files: [protect.file],
+      executionMode: "processing",
+      outputExtension: "pdf",
+    });
+
     setProtect((prev) => ({ ...prev, status: "processing", error: null }));
+    analytics.trackStart({
+      action: "protect",
+      jobId: job.jobId,
+    });
 
     try {
       const arrayBuffer = await protect.file.arrayBuffer();
@@ -144,21 +172,48 @@ export function ProtectUnlockWorkspace() {
       const encryptedBuffer = await response.arrayBuffer();
       const encryptedBytes = new Uint8Array(encryptedBuffer);
       const baseName = protect.file.name.replace(/\.pdf$/i, "");
-      downloadPdfBytes(encryptedBytes, `${baseName}-protected.pdf`);
+      downloadPdfBytes(
+        encryptedBytes,
+        buildPdfStudioOutputName({
+          toolId: "protect",
+          baseName: `${baseName}-protected`,
+          extension: "pdf",
+        }),
+      );
 
       setProtect((prev) => ({ ...prev, status: "done" }));
+      analytics.trackSuccess({
+        action: "protect",
+        jobId: job.jobId,
+      });
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Unknown error";
       setProtect((prev) => ({ ...prev, status: "error", error: msg }));
+      analytics.trackFail({
+        action: "protect",
+        stage: "process",
+        message: msg,
+        jobId: job.jobId,
+      });
     }
-  }, [protect]);
+  }, [analytics, protect]);
 
   // ── Unlock handlers ──────────────────────────────────────────────────
 
   const handleUnlockFileSelect = useCallback(
     async (e: React.ChangeEvent<HTMLInputElement>) => {
       const f = e.target.files?.[0];
-      if (!f || f.type !== "application/pdf") return;
+      if (!f) return;
+      const fileValidation = validatePdfStudioFiles("protect", [f]);
+      if (!fileValidation.ok) {
+        setUnlock((prev) => ({
+          ...prev,
+          status: "error",
+          error: fileValidation.error,
+        }));
+        analytics.trackFail({ stage: "upload", message: fileValidation.error });
+        return;
+      }
 
       setUnlock((prev) => ({
         ...prev,
@@ -202,6 +257,11 @@ export function ProtectUnlockWorkspace() {
             status: "idle",
           }));
         }
+        analytics.trackUpload({
+          action: "unlock",
+          fileCount: 1,
+          totalBytes: f.size,
+        });
       } catch (err) {
         const msg = err instanceof Error ? err.message : "Unknown error";
         setUnlock((prev) => ({
@@ -209,9 +269,14 @@ export function ProtectUnlockWorkspace() {
           status: "error",
           error: `Failed to read PDF: ${msg}`,
         }));
+        analytics.trackFail({
+          action: "unlock",
+          stage: "upload",
+          message: `Failed to read PDF: ${msg}`,
+        });
       }
     },
-    [],
+    [analytics],
   );
 
   const handleUnlock = useCallback(async () => {
@@ -223,7 +288,19 @@ export function ProtectUnlockWorkspace() {
       return;
     }
 
+    const job = createPdfStudioJobPayload({
+      toolId: "protect",
+      surface: analytics.surface,
+      files: unlock.file ? [unlock.file] : [],
+      executionMode: "browser",
+      outputExtension: "pdf",
+    });
+
     setUnlock((prev) => ({ ...prev, status: "unlocking", error: null }));
+    analytics.trackStart({
+      action: "unlock",
+      jobId: job.jobId,
+    });
 
     try {
       // Verify password using pdfjs-dist (which supports password decryption)
@@ -268,17 +345,35 @@ export function ProtectUnlockWorkspace() {
 
       const savedBytes = await newDoc.save();
       const baseName = unlock.file?.name.replace(/\.pdf$/i, "") ?? "document";
-      downloadPdfBytes(savedBytes, `${baseName}-unlocked.pdf`);
+      downloadPdfBytes(
+        savedBytes,
+        buildPdfStudioOutputName({
+          toolId: "protect",
+          baseName: `${baseName}-unlocked`,
+          extension: "pdf",
+        }),
+      );
 
       setUnlock((prev) => ({ ...prev, status: "done" }));
+      analytics.trackSuccess({
+        action: "unlock",
+        jobId: job.jobId,
+      });
     } catch {
+      const message = "Incorrect password or corrupted file. Please try again.";
       setUnlock((prev) => ({
         ...prev,
         status: "error",
-        error: "Incorrect password or corrupted file. Please try again.",
+        error: message,
       }));
+      analytics.trackFail({
+        action: "unlock",
+        stage: "process",
+        message,
+        jobId: job.jobId,
+      });
     }
-  }, [unlock.pdfBytes, unlock.password, unlock.file]);
+  }, [analytics, unlock.file, unlock.password, unlock.pdfBytes]);
 
   // ── Render ───────────────────────────────────────────────────────────
 

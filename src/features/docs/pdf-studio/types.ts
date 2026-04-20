@@ -1,5 +1,32 @@
 export type ImageRotation = 0 | 90 | 180 | 270;
 
+export type PdfStudioToolId =
+  | "create"
+  | "merge"
+  | "split"
+  | "delete-pages"
+  | "organize"
+  | "resize-pages"
+  | "fill-sign"
+  | "protect"
+  | "header-footer"
+  | "repair"
+  | "pdf-to-image"
+  | "extract-images";
+
+export type PdfStudioToolSurface = "workspace" | "public";
+export type PdfStudioToolCategory =
+  | "page-organization"
+  | "edit-enhance"
+  | "convert-export";
+export type PdfStudioExecutionMode = "browser" | "processing" | "hybrid";
+export type PdfStudioFileClass =
+  | "pdf"
+  | "image"
+  | "office"
+  | "html"
+  | "scanned-pdf";
+
 export type PdfMetadata = {
   title: string;
   author: string;

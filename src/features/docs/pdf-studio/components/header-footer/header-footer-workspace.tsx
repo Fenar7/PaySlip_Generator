@@ -3,6 +3,12 @@
 import { useCallback, useRef, useState } from "react";
 import { Button } from "@/components/ui";
 import { cn } from "@/lib/utils";
+import { usePdfStudioAnalytics } from "@/features/docs/pdf-studio/lib/analytics";
+import {
+  validatePdfStudioFiles,
+  validatePdfStudioPageCount,
+} from "@/features/docs/pdf-studio/lib/ingestion";
+import { buildPdfStudioOutputName } from "@/features/docs/pdf-studio/lib/output";
 import {
   injectHeaderFooter,
   type HeaderFooterConfig,
@@ -40,6 +46,7 @@ const TOKEN_BUTTONS = [
 // ── Component ──────────────────────────────────────────────────────────
 
 export function HeaderFooterWorkspace() {
+  const analytics = usePdfStudioAnalytics("header-footer");
   const [file, setFile] = useState<File | null>(null);
   const [pdfBytes, setPdfBytes] = useState<Uint8Array | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
@@ -63,8 +70,13 @@ export function HeaderFooterWorkspace() {
   const handleFileSelect = useCallback(
     async (e: React.ChangeEvent<HTMLInputElement>) => {
       const f = e.target.files?.[0];
-      if (!f || f.type !== "application/pdf") {
-        setError("Please select a valid PDF file.");
+      if (!f) {
+        return;
+      }
+      const fileValidation = validatePdfStudioFiles("header-footer", [f]);
+      if (!fileValidation.ok) {
+        setError(fileValidation.error);
+        analytics.trackFail({ stage: "upload", message: fileValidation.error });
         return;
       }
 
@@ -85,6 +97,17 @@ export function HeaderFooterWorkspace() {
         ).toString();
 
         const pdf = await pdfjsLib.getDocument({ data: bytes }).promise;
+        const pageValidation = validatePdfStudioPageCount(
+          "header-footer",
+          pdf.numPages,
+        );
+        if (!pageValidation.ok) {
+          setError(pageValidation.error);
+          analytics.trackFail({ stage: "upload", message: pageValidation.error });
+          await pdf.destroy();
+          setLoading(false);
+          return;
+        }
         const page = await pdf.getPage(1);
         const viewport = page.getViewport({ scale: 1 });
         setPageSize({ width: viewport.width, height: viewport.height });
@@ -100,23 +123,42 @@ export function HeaderFooterWorkspace() {
 
         setPreviewUrl(canvas.toDataURL("image/jpeg", 0.85));
         canvas.remove();
+        analytics.trackUpload({
+          fileCount: 1,
+          pageCount: pdf.numPages,
+          totalBytes: f.size,
+        });
+        await pdf.destroy();
       } catch (err) {
         const msg = err instanceof Error ? err.message : "Unknown error";
         setError(`Failed to read PDF: ${msg}`);
+        analytics.trackFail({
+          stage: "upload",
+          message: `Failed to read PDF: ${msg}`,
+        });
       } finally {
         setLoading(false);
       }
     },
-    [],
+    [analytics],
   );
 
   // ── Generate ─────────────────────────────────────────────────────────
+
+  const hasContent =
+    header.left ||
+    header.center ||
+    header.right ||
+    footer.left ||
+    footer.center ||
+    footer.right;
 
   const handleGenerate = useCallback(async () => {
     if (!pdfBytes || !file) return;
     setGenerating(true);
     setError(null);
     setSuccess(false);
+    analytics.trackStart({ hasContent });
 
     try {
       const settings: HeaderFooterSettings = {
@@ -126,23 +168,27 @@ export function HeaderFooterWorkspace() {
       };
       const result = await injectHeaderFooter(pdfBytes, settings);
       const baseName = file.name.replace(/\.pdf$/i, "");
-      downloadPdfBytes(result, `${baseName}-with-headers.pdf`);
+      downloadPdfBytes(
+        result,
+        buildPdfStudioOutputName({
+          toolId: "header-footer",
+          baseName: `${baseName}-header-footer`,
+          extension: "pdf",
+        }),
+      );
       setSuccess(true);
+      analytics.trackSuccess({ hasContent });
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Unknown error";
       setError(`Failed to generate PDF: ${msg}`);
+      analytics.trackFail({
+        stage: "generate",
+        message: `Failed to generate PDF: ${msg}`,
+      });
     } finally {
       setGenerating(false);
     }
-  }, [pdfBytes, file, header, footer]);
-
-  const hasContent =
-    header.left ||
-    header.center ||
-    header.right ||
-    footer.left ||
-    footer.center ||
-    footer.right;
+  }, [analytics, file, footer, hasContent, header, pdfBytes]);
 
   // ── Config panel sub-component ───────────────────────────────────────
 
