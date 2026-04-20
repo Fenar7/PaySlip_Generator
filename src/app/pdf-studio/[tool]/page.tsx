@@ -5,6 +5,7 @@ import { PdfStudioPublicToolShell } from "@/features/docs/pdf-studio/components/
 import { buildPdfStudioToolMetadata } from "@/features/docs/pdf-studio/lib/route-metadata";
 import {
   getPdfStudioToolBySlug,
+  isPdfStudioToolAvailableOnSurface,
   listPdfStudioTools,
 } from "@/features/docs/pdf-studio/lib/tool-registry";
 import { renderPdfStudioToolWorkspace } from "@/features/docs/pdf-studio/lib/tool-components";
@@ -22,7 +23,7 @@ export function generateMetadata({
 }): Promise<Metadata> | Metadata {
   return params.then(({ tool: slug }) => {
     const tool = getPdfStudioToolBySlug(slug);
-    if (!tool || !tool.publicReady) {
+    if (!tool || !isPdfStudioToolAvailableOnSurface(tool, "public")) {
       return {};
     }
 
@@ -37,8 +38,24 @@ export default async function PublicPdfStudioToolPage({
 }) {
   const { tool: slug } = await params;
   const tool = getPdfStudioToolBySlug(slug);
-  if (!tool || !tool.publicReady) {
+  if (!tool || !isPdfStudioToolAvailableOnSurface(tool, "public")) {
     notFound();
+  }
+
+  if (tool.id === "create") {
+    return (
+      <div className="space-y-6">
+        <div>
+          <Link
+            href="/pdf-studio"
+            className="inline-flex items-center gap-1.5 text-sm text-[var(--muted-foreground)] transition-colors hover:text-[var(--foreground)]"
+          >
+            ← PDF Studio hub
+          </Link>
+        </div>
+        {renderPdfStudioToolWorkspace(tool.id)}
+      </div>
+    );
   }
 
   return (

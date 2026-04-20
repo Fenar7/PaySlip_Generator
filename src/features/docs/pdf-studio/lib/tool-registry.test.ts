@@ -34,6 +34,18 @@ describe("pdf studio tool registry", () => {
       }),
     );
 
-    expect(publicCatalog).toEqual(workspaceCatalog);
+    expect(publicCatalog.map((category) => category.label)).toEqual(
+      workspaceCatalog.map((category) => category.label),
+    );
+    expect(
+      publicCatalog.every((category, index) =>
+        category.tools.every((toolId) =>
+          workspaceCatalog[index].tools.includes(toolId),
+        ),
+      ),
+    ).toBe(true);
+    expect(publicCatalog.flatMap((category) => category.tools)).not.toContain(
+      "protect",
+    );
   });
 });

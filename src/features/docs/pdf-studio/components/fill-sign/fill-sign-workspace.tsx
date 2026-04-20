@@ -118,7 +118,7 @@ export function FillSignWorkspace() {
       const fileValidation = validatePdfStudioFiles("fill-sign", [f]);
       if (!fileValidation.ok) {
         setError(fileValidation.error);
-        analytics.trackFail({ stage: "upload", message: fileValidation.error });
+        analytics.trackFail({ stage: "upload", reason: fileValidation.reason });
         return;
       }
 
@@ -148,7 +148,7 @@ export function FillSignWorkspace() {
         if (!pageValidation.ok) {
           setError(pageValidation.error);
           setLoading(false);
-          analytics.trackFail({ stage: "upload", message: pageValidation.error });
+          analytics.trackFail({ stage: "upload", reason: pageValidation.reason });
           await pdf.destroy();
           return;
         }
@@ -189,11 +189,10 @@ export function FillSignWorkspace() {
           totalBytes: f.size,
         });
       } catch (err) {
-        const msg = err instanceof Error ? err.message : "Unknown error";
-        setError(`Failed to read PDF: ${msg}`);
+        setError("Unable to read this PDF. Please verify the file is valid and try again.");
         analytics.trackFail({
           stage: "upload",
-          message: `Failed to read PDF: ${msg}`,
+          reason: "pdf-read-failed",
         });
       } finally {
         setLoading(false);
@@ -365,11 +364,10 @@ export function FillSignWorkspace() {
         signatureAnnotations: signatureAnnotations.length,
       });
     } catch (err) {
-      const msg = err instanceof Error ? err.message : "Unknown error";
-      setError(`Failed to generate PDF: ${msg}`);
+      setError("Could not generate the signed PDF. Please try again.");
       analytics.trackFail({
         stage: "generate",
-        message: `Failed to generate PDF: ${msg}`,
+        reason: "processing-failed",
       });
     } finally {
       setGenerating(false);
@@ -409,7 +407,7 @@ export function FillSignWorkspace() {
   if (!file || pages.length === 0) {
     return (
       <div className="mx-auto max-w-3xl px-4 py-8 sm:py-12">
-        <div className="mb-8 text-center">
+        <div className="pdf-studio-tool-header mb-8 text-center">
           <h1 className="text-2xl font-bold text-[#1a1a1a] sm:text-3xl">
             Fill &amp; Sign
           </h1>

@@ -45,7 +45,7 @@ export function PdfToImageWorkspace() {
       const fileValidation = validatePdfStudioFiles("pdf-to-image", [f]);
       if (!fileValidation.ok) {
         setError(fileValidation.error);
-        analytics.trackFail({ stage: "upload", message: fileValidation.error });
+        analytics.trackFail({ stage: "upload", reason: fileValidation.reason });
         return;
       }
 
@@ -74,7 +74,7 @@ export function PdfToImageWorkspace() {
         if (!pageValidation.ok) {
           setError(pageValidation.error);
           setFile(null);
-          analytics.trackFail({ stage: "upload", message: pageValidation.error });
+          analytics.trackFail({ stage: "upload", reason: pageValidation.reason });
           await pdf.destroy();
           return;
         }
@@ -85,12 +85,11 @@ export function PdfToImageWorkspace() {
         });
         await pdf.destroy();
       } catch (err) {
-        const msg = err instanceof Error ? err.message : "Unknown error";
-        setError(`Failed to read PDF: ${msg}`);
+        setError("Unable to read this PDF. Please verify the file is valid and try again.");
         setFile(null);
         analytics.trackFail({
           stage: "upload",
-          message: `Failed to read PDF: ${msg}`,
+          reason: "pdf-read-failed",
         });
       } finally {
         setLoading(false);
@@ -128,7 +127,7 @@ export function PdfToImageWorkspace() {
 
       if (!result.ok) {
         setError(result.error);
-        analytics.trackFail({ stage: "render", message: result.error });
+        analytics.trackFail({ stage: "render", reason: "render-failed" });
         return;
       }
 
@@ -139,11 +138,10 @@ export function PdfToImageWorkspace() {
         pageCount: result.data.length,
       });
     } catch (err) {
-      const msg = err instanceof Error ? err.message : "Unknown error";
-      setError(`Rendering failed: ${msg}`);
+      setError("Rendering failed. Please try again with a smaller or simpler PDF.");
       analytics.trackFail({
         stage: "render",
-        message: `Rendering failed: ${msg}`,
+        reason: "render-failed",
       });
     } finally {
       setRendering(false);
@@ -208,7 +206,7 @@ export function PdfToImageWorkspace() {
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-8 sm:py-12">
-      <div className="mb-8 text-center">
+      <div className="pdf-studio-tool-header mb-8 text-center">
         <h1 className="text-2xl font-bold text-[#1a1a1a] sm:text-3xl">
           PDF to Image
         </h1>

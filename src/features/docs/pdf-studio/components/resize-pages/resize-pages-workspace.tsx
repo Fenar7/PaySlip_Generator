@@ -67,7 +67,7 @@ export function ResizePagesWorkspace() {
 
       if (!result.ok) {
         setError(result.error);
-        analytics.trackFail({ stage: "upload", message: result.error });
+        analytics.trackFail({ stage: "upload", reason: result.reason });
         setLoading(false);
         return;
       }
@@ -82,7 +82,7 @@ export function ResizePagesWorkspace() {
       });
     } catch {
       setError("Failed to read PDF");
-      analytics.trackFail({ stage: "upload", message: "Failed to read PDF" });
+      analytics.trackFail({ stage: "upload", reason: "pdf-read-failed" });
     } finally {
       setLoading(false);
     }
@@ -159,7 +159,7 @@ export function ResizePagesWorkspace() {
       });
     } catch {
       setError("Failed to resize PDF");
-      analytics.trackFail({ stage: "process", message: "Failed to resize PDF" });
+      analytics.trackFail({ stage: "process", reason: "processing-failed" });
     } finally {
       setProcessing(false);
     }
@@ -180,7 +180,7 @@ export function ResizePagesWorkspace() {
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-8 sm:px-6 lg:px-8">
-      <div className="mb-6">
+      <div className="pdf-studio-tool-header mb-6">
         <Link
           href="/app/docs/pdf-studio"
           className="text-xs text-[var(--muted-foreground)] transition-colors hover:text-[var(--foreground)]"

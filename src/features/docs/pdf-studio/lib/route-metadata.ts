@@ -1,7 +1,9 @@
 import type { Metadata } from "next";
 import {
+  getPdfStudioCanonicalPath,
   getPdfStudioExecutionCopy,
   getPdfStudioTool,
+  isPdfStudioToolAvailableOnSurface,
 } from "@/features/docs/pdf-studio/lib/tool-registry";
 import type {
   PdfStudioToolId,
@@ -9,7 +11,7 @@ import type {
 } from "@/features/docs/pdf-studio/types";
 
 const PDF_STUDIO_HUB_DESCRIPTION =
-  "Browse PDF Studio tools for creating, merging, splitting, repairing, securing, and converting PDFs with clear browser-vs-processing guidance.";
+  "Browse PDF Studio tools for creating, merging, splitting, repairing, and converting PDFs with clear browser-vs-processing guidance.";
 
 export function buildPdfStudioHubMetadata(
   surface: PdfStudioToolSurface,
@@ -50,18 +52,19 @@ export function buildPdfStudioToolMetadata(
   const tool = getPdfStudioTool(toolId);
   const execution = getPdfStudioExecutionCopy(tool.executionMode);
   const description = `${tool.description} ${execution.description}`;
+  const canonicalPath = getPdfStudioCanonicalPath(tool);
 
-  if (surface === "public") {
+  if (surface === "public" && isPdfStudioToolAvailableOnSurface(tool, "public")) {
     return {
       title: `${tool.title} | PDF Studio`,
       description,
       alternates: {
-        canonical: tool.publicPath,
+        canonical: canonicalPath,
       },
       openGraph: {
         title: `${tool.title} | PDF Studio`,
         description,
-        url: tool.publicPath,
+        url: canonicalPath,
       },
       keywords: tool.keywords,
     };
@@ -71,7 +74,7 @@ export function buildPdfStudioToolMetadata(
     title: `${tool.title} | PDF Studio`,
     description,
     alternates: {
-      canonical: tool.publicPath,
+      canonical: canonicalPath,
     },
     keywords: tool.keywords,
     robots: {

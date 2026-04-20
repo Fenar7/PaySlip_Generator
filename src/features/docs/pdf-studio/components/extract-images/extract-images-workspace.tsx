@@ -45,7 +45,7 @@ export function ExtractImagesWorkspace() {
 
     if (!result.ok) {
       setError(result.error);
-      analytics.trackFail({ stage: "upload", message: result.error });
+      analytics.trackFail({ stage: "upload", reason: "processing-failed" });
       return;
     }
 
@@ -53,7 +53,7 @@ export function ExtractImagesWorkspace() {
       setError("No embedded raster images found in this PDF.");
       analytics.trackFail({
         stage: "process",
-        message: "No embedded raster images found in this PDF.",
+        reason: "no-embedded-images",
       });
       return;
     }
@@ -109,7 +109,7 @@ export function ExtractImagesWorkspace() {
 
   return (
     <div className="mx-auto w-full max-w-5xl space-y-6 px-4 py-6 sm:px-6">
-      <div>
+      <div className="pdf-studio-tool-header">
         <Link
           href="/app/docs/pdf-studio"
           className="inline-flex items-center gap-1.5 text-sm text-[#666] hover:text-[#1a1a1a] transition-colors"

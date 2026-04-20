@@ -23,7 +23,7 @@ describe("pdf studio route metadata", () => {
   it("marks workspace pages as non-indexable while sharing canonical targets", () => {
     const metadata = buildPdfStudioToolMetadata("protect", "workspace");
 
-    expect(metadata.alternates?.canonical).toBe("/pdf-studio/protect");
+    expect(metadata.alternates?.canonical).toBe("/app/docs/pdf-studio/protect");
     expect(metadata.robots).toEqual({ index: false, follow: false });
   });
 });

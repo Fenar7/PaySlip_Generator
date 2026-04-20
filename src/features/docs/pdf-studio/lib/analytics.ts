@@ -4,10 +4,8 @@ import { useEffect, useMemo, useRef } from "react";
 import { usePathname } from "next/navigation";
 import { trackEvent } from "@/lib/analytics";
 import { getPdfStudioTool } from "@/features/docs/pdf-studio/lib/tool-registry";
-import type {
-  PdfStudioToolId,
-  PdfStudioToolSurface,
-} from "@/features/docs/pdf-studio/types";
+import { usePdfStudioSurface } from "@/features/docs/pdf-studio/lib/surface";
+import type { PdfStudioToolId } from "@/features/docs/pdf-studio/types";
 
 type PdfStudioAnalyticsSubject = PdfStudioToolId | "hub";
 type PdfStudioAnalyticsEvent =
@@ -18,23 +16,65 @@ type PdfStudioAnalyticsEvent =
   | "pdf_studio_fail"
   | "pdf_studio_upgrade_intent";
 
-function getSurfaceFromPathname(pathname: string): PdfStudioToolSurface {
-  return pathname.startsWith("/app/docs/pdf-studio") ? "workspace" : "public";
+export type PdfStudioFailureStage = "upload" | "process" | "render" | "generate";
+export type PdfStudioFailureReason =
+  | "no-files"
+  | "too-many-files"
+  | "file-too-large"
+  | "unsupported-file-type"
+  | "page-limit-exceeded"
+  | "pdf-read-failed"
+  | "processing-failed"
+  | "render-failed"
+  | "validation-failed"
+  | "password-required"
+  | "password-mismatch"
+  | "password-too-short"
+  | "incorrect-password"
+  | "rate-limited"
+  | "payload-too-large"
+  | "encryption-failed"
+  | "no-embedded-images"
+  | "image-only-output"
+  | "unknown";
+
+type SafeAnalyticsProperties = Record<string, unknown>;
+type FailureProperties = SafeAnalyticsProperties & {
+  stage: PdfStudioFailureStage;
+  reason: PdfStudioFailureReason;
+};
+
+const BLOCKED_ANALYTICS_KEYS = new Set([
+  "message",
+  "error",
+  "filename",
+  "fileName",
+  "sourcePdfName",
+]);
+
+function sanitizeAnalyticsProperties(properties: Record<string, unknown>) {
+  const sanitized: Record<string, unknown> = {};
+
+  for (const [key, value] of Object.entries(properties)) {
+    if (BLOCKED_ANALYTICS_KEYS.has(key)) {
+      continue;
+    }
+    sanitized[key] = value;
+  }
+
+  return sanitized;
 }
 
 export function trackPdfStudioLifecycleEvent(
   eventName: PdfStudioAnalyticsEvent,
   properties: Record<string, unknown>,
 ) {
-  void trackEvent(eventName, properties);
+  void trackEvent(eventName, sanitizeAnalyticsProperties(properties));
 }
 
 export function usePdfStudioAnalytics(subject: PdfStudioAnalyticsSubject) {
+  const { surface } = usePdfStudioSurface();
   const pathname = usePathname();
-  const surface = useMemo(
-    () => getSurfaceFromPathname(pathname),
-    [pathname],
-  );
   const trackedEntry = useRef(false);
   const tool =
     subject === "hub" ? null : getPdfStudioTool(subject);
@@ -77,10 +117,10 @@ export function usePdfStudioAnalytics(subject: PdfStudioAnalyticsSubject) {
         ...properties,
       });
     },
-    trackFail(properties?: Record<string, unknown>) {
+    trackFail(properties: FailureProperties) {
       trackPdfStudioLifecycleEvent("pdf_studio_fail", {
         ...baseProperties,
-        ...properties,
+        ...sanitizeAnalyticsProperties(properties),
       });
     },
     trackUpgradeIntent(properties?: Record<string, unknown>) {

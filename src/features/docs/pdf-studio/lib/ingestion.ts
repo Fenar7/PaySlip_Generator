@@ -1,4 +1,5 @@
 import { getPdfStudioTool } from "@/features/docs/pdf-studio/lib/tool-registry";
+import type { PdfStudioFailureReason } from "@/features/docs/pdf-studio/lib/analytics";
 import type {
   PdfStudioFileClass,
   PdfStudioToolId,
@@ -126,7 +127,7 @@ export type PdfStudioFileValidationResult =
       fileClasses: PdfStudioFileClass[];
       totalBytes: number;
     }
-  | { ok: false; error: string };
+  | { ok: false; error: string; reason: PdfStudioFailureReason };
 
 export function validatePdfStudioFiles(
   toolId: PdfStudioToolId,
@@ -138,16 +139,21 @@ export function validatePdfStudioFiles(
   const currentFileCount = options?.currentFileCount ?? 0;
 
   if (files.length === 0) {
-    return { ok: false, error: `Add at least one file for ${tool.title}.` };
+    return {
+      ok: false,
+      error: `Add at least one file for ${tool.title}.`,
+      reason: "no-files",
+    };
   }
 
   if (currentFileCount + files.length > tool.limits.maxFiles) {
     return {
       ok: false,
-      error:
-        tool.limits.maxFiles === 1
-          ? `${tool.title} accepts one file at a time.`
-          : `${tool.title} accepts up to ${tool.limits.maxFiles} files per run.`,
+        error:
+          tool.limits.maxFiles === 1
+            ? `${tool.title} accepts one file at a time.`
+            : `${tool.title} accepts up to ${tool.limits.maxFiles} files per run.`,
+      reason: "too-many-files",
     };
   }
 
@@ -157,7 +163,8 @@ export function validatePdfStudioFiles(
   if (oversizedFile) {
     return {
       ok: false,
-      error: `${oversizedFile.name} exceeds the ${tool.limits.maxSizeMb}MB upload limit for ${tool.title}.`,
+      error: `This file exceeds the ${tool.limits.maxSizeMb}MB upload limit for ${tool.title}.`,
+      reason: "file-too-large",
     };
   }
 
@@ -167,7 +174,8 @@ export function validatePdfStudioFiles(
     if (!fileClass || !tool.inputTypes.includes(fileClass)) {
       return {
         ok: false,
-        error: `${file.name} is not supported for ${tool.title}. Accepted inputs: ${formatAcceptedInputClasses(tool.inputTypes)}.`,
+        error: `Unsupported file type for ${tool.title}. Accepted inputs: ${formatAcceptedInputClasses(tool.inputTypes)}.`,
+        reason: "unsupported-file-type",
       };
     }
     fileClasses.push(fileClass);
@@ -193,5 +201,6 @@ export function validatePdfStudioPageCount(
   return {
     ok: false as const,
     error: `This PDF has ${pageCount} pages. ${tool.title} supports up to ${tool.limits.maxPages} pages per run.`,
+    reason: "page-limit-exceeded" as const,
   };
 }

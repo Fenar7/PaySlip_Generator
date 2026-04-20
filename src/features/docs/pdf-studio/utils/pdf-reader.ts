@@ -13,7 +13,13 @@ export interface PdfPageItem {
 
 export type PdfReadResult =
   | { ok: true; data: PdfPageItem[] }
-  | { ok: false; error: string };
+  | {
+      ok: false;
+      error: string;
+      reason:
+        | "page-limit-exceeded"
+        | "pdf-read-failed";
+    };
 
 type PdfReadOptions =
   | number
@@ -41,6 +47,7 @@ export async function readPdfPages(
         return {
           ok: false,
           error: `This PDF has ${pdf.numPages} pages. The current limit is ${options} pages.`,
+          reason: "page-limit-exceeded",
         };
       }
     } else if (options.toolId) {
@@ -52,12 +59,14 @@ export async function readPdfPages(
         return {
           ok: false,
           error: pageValidation.error,
+          reason: pageValidation.reason,
         };
       }
     } else if (options.maxPages && pdf.numPages > options.maxPages) {
       return {
         ok: false,
         error: `This PDF has ${pdf.numPages} pages. The current limit is ${options.maxPages} pages.`,
+        reason: "page-limit-exceeded",
       };
     }
 
@@ -70,7 +79,11 @@ export async function readPdfPages(
       canvas.height = viewport.height;
       const ctx = canvas.getContext("2d");
       if (!ctx) {
-        return { ok: false, error: "Failed to create canvas context" };
+        return {
+          ok: false,
+          error: "Unable to read this PDF. Please verify the file and try again.",
+          reason: "pdf-read-failed",
+        };
       }
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       await page.render({ canvasContext: ctx, viewport } as any).promise;
@@ -88,7 +101,10 @@ export async function readPdfPages(
 
     return { ok: true, data: pages };
   } catch (err) {
-    const msg = err instanceof Error ? err.message : "Unknown error";
-    return { ok: false, error: `Failed to read PDF: ${msg}` };
+    return {
+      ok: false,
+      error: "Unable to read this PDF. Please verify the file is valid and try again.",
+      reason: "pdf-read-failed",
+    };
   }
 }

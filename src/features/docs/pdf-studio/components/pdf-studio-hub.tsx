@@ -120,7 +120,7 @@ export function PdfStudioHub({
                 </h1>
                 <p className="text-sm text-[var(--muted-foreground)]">
                   {surface === "public"
-                    ? "Crawlable PDF utility hub with live tools, shared limits, and clear browser-vs-processing guidance."
+                    ? "Crawlable PDF utility hub for the public-ready catalog, with shared limits and clear browser-vs-processing guidance."
                     : "Workspace catalog for every live PDF Studio tool — no hidden routes and no false 'Soon' states."}
                 </p>
               </div>
@@ -128,7 +128,7 @@ export function PdfStudioHub({
 
             <p className="mt-4 max-w-3xl text-sm leading-7 text-[var(--foreground-soft)]">
               {surface === "public"
-                ? "Browse the full live catalog, open tools directly, and move into the Slipwise workspace whenever you need saved history, future batch workflows, or account-based access."
+                ? "Browse every public-ready tool, use browser-safe utilities directly, and move into the Slipwise workspace when you need signed-in docs workflows."
                 : "Everything listed here links to a real PDF Studio route. Use the public hub for discovery and shareable landing pages, or stay in the workspace for document work inside SW> Docs."}
             </p>
           </div>

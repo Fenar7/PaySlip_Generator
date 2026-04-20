@@ -41,6 +41,7 @@ describe("pdf studio ingestion helpers", () => {
     expect(validatePdfStudioFiles("merge", tooManyFiles)).toEqual({
       ok: false,
       error: "Merge PDFs accepts up to 10 files per run.",
+      reason: "too-many-files",
     });
 
     expect(
@@ -50,12 +51,14 @@ describe("pdf studio ingestion helpers", () => {
     ).toEqual({
       ok: false,
       error:
-        "photo.png is not supported for Fill & Sign. Accepted inputs: PDF.",
+        "Unsupported file type for Fill & Sign. Accepted inputs: PDF.",
+      reason: "unsupported-file-type",
     });
 
     expect(validatePdfStudioPageCount("pdf-to-image", 21)).toEqual({
       ok: false,
       error: "This PDF has 21 pages. PDF to Image supports up to 20 pages per run.",
+      reason: "page-limit-exceeded",
     });
   });
 

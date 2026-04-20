@@ -14,7 +14,10 @@ export type PdfStudioToolDefinition = {
   category: PdfStudioToolCategory;
   workspacePath: string;
   publicPath: string;
-  publicReady: boolean;
+  availability: {
+    workspace: "available";
+    public: "available" | "workspace-only";
+  };
   executionMode: PdfStudioExecutionMode;
   inputTypes: PdfStudioFileClass[];
   outputLabel: string;
@@ -42,6 +45,16 @@ const SHARED_PDF_LIMITS = {
   maxPages: 200,
 } as const;
 
+const PUBLIC_AND_WORKSPACE = {
+  workspace: "available",
+  public: "available",
+} as const;
+
+const WORKSPACE_ONLY = {
+  workspace: "available",
+  public: "workspace-only",
+} as const;
+
 export const PDF_STUDIO_TOOL_REGISTRY: Record<
   PdfStudioToolId,
   PdfStudioToolDefinition
@@ -55,7 +68,7 @@ export const PDF_STUDIO_TOOL_REGISTRY: Record<
     category: "page-organization",
     workspacePath: "/app/docs/pdf-studio/create",
     publicPath: "/pdf-studio/create",
-    publicReady: true,
+    availability: PUBLIC_AND_WORKSPACE,
     executionMode: "browser",
     inputTypes: ["image"],
     outputLabel: "PDF",
@@ -75,7 +88,7 @@ export const PDF_STUDIO_TOOL_REGISTRY: Record<
     category: "page-organization",
     workspacePath: "/app/docs/pdf-studio/merge",
     publicPath: "/pdf-studio/merge",
-    publicReady: true,
+    availability: PUBLIC_AND_WORKSPACE,
     executionMode: "browser",
     inputTypes: ["pdf"],
     outputLabel: "PDF",
@@ -96,7 +109,7 @@ export const PDF_STUDIO_TOOL_REGISTRY: Record<
     category: "page-organization",
     workspacePath: "/app/docs/pdf-studio/split",
     publicPath: "/pdf-studio/split",
-    publicReady: true,
+    availability: PUBLIC_AND_WORKSPACE,
     executionMode: "browser",
     inputTypes: ["pdf"],
     outputLabel: "PDF / ZIP",
@@ -113,7 +126,7 @@ export const PDF_STUDIO_TOOL_REGISTRY: Record<
     category: "page-organization",
     workspacePath: "/app/docs/pdf-studio/delete-pages",
     publicPath: "/pdf-studio/delete-pages",
-    publicReady: true,
+    availability: PUBLIC_AND_WORKSPACE,
     executionMode: "browser",
     inputTypes: ["pdf"],
     outputLabel: "PDF",
@@ -130,7 +143,7 @@ export const PDF_STUDIO_TOOL_REGISTRY: Record<
     category: "page-organization",
     workspacePath: "/app/docs/pdf-studio/organize",
     publicPath: "/pdf-studio/organize",
-    publicReady: true,
+    availability: PUBLIC_AND_WORKSPACE,
     executionMode: "browser",
     inputTypes: ["pdf"],
     outputLabel: "PDF",
@@ -147,7 +160,7 @@ export const PDF_STUDIO_TOOL_REGISTRY: Record<
     category: "page-organization",
     workspacePath: "/app/docs/pdf-studio/resize-pages",
     publicPath: "/pdf-studio/resize-pages",
-    publicReady: true,
+    availability: PUBLIC_AND_WORKSPACE,
     executionMode: "browser",
     inputTypes: ["pdf"],
     outputLabel: "PDF",
@@ -164,7 +177,7 @@ export const PDF_STUDIO_TOOL_REGISTRY: Record<
     category: "edit-enhance",
     workspacePath: "/app/docs/pdf-studio/fill-sign",
     publicPath: "/pdf-studio/fill-sign",
-    publicReady: true,
+    availability: PUBLIC_AND_WORKSPACE,
     executionMode: "browser",
     inputTypes: ["pdf"],
     outputLabel: "PDF",
@@ -177,14 +190,14 @@ export const PDF_STUDIO_TOOL_REGISTRY: Record<
   },
   protect: {
     id: "protect",
-    title: "Protect / Unlock",
+    title: "Protect PDF",
     description:
-      "Add password protection or remove it with a mix of secure processing and browser-based tools.",
+      "Add AES-256 password protection in the workspace. The image-based unlock fallback stays workspace-only until a non-lossy path is available.",
     icon: "🔒",
     category: "edit-enhance",
     workspacePath: "/app/docs/pdf-studio/protect",
     publicPath: "/pdf-studio/protect",
-    publicReady: true,
+    availability: WORKSPACE_ONLY,
     executionMode: "hybrid",
     inputTypes: ["pdf"],
     outputLabel: "PDF",
@@ -201,7 +214,7 @@ export const PDF_STUDIO_TOOL_REGISTRY: Record<
     category: "edit-enhance",
     workspacePath: "/app/docs/pdf-studio/header-footer",
     publicPath: "/pdf-studio/header-footer",
-    publicReady: true,
+    availability: PUBLIC_AND_WORKSPACE,
     executionMode: "browser",
     inputTypes: ["pdf"],
     outputLabel: "PDF",
@@ -218,7 +231,7 @@ export const PDF_STUDIO_TOOL_REGISTRY: Record<
     category: "edit-enhance",
     workspacePath: "/app/docs/pdf-studio/repair",
     publicPath: "/pdf-studio/repair",
-    publicReady: true,
+    availability: PUBLIC_AND_WORKSPACE,
     executionMode: "browser",
     inputTypes: ["pdf"],
     outputLabel: "PDF",
@@ -235,7 +248,7 @@ export const PDF_STUDIO_TOOL_REGISTRY: Record<
     category: "convert-export",
     workspacePath: "/app/docs/pdf-studio/pdf-to-image",
     publicPath: "/pdf-studio/pdf-to-image",
-    publicReady: true,
+    availability: PUBLIC_AND_WORKSPACE,
     executionMode: "browser",
     inputTypes: ["pdf"],
     outputLabel: "PNG / JPG / ZIP",
@@ -255,7 +268,7 @@ export const PDF_STUDIO_TOOL_REGISTRY: Record<
     category: "convert-export",
     workspacePath: "/app/docs/pdf-studio/extract-images",
     publicPath: "/pdf-studio/extract-images",
-    publicReady: true,
+    availability: PUBLIC_AND_WORKSPACE,
     executionMode: "browser",
     inputTypes: ["pdf"],
     outputLabel: "PNG / ZIP",
@@ -285,10 +298,25 @@ export function getPdfStudioToolBySlug(slug: string): PdfStudioToolDefinition | 
   );
 }
 
+export function isPdfStudioToolAvailableOnSurface(
+  tool: PdfStudioToolDefinition,
+  surface: PdfStudioToolSurface,
+) {
+  return surface === "public"
+    ? tool.availability.public === "available"
+    : tool.availability.workspace === "available";
+}
+
+export function getPdfStudioCanonicalPath(tool: PdfStudioToolDefinition) {
+  return tool.availability.public === "available"
+    ? tool.publicPath
+    : tool.workspacePath;
+}
+
 export function listPdfStudioTools(surface?: PdfStudioToolSurface) {
   const tools = PDF_STUDIO_TOOL_ORDER.map((toolId) => PDF_STUDIO_TOOL_REGISTRY[toolId]);
   if (surface === "public") {
-    return tools.filter((tool) => tool.publicReady);
+    return tools.filter((tool) => isPdfStudioToolAvailableOnSurface(tool, "public"));
   }
   return tools;
 }

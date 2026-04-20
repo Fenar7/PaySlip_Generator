@@ -129,7 +129,7 @@ export function RepairWorkspace() {
         status: "failed",
         message: fileValidation.error,
       });
-      analytics.trackFail({ stage: "upload", message: fileValidation.error });
+      analytics.trackFail({ stage: "upload", reason: fileValidation.reason });
       return;
     }
 
@@ -255,8 +255,7 @@ export function RepairWorkspace() {
       });
       analytics.trackFail({
         stage: "process",
-        message:
-          "This PDF is too damaged to repair. Consider using desktop tools like Adobe Acrobat or QPDF.",
+        reason: "processing-failed",
       });
     } catch {
       setResult({
@@ -271,8 +270,7 @@ export function RepairWorkspace() {
       });
       analytics.trackFail({
         stage: "process",
-        message:
-          "An unexpected error occurred while analyzing the PDF. Please try again with a different file.",
+        reason: "processing-failed",
       });
     }
   }, [analytics]);
@@ -314,7 +312,7 @@ export function RepairWorkspace() {
 
   return (
     <div className="mx-auto max-w-2xl px-4 py-8 sm:px-6">
-      <div className="mb-8">
+      <div className="pdf-studio-tool-header mb-8">
         <h1 className="text-xl font-bold tracking-tight text-[#1a1a1a]">
           Repair PDF
         </h1>

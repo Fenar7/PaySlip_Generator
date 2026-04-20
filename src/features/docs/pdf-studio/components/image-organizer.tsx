@@ -195,7 +195,9 @@ export function ImageOrganizer({
             initialIsConverting = false;
           } catch (error) {
             console.error("HEIC conversion failed:", error);
-            onUploadError?.(`Could not process ${file.name}. Please try a JPG, PNG, or WebP version.`);
+            onUploadError?.(
+              "Could not process this file. Please try a JPG, PNG, or WebP version.",
+            );
             onChange((currentImages: ImageItem[]) => currentImages.filter((img) => img.id !== id));
             return;
           }

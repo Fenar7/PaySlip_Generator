@@ -506,7 +506,15 @@ export function PdfStudioWorkspace() {
       });
       analytics.trackFail({
         stage: "generate",
-        message: error instanceof Error ? error.message : "Unable to generate the PDF.",
+        reason:
+          error instanceof PdfEncryptionError
+            ? error.message === "Too many requests. Please wait a moment and try again."
+              ? "rate-limited"
+              : error.message ===
+                    "PDF is too large to encrypt. Try reducing image count or quality."
+                ? "payload-too-large"
+                : "encryption-failed"
+            : "processing-failed",
       });
     } finally {
       generateCancelRef.current = null;
@@ -923,7 +931,10 @@ export function PdfStudioWorkspace() {
                   onUploadError={(message) => {
                     setUploadError(message);
                     if (message) {
-                      analytics.trackFail({ stage: "upload", message });
+                      analytics.trackFail({
+                        stage: "upload",
+                        reason: "validation-failed",
+                      });
                     }
                   }}
                   selectedIds={selectedIds}

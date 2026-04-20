@@ -63,7 +63,7 @@ export function PdfStudioPublicToolShell({
               href={tool.workspacePath}
               className="inline-flex items-center justify-center rounded-full bg-[var(--accent)] px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-[var(--accent-strong)]"
             >
-              Open in workspace
+              Open workspace version
             </Link>
             <Link
               href="/pricing"
@@ -82,9 +82,14 @@ export function PdfStudioPublicToolShell({
             </Link>
           </div>
         </div>
+        <p className="mt-4 text-xs text-[var(--muted-foreground)]">
+          Stay on this public page to use the tool now. The workspace version is
+          for signed-in Slipwise users who want the full docs workspace around
+          the same utility.
+        </p>
       </section>
 
-      <section>{children}</section>
+      <section className="[&_.pdf-studio-tool-header]:hidden">{children}</section>
     </div>
   );
 }
