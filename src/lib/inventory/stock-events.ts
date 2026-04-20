@@ -1,5 +1,10 @@
 import { db } from "@/lib/db";
-import { Prisma, StockEventType } from "@/generated/prisma/client";
+import {
+  InventoryValuationMethod,
+  Prisma,
+  StockEventType,
+} from "@/generated/prisma/client";
+import { computeCogs, replayRemainingLayers } from "./valuation";
 
 export interface RecordStockEventInput {
   orgId: string;
@@ -37,16 +42,76 @@ export async function recordStockEventTx(
     warehouseId,
     eventType,
     quantity,
-    unitCost = 0,
+    unitCost,
     referenceType,
     referenceId,
     note,
     createdByUserId,
   } = input;
 
-  const totalCost = quantity * unitCost;
+  const effectiveUnitCost =
+    unitCost ??
+    (isInbound(eventType)
+      ? 0
+      : await getOutboundUnitCostTx(tx, {
+          orgId,
+          inventoryItemId,
+          warehouseId,
+          quantity,
+        }));
+  const totalCost = quantity * effectiveUnitCost;
   const qtyDelta = quantityDelta(eventType, quantity);
-  const valuationDelta = isInbound(eventType) ? totalCost : -(Math.abs(qtyDelta) * unitCost);
+  const valuationDelta = isInbound(eventType)
+    ? totalCost
+    : -(Math.abs(qtyDelta) * effectiveUnitCost);
+  const absoluteQuantity = Math.abs(quantity);
+  const valuationAmount = new Prisma.Decimal(Math.abs(totalCost).toFixed(4));
+  const valuationDeltaDecimal = new Prisma.Decimal(Math.abs(valuationDelta).toFixed(4));
+  const lastEventAt = new Date();
+
+  if (isInbound(eventType)) {
+    await tx.stockLevel.upsert({
+      where: { inventoryItemId_warehouseId: { inventoryItemId, warehouseId } },
+      update: {
+        quantity: { increment: absoluteQuantity },
+        availableQty: { increment: absoluteQuantity },
+        valuationAmount: { increment: valuationAmount },
+        lastEventAt,
+      },
+      create: {
+        orgId,
+        inventoryItemId,
+        warehouseId,
+        quantity: absoluteQuantity,
+        reservedQty: 0,
+        availableQty: absoluteQuantity,
+        valuationAmount,
+        lastEventAt,
+      },
+    });
+  } else {
+    const updated = await tx.stockLevel.updateMany({
+      where: {
+        inventoryItemId,
+        warehouseId,
+        orgId,
+        quantity: { gte: absoluteQuantity },
+        availableQty: { gte: absoluteQuantity },
+      },
+      data: {
+        quantity: { decrement: absoluteQuantity },
+        availableQty: { decrement: absoluteQuantity },
+        valuationAmount: { decrement: valuationDeltaDecimal },
+        lastEventAt,
+      },
+    });
+
+    if (updated.count !== 1) {
+      throw new Error(
+        `Insufficient stock for item ${inventoryItemId} in warehouse ${warehouseId}: requested ${absoluteQuantity}.`,
+      );
+    }
+  }
 
   await tx.stockEvent.create({
     data: {
@@ -54,66 +119,15 @@ export async function recordStockEventTx(
       inventoryItemId,
       warehouseId,
       eventType,
-      quantity: Math.abs(quantity),
-      unitCost: new Prisma.Decimal(unitCost),
-      totalCost: new Prisma.Decimal(Math.abs(totalCost)),
+      quantity: absoluteQuantity,
+      unitCost: new Prisma.Decimal(effectiveUnitCost.toFixed(4)),
+      totalCost: valuationAmount,
       referenceType,
       referenceId,
       note,
       createdByUserId,
     },
   });
-
-  // Upsert StockLevel — initialize if it doesn't exist yet
-  const existing = await tx.stockLevel.findUnique({
-    where: { inventoryItemId_warehouseId: { inventoryItemId, warehouseId } },
-  });
-
-  if (existing) {
-    if (!isInbound(eventType) && existing.availableQty < Math.abs(qtyDelta)) {
-      throw new Error(
-        `Insufficient stock for item ${inventoryItemId} in warehouse ${warehouseId}: requested ${Math.abs(
-          qtyDelta,
-        )}, available ${existing.availableQty}`,
-      );
-    }
-
-    const newQty = Math.max(0, existing.quantity + qtyDelta);
-    const newValuation = Math.max(0, Number(existing.valuationAmount) + valuationDelta);
-    const newAvailable = Math.max(0, newQty - existing.reservedQty);
-
-    await tx.stockLevel.update({
-      where: { inventoryItemId_warehouseId: { inventoryItemId, warehouseId } },
-      data: {
-        quantity: newQty,
-        availableQty: newAvailable,
-        valuationAmount: new Prisma.Decimal(newValuation.toFixed(4)),
-        lastEventAt: new Date(),
-      },
-    });
-  } else {
-    if (!isInbound(eventType)) {
-      throw new Error(
-        `Cannot record outbound stock event for item ${inventoryItemId} in warehouse ${warehouseId} before stock exists.`,
-      );
-    }
-
-    const newQty = Math.max(0, qtyDelta);
-    const newValuation = Math.max(0, valuationDelta);
-
-    await tx.stockLevel.create({
-      data: {
-        orgId,
-        inventoryItemId,
-        warehouseId,
-        quantity: newQty,
-        reservedQty: 0,
-        availableQty: newQty,
-        valuationAmount: new Prisma.Decimal(newValuation.toFixed(4)),
-        lastEventAt: new Date(),
-      },
-    });
-  }
 }
 
 /**
@@ -125,27 +139,21 @@ export async function reserveStockTx(
   warehouseId: string,
   qty: number
 ): Promise<void> {
-  const level = await tx.stockLevel.findUnique({
-    where: { inventoryItemId_warehouseId: { inventoryItemId, warehouseId } },
-  });
-
-  if (!level) {
-    throw new Error(`No stock level found for item ${inventoryItemId} in warehouse ${warehouseId}`);
-  }
-
-  if (level.availableQty < qty) {
-    throw new Error(
-      `Insufficient available stock: requested ${qty}, available ${level.availableQty}`
-    );
-  }
-
-  await tx.stockLevel.update({
-    where: { inventoryItemId_warehouseId: { inventoryItemId, warehouseId } },
+  const updated = await tx.stockLevel.updateMany({
+    where: {
+      inventoryItemId,
+      warehouseId,
+      availableQty: { gte: qty },
+    },
     data: {
-      reservedQty: level.reservedQty + qty,
-      availableQty: level.availableQty - qty,
+      reservedQty: { increment: qty },
+      availableQty: { decrement: qty },
     },
   });
+
+  if (updated.count !== 1) {
+    throw new Error(`Insufficient available stock: requested ${qty}`);
+  }
 }
 
 /**
@@ -190,4 +198,84 @@ function isInbound(eventType: StockEventType): boolean {
 
 function quantityDelta(eventType: StockEventType, qty: number): number {
   return isInbound(eventType) ? Math.abs(qty) : -Math.abs(qty);
+}
+
+export async function getOutboundUnitCostTx(
+  tx: Prisma.TransactionClient,
+  input: {
+    orgId: string;
+    inventoryItemId: string;
+    warehouseId: string;
+    quantity: number;
+  },
+): Promise<number> {
+  const stockLevel = await tx.stockLevel.findUnique({
+    where: {
+      inventoryItemId_warehouseId: {
+        inventoryItemId: input.inventoryItemId,
+        warehouseId: input.warehouseId,
+      },
+    },
+    select: {
+      quantity: true,
+      availableQty: true,
+      valuationAmount: true,
+      inventoryItem: {
+        select: {
+          valuationMethod: true,
+        },
+      },
+    },
+  });
+
+  if (!stockLevel) {
+    throw new Error(
+      `Cannot record outbound stock event for item ${input.inventoryItemId} in warehouse ${input.warehouseId} before stock exists.`,
+    );
+  }
+
+  if (stockLevel.availableQty < input.quantity) {
+    throw new Error(
+      `Insufficient stock for item ${input.inventoryItemId} in warehouse ${input.warehouseId}: requested ${input.quantity}, available ${stockLevel.availableQty}`,
+    );
+  }
+
+  if (
+    stockLevel.inventoryItem.valuationMethod === InventoryValuationMethod.WEIGHTED_AVERAGE ||
+    stockLevel.quantity <= 0
+  ) {
+    return stockLevel.quantity > 0
+      ? Number(stockLevel.valuationAmount) / stockLevel.quantity
+      : 0;
+  }
+
+  const stockEvents = await tx.stockEvent.findMany({
+    where: {
+      orgId: input.orgId,
+      inventoryItemId: input.inventoryItemId,
+      warehouseId: input.warehouseId,
+    },
+    orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+    select: {
+      id: true,
+      eventType: true,
+      quantity: true,
+      unitCost: true,
+      createdAt: true,
+    },
+  });
+
+  const remainingLayers = replayRemainingLayers(
+    stockEvents,
+    stockLevel.inventoryItem.valuationMethod,
+  );
+  const valuation = computeCogs(
+    stockLevel.inventoryItem.valuationMethod,
+    remainingLayers,
+    stockLevel.quantity,
+    Number(stockLevel.valuationAmount),
+    input.quantity,
+  );
+
+  return input.quantity > 0 ? valuation.cogs.div(input.quantity).toNumber() : 0;
 }

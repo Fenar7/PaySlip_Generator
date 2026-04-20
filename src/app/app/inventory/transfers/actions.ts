@@ -7,7 +7,7 @@ import {
   StockEventType,
   Prisma,
 } from "@/generated/prisma/client";
-import { recordStockEventTx } from "@/lib/inventory/stock-events";
+import { getOutboundUnitCostTx, recordStockEventTx } from "@/lib/inventory/stock-events";
 
 export type ActionResult<T> =
   | { success: true; data: T }
@@ -220,22 +220,12 @@ export async function completeStockTransfer(
 
     await db.$transaction(async (tx) => {
       for (const line of transfer.lines) {
-        // Carry the weighted-average unit cost from the source warehouse so
-        // the destination stock level preserves its cost basis.
-        const sourceLevel = await tx.stockLevel.findUnique({
-          where: {
-            inventoryItemId_warehouseId: {
-              inventoryItemId: line.inventoryItemId,
-              warehouseId: transfer.fromWarehouseId,
-            },
-          },
-          select: { quantity: true, valuationAmount: true },
+        const outboundUnitCost = await getOutboundUnitCostTx(tx, {
+          orgId,
+          inventoryItemId: line.inventoryItemId,
+          warehouseId: transfer.fromWarehouseId,
+          quantity: line.quantity,
         });
-
-        const avgUnitCost =
-          sourceLevel && sourceLevel.quantity > 0
-            ? Number(sourceLevel.valuationAmount) / sourceLevel.quantity
-            : 0;
 
         await recordStockEventTx(tx, {
           orgId,
@@ -243,7 +233,7 @@ export async function completeStockTransfer(
           warehouseId: transfer.fromWarehouseId,
           eventType: StockEventType.TRANSFER_OUT,
           quantity: line.quantity,
-          unitCost: avgUnitCost,
+          unitCost: outboundUnitCost,
           referenceType: "StockTransfer",
           referenceId: transfer.id,
           note: transfer.notes ?? undefined,
@@ -256,7 +246,7 @@ export async function completeStockTransfer(
           warehouseId: transfer.toWarehouseId,
           eventType: StockEventType.TRANSFER_IN,
           quantity: line.quantity,
-          unitCost: avgUnitCost,
+          unitCost: outboundUnitCost,
           referenceType: "StockTransfer",
           referenceId: transfer.id,
           note: transfer.notes ?? undefined,

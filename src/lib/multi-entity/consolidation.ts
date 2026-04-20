@@ -320,8 +320,8 @@ export async function getConsolidatedBalanceSheet(
     asOfDate: asOfDate ?? new Date().toISOString().slice(0, 10),
     entityBreakdown: perOrgBS,
     consolidated: {
-      totalAssets,
-      totalLiabilities,
+      totalAssets: roundMoney(Math.max(0, totalAssets - ictElimination)),
+      totalLiabilities: roundMoney(Math.max(0, totalLiabilities - ictElimination)),
       totalEquity,
       interCompanyEliminations: ictElimination,
     },

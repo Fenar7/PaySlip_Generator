@@ -198,6 +198,8 @@ describe("getConsolidatedBalanceSheet", () => {
     ] as never);
     const result = await getConsolidatedBalanceSheet("group-1");
     expect(result.consolidated.interCompanyEliminations).toBe(50000);
+    expect(result.consolidated.totalAssets).toBe(1450000);
+    expect(result.consolidated.totalLiabilities).toBe(550000);
   });
 
   it("includes the as-of date in result", async () => {

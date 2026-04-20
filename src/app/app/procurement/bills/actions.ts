@@ -143,13 +143,6 @@ export async function runThreeWayMatchForBill(
     );
 
     // Match bill lines to PO lines: by inventoryItemId first, then description, then position
-    const itemIdToPoLine = new Map<string, PoLine>();
-    for (const pl of poLines) {
-      if (pl.inventoryItemId && !itemIdToPoLine.has(pl.inventoryItemId)) {
-        itemIdToPoLine.set(pl.inventoryItemId, pl);
-      }
-    }
-
     const mappedBillLines: BillLine[] = billLines.map((bl, idx) => {
       const byDesc = poLines.find(
         (pl) => pl.description.trim().toLowerCase() === bl.description.trim().toLowerCase(),

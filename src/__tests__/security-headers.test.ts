@@ -22,6 +22,11 @@ describe("Security Headers", () => {
       expect(csp).toContain("https://checkout.razorpay.com");
     });
 
+    it("should not allow unsafe-eval in script-src", () => {
+      const csp = buildTestCsp();
+      expect(csp).not.toContain("'unsafe-eval'");
+    });
+
     it("should disallow framing (frame-ancestors none)", () => {
       const csp = buildTestCsp();
       expect(csp).toContain("frame-ancestors 'none'");
@@ -120,7 +125,7 @@ const SECURITY_HEADERS: Record<string, string> = {
 function buildTestCsp(): string {
   const directives = [
     "default-src 'self'",
-    "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://js.stripe.com https://checkout.razorpay.com",
+    "script-src 'self' 'unsafe-inline' https://js.stripe.com https://checkout.razorpay.com",
     "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
     "img-src 'self' data: blob: https: http:",
     "font-src 'self' https://fonts.gstatic.com data:",
