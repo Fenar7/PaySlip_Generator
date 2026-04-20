@@ -138,6 +138,27 @@ export function IntegrityDashboard() {
               {data.latestVerification.triggeredBy}
             </div>
           </div>
+          {data.latestVerification.status === "BROKEN" && (
+            <div className="mt-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-900">
+              <div className="font-medium">Chain broken</div>
+              <div className="mt-1">
+                {data.latestVerification.firstBreakSeq
+                  ? `First break at sequence ${data.latestVerification.firstBreakSeq}.`
+                  : "The verifier detected a chain inconsistency."}
+              </div>
+              {data.latestVerification.firstBreakHash && (
+                <div className="mt-1 break-all font-mono text-xs">
+                  Stored hash: {data.latestVerification.firstBreakHash}
+                </div>
+              )}
+              {data.latestVerification.gapsDetected.length > 0 && (
+                <div className="mt-1">
+                  Missing sequence numbers:{" "}
+                  {data.latestVerification.gapsDetected.join(", ")}
+                </div>
+              )}
+            </div>
+          )}
         </div>
       )}
 

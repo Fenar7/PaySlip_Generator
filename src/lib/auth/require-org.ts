@@ -9,6 +9,9 @@ export interface OrgContext {
   userId: string;
   orgId: string;
   role: string;
+  representedId: string | null;
+  proxyGrantId: string | null;
+  proxyScope: string[];
 }
 
 export interface MarketplaceModeratorContext {
@@ -33,7 +36,27 @@ export type AuthRoutingContext =
       orgId: string;
       orgSlug: string;
       role: string;
+      representedId: string | null;
+      proxyGrantId: string | null;
+      proxyScope: string[];
     };
+
+const ROLE_LEVELS: Record<string, number> = {
+  deactivated: -1,
+  viewer: 10,
+  member: 10,
+  voucher_operator: 20,
+  invoice_operator: 20,
+  hr_manager: 40,
+  finance_manager: 40,
+  admin: 80,
+  co_owner: 90,
+  owner: 100,
+};
+
+function isActiveMemberRole(role: string): boolean {
+  return (ROLE_LEVELS[role] ?? -1) >= 0;
+}
 
 export async function getAuthRoutingContext(): Promise<AuthRoutingContext> {
   const supabase = await createSupabaseServer();
@@ -96,6 +119,13 @@ export async function getAuthRoutingContext(): Promise<AuthRoutingContext> {
     };
   }
 
+  if (!isActiveMemberRole(member.role)) {
+    return {
+      isAuthenticated: false,
+      loginPath: "/auth/login?error=membership_inactive",
+    };
+  }
+
   const loginPath = await getSsoLoginPathForUser(
     member.organizationId,
     member.organization.slug,
@@ -110,6 +140,21 @@ export async function getAuthRoutingContext(): Promise<AuthRoutingContext> {
     };
   }
 
+  const activeProxyGrant = await db.proxyGrant.findFirst({
+    where: {
+      orgId: member.organizationId,
+      actorId: user.id,
+      status: "ACTIVE",
+      expiresAt: { gt: new Date() },
+    },
+    orderBy: { createdAt: "desc" },
+    select: {
+      id: true,
+      representedId: true,
+      scope: true,
+    },
+  });
+
   return {
     isAuthenticated: true,
     userId: user.id,
@@ -117,6 +162,9 @@ export async function getAuthRoutingContext(): Promise<AuthRoutingContext> {
     orgId: member.organizationId,
     orgSlug: member.organization.slug,
     role: member.role,
+    representedId: activeProxyGrant?.representedId ?? null,
+    proxyGrantId: activeProxyGrant?.id ?? null,
+    proxyScope: activeProxyGrant?.scope ?? [],
   };
 }
 
@@ -144,6 +192,9 @@ export async function requireOrgContext(): Promise<OrgContext> {
     userId: context.userId,
     orgId: context.orgId,
     role: context.role,
+    representedId: context.representedId,
+    proxyGrantId: context.proxyGrantId,
+    proxyScope: context.proxyScope,
   };
 }
 
@@ -163,6 +214,9 @@ export async function getOrgContext(): Promise<OrgContext | null> {
       userId: context.userId,
       orgId: context.orgId,
       role: context.role,
+      representedId: context.representedId,
+      proxyGrantId: context.proxyGrantId,
+      proxyScope: context.proxyScope,
     };
   } catch (e) {
     console.error("Error in getOrgContext:", e);
@@ -175,9 +229,8 @@ export async function getOrgContext(): Promise<OrgContext | null> {
  * Roles: owner > admin > member
  */
 export function hasRole(userRole: string, requiredRole: string): boolean {
-  const roleHierarchy = ["member", "admin", "co_owner", "owner"];
-  const userLevel = roleHierarchy.indexOf(userRole);
-  const requiredLevel = roleHierarchy.indexOf(requiredRole);
+  const userLevel = ROLE_LEVELS[userRole] ?? -1;
+  const requiredLevel = ROLE_LEVELS[requiredRole] ?? Number.MAX_SAFE_INTEGER;
   return userLevel >= requiredLevel;
 }
 

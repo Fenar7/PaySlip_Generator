@@ -68,6 +68,42 @@ export async function createProxyGrant(data: {
     return { success: false, error: "At least one scope must be selected." };
   }
 
+  const [actorMember, representedMember] = await Promise.all([
+    db.member.findUnique({
+      where: {
+        organizationId_userId: {
+          organizationId: orgId,
+          userId: data.actorId,
+        },
+      },
+      select: { role: true },
+    }),
+    db.member.findUnique({
+      where: {
+        organizationId_userId: {
+          organizationId: orgId,
+          userId: data.representedId,
+        },
+      },
+      select: { role: true },
+    }),
+  ]);
+
+  if (!actorMember || actorMember.role === "deactivated") {
+    return {
+      success: false,
+      error: "The selected proxy actor must be an active member of this organization.",
+    };
+  }
+
+  if (!representedMember || representedMember.role === "deactivated") {
+    return {
+      success: false,
+      error:
+        "The selected represented user must be an active member of this organization.",
+    };
+  }
+
   const expiresAt = new Date(data.expiresAt);
   const maxDate = new Date();
   maxDate.setDate(maxDate.getDate() + 90);
@@ -76,6 +112,24 @@ export async function createProxyGrant(data: {
   }
   if (expiresAt <= new Date()) {
     return { success: false, error: "Expiry date must be in the future." };
+  }
+
+  const existingGrant = await db.proxyGrant.findFirst({
+    where: {
+      orgId,
+      actorId: data.actorId,
+      representedId: data.representedId,
+      status: "ACTIVE",
+      expiresAt: { gt: new Date() },
+    },
+    select: { id: true },
+  });
+
+  if (existingGrant) {
+    return {
+      success: false,
+      error: "An active proxy grant already exists for this actor and represented user.",
+    };
   }
 
   const grant = await db.proxyGrant.create({
@@ -92,7 +146,7 @@ export async function createProxyGrant(data: {
   });
 
   // Audit
-  logAudit({
+  await logAudit({
     orgId,
     actorId: userId,
     action: "proxy.granted",
@@ -160,7 +214,7 @@ export async function revokeProxyGrant(
     data: { status: "REVOKED", revokedAt: new Date(), revokedBy: userId },
   });
 
-  logAudit({
+  await logAudit({
     orgId,
     actorId: userId,
     action: "proxy.revoked",

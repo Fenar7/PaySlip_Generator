@@ -114,17 +114,28 @@ export function applySecurityHeaders(response: NextResponse): NextResponse {
 async function check2faChallenge(
   request: NextRequest,
   userId: string,
-  totpEnabled: boolean
+  twoFaRequired: boolean,
+  opts?: { enrollmentRequired?: boolean }
 ): Promise<NextResponse | null> {
-  if (!totpEnabled) return null;
+  if (!twoFaRequired) return null;
+
+  const callbackUrl = request.nextUrl.pathname + request.nextUrl.search;
+
+  if (opts?.enrollmentRequired) {
+    const setupUrl = new URL("/app/settings/security", request.url);
+    setupUrl.searchParams.set("setup2fa", "1");
+    setupUrl.searchParams.set("callbackUrl", callbackUrl);
+    return NextResponse.redirect(setupUrl);
+  }
 
   const secret =
     process.env.TOTP_SESSION_SECRET ?? process.env.PORTAL_JWT_SECRET ?? "";
 
-  // Fail-open: if no secret is configured, skip enforcement (misconfigured env)
   if (!secret) {
-    console.warn("[middleware] TOTP_SESSION_SECRET not set — skipping 2FA enforcement");
-    return null;
+    const loginUrl = new URL("/auth/login", request.url);
+    loginUrl.searchParams.set("error", "2fa_unavailable");
+    loginUrl.searchParams.set("callbackUrl", callbackUrl);
+    return NextResponse.redirect(loginUrl);
   }
 
   const cookieValue = request.cookies.get(TOTP_CHALLENGE_COOKIE)?.value ?? "";
@@ -137,7 +148,7 @@ async function check2faChallenge(
 
   // Challenge required: redirect to /auth/2fa with the original path as callback
   const challengeUrl = new URL("/auth/2fa", request.url);
-  challengeUrl.searchParams.set("callbackUrl", request.nextUrl.pathname);
+  challengeUrl.searchParams.set("callbackUrl", callbackUrl);
   return NextResponse.redirect(challengeUrl);
 }
 
@@ -205,15 +216,27 @@ export async function middleware(request: NextRequest) {
     }
 
     // ── 2FA challenge gate ────────────────────────────────────────────────
-    // totpEnabled is synced to user_metadata on enable/disable, so it can be
-    // read from the Supabase JWT without a database round-trip.
     const totpEnabled = user.user_metadata?.totpEnabled === true;
+    const twoFaEnforcedByOrg = user.user_metadata?.twoFaEnforcedByOrg === true;
+    const twoFaRequired = totpEnabled || twoFaEnforcedByOrg;
+    const enrollmentRequired = twoFaEnforcedByOrg && !totpEnabled;
+    const is2faEnrollmentPath = pathname === "/app/settings/security";
+
+    if (enrollmentRequired && is2faEnrollmentPath) {
+      return applySecurityHeaders(supabaseResponse);
+    }
+
     try {
-      const challengeRedirect = await check2faChallenge(request, user.id, totpEnabled);
+      const challengeRedirect = await check2faChallenge(request, user.id, twoFaRequired, {
+        enrollmentRequired,
+      });
       if (challengeRedirect) return challengeRedirect;
     } catch (err) {
-      // Fail-open: log but don't block the user on infrastructure errors
-      console.warn("[middleware] 2FA check error, continuing:", err);
+      console.warn("[middleware] 2FA check error, denying access:", err);
+      const loginUrl = new URL("/auth/login", request.url);
+      loginUrl.searchParams.set("error", "2fa_check_failed");
+      loginUrl.searchParams.set("callbackUrl", pathname);
+      return NextResponse.redirect(loginUrl);
     }
   }
 

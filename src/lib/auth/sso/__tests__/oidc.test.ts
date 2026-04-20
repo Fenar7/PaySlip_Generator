@@ -1,4 +1,5 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { createHmac } from "crypto";
+import { describe, it, expect, beforeEach } from "vitest";
 import {
   generateCodeVerifier,
   generateCodeChallenge,
@@ -27,6 +28,10 @@ describe("OIDC Connector", () => {
     token_endpoint: "https://accounts.example.com/token",
     jwks_uri: "https://accounts.example.com/.well-known/jwks.json",
   };
+
+  beforeEach(() => {
+    process.env.SSO_SESSION_SECRET = "test-oidc-state-secret";
+  });
 
   describe("PKCE", () => {
     it("generates a code verifier of correct length", () => {
@@ -204,8 +209,13 @@ describe("OIDC Connector", () => {
     });
 
     it("rejects expired state (>10 minutes)", () => {
-      const payload = JSON.stringify({ orgSlug: "test", nonce: "abc", ts: Date.now() - 11 * 60 * 1000 });
-      const state = Buffer.from(payload).toString("base64url");
+      const body = Buffer.from(
+        JSON.stringify({ orgSlug: "test", nonce: "abc", ts: Date.now() - 11 * 60 * 1000 })
+      ).toString("base64url");
+      const signature = createHmac("sha256", process.env.SSO_SESSION_SECRET!)
+        .update(body)
+        .digest("base64url");
+      const state = `${body}.${signature}`;
       expect(parseOidcState(state)).toBeNull();
     });
 
@@ -215,9 +225,31 @@ describe("OIDC Connector", () => {
     });
 
     it("rejects state missing required fields", () => {
-      const payload = JSON.stringify({ orgSlug: "test", ts: Date.now() });
-      const state = Buffer.from(payload).toString("base64url");
+      const body = Buffer.from(
+        JSON.stringify({ orgSlug: "test", ts: Date.now() })
+      ).toString("base64url");
+      const signature = createHmac("sha256", process.env.SSO_SESSION_SECRET!)
+        .update(body)
+        .digest("base64url");
+      const state = `${body}.${signature}`;
       expect(parseOidcState(state)).toBeNull();
+    });
+
+    it("rejects tampered state bodies", () => {
+      const { state } = generateOidcState("my-org");
+      const [body, signature] = state.split(".");
+      const tamperedBody = Buffer.from(
+        JSON.stringify({ orgSlug: "other-org", nonce: "abc", ts: Date.now() })
+      ).toString("base64url");
+      const tamperedState = `${tamperedBody}.${signature ?? body}`;
+      expect(parseOidcState(tamperedState)).toBeNull();
+    });
+
+    it("preserves the code verifier for the callback exchange", () => {
+      const { state, codeVerifier } = generateOidcState("my-org");
+      const parsed = parseOidcState(state);
+      expect(parsed?.codeVerifier).toBe(codeVerifier);
+      expect(parsed?.orgSlug).toBe("my-org");
     });
   });
 });

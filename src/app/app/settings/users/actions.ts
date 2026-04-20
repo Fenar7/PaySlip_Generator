@@ -7,6 +7,8 @@ import { sendEmail } from "@/lib/email";
 import { inviteEmailHtml } from "@/lib/email-templates/invite-email";
 import { revalidatePath } from "next/cache";
 import { checkUsageLimit } from "@/lib/usage-metering";
+import { logAudit } from "@/lib/audit";
+import { canManageRole } from "@/lib/auth/rbac/permissions";
 
 export type ActionResult = { success: boolean; error?: string };
 
@@ -80,8 +82,15 @@ export async function inviteUser(data: {
   role: string;
 }): Promise<ActionResult> {
   try {
-    const { orgId, userId } = await requireOrgContext();
+    const { orgId, userId, role: actorRole } = await requireOrgContext();
     await requirePermission(orgId, userId, "settings_users", "create");
+
+    if (!canManageRole(actorRole, data.role)) {
+      return {
+        success: false,
+        error: `You cannot assign the ${data.role} role from your current ${actorRole} role.`,
+      };
+    }
 
     const limitCheck = await checkUsageLimit(orgId, "TEAM_MEMBER");
     if (!limitCheck.allowed) {
@@ -144,6 +153,19 @@ export async function inviteUser(data: {
       }),
     });
 
+    await logAudit({
+      orgId,
+      actorId: userId,
+      action: "member.invited",
+      entityType: "Invitation",
+      entityId: invitation.id,
+      metadata: {
+        email: data.email,
+        role: data.role,
+        expiresAt: expiresAt.toISOString(),
+      },
+    });
+
     revalidatePath("/app/settings/users");
     return { success: true };
   } catch (err) {
@@ -159,7 +181,7 @@ export async function updateMemberRole(
   role: string
 ): Promise<ActionResult> {
   try {
-    const { orgId, userId } = await requireOrgContext();
+    const { orgId, userId, role: actorRole } = await requireOrgContext();
     await requirePermission(orgId, userId, "settings_users", "edit");
 
     const target = await db.member.findUnique({
@@ -177,6 +199,13 @@ export async function updateMemberRole(
 
     if (role === "owner") {
       return { success: false, error: "Cannot assign the Owner role" };
+    }
+
+    if (!canManageRole(actorRole, target.role) || !canManageRole(actorRole, role)) {
+      return {
+        success: false,
+        error: `You cannot change ${target.role} to ${role} from your current ${actorRole} role.`,
+      };
     }
 
     // If changing from admin, ensure at least 1 admin remains
@@ -197,6 +226,18 @@ export async function updateMemberRole(
       data: { role },
     });
 
+    await logAudit({
+      orgId,
+      actorId: userId,
+      action: "member.role_changed",
+      entityType: "Member",
+      entityId: memberId,
+      metadata: {
+        previousRole: target.role,
+        nextRole: role,
+      },
+    });
+
     revalidatePath("/app/settings/users");
     return { success: true };
   } catch (err) {
@@ -211,7 +252,7 @@ export async function deactivateMember(
   memberId: string
 ): Promise<ActionResult> {
   try {
-    const { orgId, userId } = await requireOrgContext();
+    const { orgId, userId, role: actorRole } = await requireOrgContext();
     await requirePermission(orgId, userId, "settings_users", "edit");
 
     const target = await db.member.findUnique({
@@ -231,9 +272,27 @@ export async function deactivateMember(
       return { success: false, error: "Cannot deactivate yourself" };
     }
 
+    if (!canManageRole(actorRole, target.role)) {
+      return {
+        success: false,
+        error: `You cannot deactivate a ${target.role} from your current ${actorRole} role.`,
+      };
+    }
+
     await db.member.update({
       where: { id: memberId },
       data: { role: "deactivated" },
+    });
+
+    await logAudit({
+      orgId,
+      actorId: userId,
+      action: "member.deactivated",
+      entityType: "Member",
+      entityId: memberId,
+      metadata: {
+        previousRole: target.role,
+      },
     });
 
     revalidatePath("/app/settings/users");
@@ -250,7 +309,7 @@ export async function reactivateMember(
   memberId: string
 ): Promise<ActionResult> {
   try {
-    const { orgId, userId } = await requireOrgContext();
+    const { orgId, userId, role: actorRole } = await requireOrgContext();
     await requirePermission(orgId, userId, "settings_users", "edit");
 
     const target = await db.member.findUnique({
@@ -266,9 +325,28 @@ export async function reactivateMember(
       return { success: false, error: "Member is not deactivated" };
     }
 
+    if (!canManageRole(actorRole, "viewer")) {
+      return {
+        success: false,
+        error: `You cannot reactivate members from your current ${actorRole} role.`,
+      };
+    }
+
     await db.member.update({
       where: { id: memberId },
       data: { role: "viewer" },
+    });
+
+    await logAudit({
+      orgId,
+      actorId: userId,
+      action: "member.role_changed",
+      entityType: "Member",
+      entityId: memberId,
+      metadata: {
+        previousRole: "deactivated",
+        nextRole: "viewer",
+      },
     });
 
     revalidatePath("/app/settings/users");
@@ -283,7 +361,7 @@ export async function reactivateMember(
 
 export async function removeMember(memberId: string): Promise<ActionResult> {
   try {
-    const { orgId, userId } = await requireOrgContext();
+    const { orgId, userId, role: actorRole } = await requireOrgContext();
     await requirePermission(orgId, userId, "settings_users", "delete");
 
     const target = await db.member.findUnique({
@@ -303,6 +381,13 @@ export async function removeMember(memberId: string): Promise<ActionResult> {
       return { success: false, error: "Cannot remove yourself" };
     }
 
+    if (!canManageRole(actorRole, target.role)) {
+      return {
+        success: false,
+        error: `You cannot remove a ${target.role} from your current ${actorRole} role.`,
+      };
+    }
+
     // If removing an admin, ensure at least 1 admin remains
     if (target.role === "admin") {
       const adminCount = await db.member.count({
@@ -317,6 +402,18 @@ export async function removeMember(memberId: string): Promise<ActionResult> {
     }
 
     await db.member.delete({ where: { id: memberId } });
+
+    await logAudit({
+      orgId,
+      actorId: userId,
+      action: "member.removed",
+      entityType: "Member",
+      entityId: memberId,
+      metadata: {
+        removedUserId: target.userId,
+        previousRole: target.role,
+      },
+    });
 
     revalidatePath("/app/settings/users");
     return { success: true };

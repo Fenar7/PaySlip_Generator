@@ -20,6 +20,10 @@ export interface ChainVerificationResult {
   durationMs: number;
 }
 
+export async function initializeAuditChain(orgId: string): Promise<void> {
+  await db.$executeRaw`SELECT public.slipwise_initialize_audit_chain(${orgId})`;
+}
+
 /**
  * Verify the integrity of the audit chain for an organization.
  * Streams entries in sequenceNum order and checks:
@@ -142,6 +146,7 @@ export async function runAndPersistVerification(
   orgId: string,
   triggeredBy: string = "MANUAL",
 ): Promise<ChainVerificationResult> {
+  await initializeAuditChain(orgId);
   const result = await verifyAuditChain(orgId);
 
   await db.auditChainVerification.create({
