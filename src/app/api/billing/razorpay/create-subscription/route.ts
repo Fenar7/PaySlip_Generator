@@ -2,10 +2,8 @@ import { NextResponse } from "next/server";
 import { createSupabaseServer } from "@/lib/supabase/server";
 import { db } from "@/lib/db";
 import {
-  createRazorpayCustomer,
   createRazorpaySubscription,
   getRazorpay,
-  updateRazorpayCustomer,
 } from "@/lib/razorpay";
 import {
   getRazorpayPlanId,
@@ -76,6 +74,7 @@ export async function POST(request: Request) {
     typeof phone === "string" && phone.trim()
       ? (normalizeIndianPhone(phone) ?? undefined)
       : undefined;
+  const notifyPhone = normalizedPhone ? `+${normalizedPhone}` : undefined;
 
   if (phone && !normalizedPhone) {
     return NextResponse.json(
@@ -137,39 +136,12 @@ export async function POST(request: Request) {
       );
     }
 
-    let customerId = sub?.razorpayCustomerId;
-
-    if (!customerId) {
-      const customer = await createRazorpayCustomer({
-        name: billingCustomer.data.name,
-        email: billingCustomer.data.email,
-        contact: normalizedPhone,
-      });
-      if (!customer) {
-        return NextResponse.json(
-          { error: "Failed to create customer" },
-          { status: 500 },
-        );
-      }
-      customerId = customer.id;
-    } else if (normalizedPhone) {
-      const customer = await updateRazorpayCustomer({
-        customerId,
-        name: billingCustomer.data.name,
-        email: billingCustomer.data.email,
-        contact: normalizedPhone,
-      });
-      if (!customer) {
-        return NextResponse.json(
-          { error: "Failed to update billing contact" },
-          { status: 500 },
-        );
-      }
-    }
-
     const rpSub = await createRazorpaySubscription({
       planId: razorpayPlanId,
-      customerId,
+      notifyInfo: {
+        email: billingCustomer.data.email,
+        phone: notifyPhone,
+      },
     });
     if (!rpSub) {
       return NextResponse.json(
@@ -185,7 +157,6 @@ export async function POST(request: Request) {
       await db.subscription.update({
         where: { orgId },
         data: {
-          razorpayCustomerId: customerId,
           razorpaySubId,
           razorpayPlanId,
           billingInterval,
@@ -196,7 +167,6 @@ export async function POST(request: Request) {
       await db.subscription.create({
         data: {
           orgId,
-          razorpayCustomerId: customerId,
           razorpaySubId,
           razorpayPlanId,
           planId: "free",

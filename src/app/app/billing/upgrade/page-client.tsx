@@ -391,8 +391,7 @@ export function UpgradePageClient({
               Billing Contact Details
             </h2>
             <p className="mt-1 text-sm text-gray-500">
-              Enter your phone number for payment receipts and billing
-              notifications.
+              Enter your billing phone number before we send you to Razorpay.
             </p>
 
             <div className="mt-4 space-y-3">
@@ -435,7 +434,8 @@ export function UpgradePageClient({
                   autoFocus
                 />
                 <p className="mt-1 text-xs text-gray-400">
-                  Required — Razorpay uses this to prefill checkout
+                  Required for billing notifications. Razorpay may still ask you
+                  to confirm contact details on the hosted page.
                 </p>
                 {error ? (
                   <p className="mt-2 text-xs text-red-600">{error}</p>

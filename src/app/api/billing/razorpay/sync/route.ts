@@ -140,6 +140,10 @@ export async function POST(request: Request) {
     update.planId = internalPlanId;
   }
 
+  if (rpSub.customer_id && rpSub.customer_id !== sub.razorpayCustomerId) {
+    update.razorpayCustomerId = rpSub.customer_id;
+  }
+
   if (rpSub.plan_id && rpSub.plan_id !== sub.razorpayPlanId) {
     update.razorpayPlanId = rpSub.plan_id;
   }

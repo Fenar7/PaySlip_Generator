@@ -142,22 +142,33 @@ export async function updateRazorpayCustomer(params: {
 
 export async function createRazorpaySubscription(params: {
   planId: string;
-  customerId: string;
   totalCount?: number;
   quantity?: number;
+  notifyInfo?: {
+    phone?: string;
+    email?: string;
+  };
 }): Promise<Subscriptions.RazorpaySubscription | null> {
   const rp = getRazorpay();
   if (!rp) return null;
 
-  // The Razorpay REST API accepts customer_id at the top level but the SDK
-  // typings omit it.  We spread it in and assert to satisfy TypeScript while
-  // ensuring the customer is properly linked to the subscription.
   const body = {
     plan_id: params.planId,
-    customer_id: params.customerId,
     total_count: params.totalCount ?? 60,
     quantity: params.quantity ?? 1,
     customer_notify: 1 as const,
+    ...(params.notifyInfo?.email || params.notifyInfo?.phone
+      ? {
+          notify_info: {
+            ...(params.notifyInfo.phone
+              ? { notify_phone: params.notifyInfo.phone }
+              : {}),
+            ...(params.notifyInfo.email
+              ? { notify_email: params.notifyInfo.email }
+              : {}),
+          },
+        }
+      : {}),
   } as Parameters<Razorpay["subscriptions"]["create"]>[0];
 
   return rp.subscriptions.create(body);

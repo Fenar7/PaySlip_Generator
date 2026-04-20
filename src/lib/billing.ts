@@ -175,6 +175,8 @@ export async function updateSubscriptionFromWebhook(params: {
   orgId?: string;
   razorpaySubId: string;
   planId?: PlanId;
+  razorpayCustomerId?: string;
+  razorpayPlanId?: string;
   status: SubscriptionStatus;
   currentPeriodStart?: Date;
   currentPeriodEnd?: Date;
@@ -188,6 +190,10 @@ export async function updateSubscriptionFromWebhook(params: {
     where,
     data: {
       ...(params.planId && { planId: params.planId }),
+      ...(params.razorpayCustomerId && {
+        razorpayCustomerId: params.razorpayCustomerId,
+      }),
+      ...(params.razorpayPlanId && { razorpayPlanId: params.razorpayPlanId }),
       status: params.status,
       ...(params.currentPeriodStart && {
         currentPeriodStart: params.currentPeriodStart,
