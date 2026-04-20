@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createHmac } from "crypto";
+import { createHash, createHmac } from "crypto";
 import { db } from "@/lib/db";
 import { timingSafeStringEqual } from "@/lib/crypto/gateway-secrets";
-import { getOrgConfigByRazorpayAccountId, getOrgRazorpayConfig } from "@/lib/razorpay/client";
+import { getOrgConfigByRazorpayAccountId } from "@/lib/razorpay/client";
 import { handleRazorpayEvent } from "@/lib/razorpay/event-handlers";
+import { logAudit } from "@/lib/audit";
 
 /**
  * POST /api/webhooks/razorpay
@@ -54,14 +55,13 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     const globalSecret = process.env.RAZORPAY_WEBHOOK_SECRET;
     if (globalSecret) {
       webhookSecret = globalSecret;
-      // Find the org by matching a computed header against each org's webhook secret
-      // For single-tenant deployments, accept and look up org by key later
-      const integration = await db.orgIntegration.findFirst({
+      const integrations = await db.orgIntegration.findMany({
         where: { provider: "razorpay", isActive: true },
         select: { orgId: true },
         orderBy: { createdAt: "desc" },
+        take: 2,
       });
-      orgId = integration?.orgId ?? null;
+      orgId = integrations.length === 1 ? integrations[0]?.orgId ?? null : null;
     }
   }
 
@@ -78,9 +78,10 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ ok: false }, { status: 200 });
   }
 
-  // 4. Idempotency: skip if we've already processed this event
-  const payloadEntity = (payload.payload as Record<string, unknown>)?.payment as Record<string, unknown> | undefined;
-  const stableEventId = eventId || (payloadEntity?.entity as Record<string, unknown>)?.id as string || "";
+  // 4. Idempotency: prefer Razorpay event ids and fall back to a deterministic body hash.
+  const stableEventId =
+    eventId ||
+    `${eventType}:${createHash("sha256").update(rawBody).digest("hex")}`;
   if (stableEventId) {
     const exists = await db.razorpayEvent.findUnique({
       where: { id: stableEventId },
@@ -92,7 +93,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   }
 
   // 5. Persist event before processing (write-ahead for replay safety)
-  const persistedId = stableEventId || `${eventType}-${Date.now()}`;
+  const persistedId = stableEventId;
   try {
     await db.razorpayEvent.create({
       data: {
@@ -114,6 +115,17 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       eventType,
       (payload.payload as Record<string, unknown>) ?? {}
     );
+    await logAudit({
+      orgId,
+      actorId: "system",
+      action: "billing.razorpay_webhook_processed",
+      entityType: "RazorpayEvent",
+      entityId: persistedId,
+      metadata: {
+        eventType,
+        razorpayAccountId: razorpayAccountId || null,
+      },
+    });
   } catch {
     // Handler errors are logged but we still return 200 to prevent Razorpay retries
     // from overwhelming the system. Unhandled events remain in RazorpayEvent for replay.

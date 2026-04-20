@@ -7,6 +7,7 @@ import {
 } from "@/lib/billing";
 import { handlePaymentLinkPaid } from "@/lib/payment-links";
 import { handleVirtualAccountCredited } from "@/lib/smart-collect";
+import { logAudit } from "@/lib/audit";
 
 export const dynamic = "force-dynamic";
 
@@ -38,7 +39,7 @@ export async function POST(request: Request) {
     switch (eventType) {
       case "subscription.activated": {
         if (razorpaySubId) {
-          await updateSubscriptionFromWebhook({
+          const updated = await updateSubscriptionFromWebhook({
             razorpaySubId,
             status: "active",
             ...(internalPlanId ? { planId: internalPlanId } : {}),
@@ -48,6 +49,14 @@ export async function POST(request: Request) {
             currentPeriodEnd: subscription.current_end
               ? new Date(subscription.current_end * 1000)
               : undefined,
+          });
+          await logAudit({
+            orgId: updated.orgId,
+            actorId: "system",
+            action: "billing.razorpay_subscription_activated",
+            entityType: "Subscription",
+            entityId: updated.id,
+            metadata: { eventId, razorpaySubId },
           });
         }
         break;
@@ -55,7 +64,7 @@ export async function POST(request: Request) {
 
       case "subscription.charged": {
         if (razorpaySubId) {
-          await updateSubscriptionFromWebhook({
+          const updated = await updateSubscriptionFromWebhook({
             razorpaySubId,
             status: "active",
             ...(internalPlanId ? { planId: internalPlanId } : {}),
@@ -66,15 +75,31 @@ export async function POST(request: Request) {
               ? new Date(subscription.current_end * 1000)
               : undefined,
           });
+          await logAudit({
+            orgId: updated.orgId,
+            actorId: "system",
+            action: "billing.razorpay_subscription_charged",
+            entityType: "Subscription",
+            entityId: updated.id,
+            metadata: { eventId, razorpaySubId },
+          });
         }
         break;
       }
 
       case "subscription.pending": {
         if (razorpaySubId) {
-          await updateSubscriptionFromWebhook({
+          const updated = await updateSubscriptionFromWebhook({
             razorpaySubId,
             status: "pending",
+          });
+          await logAudit({
+            orgId: updated.orgId,
+            actorId: "system",
+            action: "billing.razorpay_subscription_pending",
+            entityType: "Subscription",
+            entityId: updated.id,
+            metadata: { eventId, razorpaySubId },
           });
         }
         break;
@@ -82,9 +107,17 @@ export async function POST(request: Request) {
 
       case "subscription.halted": {
         if (razorpaySubId) {
-          await updateSubscriptionFromWebhook({
+          const updated = await updateSubscriptionFromWebhook({
             razorpaySubId,
             status: "expired",
+          });
+          await logAudit({
+            orgId: updated.orgId,
+            actorId: "system",
+            action: "billing.razorpay_subscription_halted",
+            entityType: "Subscription",
+            entityId: updated.id,
+            metadata: { eventId, razorpaySubId },
           });
         }
         break;
@@ -92,10 +125,18 @@ export async function POST(request: Request) {
 
       case "subscription.cancelled": {
         if (razorpaySubId) {
-          await updateSubscriptionFromWebhook({
+          const updated = await updateSubscriptionFromWebhook({
             razorpaySubId,
             status: "cancelled",
             cancelledAt: new Date(),
+          });
+          await logAudit({
+            orgId: updated.orgId,
+            actorId: "system",
+            action: "billing.razorpay_subscription_cancelled",
+            entityType: "Subscription",
+            entityId: updated.id,
+            metadata: { eventId, razorpaySubId },
           });
         }
         break;
@@ -103,9 +144,17 @@ export async function POST(request: Request) {
 
       case "subscription.paused": {
         if (razorpaySubId) {
-          await updateSubscriptionFromWebhook({
+          const updated = await updateSubscriptionFromWebhook({
             razorpaySubId,
             status: "paused",
+          });
+          await logAudit({
+            orgId: updated.orgId,
+            actorId: "system",
+            action: "billing.razorpay_subscription_paused",
+            entityType: "Subscription",
+            entityId: updated.id,
+            metadata: { eventId, razorpaySubId },
           });
         }
         break;
@@ -113,9 +162,17 @@ export async function POST(request: Request) {
 
       case "subscription.resumed": {
         if (razorpaySubId) {
-          await updateSubscriptionFromWebhook({
+          const updated = await updateSubscriptionFromWebhook({
             razorpaySubId,
             status: "active",
+          });
+          await logAudit({
+            orgId: updated.orgId,
+            actorId: "system",
+            action: "billing.razorpay_subscription_resumed",
+            entityType: "Subscription",
+            entityId: updated.id,
+            metadata: { eventId, razorpaySubId },
           });
         }
         break;

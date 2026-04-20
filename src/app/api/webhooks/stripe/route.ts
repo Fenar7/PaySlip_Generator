@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { verifyStripeWebhookSignature } from "@/lib/billing/stripe";
 import { generateSubscriptionInvoice } from "@/lib/billing/invoicing";
+import { logAudit } from "@/lib/audit";
 
 /**
  * POST /api/webhooks/stripe
@@ -65,8 +66,12 @@ async function handleStripeEvent(event: {
           orgId,
           gateway: "STRIPE",
           billingEmail: (obj.customer_email as string) ?? "",
-          billingCountry: "US",
-          currency: "USD",
+          billingCountry:
+            ((obj.customer_details as { address?: { country?: string } } | undefined)
+              ?.address?.country ??
+              (obj.customer_address as { country?: string } | undefined)?.country ??
+              "US"),
+          currency: ((obj.currency as string) ?? "usd").toUpperCase(),
           stripeCustomerId,
         },
       });
@@ -117,14 +122,15 @@ async function handleStripeEvent(event: {
       }
 
       // Generate billing invoice
-      const amountPaise = BigInt((obj.amount_paid as number) ?? 0) * BigInt(100); // cents to paise-equivalent
+      const amountPaise = BigInt((obj.amount_paid as number) ?? 0);
+      const period = getStripeInvoicePeriod(obj);
       await generateSubscriptionInvoice({
         orgId: sub.orgId,
         amountPaise,
         currency: (obj.currency as string)?.toUpperCase() ?? "USD",
         gatewayInvoiceId: obj.id as string,
-        periodStart: new Date((obj.period_start as number) * 1000),
-        periodEnd: new Date((obj.period_end as number) * 1000),
+        periodStart: period.start,
+        periodEnd: period.end,
         planId: sub.planId,
         billingInterval: sub.billingInterval ?? "monthly",
       });
@@ -211,6 +217,19 @@ async function recordEvent(
       currency: account.currency,
     },
   });
+
+  await logAudit({
+    orgId,
+    actorId: "system",
+    action: "billing.stripe_webhook_processed",
+    entityType: "BillingEvent",
+    entityId: gatewayEventId,
+    metadata: {
+      type,
+      amountPaise: amount?.toString() ?? null,
+      currency: account.currency,
+    },
+  });
 }
 
 function getNextPeriodEnd(interval: string): Date {
@@ -219,4 +238,27 @@ function getNextPeriodEnd(interval: string): Date {
     return new Date(now.getFullYear() + 1, now.getMonth(), now.getDate());
   }
   return new Date(now.getFullYear(), now.getMonth() + 1, now.getDate());
+}
+
+function getStripeInvoicePeriod(obj: Record<string, unknown>): {
+  start: Date;
+  end: Date;
+} {
+  const linePeriod = (
+    (obj.lines as { data?: Array<{ period?: { start?: number; end?: number } }> } | undefined)
+      ?.data?.[0]?.period
+  );
+  const startSeconds =
+    linePeriod?.start ??
+    (obj.period_start as number | undefined) ??
+    Math.floor(Date.now() / 1000);
+  const endSeconds =
+    linePeriod?.end ??
+    (obj.period_end as number | undefined) ??
+    Math.floor(getNextPeriodEnd("monthly").getTime() / 1000);
+
+  return {
+    start: new Date(startSeconds * 1000),
+    end: new Date(endSeconds * 1000),
+  };
 }

@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
 import { confirmBankTransactionMatch } from "@/lib/accounting";
+import { logAudit } from "@/lib/audit";
 import {
   BooksApiError,
   BooksApiErrorCode,
@@ -37,6 +38,15 @@ export async function POST(request: NextRequest) {
       bankTransactionId,
       matchId,
       matchedAmount: parseOptionalNumber(body.matchedAmount, "matchedAmount"),
+    });
+
+    await logAudit({
+      orgId,
+      actorId: userId,
+      action: "books.reconciliation_confirmed",
+      entityType: "BankTransaction",
+      entityId: bankTransactionId,
+      metadata: { matchId },
     });
 
     return booksApiResponse({ id: match.id });

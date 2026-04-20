@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { requireOrgContext, requireRole } from "@/lib/auth";
 import { confirmMatch } from "@/lib/razorpay/unmatched-payment-matcher";
 import type { UnmatchedPayment, Invoice } from "@/generated/prisma/client";
+import { logAudit } from "@/lib/audit";
 
 type ActionResult<T> =
   | { success: true; data: T }
@@ -55,7 +56,7 @@ export async function manuallyReconcilePayment(
   unmatchedId: string,
   invoiceId: string
 ): Promise<ActionResult<void>> {
-  const { orgId } = await requireRole("admin");
+  const { orgId, userId } = await requireRole("admin");
 
   const payment = await db.unmatchedPayment.findFirst({
     where: { id: unmatchedId, orgId, status: { in: ["unmatched", "suggested"] } },
@@ -79,6 +80,18 @@ export async function manuallyReconcilePayment(
     return { success: false, error: `Reconciliation failed: ${message}` };
   }
 
+  await logAudit({
+    orgId,
+    actorId: userId,
+    action: "pay.unmatched_payment_manually_reconciled",
+    entityType: "UnmatchedPayment",
+    entityId: payment.id,
+    metadata: {
+      invoiceId,
+      amountPaise: payment.amountPaise.toString(),
+    },
+  });
+
   return { success: true, data: undefined };
 }
 
@@ -89,7 +102,7 @@ export async function manuallyReconcilePayment(
 export async function markPaymentAsOther(
   unmatchedId: string
 ): Promise<ActionResult<void>> {
-  const { orgId } = await requireRole("admin");
+  const { orgId, userId } = await requireRole("admin");
 
   const payment = await db.unmatchedPayment.findFirst({
     where: { id: unmatchedId, orgId, status: { in: ["unmatched", "suggested"] } },
@@ -102,6 +115,14 @@ export async function markPaymentAsOther(
   await db.unmatchedPayment.update({
     where: { id: payment.id },
     data: { status: "marked_other", resolvedAt: new Date() },
+  });
+
+  await logAudit({
+    orgId,
+    actorId: userId,
+    action: "pay.unmatched_payment_marked_other",
+    entityType: "UnmatchedPayment",
+    entityId: payment.id,
   });
 
   return { success: true, data: undefined };

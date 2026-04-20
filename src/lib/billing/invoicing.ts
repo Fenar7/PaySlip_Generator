@@ -10,12 +10,12 @@ import { db } from "@/lib/db";
 import { requireOrgContext } from "@/lib/auth";
 import { getCurrentPeriod } from "./metering";
 
-const TAX_RATES: Record<string, number> = {
-  IN: 0.18,   // 18% GST
-  GB: 0.20,   // 20% VAT
-  EU: 0.20,   // Average EU VAT
-  US: 0.0,    // No federal sales tax on SaaS (state-level varies)
-  DEFAULT: 0, // No tax for unknown regions
+const TAX_RATE_BASIS_POINTS: Record<string, number> = {
+  IN: 1800,
+  GB: 2000,
+  EU: 2000,
+  US: 0,
+  DEFAULT: 0,
 };
 
 /**
@@ -44,12 +44,10 @@ export async function generateSubscriptionInvoice(params: {
     where: { orgId },
     select: { billingCountry: true },
   });
-  const country = account?.billingCountry ?? "DEFAULT";
-  const taxRate = TAX_RATES[country] ?? TAX_RATES.DEFAULT;
-
-  // Calculate tax breakdown
-  const baseAmountPaise = BigInt(Math.round(Number(amountPaise) / (1 + taxRate)));
-  const taxAmountPaise = amountPaise - baseAmountPaise;
+  const breakdown = getBillingTaxBreakdown(
+    amountPaise,
+    account?.billingCountry,
+  );
 
   // Generate invoice number
   const invoiceNumber = await generateInvoiceNumber(orgId);
@@ -67,6 +65,11 @@ export async function generateSubscriptionInvoice(params: {
     },
   });
 
+  await db.billingInvoice.update({
+    where: { id: invoice.id },
+    data: { pdfUrl: buildBillingInvoicePdfUrl(invoice.id) },
+  });
+
   // Record billing event
   const billingAccount = await db.billingAccount.findUnique({ where: { orgId } });
   if (billingAccount) {
@@ -81,16 +84,64 @@ export async function generateSubscriptionInvoice(params: {
           invoiceNumber,
           planId,
           billingInterval,
-          baseAmountPaise: baseAmountPaise.toString(),
-          taxAmountPaise: taxAmountPaise.toString(),
-          taxRate,
-          country,
+          baseAmountPaise: breakdown.baseAmountPaise.toString(),
+          taxAmountPaise: breakdown.taxAmountPaise.toString(),
+          taxRateBasisPoints: breakdown.taxRateBasisPoints,
+          country: breakdown.country,
         })),
       },
     });
   }
 
   return invoice.id;
+}
+
+export function buildBillingInvoicePdfUrl(invoiceId: string): string {
+  return `/api/billing/invoices/${invoiceId}/pdf`;
+}
+
+export function formatBillingInvoiceNumber(invoice: {
+  id: string;
+  orgId: string;
+  createdAt: Date;
+}): string {
+  const year = invoice.createdAt.getUTCFullYear();
+  const orgShort = invoice.orgId.slice(0, 6).toUpperCase();
+  const suffix = invoice.id.slice(-6).toUpperCase();
+  return `SLW-${year}-${orgShort}-${suffix}`;
+}
+
+export function getBillingTaxBreakdown(
+  amountPaise: bigint,
+  billingCountry?: string | null,
+): {
+  baseAmountPaise: bigint;
+  taxAmountPaise: bigint;
+  taxRateBasisPoints: number;
+  country: string;
+} {
+  const country = (billingCountry ?? "DEFAULT").toUpperCase();
+  const taxRateBasisPoints =
+    TAX_RATE_BASIS_POINTS[country] ?? TAX_RATE_BASIS_POINTS.DEFAULT;
+
+  if (taxRateBasisPoints <= 0) {
+    return {
+      baseAmountPaise: amountPaise,
+      taxAmountPaise: BigInt(0),
+      taxRateBasisPoints,
+      country,
+    };
+  }
+
+  const denominator = BigInt(10000 + taxRateBasisPoints);
+  const baseAmountPaise = (amountPaise * BigInt(10000)) / denominator;
+
+  return {
+    baseAmountPaise,
+    taxAmountPaise: amountPaise - baseAmountPaise,
+    taxRateBasisPoints,
+    country,
+  };
 }
 
 /**
@@ -143,10 +194,15 @@ export async function generateOverageInvoice(
   const periodStart = new Date(now.getFullYear(), now.getMonth(), 1);
   const periodEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0);
 
+  const account = await db.billingAccount.findUnique({
+    where: { orgId },
+    select: { currency: true },
+  });
+
   return generateSubscriptionInvoice({
     orgId,
     amountPaise: overageAmountPaise,
-    currency: "INR", // will be resolved from account
+    currency: account?.currency ?? "INR",
     gatewayInvoiceId: `overage_${orgId}_${periodMonth}`,
     periodStart,
     periodEnd,

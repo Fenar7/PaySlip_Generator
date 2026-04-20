@@ -8,7 +8,7 @@
 import { db } from "@/lib/db";
 import { getOrgPlan } from "@/lib/plans/enforcement";
 import type { OverageCalculation } from "./types";
-import { OVERAGE_RATES_PAISE } from "./types";
+import { OVERAGE_BILLING_UNIT_SIZES, OVERAGE_RATES_PAISE } from "./types";
 
 /**
  * Resource-to-plan-limit mapping.
@@ -17,7 +17,6 @@ import { OVERAGE_RATES_PAISE } from "./types";
 const RESOURCE_LIMIT_MAP: Record<string, string> = {
   pdf_jobs: "pdfExportsPerMonth",
   pixel_jobs: "pixelJobsSaved",
-  api_requests: "pdfExportsPerMonth", // reuse as general API metering
   storage_gb: "storageBytes",
   email_sends: "emailSendsPerMonth",
 };
@@ -122,7 +121,9 @@ export async function calculateOverages(orgId: string): Promise<OverageCalculati
     if (usedUnits <= includedUnits) continue;
 
     const overageUnits = usedUnits - includedUnits;
-    const overageAmountPaise = BigInt(overageUnits) * ratePaise;
+    const billingUnitSize = OVERAGE_BILLING_UNIT_SIZES[resource] ?? 1;
+    const billedUnits = Math.ceil(overageUnits / billingUnitSize);
+    const overageAmountPaise = BigInt(billedUnits) * ratePaise;
 
     overages.push({
       resource,

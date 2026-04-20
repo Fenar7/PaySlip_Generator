@@ -6,6 +6,7 @@ vi.mock("@/lib/db", () => ({
   db: {
     orgIntegration: {
       findFirst: vi.fn(),
+      findMany: vi.fn(),
       update: vi.fn(),
     },
     razorpayEvent: {
@@ -53,6 +54,10 @@ vi.mock("@/lib/razorpay/client", () => ({
   getOrgConfigByRazorpayAccountId: vi.fn().mockResolvedValue(null),
 }));
 
+vi.mock("@/lib/audit", () => ({
+  logAudit: vi.fn(),
+}));
+
 import { POST } from "../route";
 import { db } from "@/lib/db";
 
@@ -80,6 +85,7 @@ describe("POST /api/webhooks/razorpay", () => {
 
     // Default: org found via fallback
     vi.mocked(db.orgIntegration.findFirst).mockResolvedValue({ orgId: ORG_ID } as never);
+    vi.mocked(db.orgIntegration.findMany).mockResolvedValue([{ orgId: ORG_ID }] as never);
     vi.mocked(db.razorpayEvent.findUnique).mockResolvedValue(null);
     vi.mocked(db.razorpayEvent.create).mockResolvedValue({ id: "evt_test_001", type: "payment_link.paid", payload: {}, processedAt: new Date() });
     vi.mocked(db.invoice.findFirst).mockResolvedValue(null);
@@ -128,6 +134,7 @@ describe("POST /api/webhooks/razorpay", () => {
 
   it("returns 200 with ok:false when no org can be found", async () => {
     vi.mocked(db.orgIntegration.findFirst).mockResolvedValue(null);
+    vi.mocked(db.orgIntegration.findMany).mockResolvedValue([] as never);
     delete process.env.RAZORPAY_WEBHOOK_SECRET;
     const payload = { event: "payment_link.paid", account_id: "", payload: {} };
     const req = buildSignedRequest(payload, WEBHOOK_SECRET);
