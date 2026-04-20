@@ -3,9 +3,12 @@ export type ImageRotation = 0 | 90 | 180 | 270;
 export type PdfStudioToolId =
   | "create"
   | "merge"
+  | "alternate-mix"
   | "split"
+  | "extract-pages"
   | "delete-pages"
   | "organize"
+  | "rotate"
   | "resize-pages"
   | "fill-sign"
   | "protect"

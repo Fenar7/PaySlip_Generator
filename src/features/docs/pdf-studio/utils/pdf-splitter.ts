@@ -41,6 +41,32 @@ export async function splitByRanges(
   }
 }
 
+export async function splitByPageGroups(
+  pdfBytes: Uint8Array,
+  pageGroups: number[][],
+): Promise<SplitResult> {
+  try {
+    const srcDoc = await PDFDocument.load(pdfBytes);
+    const results: Uint8Array[] = [];
+
+    for (const pageGroup of pageGroups) {
+      if (pageGroup.length === 0) {
+        continue;
+      }
+
+      const newDoc = await PDFDocument.create();
+      const copiedPages = await newDoc.copyPages(srcDoc, pageGroup);
+      copiedPages.forEach((page) => newDoc.addPage(page));
+      results.push(await newDoc.save());
+    }
+
+    return { ok: true, data: results };
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : "Unknown error";
+    return { ok: false, error: `Failed to split PDF: ${msg}` };
+  }
+}
+
 export async function splitEveryN(
   pdfBytes: Uint8Array,
   n: number

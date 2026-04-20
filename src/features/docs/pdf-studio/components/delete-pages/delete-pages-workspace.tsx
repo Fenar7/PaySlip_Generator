@@ -5,7 +5,10 @@ import Link from "next/link";
 import { Button } from "@/components/ui";
 import { PdfUploadZone } from "@/features/docs/pdf-studio/components/shared/pdf-upload-zone";
 import { usePdfStudioAnalytics } from "@/features/docs/pdf-studio/lib/analytics";
-import { buildPdfStudioOutputName } from "@/features/docs/pdf-studio/lib/output";
+import {
+  buildPdfStudioOutputName,
+  getPdfStudioSourceBaseName,
+} from "@/features/docs/pdf-studio/lib/output";
 import {
   PdfPageGrid,
   type PageGridItem,
@@ -48,6 +51,9 @@ export function DeletePagesWorkspace() {
       const gridPages = result.data.map((p) => ({
         ...p,
         id: `page-${p.pageIndex}`,
+        originalPageNumber: p.pageIndex + 1,
+        sourceDocumentId: "source-document",
+        sourceLabel: getPdfStudioSourceBaseName(file.name, "document"),
       }));
 
       setPdfBytes(bytes);
@@ -99,6 +105,39 @@ export function DeletePagesWorkspace() {
     });
     setError(null);
   }, []);
+
+  const handleSelectAll = useCallback(() => {
+    if (pages.length <= 1) {
+      return;
+    }
+
+    const allButLast = new Set(pages.slice(0, -1).map((page) => page.id));
+    setUndoStack((stack) => [...stack, deletedIds]);
+    setDeletedIds(allButLast);
+    setError(null);
+  }, [deletedIds, pages]);
+
+  const handleClearSelection = useCallback(() => {
+    setUndoStack((stack) => [...stack, deletedIds]);
+    setDeletedIds(new Set());
+    setError(null);
+  }, [deletedIds]);
+
+  const handleInvertSelection = useCallback(() => {
+    if (pages.length <= 1) {
+      return;
+    }
+
+    const nextDeletedIds = new Set(
+      pages
+        .filter((page) => !deletedIds.has(page.id))
+        .slice(0, -1)
+        .map((page) => page.id),
+    );
+    setUndoStack((stack) => [...stack, deletedIds]);
+    setDeletedIds(nextDeletedIds);
+    setError(null);
+  }, [deletedIds, pages]);
 
   const handleDownload = useCallback(async () => {
     if (!pdfBytes) return;
@@ -239,6 +278,30 @@ export function DeletePagesWorkspace() {
               </button>
             </div>
             <div className="flex items-center gap-2">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleSelectAll}
+                disabled={pages.length <= 1}
+              >
+                Select all removable
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleInvertSelection}
+                disabled={pages.length <= 1}
+              >
+                Invert
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleClearSelection}
+                disabled={deletedIds.size === 0}
+              >
+                Clear
+              </Button>
               <Button
                 variant="ghost"
                 size="sm"
