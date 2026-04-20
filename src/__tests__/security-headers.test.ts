@@ -134,6 +134,7 @@ function buildTestCsp(options: { isDev?: boolean } = {}): string {
     ...(options.isDev ? ["'unsafe-eval'"] : []),
     "https://js.stripe.com",
     "https://checkout.razorpay.com",
+    "https://api.razorpay.com",
   ].join(" ");
 
   const directives = [
@@ -142,8 +143,8 @@ function buildTestCsp(options: { isDev?: boolean } = {}): string {
     "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
     "img-src 'self' data: blob: https: http:",
     "font-src 'self' https://fonts.gstatic.com data:",
-    "connect-src 'self' https://*.supabase.co https://api.stripe.com https://*.amazonaws.com wss://*.supabase.co",
-    "frame-src https://js.stripe.com https://checkout.razorpay.com",
+    "connect-src 'self' https://*.supabase.co https://api.stripe.com https://api.razorpay.com https://*.amazonaws.com wss://*.supabase.co",
+    "frame-src https://js.stripe.com https://checkout.razorpay.com https://api.razorpay.com",
     "frame-ancestors 'none'",
     "base-uri 'self'",
     "form-action 'self'",

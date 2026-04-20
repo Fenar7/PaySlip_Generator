@@ -64,6 +64,7 @@ function buildCsp(): string {
     "https://*.supabase.co",
     "wss://*.supabase.co",
     "https://api.stripe.com",
+    "https://api.razorpay.com",
     "https://*.amazonaws.com",
     // Allow the configured Supabase origin (handles local or custom-domain deployments)
     supabaseHost,
@@ -78,6 +79,7 @@ function buildCsp(): string {
     ...(isDev ? ["'unsafe-eval'"] : []),
     "https://js.stripe.com",
     "https://checkout.razorpay.com",
+    "https://api.razorpay.com",
   ].join(" ");
 
   const directives = [
@@ -87,7 +89,7 @@ function buildCsp(): string {
     "img-src 'self' data: blob: https: http:",
     "font-src 'self' https://fonts.gstatic.com data:",
     `connect-src ${connectSrc}`,
-    "frame-src https://js.stripe.com https://checkout.razorpay.com",
+    "frame-src https://js.stripe.com https://checkout.razorpay.com https://api.razorpay.com",
     "frame-ancestors 'none'",
     "base-uri 'self'",
     "form-action 'self'",
