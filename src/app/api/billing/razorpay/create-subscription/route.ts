@@ -31,18 +31,24 @@ export async function POST(request: Request) {
     );
   }
 
-  const body = await request.json();
+  let body: Record<string, unknown>;
+  try {
+    body = await request.json();
+  } catch {
+    return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+  }
+
   const {
     orgId: requestedOrgId,
     planId,
     billingInterval,
     phone,
-  }: {
+  } = body as {
     orgId?: string;
     planId: PlanId;
     billingInterval: BillingInterval;
     phone?: string;
-  } = body;
+  };
 
   if (!planId || !billingInterval) {
     return NextResponse.json(

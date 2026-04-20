@@ -14,18 +14,24 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const body = await request.json();
+  let body: Record<string, unknown>;
+  try {
+    body = await request.json();
+  } catch {
+    return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+  }
+
   const {
     orgId: requestedOrgId,
     newPlanId,
     billingInterval,
     immediate = false,
-  }: {
+  } = body as {
     orgId?: string;
     newPlanId: PlanId;
     billingInterval: BillingInterval;
     immediate?: boolean;
-  } = body;
+  };
 
   if (!newPlanId || !billingInterval) {
     return NextResponse.json(
