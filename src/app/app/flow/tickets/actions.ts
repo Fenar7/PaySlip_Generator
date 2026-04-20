@@ -2,6 +2,7 @@
 
 import { db } from "@/lib/db";
 import { requireOrgContext } from "@/lib/auth";
+import { computeTicketSlaDeadlines } from "@/lib/flow/ticket-sla";
 import { revalidatePath } from "next/cache";
 
 export type ActionResult<T> =
@@ -76,43 +77,6 @@ export async function getTicketCounts() {
   return { all, open, inProgress, resolved, closed, breached };
 }
 
-// ─── SLA Computation ──────────────────────────────────────────────────────────
-
-/**
- * Compute SLA deadlines for a ticket based on the org's SLA policy.
- * Returns null fields if no matching policy is found.
- */
-export async function computeTicketSlaDeadlines(
-  orgId: string,
-  priority?: string | null,
-  createdAt?: Date
-): Promise<{ firstResponseDueAt: Date | null; resolutionDueAt: Date | null }> {
-  const base = createdAt ?? new Date();
-
-  // Find the most specific matching policy: priority-specific first, then default
-  const policy = await db.ticketSlaPolicy.findFirst({
-    where: {
-      orgId,
-      OR: [
-        { priority: priority ?? null },
-        { priority: null, isDefault: true },
-      ],
-    },
-    orderBy: [{ priority: "asc" }, { isDefault: "desc" }],
-  });
-
-  if (!policy) return { firstResponseDueAt: null, resolutionDueAt: null };
-
-  const firstResponseDueAt = new Date(
-    base.getTime() + policy.firstResponseTargetMins * 60 * 1000
-  );
-  const resolutionDueAt = new Date(
-    base.getTime() + policy.resolutionTargetMins * 60 * 1000
-  );
-
-  return { firstResponseDueAt, resolutionDueAt };
-}
-
 /**
  * Apply SLA deadlines to an existing ticket.
  * Should be called on ticket creation and priority changes.
@@ -142,4 +106,3 @@ export async function applyTicketSla(
   revalidatePath(`/app/flow/tickets/${ticketId}`);
   return { success: true, data: deadlines };
 }
-

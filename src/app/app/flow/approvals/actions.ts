@@ -15,8 +15,13 @@ import {
 import { hasPermission } from "@/lib/permissions";
 import { revalidatePath } from "next/cache";
 import { postVendorBillTx, postVoucherTx } from "@/lib/accounting";
-import { createNotification, notifyOrgAdmins } from "@/lib/notifications";
-import { advanceApprovalChain, createApprovalRequest } from "@/lib/flow/approvals";
+import { createNotification } from "@/lib/notifications";
+import {
+  advanceApprovalChain,
+  createApprovalRequest,
+  getApprovalDecisionContext,
+  getApprovalDocumentAmount,
+} from "@/lib/flow/approvals";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -335,6 +340,7 @@ export async function requestApproval(
 
     const requesterName = profile?.name ?? "Unknown User";
     const docNumber = await getDocNumber(docType, docId);
+    const amount = await getApprovalDocumentAmount(docType, docId, orgId);
 
     const approval = await createApprovalRequest({
       docType,
@@ -343,6 +349,7 @@ export async function requestApproval(
       requestedById: userId,
       requestedByName: requesterName,
       docNumber,
+      amount,
     });
 
     revalidatePath("/app/flow/approvals");
@@ -368,7 +375,7 @@ export interface ApprovalListResult {
     approverName: string | null;
   }>;
   total: number;
-  counts: { all: number; pending: number; approved: number; rejected: number };
+  counts: { all: number; pending: number; approved: number; rejected: number; escalated: number };
 }
 
 export async function listApprovals(
@@ -379,14 +386,14 @@ export async function listApprovals(
     const page = params?.page ?? 0;
 
     const statusFilter =
-      params?.status && ["PENDING", "APPROVED", "REJECTED"].includes(params.status)
-        ? { status: params.status as "PENDING" | "APPROVED" | "REJECTED" }
+      params?.status && ["PENDING", "APPROVED", "REJECTED", "ESCALATED"].includes(params.status)
+        ? { status: params.status as "PENDING" | "APPROVED" | "REJECTED" | "ESCALATED" }
         : {};
 
     const visibilityWhere = getApprovalVisibilityWhere(role, userId);
     const where = { orgId, ...statusFilter, ...visibilityWhere };
 
-    const [approvals, total, pending, approved, rejected] = await Promise.all([
+    const [approvals, total, pending, approved, rejected, escalated] = await Promise.all([
       db.approvalRequest.findMany({
         where,
         orderBy: { createdAt: "desc" },
@@ -397,6 +404,7 @@ export async function listApprovals(
       db.approvalRequest.count({ where: { orgId, status: "PENDING" } }),
       db.approvalRequest.count({ where: { orgId, status: "APPROVED" } }),
       db.approvalRequest.count({ where: { orgId, status: "REJECTED" } }),
+      db.approvalRequest.count({ where: { orgId, status: "ESCALATED" } }),
     ]);
 
     const documents = await getApprovalDocumentSummaries(approvals);
@@ -424,10 +432,11 @@ export async function listApprovals(
         approvals: mapped,
         total,
         counts: {
-          all: pending + approved + rejected,
+          all: total,
           pending,
           approved,
           rejected,
+          escalated,
         },
       },
     };
@@ -543,6 +552,23 @@ export async function approveRequest(
       return { success: false, error: "You cannot approve your own request" };
     }
 
+    const decisionContext = await getApprovalDecisionContext(
+      {
+        id: approval.id,
+        orgId: approval.orgId,
+        policyId: approval.policyId ?? null,
+        policyRuleId: approval.policyRuleId ?? null,
+        currentRuleOrder: approval.currentRuleOrder ?? 1,
+        docType: approval.docType,
+        docId: approval.docId,
+      },
+      userId,
+    );
+
+    if (!decisionContext.allowed) {
+      return { success: false, error: "You are not assigned to the current approval step." };
+    }
+
     const profile = await db.profile.findUnique({
       where: { id: userId },
       select: { name: true },
@@ -551,7 +577,14 @@ export async function approveRequest(
     const approverName = profile?.name ?? "Unknown User";
 
     // Advance the chain — returns "APPROVED" | "PENDING" | "REJECTED"
-    const chainResult = await advanceApprovalChain(requestId, userId, approverName, "APPROVED", note);
+    const chainResult = await advanceApprovalChain(
+      requestId,
+      userId,
+      approverName,
+      "APPROVED",
+      note,
+      decisionContext.delegatedFromId,
+    );
 
     if (chainResult.status === "PENDING") {
       // Chain is not complete — request stays pending at the next rule
@@ -644,6 +677,23 @@ export async function rejectRequest(
       return { success: false, error: "You cannot reject your own request" };
     }
 
+    const decisionContext = await getApprovalDecisionContext(
+      {
+        id: approval.id,
+        orgId: approval.orgId,
+        policyId: approval.policyId ?? null,
+        policyRuleId: approval.policyRuleId ?? null,
+        currentRuleOrder: approval.currentRuleOrder ?? 1,
+        docType: approval.docType,
+        docId: approval.docId,
+      },
+      userId,
+    );
+
+    if (!decisionContext.allowed) {
+      return { success: false, error: "You are not assigned to the current approval step." };
+    }
+
     const profile = await db.profile.findUnique({
       where: { id: userId },
       select: { name: true },
@@ -652,7 +702,14 @@ export async function rejectRequest(
     const approverName = profile?.name ?? "Unknown User";
 
     // Record decision in the chain (always terminal for rejections)
-    await advanceApprovalChain(requestId, userId, approverName, "REJECTED", note.trim());
+    await advanceApprovalChain(
+      requestId,
+      userId,
+      approverName,
+      "REJECTED",
+      note.trim(),
+      decisionContext.delegatedFromId,
+    );
 
     await db.$transaction(async (tx) => {
       await tx.approvalRequest.update({

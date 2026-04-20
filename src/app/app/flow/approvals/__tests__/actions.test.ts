@@ -31,6 +31,8 @@ const mocks = vi.hoisted(() => ({
   txVoucherUpdate: vi.fn(),
   createApprovalRequest: vi.fn(),
   advanceApprovalChain: vi.fn(),
+  getApprovalDocumentAmount: vi.fn(),
+  getApprovalDecisionContext: vi.fn(),
 }));
 
 vi.mock("@/lib/db", () => ({
@@ -94,6 +96,8 @@ vi.mock("@/lib/notifications", () => ({
 vi.mock("@/lib/flow/approvals", () => ({
   createApprovalRequest: mocks.createApprovalRequest,
   advanceApprovalChain: mocks.advanceApprovalChain,
+  getApprovalDocumentAmount: mocks.getApprovalDocumentAmount,
+  getApprovalDecisionContext: mocks.getApprovalDecisionContext,
 }));
 
 vi.mock("@/lib/accounting", () => ({
@@ -102,7 +106,6 @@ vi.mock("@/lib/accounting", () => ({
 }));
 
 import { requireOrgContext } from "@/lib/auth";
-import { db } from "@/lib/db";
 import { createNotification, notifyOrgAdmins } from "@/lib/notifications";
 import {
   approveRequest,
@@ -141,6 +144,8 @@ describe("Flow approval authorization", () => {
     mocks.txVoucherUpdate.mockResolvedValue({});
     mocks.createApprovalRequest.mockResolvedValue({ id: "approval-1" });
     mocks.advanceApprovalChain.mockResolvedValue({ status: "APPROVED" });
+    mocks.getApprovalDocumentAmount.mockResolvedValue(2500);
+    mocks.getApprovalDecisionContext.mockResolvedValue({ allowed: true });
   });
 
   it("allows finance managers to request vendor bill approvals", async () => {
@@ -157,6 +162,7 @@ describe("Flow approval authorization", () => {
       requestedById: "user-1",
       requestedByName: "Approver",
       docNumber: "BILL-001",
+      amount: 2500,
     });
     expect(mocks.approvalRequestCreate).not.toHaveBeenCalled();
     expect(notifyOrgAdmins).not.toHaveBeenCalled();
@@ -190,16 +196,17 @@ describe("Flow approval authorization", () => {
     expect(result).toEqual({
       success: true,
       data: {
-        approvals: [],
-        total: 0,
-        counts: {
-          all: 0,
-          pending: 0,
-          approved: 0,
-          rejected: 0,
+          approvals: [],
+          total: 0,
+          counts: {
+            all: 0,
+            pending: 0,
+            approved: 0,
+            rejected: 0,
+            escalated: 0,
+          },
         },
-      },
-    });
+      });
     expect(mocks.approvalRequestFindMany).toHaveBeenCalledWith({
       where: {
         orgId: "org-1",
@@ -265,6 +272,7 @@ describe("Flow approval authorization", () => {
       "Approver",
       "APPROVED",
       "Looks good",
+      undefined,
     );
     expect(mocks.txApprovalRequestUpdate).toHaveBeenCalledWith({
       where: { id: "approval-2" },
@@ -304,6 +312,7 @@ describe("Flow approval authorization", () => {
       "Approver",
       "REJECTED",
       "Need updated bill lines",
+      undefined,
     );
     expect(mocks.txApprovalRequestUpdate).toHaveBeenCalledWith({
       where: { id: "approval-3" },
@@ -340,6 +349,42 @@ describe("Flow approval authorization", () => {
       where: { id: "run-1" },
       data: { status: "DRAFT" },
     });
+  });
+
+  it("rejects approval decisions when the user is not assigned to the current rule", async () => {
+    mocks.getApprovalDecisionContext.mockResolvedValueOnce({ allowed: false });
+    mocks.approvalRequestFindFirst.mockResolvedValue({
+      id: "approval-6",
+      docType: "salary-slip",
+      docId: "slip-1",
+      orgId: "org-1",
+      requestedById: "requester-1",
+      status: "PENDING",
+      policyId: "policy-1",
+      policyRuleId: "rule-1",
+      currentRuleOrder: 1,
+    });
+
+    const result = await approveRequest("approval-6");
+
+    expect(result).toEqual({
+      success: false,
+      error: "You are not assigned to the current approval step.",
+    });
+    expect(mocks.advanceApprovalChain).not.toHaveBeenCalled();
+  });
+
+  it("supports escalated approval filters", async () => {
+    await listApprovals({ status: "ESCALATED" });
+
+    expect(mocks.approvalRequestFindMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          orgId: "org-1",
+          status: "ESCALATED",
+        }),
+      }),
+    );
   });
 
   it("blocks finance approval detail access for non-finance roles", async () => {

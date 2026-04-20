@@ -1,9 +1,29 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { validateCronSecret } from "@/lib/cron";
-import { notifyOrgAdmins } from "@/lib/notifications";
+import { notifyOrgAdmins, notifyUsers } from "@/lib/notifications";
 
 export const dynamic = "force-dynamic";
+
+async function resolveEscalationTargets(orgId: string, rule: { targetUserId: string | null; targetRole: string | null }) {
+  const userIds = new Set<string>();
+
+  if (rule.targetUserId) {
+    userIds.add(rule.targetUserId);
+  }
+
+  if (rule.targetRole) {
+    const members = await db.member.findMany({
+      where: { organizationId: orgId, role: rule.targetRole },
+      select: { userId: true },
+    });
+    for (const member of members) {
+      userIds.add(member.userId);
+    }
+  }
+
+  return [...userIds];
+}
 
 /**
  * flow.process-ticket-sla
@@ -66,6 +86,7 @@ export async function GET(request: Request) {
         const escalationCandidates = await db.invoiceTicket.findMany({
           where: {
             orgId,
+            status: { in: ["OPEN", "IN_PROGRESS"] },
             breachedAt: { not: null, lte: escalateThreshold },
             breachType: rule.breachType,
             escalationLevel: 0,
@@ -73,10 +94,28 @@ export async function GET(request: Request) {
         });
 
         for (const ticket of escalationCandidates) {
+          const targetUserIds = await resolveEscalationTargets(orgId, rule);
+
           await db.invoiceTicket.update({
             where: { id: ticket.id },
-            data: { escalationLevel: { increment: 1 } },
+            data: {
+              escalationLevel: { increment: 1 },
+              ...(rule.targetUserId ? { assigneeId: rule.targetUserId } : {}),
+            },
           });
+
+          if (targetUserIds.length > 0) {
+            await notifyUsers({
+              orgId,
+              userIds: targetUserIds,
+              type: "ticket_escalated",
+              title: "Ticket Escalated",
+              body: `Ticket ${ticket.id.slice(-6).toUpperCase()} breached its ${rule.breachType.replace("_", " ")} SLA and requires action.`,
+              link: `/app/flow/tickets/${ticket.id}`,
+              sourceModule: "flow",
+              sourceRef: ticket.id,
+            });
+          }
 
           if (rule.notifyOrgAdmins) {
             await notifyOrgAdmins({

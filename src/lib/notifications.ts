@@ -91,6 +91,67 @@ export interface NotifyOrgAdminsParams {
   excludeUserId?: string;
 }
 
+export interface NotifyUsersParams {
+  orgId: string;
+  userIds: string[];
+  type: string;
+  title: string;
+  body: string;
+  link?: string;
+  excludeUserId?: string;
+  sourceModule?: string;
+  sourceRef?: string;
+}
+
+export async function notifyUsers(params: NotifyUsersParams) {
+  const targetUserIds = [...new Set(params.userIds.filter(Boolean))].filter(
+    (userId) => userId !== params.excludeUserId,
+  );
+
+  if (targetUserIds.length === 0) {
+    return;
+  }
+
+  const members = await db.member.findMany({
+    where: {
+      organizationId: params.orgId,
+      userId: { in: targetUserIds },
+    },
+    include: { user: { select: { email: true } } },
+  });
+
+  if (members.length === 0) {
+    return;
+  }
+
+  try {
+    await Promise.all(
+      members.map((member) =>
+        createNotification({
+          userId: member.userId,
+          orgId: params.orgId,
+          type: params.type,
+          title: params.title,
+          body: params.body,
+          link: params.link,
+          emailRequested: Boolean(member.user.email),
+          recipientEmail: member.user.email ?? undefined,
+          sourceModule: params.sourceModule,
+          sourceRef: params.sourceRef,
+        }),
+      ),
+    );
+  } catch (error) {
+    if (isModelMissingTableError(error, "Notification")) {
+      console.warn(
+        "notifyUsers skipped: notification table missing during local/runtime schema drift",
+      );
+      return;
+    }
+    throw error;
+  }
+}
+
 export async function notifyOrgAdmins(params: NotifyOrgAdminsParams) {
   const admins = await db.member.findMany({
     where: {

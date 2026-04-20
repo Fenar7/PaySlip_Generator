@@ -3,6 +3,7 @@
 import { db } from "@/lib/db";
 import { requireOrgContext } from "@/lib/auth";
 import { logActivity } from "@/lib/activity";
+import { notifyOrgAdmins, notifyUsers } from "@/lib/notifications";
 import { revalidatePath } from "next/cache";
 
 export type ActionResult<T> =
@@ -70,15 +71,27 @@ export async function replyToTicket(
 
     const actorName = member?.user?.email ?? "Staff";
 
+    const trimmedMessage = data.message.trim();
+
     const reply = await db.ticketReply.create({
       data: {
         ticketId,
         authorId: userId,
         authorName: actorName,
         isInternal: data.isInternal,
-        message: data.message.trim(),
+        message: trimmedMessage,
       },
     });
+
+    if (!data.isInternal) {
+      await db.invoiceTicket.update({
+        where: { id: ticketId },
+        data: {
+          ...(ticket.firstRespondedAt ? {} : { firstRespondedAt: new Date() }),
+          ...(ticket.status === "OPEN" ? { status: "IN_PROGRESS" } : {}),
+        },
+      });
+    }
 
     await logActivity({
       orgId,
@@ -90,7 +103,34 @@ export async function replyToTicket(
       meta: { isInternal: data.isInternal },
     });
 
+    const replyLink = `/app/flow/tickets/${ticketId}`;
+    const replyBody = `${actorName} added ${data.isInternal ? "an internal note" : "a reply"} to ticket ${ticketId.slice(-6).toUpperCase()}.`;
+
+    if (ticket.assigneeId && ticket.assigneeId !== userId) {
+      await notifyUsers({
+        orgId,
+        userIds: [ticket.assigneeId],
+        type: "ticket_reply",
+        title: "Ticket updated",
+        body: replyBody,
+        link: replyLink,
+        excludeUserId: userId,
+        sourceModule: "flow",
+        sourceRef: ticketId,
+      });
+    } else {
+      await notifyOrgAdmins({
+        orgId,
+        type: "ticket_reply",
+        title: "Ticket updated",
+        body: replyBody,
+        link: replyLink,
+        excludeUserId: userId,
+      });
+    }
+
     revalidatePath(`/app/flow/tickets/${ticketId}`);
+    revalidatePath("/app/flow/tickets");
     return { success: true, data: { replyId: reply.id } };
   } catch (error) {
     console.error("replyToTicket error:", error);
@@ -145,6 +185,19 @@ export async function assignTicket(
       docId: ticketId,
     });
 
+    if (ticket.assigneeId !== userId) {
+      await notifyUsers({
+        orgId,
+        userIds: [userId],
+        type: "ticket_assigned",
+        title: "Ticket assigned",
+        body: `Ticket ${ticketId.slice(-6).toUpperCase()} is now assigned to you.`,
+        link: `/app/flow/tickets/${ticketId}`,
+        sourceModule: "flow",
+        sourceRef: ticketId,
+      });
+    }
+
     revalidatePath(`/app/flow/tickets/${ticketId}`);
     revalidatePath("/app/flow/tickets");
     return { success: true, data: { assigneeId: userId } };
@@ -188,7 +241,7 @@ export async function updateTicketStatus(
       };
     }
 
-    const resolvedAt = status === "RESOLVED" ? new Date() : undefined;
+    const resolvedAt = status === "RESOLVED" ? new Date() : status === "CLOSED" ? ticket.resolvedAt ?? new Date() : undefined;
 
     const updated = await db.invoiceTicket.updateMany({
       where: { id: ticketId, status: ticket.status },
@@ -223,6 +276,20 @@ export async function updateTicketStatus(
       docType: "ticket",
       docId: ticketId,
     });
+
+    if (ticket.assigneeId && ticket.assigneeId !== userId) {
+      await notifyUsers({
+        orgId,
+        userIds: [ticket.assigneeId],
+        type: "ticket_status_changed",
+        title: "Ticket status updated",
+        body: `Ticket ${ticketId.slice(-6).toUpperCase()} moved from ${ticket.status} to ${status}.`,
+        link: `/app/flow/tickets/${ticketId}`,
+        excludeUserId: userId,
+        sourceModule: "flow",
+        sourceRef: ticketId,
+      });
+    }
 
     revalidatePath(`/app/flow/tickets/${ticketId}`);
     revalidatePath("/app/flow/tickets");

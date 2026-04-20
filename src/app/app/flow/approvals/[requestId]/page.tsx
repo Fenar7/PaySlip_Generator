@@ -8,6 +8,7 @@ export const metadata: Metadata = { title: "Approval Detail | Slipwise" };
 
 const STATUS_BADGE: Record<string, string> = {
   PENDING: "bg-amber-100 text-amber-700",
+  ESCALATED: "bg-orange-100 text-orange-700",
   APPROVED: "bg-green-100 text-green-700",
   REJECTED: "bg-red-100 text-red-700",
 };
@@ -98,8 +99,8 @@ export default async function ApprovalDetailPage({ params }: PageProps) {
   }
 
   const detail = result.data;
-  const isPending = detail.status === "PENDING";
-  const canDecide = isPending && detail.requestedById !== userId;
+  const isActionable = detail.status === "PENDING" || detail.status === "ESCALATED";
+  const canDecide = isActionable && detail.requestedById !== userId;
 
   return (
     <div className="min-h-screen bg-slate-50">
@@ -244,7 +245,7 @@ export default async function ApprovalDetailPage({ params }: PageProps) {
           )}
 
           {/* Decision Info (if already decided) */}
-          {!isPending && (
+          {!isActionable && (
             <div
               className={`rounded-xl border p-6 ${
                 detail.status === "APPROVED"
