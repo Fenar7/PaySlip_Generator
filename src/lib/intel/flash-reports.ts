@@ -4,6 +4,8 @@ import { db } from "@/lib/db";
 import { Prisma } from "@/generated/prisma/client";
 import { computeExecutiveKpis, type ExecutiveSnapshot } from "./kpi-service";
 import type { KpiResult } from "./kpi";
+import { sendEmail } from "@/lib/email";
+import { sendNotification } from "@/lib/push-notifications";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -66,8 +68,8 @@ function idempotencyKey(
   return `${orgId}:${scheduleId}:${channel}:${period}:${dateKey}`;
 }
 
-function todayKey(): string {
-  return new Date().toISOString().slice(0, 10);
+function deliveryWindowKey(date: Date = new Date()): string {
+  return date.toISOString().slice(0, 13);
 }
 
 // ─── Flash Report Generation ────────────────────────────────────────────────
@@ -119,7 +121,13 @@ export async function deliverFlashReport(
     throw new Error("Flash report schedule not found or access denied");
   }
 
-  const key = idempotencyKey(orgId, scheduleId, channel, period, todayKey());
+  const key = idempotencyKey(
+    orgId,
+    scheduleId,
+    channel,
+    period,
+    deliveryWindowKey()
+  );
 
   // Idempotency check
   const existing = await db.flashReportDelivery.findUnique({
@@ -144,8 +152,10 @@ export async function deliverFlashReport(
       idempotencyKey: key,
     },
     update: {
+      payload: payload as unknown as Prisma.InputJsonValue,
       retryCount: { increment: 1 },
       status: "PENDING",
+      errorMessage: null,
     },
   });
 
@@ -159,8 +169,7 @@ export async function deliverFlashReport(
         await deliverViaPush(orgId, scheduleId, payload);
         break;
       case "WHATSAPP":
-        // WhatsApp delivery is a future integration point
-        break;
+        throw new Error("WhatsApp flash reports are not configured");
     }
 
     // Mark delivered
@@ -211,17 +220,16 @@ async function deliverViaEmail(
     where: { id: scheduleId, orgId },
     include: { user: { select: { email: true, name: true } } },
   });
-  if (!schedule) return;
+  if (!schedule) {
+    throw new Error("Flash report schedule not found");
+  }
+  if (!schedule.user.email) {
+    throw new Error("Flash report recipient does not have an email address");
+  }
 
-  // Build email body with KPI summary
   const subject = `${payload.orgName} — Executive Flash Report (${payload.period})`;
-  const _body = buildEmailHtml(payload);
-
-  // In production, use Resend or the project's email service.
-  // For now, log the intent — actual send requires Resend API key configuration.
-  console.log(
-    `[FlashReport] Email queued for ${schedule.user.email}: ${subject}`
-  );
+  const body = buildEmailHtml(payload);
+  await sendEmail({ to: schedule.user.email, subject, html: body });
 }
 
 async function deliverViaPush(
@@ -233,22 +241,23 @@ async function deliverViaPush(
     where: { id: scheduleId, orgId },
     include: { user: { select: { id: true } } },
   });
-  if (!schedule) return;
+  if (!schedule) {
+    throw new Error("Flash report schedule not found");
+  }
 
-  // Get push subscriptions for this user
-  const subs = await db.pushSubscription.findMany({
+  const subscriptionCount = await db.pushSubscription.count({
     where: { userId: schedule.user.id },
   });
 
-  if (subs.length === 0) return;
+  if (subscriptionCount === 0) {
+    throw new Error("No push subscriptions registered for this recipient");
+  }
 
   const title = `${payload.orgName} Flash Report`;
   const body = payload.topMovers
     .map((m) => `${m.label}: ${m.value} (${m.change})`)
     .join(" | ");
-
-  // In production, use web-push library to send to each subscription
-  console.log(`[FlashReport] Push notification queued: ${title} — ${body}`);
+  await sendNotification(schedule.user.id, title, body, "/app/intel/executive");
 }
 
 function buildEmailHtml(payload: FlashReportPayload): string {

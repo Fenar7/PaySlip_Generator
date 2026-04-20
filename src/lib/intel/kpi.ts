@@ -73,6 +73,8 @@ export interface ReceivablesData {
   daysInPeriod: number;
   /** Previous period DSO for comparison */
   previousDso: number;
+  /** Previous period receivable balance used for working-capital comparisons */
+  previousReceivable?: number;
   /** Monthly DSO values for sparkline */
   monthlyDso: number[];
 }
@@ -86,6 +88,8 @@ export interface PayablesData {
   daysInPeriod: number;
   /** Previous period DPO */
   previousDpo: number;
+  /** Previous period payable balance used for working-capital comparisons */
+  previousPayable?: number;
   /** Monthly DPO values for sparkline */
   monthlyDpo: number[];
 }

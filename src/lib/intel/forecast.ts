@@ -24,7 +24,16 @@ export interface ForecastResult {
   projections: ForecastMonth[];
   runRate: RunRateMetrics;
   anomalies: SpendingAnomaly[];
+  readiness: ForecastReadiness;
 }
+
+export interface ForecastReadiness {
+  status: "ready" | "gathering_data";
+  availableHistoryMonths: number;
+  minimumHistoryMonths: number;
+}
+
+const MIN_FORECAST_HISTORY_MONTHS = 2;
 
 // ─── Historical Data Aggregation ──────────────────────────────────────────────
 
@@ -133,9 +142,19 @@ export async function generateForecast(
 
   const baseCurrency = org.consolidationCurrency ?? "INR";
   const historical = await aggregateHistoricalData(orgId, 12);
-  const projections = generateProjections(historical, horizonMonths, alpha);
-  const runRate = computeRunRate(historical);
-  const anomalies = includeAnomalies ? detectAnomalies(historical) : [];
+  const readiness = summarizeForecastReadiness(historical);
+  const projections =
+    readiness.status === "ready"
+      ? generateProjections(historical, horizonMonths, alpha)
+      : [];
+  const runRate =
+    readiness.availableHistoryMonths > 0
+      ? computeRunRate(historical)
+      : { mrr: 0, arr: 0, momGrowth: null };
+  const anomalies =
+    includeAnomalies && readiness.status === "ready"
+      ? detectAnomalies(historical)
+      : [];
 
   const snapshot = await db.forecastSnapshot.create({
     data: {
@@ -178,6 +197,7 @@ export async function generateForecast(
     projections,
     runRate,
     anomalies,
+    readiness,
   };
 }
 
@@ -194,14 +214,17 @@ export async function getLatestForecast(orgId: string): Promise<ForecastResult |
 
   if (!snapshot) return null;
 
+  const historical = snapshot.historicalData as unknown as MonthlyAggregate[];
+
   return {
     id: snapshot.id,
     generatedAt: snapshot.generatedAt,
     baseCurrency: snapshot.baseCurrency,
-    historical: snapshot.historicalData as unknown as MonthlyAggregate[],
+    historical,
     projections: snapshot.projections as unknown as ForecastMonth[],
     runRate: snapshot.revenueRunRate as unknown as RunRateMetrics,
     anomalies: (snapshot.anomalies as unknown as SpendingAnomaly[]) ?? [],
+    readiness: summarizeForecastReadiness(historical),
   };
 }
 
@@ -221,4 +244,21 @@ function generateMonthKeys(from: Date, to: Date): string[] {
     current.setMonth(current.getMonth() + 1);
   }
   return keys;
+}
+
+function summarizeForecastReadiness(
+  historical: MonthlyAggregate[]
+): ForecastReadiness {
+  const availableHistoryMonths = historical.filter(
+    (month) => month.inflow > 0 || month.outflow > 0
+  ).length;
+
+  return {
+    status:
+      availableHistoryMonths >= MIN_FORECAST_HISTORY_MONTHS
+        ? "ready"
+        : "gathering_data",
+    availableHistoryMonths,
+    minimumHistoryMonths: MIN_FORECAST_HISTORY_MONTHS,
+  };
 }

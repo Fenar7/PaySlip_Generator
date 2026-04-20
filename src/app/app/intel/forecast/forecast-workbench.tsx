@@ -40,6 +40,30 @@ export function ForecastWorkbench({ initialData }: Props) {
     });
   }
 
+  if (data?.readiness.status === "gathering_data") {
+    return (
+      <div className="rounded-lg border border-dashed p-12 text-center">
+        <h3 className="text-lg font-semibold">Gathering data</h3>
+        <p className="text-muted-foreground mt-1 text-sm">
+          Forecasts unlock after at least {data.readiness.minimumHistoryMonths} months of
+          settled inflow or outflow activity. We&apos;ve captured{" "}
+          {data.readiness.availableHistoryMonths} so far.
+        </p>
+        <p className="text-muted-foreground mt-2 text-xs">
+          Last generated: {new Date(data.generatedAt).toLocaleString()}
+        </p>
+        <button
+          onClick={handleRegenerate}
+          disabled={isPending}
+          className="bg-primary text-primary-foreground hover:bg-primary/90 mt-4 rounded-md px-4 py-2 text-sm font-medium disabled:opacity-50"
+        >
+          {isPending ? "Refreshing…" : "Refresh Forecast"}
+        </button>
+        {error && <p className="mt-2 text-sm text-red-600">{error}</p>}
+      </div>
+    );
+  }
+
   if (!data) {
     return (
       <div className="rounded-lg border border-dashed p-12 text-center">

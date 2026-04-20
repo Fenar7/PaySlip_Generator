@@ -22,8 +22,6 @@ import {
   type WorkingCapitalData,
 } from "./kpi";
 
-// ─── Types ──────────────────────────────────────────────────────────────────
-
 export interface ExecutiveSnapshot {
   kpis: KpiResult[];
   arr: number;
@@ -31,7 +29,7 @@ export interface ExecutiveSnapshot {
   period: string;
 }
 
-// ─── Date Helpers ───────────────────────────────────────────────────────────
+const SPARKLINE_MONTHS = 6;
 
 function startOfMonth(d: Date): Date {
   return new Date(d.getFullYear(), d.getMonth(), 1);
@@ -60,7 +58,34 @@ function isoDate(d: Date): string {
   return d.toISOString().slice(0, 10);
 }
 
-/** Returns [periodStart, periodEnd, previousPeriodStart, previousPeriodEnd] */
+function round2(n: number): number {
+  return Math.round(n * 100) / 100;
+}
+
+function monthKey(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+}
+
+function monthKeysEndingAt(d: Date, count: number = SPARKLINE_MONTHS): string[] {
+  const keys: string[] = [];
+  for (let offset = count - 1; offset >= 0; offset--) {
+    keys.push(monthKey(startOfMonth(monthsAgo(d, offset))));
+  }
+  return keys;
+}
+
+function buildMonthBuckets(keys: string[]): Map<string, number> {
+  return new Map(keys.map((key) => [key, 0]));
+}
+
+function addBucketAmount(
+  buckets: Map<string, number>,
+  bucketKey: string,
+  amount: number
+) {
+  buckets.set(bucketKey, round2((buckets.get(bucketKey) ?? 0) + amount));
+}
+
 function periodBounds(
   period: "MTD" | "QTD" | "YTD",
   now: Date
@@ -86,38 +111,77 @@ function periodBounds(
       prevEnd = new Date(start.getTime() - 1);
       break;
   }
+
   return [start, now, prevStart, prevEnd];
 }
 
-// ─── DB Queries (all scoped to orgId) ───────────────────────────────────────
+async function getBankBalanceAt(orgId: string, asOf: Date): Promise<number> {
+  const accounts = await db.bankAccount.findMany({
+    where: { orgId },
+    select: { id: true },
+  });
+
+  const balances = await Promise.all(
+    accounts.map((account) =>
+      db.bankTransaction.findFirst({
+        where: {
+          bankAccountId: account.id,
+          txnDate: { lte: asOf },
+        },
+        orderBy: { txnDate: "desc" },
+        select: { runningBalance: true },
+      })
+    )
+  );
+
+  return balances.reduce(
+    (sum, balance) => sum + (balance?.runningBalance ?? 0),
+    0
+  );
+}
 
 async function queryRecurringRevenue(
   orgId: string,
-  _periodStart: Date,
-  _periodEnd: Date,
-  _prevStart: Date,
-  _prevEnd: Date
+  periodEnd: Date
 ): Promise<RecurringRevenueData> {
-  const rules = await db.recurringInvoiceRule.findMany({
-    where: { orgId, status: "ACTIVE" },
-    include: { baseInvoice: { select: { totalAmount: true } } },
-  });
+  const sparklineStart = startOfMonth(monthsAgo(periodEnd, SPARKLINE_MONTHS - 1));
+  const sparklineMonths = monthKeysEndingAt(periodEnd);
+  const sparklineStartIso = isoDate(sparklineStart);
 
+  const [rules, generatedInvoices] = await Promise.all([
+    db.recurringInvoiceRule.findMany({
+      where: { orgId, status: "ACTIVE" },
+      include: { baseInvoice: { select: { totalAmount: true } } },
+    }),
+    db.invoice.findMany({
+      where: {
+        organizationId: orgId,
+        generatedFromRuleId: { not: null },
+        invoiceDate: { gte: sparklineStartIso },
+        status: { not: "CANCELLED" },
+      },
+      select: { invoiceDate: true, totalAmount: true },
+    }),
+  ]);
+
+  const currentMrr = round2(
+    rules.reduce((sum, rule) => sum + (rule.baseInvoice?.totalAmount ?? 0), 0)
+  );
   const activeCount = rules.length;
-  const avgAmount =
-    activeCount > 0
-      ? rules.reduce((s, r) => s + (r.baseInvoice?.totalAmount ?? 0), 0) /
-        activeCount
-      : 0;
+  const avgRecurringAmount = activeCount > 0 ? round2(currentMrr / activeCount) : 0;
+  const buckets = buildMonthBuckets(sparklineMonths);
 
-  // Previous MRR: approximate from 1 month ago count
-  const previousMrr = avgAmount * activeCount * 0.95; // conservative fallback
+  for (const invoice of generatedInvoices) {
+    addBucketAmount(buckets, invoice.invoiceDate.slice(0, 7), invoice.totalAmount ?? 0);
+  }
+
+  const monthlyMrr = sparklineMonths.map((bucket) => round2(buckets.get(bucket) ?? 0));
 
   return {
     activeRecurringRules: activeCount,
-    avgRecurringAmount: avgAmount,
-    previousMrr,
-    monthlyMrr: [], // sparkline filled by cache in production
+    avgRecurringAmount,
+    previousMrr: monthlyMrr.at(-2) ?? currentMrr,
+    monthlyMrr,
   };
 }
 
@@ -128,69 +192,92 @@ async function queryExpenses(
   prevStart: Date,
   prevEnd: Date
 ): Promise<ExpenseData> {
-  const [currentBills, prevBills, currentPayroll, prevPayroll] =
-    await Promise.all([
-      db.vendorBillPayment.aggregate({
-        where: {
-          orgId,
-          status: "SETTLED",
-          paidAt: { gte: periodStart, lte: periodEnd },
-        },
-        _sum: { amount: true },
-      }),
-      db.vendorBillPayment.aggregate({
-        where: {
-          orgId,
-          status: "SETTLED",
-          paidAt: { gte: prevStart, lte: prevEnd },
-        },
-        _sum: { amount: true },
-      }),
-      db.payrollRun.aggregate({
-        where: {
-          orgId,
-          status: "FINALIZED",
-          finalizedAt: { gte: periodStart, lte: periodEnd },
-        },
-        _sum: { totalNetPay: true },
-      }),
-      db.payrollRun.aggregate({
-        where: {
-          orgId,
-          status: "FINALIZED",
-          finalizedAt: { gte: prevStart, lte: prevEnd },
-        },
-        _sum: { totalNetPay: true },
-      }),
-    ]);
+  const sparklineStart = startOfMonth(monthsAgo(periodEnd, SPARKLINE_MONTHS - 1));
+  const sparklineMonths = monthKeysEndingAt(periodEnd);
+  const [
+    currentBills,
+    prevBills,
+    currentPayroll,
+    prevPayroll,
+    monthlyBillPayments,
+    monthlyPayrollRuns,
+  ] = await Promise.all([
+    db.vendorBillPayment.aggregate({
+      where: {
+        orgId,
+        status: "SETTLED",
+        paidAt: { gte: periodStart, lte: periodEnd },
+      },
+      _sum: { amount: true },
+    }),
+    db.vendorBillPayment.aggregate({
+      where: {
+        orgId,
+        status: "SETTLED",
+        paidAt: { gte: prevStart, lte: prevEnd },
+      },
+      _sum: { amount: true },
+    }),
+    db.payrollRun.aggregate({
+      where: {
+        orgId,
+        status: "FINALIZED",
+        finalizedAt: { gte: periodStart, lte: periodEnd },
+      },
+      _sum: { totalNetPay: true },
+    }),
+    db.payrollRun.aggregate({
+      where: {
+        orgId,
+        status: "FINALIZED",
+        finalizedAt: { gte: prevStart, lte: prevEnd },
+      },
+      _sum: { totalNetPay: true },
+    }),
+    db.vendorBillPayment.findMany({
+      where: {
+        orgId,
+        status: "SETTLED",
+        paidAt: { gte: sparklineStart, lte: periodEnd },
+      },
+      select: { amount: true, paidAt: true },
+    }),
+    db.payrollRun.findMany({
+      where: {
+        orgId,
+        status: "FINALIZED",
+        finalizedAt: { gte: sparklineStart, lte: periodEnd },
+      },
+      select: { totalNetPay: true, period: true },
+    }),
+  ]);
 
   const currentOutflow =
-    (currentBills._sum.amount ?? 0) +
-    Number(currentPayroll._sum.totalNetPay ?? 0);
+    (currentBills._sum.amount ?? 0) + Number(currentPayroll._sum.totalNetPay ?? 0);
   const previousOutflow =
     (prevBills._sum.amount ?? 0) + Number(prevPayroll._sum.totalNetPay ?? 0);
+  const buckets = buildMonthBuckets(sparklineMonths);
 
-  return { currentOutflow, previousOutflow, monthlyOutflow: [] };
+  for (const payment of monthlyBillPayments) {
+    if (payment.paidAt) {
+      addBucketAmount(buckets, monthKey(payment.paidAt), payment.amount ?? 0);
+    }
+  }
+
+  for (const run of monthlyPayrollRuns) {
+    addBucketAmount(buckets, run.period, Number(run.totalNetPay ?? 0));
+  }
+
+  return {
+    currentOutflow,
+    previousOutflow,
+    monthlyOutflow: sparklineMonths.map((bucket) => round2(buckets.get(bucket) ?? 0)),
+  };
 }
 
 async function queryCash(orgId: string): Promise<CashData> {
-  // Get latest running balance from BankTransaction per bank account
-  const accounts = await db.bankAccount.findMany({
-    where: { orgId },
-    select: { id: true },
-  });
-
-  let totalBalance = 0;
-  for (const acct of accounts) {
-    const latest = await db.bankTransaction.findFirst({
-      where: { bankAccountId: acct.id },
-      orderBy: { txnDate: "desc" },
-      select: { runningBalance: true },
-    });
-    totalBalance += latest?.runningBalance ?? 0;
-  }
-
-  return { currentBalance: totalBalance, monthlyBurn: 0 }; // burn set by caller
+  const currentBalance = await getBankBalanceAt(orgId, new Date());
+  return { currentBalance, monthlyBurn: 0 };
 }
 
 async function queryReceivables(
@@ -234,19 +321,22 @@ async function queryReceivables(
 
   const days = daysInRange(periodStart, periodEnd);
   const prevDays = daysInRange(prevStart, prevEnd);
-  const totalRev = revenue._sum.totalAmount ?? 0;
-  const prevTotalRev = prevRevenue._sum.totalAmount ?? 0;
-  const totalRec = receivable._sum.remainingAmount ?? 0;
-  const prevTotalRec = prevReceivable._sum.remainingAmount ?? 0;
+  const totalRevenue = revenue._sum.totalAmount ?? 0;
+  const previousRevenue = prevRevenue._sum.totalAmount ?? 0;
+  const totalReceivable = receivable._sum.remainingAmount ?? 0;
+  const previousReceivable = prevReceivable._sum.remainingAmount ?? 0;
   const previousDso =
-    prevTotalRev > 0 ? (prevTotalRec / prevTotalRev) * prevDays : 0;
+    previousRevenue > 0 ? (previousReceivable / previousRevenue) * prevDays : 0;
+  const currentDso =
+    totalRevenue > 0 ? (totalReceivable / totalRevenue) * days : 0;
 
   return {
-    totalReceivable: totalRec,
-    totalRevenue: totalRev,
+    totalReceivable,
+    totalRevenue,
     daysInPeriod: days,
     previousDso,
-    monthlyDso: [],
+    previousReceivable,
+    monthlyDso: [round2(previousDso), round2(currentDso)],
   };
 }
 
@@ -257,11 +347,6 @@ async function queryPayables(
   prevStart: Date,
   prevEnd: Date
 ): Promise<PayablesData> {
-  const isoStart = isoDate(periodStart);
-  const isoEnd = isoDate(periodEnd);
-  const isoPrevStart = isoDate(prevStart);
-  const isoPrevEnd = isoDate(prevEnd);
-
   const [payable, cost, prevCost, prevPayable] = await Promise.all([
     db.vendorBill.aggregate({
       where: {
@@ -290,7 +375,7 @@ async function queryPayables(
       where: {
         orgId,
         status: { in: ["APPROVED", "PARTIALLY_PAID"] },
-        billDate: { lte: isoPrevEnd },
+        billDate: { lte: isoDate(prevEnd) },
       },
       _sum: { remainingAmount: true },
     }),
@@ -298,18 +383,22 @@ async function queryPayables(
 
   const days = daysInRange(periodStart, periodEnd);
   const prevDays = daysInRange(prevStart, prevEnd);
-  const totalP = payable._sum.remainingAmount ?? 0;
-  const totalC = cost._sum.amount ?? 0;
-  const prevTotalP = prevPayable._sum.remainingAmount ?? 0;
-  const prevTotalC = prevCost._sum.amount ?? 0;
-  const previousDpo = prevTotalC > 0 ? (prevTotalP / prevTotalC) * prevDays : 0;
+  const totalPayable = payable._sum.remainingAmount ?? 0;
+  const totalCost = cost._sum.amount ?? 0;
+  const previousPayable = prevPayable._sum.remainingAmount ?? 0;
+  const previousCost = prevCost._sum.amount ?? 0;
+  const previousDpo =
+    previousCost > 0 ? (previousPayable / previousCost) * prevDays : 0;
+  const currentDpo =
+    totalCost > 0 ? (totalPayable / totalCost) * days : 0;
 
   return {
-    totalPayable: totalP,
-    totalCost: totalC,
+    totalPayable,
+    totalCost,
     daysInPeriod: days,
     previousDpo,
-    monthlyDpo: [],
+    previousPayable,
+    monthlyDpo: [round2(previousDpo), round2(currentDpo)],
   };
 }
 
@@ -320,7 +409,16 @@ async function queryCollections(
   prevStart: Date,
   prevEnd: Date
 ): Promise<CollectionData> {
-  const [collected, invoiced, prevCollected, prevInvoiced] = await Promise.all([
+  const sparklineStart = startOfMonth(monthsAgo(periodEnd, SPARKLINE_MONTHS - 1));
+  const sparklineMonths = monthKeysEndingAt(periodEnd);
+  const [
+    collected,
+    invoiced,
+    prevCollected,
+    prevInvoiced,
+    monthlyCollections,
+    monthlyInvoices,
+  ] = await Promise.all([
     db.invoicePayment.aggregate({
       where: {
         orgId,
@@ -351,19 +449,61 @@ async function queryCollections(
       },
       _sum: { totalAmount: true },
     }),
+    db.invoicePayment.findMany({
+      where: {
+        orgId,
+        status: "SETTLED",
+        paidAt: { gte: sparklineStart, lte: periodEnd },
+      },
+      select: { amount: true, paidAt: true },
+    }),
+    db.invoice.findMany({
+      where: {
+        organizationId: orgId,
+        issuedAt: { gte: sparklineStart, lte: periodEnd },
+      },
+      select: { totalAmount: true, issuedAt: true },
+    }),
   ]);
 
-  const totalC = collected._sum.amount ?? 0;
-  const totalI = invoiced._sum.totalAmount ?? 0;
-  const prevC = prevCollected._sum.amount ?? 0;
-  const prevI = prevInvoiced._sum.totalAmount ?? 0;
-  const previousRate = prevI > 0 ? (prevC / prevI) * 100 : 0;
+  const totalCollected = collected._sum.amount ?? 0;
+  const totalInvoiced = invoiced._sum.totalAmount ?? 0;
+  const previousCollected = prevCollected._sum.amount ?? 0;
+  const previousInvoiced = prevInvoiced._sum.totalAmount ?? 0;
+  const previousRate =
+    previousInvoiced > 0 ? (previousCollected / previousInvoiced) * 100 : 0;
+  const collectionsByMonth = buildMonthBuckets(sparklineMonths);
+  const invoicesByMonth = buildMonthBuckets(sparklineMonths);
+
+  for (const payment of monthlyCollections) {
+    if (payment.paidAt) {
+      addBucketAmount(
+        collectionsByMonth,
+        monthKey(payment.paidAt),
+        payment.amount ?? 0
+      );
+    }
+  }
+
+  for (const invoice of monthlyInvoices) {
+    if (invoice.issuedAt) {
+      addBucketAmount(
+        invoicesByMonth,
+        monthKey(invoice.issuedAt),
+        invoice.totalAmount ?? 0
+      );
+    }
+  }
 
   return {
-    totalCollected: totalC,
-    totalInvoiced: totalI,
+    totalCollected,
+    totalInvoiced,
     previousRate,
-    monthlyRates: [],
+    monthlyRates: sparklineMonths.map((bucket) => {
+      const billed = invoicesByMonth.get(bucket) ?? 0;
+      const collectedAmount = collectionsByMonth.get(bucket) ?? 0;
+      return billed > 0 ? round2((collectedAmount / billed) * 100) : 0;
+    }),
   };
 }
 
@@ -374,83 +514,130 @@ async function queryMargins(
   prevStart: Date,
   prevEnd: Date
 ): Promise<MarginData> {
-  const [revenue, costs, prevRevenue, prevCosts] = await Promise.all([
-    db.invoice.aggregate({
-      where: {
-        organizationId: orgId,
-        issuedAt: { gte: periodStart, lte: periodEnd },
-      },
-      _sum: { totalAmount: true },
-    }),
-    db.vendorBillPayment.aggregate({
-      where: {
-        orgId,
-        status: "SETTLED",
-        paidAt: { gte: periodStart, lte: periodEnd },
-      },
-      _sum: { amount: true },
-    }),
-    db.invoice.aggregate({
-      where: {
-        organizationId: orgId,
-        issuedAt: { gte: prevStart, lte: prevEnd },
-      },
-      _sum: { totalAmount: true },
-    }),
-    db.vendorBillPayment.aggregate({
-      where: {
-        orgId,
-        status: "SETTLED",
-        paidAt: { gte: prevStart, lte: prevEnd },
-      },
-      _sum: { amount: true },
-    }),
-  ]);
+  const sparklineStart = startOfMonth(monthsAgo(periodEnd, SPARKLINE_MONTHS - 1));
+  const sparklineMonths = monthKeysEndingAt(periodEnd);
+  const [revenue, costs, prevRevenue, prevCosts, monthlyRevenue, monthlyCosts] =
+    await Promise.all([
+      db.invoice.aggregate({
+        where: {
+          organizationId: orgId,
+          issuedAt: { gte: periodStart, lte: periodEnd },
+        },
+        _sum: { totalAmount: true },
+      }),
+      db.vendorBillPayment.aggregate({
+        where: {
+          orgId,
+          status: "SETTLED",
+          paidAt: { gte: periodStart, lte: periodEnd },
+        },
+        _sum: { amount: true },
+      }),
+      db.invoice.aggregate({
+        where: {
+          organizationId: orgId,
+          issuedAt: { gte: prevStart, lte: prevEnd },
+        },
+        _sum: { totalAmount: true },
+      }),
+      db.vendorBillPayment.aggregate({
+        where: {
+          orgId,
+          status: "SETTLED",
+          paidAt: { gte: prevStart, lte: prevEnd },
+        },
+        _sum: { amount: true },
+      }),
+      db.invoice.findMany({
+        where: {
+          organizationId: orgId,
+          issuedAt: { gte: sparklineStart, lte: periodEnd },
+        },
+        select: { totalAmount: true, issuedAt: true },
+      }),
+      db.vendorBillPayment.findMany({
+        where: {
+          orgId,
+          status: "SETTLED",
+          paidAt: { gte: sparklineStart, lte: periodEnd },
+        },
+        select: { amount: true, paidAt: true },
+      }),
+    ]);
 
-  const totalRev = revenue._sum.totalAmount ?? 0;
-  const totalDC = costs._sum.amount ?? 0;
-  const prevRev = prevRevenue._sum.totalAmount ?? 0;
-  const prevDC = prevCosts._sum.amount ?? 0;
-  const previousMargin = prevRev > 0 ? ((prevRev - prevDC) / prevRev) * 100 : 0;
+  const totalRevenue = revenue._sum.totalAmount ?? 0;
+  const totalDirectCosts = costs._sum.amount ?? 0;
+  const previousRevenue = prevRevenue._sum.totalAmount ?? 0;
+  const previousCosts = prevCosts._sum.amount ?? 0;
+  const previousMargin =
+    previousRevenue > 0
+      ? ((previousRevenue - previousCosts) / previousRevenue) * 100
+      : 0;
+  const revenueByMonth = buildMonthBuckets(sparklineMonths);
+  const costByMonth = buildMonthBuckets(sparklineMonths);
+
+  for (const invoice of monthlyRevenue) {
+    if (invoice.issuedAt) {
+      addBucketAmount(
+        revenueByMonth,
+        monthKey(invoice.issuedAt),
+        invoice.totalAmount ?? 0
+      );
+    }
+  }
+
+  for (const payment of monthlyCosts) {
+    if (payment.paidAt) {
+      addBucketAmount(costByMonth, monthKey(payment.paidAt), payment.amount ?? 0);
+    }
+  }
 
   return {
-    totalRevenue: totalRev,
-    totalDirectCosts: totalDC,
+    totalRevenue,
+    totalDirectCosts,
     previousMargin,
-    monthlyMargins: [],
+    monthlyMargins: sparklineMonths.map((bucket) => {
+      const monthRevenue = revenueByMonth.get(bucket) ?? 0;
+      const monthCost = costByMonth.get(bucket) ?? 0;
+      return monthRevenue > 0
+        ? round2(((monthRevenue - monthCost) / monthRevenue) * 100)
+        : 0;
+    }),
   };
 }
 
 async function queryWorkingCapital(
   orgId: string,
+  prevEnd: Date,
   cashBalance: number,
   receivables: number,
-  payables: number
+  payables: number,
+  previousReceivables: number,
+  previousPayables: number
 ): Promise<WorkingCapitalData> {
+  const previousCashBalance = await getBankBalanceAt(orgId, prevEnd);
+  const currentWorkingCapital = cashBalance + receivables - payables;
+  const previousWorkingCapital =
+    previousCashBalance + previousReceivables - previousPayables;
+
   return {
     currentAssets: cashBalance + receivables,
     currentLiabilities: payables,
-    previousWorkingCapital: 0, // could be cached
-    monthlyWc: [],
+    previousWorkingCapital: round2(previousWorkingCapital),
+    monthlyWc: [round2(previousWorkingCapital), round2(currentWorkingCapital)],
   };
 }
-
-// ─── Main Orchestrator ──────────────────────────────────────────────────────
 
 export async function computeExecutiveKpis(
   orgId: string,
   period: "MTD" | "QTD" | "YTD" = "MTD"
 ): Promise<ExecutiveSnapshot> {
   const now = new Date();
-  const [periodStart, periodEnd, prevStart, prevEnd] = periodBounds(
-    period,
-    now
-  );
+  const [periodStart, periodEnd, prevStart, prevEnd] = periodBounds(period, now);
 
-  // Run all queries in parallel
   const [rrData, expData, cashData, recData, payData, colData, margData] =
     await Promise.all([
-      queryRecurringRevenue(orgId, periodStart, periodEnd, prevStart, prevEnd),
+      queryRecurringRevenue(orgId, periodEnd),
       queryExpenses(orgId, periodStart, periodEnd, prevStart, prevEnd),
       queryCash(orgId),
       queryReceivables(orgId, periodStart, periodEnd, prevStart, prevEnd),
@@ -459,7 +646,6 @@ export async function computeExecutiveKpis(
       queryMargins(orgId, periodStart, periodEnd, prevStart, prevEnd),
     ]);
 
-  // Wire up burn for runway
   cashData.monthlyBurn = expData.currentOutflow;
 
   const mrrKpi = computeMrrArr(rrData);
@@ -472,9 +658,12 @@ export async function computeExecutiveKpis(
 
   const wcData = await queryWorkingCapital(
     orgId,
+    prevEnd,
     cashData.currentBalance,
     recData.totalReceivable,
-    payData.totalPayable
+    payData.totalPayable,
+    recData.previousReceivable ?? 0,
+    payData.previousPayable ?? 0
   );
   const wcKpi = computeWorkingCapital(wcData);
 

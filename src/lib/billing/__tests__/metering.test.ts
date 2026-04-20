@@ -37,8 +37,20 @@ vi.mock(import("@/lib/plans/enforcement"), async (importOriginal) => {
   };
 });
 
-import { getCurrentPeriod, checkResourceLimit, calculateOverages } from "../metering";
+vi.mock(import("@/lib/usage-metering"), async (importOriginal) => {
+  const actual = await importOriginal();
+  return {
+    ...actual,
+    getOrComputeSnapshot: vi.fn().mockResolvedValue({
+      pixelJobsSaved: 0,
+      storageBytes: 0,
+    }),
+  };
+});
+
+import { getCurrentPeriod, getCurrentUsage, checkResourceLimit, calculateOverages } from "../metering";
 import { db } from "@/lib/db";
+import { getOrComputeSnapshot } from "@/lib/usage-metering";
 
 describe("Metering Service", () => {
   beforeEach(() => {
@@ -61,15 +73,17 @@ describe("Metering Service", () => {
 
   describe("checkResourceLimit", () => {
     it("should allow usage below limit", async () => {
-      vi.mocked(db.usageRecord.findUnique).mockResolvedValueOnce({
-        id: "1",
-        orgId: "org_1",
-        resource: "pdf_jobs",
-        periodMonth: "2026-06",
-        periodDay: null,
-        count: 50,
-        updatedAt: new Date(),
-      });
+      vi.mocked(db.usageRecord.findMany).mockResolvedValueOnce([
+        {
+          id: "1",
+          orgId: "org_1",
+          resource: "pdf_jobs",
+          periodMonth: "2026-06",
+          periodDay: null,
+          count: 50,
+          updatedAt: new Date(),
+        },
+      ] as never);
 
       const result = await checkResourceLimit("org_1", "pdf_jobs");
       expect(result.allowed).toBe(true);
@@ -79,15 +93,17 @@ describe("Metering Service", () => {
     });
 
     it("should allow overage for paid tiers (soft limit)", async () => {
-      vi.mocked(db.usageRecord.findUnique).mockResolvedValueOnce({
-        id: "1",
-        orgId: "org_1",
-        resource: "pdf_jobs",
-        periodMonth: "2026-06",
-        periodDay: null,
-        count: 150,
-        updatedAt: new Date(),
-      });
+      vi.mocked(db.usageRecord.findMany).mockResolvedValueOnce([
+        {
+          id: "1",
+          orgId: "org_1",
+          resource: "pdf_jobs",
+          periodMonth: "2026-06",
+          periodDay: null,
+          count: 150,
+          updatedAt: new Date(),
+        },
+      ] as never);
 
       const result = await checkResourceLimit("org_1", "pdf_jobs");
       expect(result.allowed).toBe(true); // paid tier: soft limit
@@ -99,6 +115,35 @@ describe("Metering Service", () => {
       const result = await checkResourceLimit("org_1", "unknown_resource");
       expect(result.allowed).toBe(true);
       expect(result.limit).toBe(-1);
+    });
+
+    it("should use snapshot-backed usage for pixel jobs", async () => {
+      vi.mocked(getOrComputeSnapshot).mockResolvedValueOnce({
+        pixelJobsSaved: 42,
+        storageBytes: 0,
+      });
+
+      const result = await checkResourceLimit("org_1", "pixel_jobs");
+      expect(result.current).toBe(42);
+      expect(result.limit).toBe(50);
+      expect(result.usagePercent).toBe(84);
+    });
+  });
+
+  describe("getCurrentUsage", () => {
+    it("should overlay snapshot-backed resources onto billing usage", async () => {
+      vi.mocked(db.usageRecord.findMany).mockResolvedValueOnce([
+        { resource: "pdf_jobs", count: 12 },
+      ] as never);
+      vi.mocked(getOrComputeSnapshot).mockResolvedValueOnce({
+        pixelJobsSaved: 7,
+        storageBytes: 1024,
+      });
+
+      const usage = await getCurrentUsage("org_1");
+      expect(usage.pdf_jobs).toBe(12);
+      expect(usage.pixel_jobs).toBe(7);
+      expect(usage.storage_gb).toBe(1024);
     });
   });
 
@@ -131,6 +176,10 @@ describe("Metering Service", () => {
         { id: "1", orgId: "org_1", resource: "pdf_jobs", periodMonth: "2026-06", periodDay: null, count: 200, updatedAt: new Date() },
         { id: "2", orgId: "org_1", resource: "pixel_jobs", periodMonth: "2026-06", periodDay: null, count: 100, updatedAt: new Date() },
       ]);
+      vi.mocked(getOrComputeSnapshot).mockResolvedValueOnce({
+        pixelJobsSaved: 100,
+        storageBytes: 0,
+      });
 
       const result = await calculateOverages("org_1");
       expect(result).toHaveLength(2);
