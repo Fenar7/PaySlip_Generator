@@ -188,7 +188,7 @@ export const suiteNavItems: NavItem[] = [
     suite: "billing",
     children: [
       { href: "/app/billing", label: "Plan & Usage" },
-      { href: "/app/billing/invoices", label: "Billing Invoices" },
+      { href: "/app/billing/history", label: "Billing History" },
     ],
   },
   {
