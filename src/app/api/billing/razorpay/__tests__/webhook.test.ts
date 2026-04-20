@@ -75,13 +75,23 @@ describe("POST /api/billing/razorpay/webhook", () => {
       post({
         event: "subscription.pending",
         event_id: "evt_pending",
-        payload: { subscription: { entity: { id: "sub_1" } } },
+        payload: {
+          subscription: {
+            entity: {
+              id: "sub_1",
+              customer_id: "cust_1",
+              plan_id: "plan_starter_monthly",
+            },
+          },
+        },
       }),
     );
 
     expect(response.status).toBe(200);
     expect(updateSubscriptionFromWebhook).toHaveBeenCalledWith({
       razorpaySubId: "sub_1",
+      razorpayCustomerId: "cust_1",
+      razorpayPlanId: "plan_starter_monthly",
       status: "pending",
     });
   });
@@ -98,6 +108,7 @@ describe("POST /api/billing/razorpay/webhook", () => {
             entity: {
               id: "sub_1",
               plan_id: "plan_starter_monthly",
+              customer_id: "cust_1",
               current_start: 1712800000,
               current_end: 1715400000,
             },
@@ -111,6 +122,8 @@ describe("POST /api/billing/razorpay/webhook", () => {
       razorpaySubId: "sub_1",
       status: "active",
       planId: "starter",
+      razorpayCustomerId: "cust_1",
+      razorpayPlanId: "plan_starter_monthly",
       currentPeriodStart: new Date(1712800000 * 1000),
       currentPeriodEnd: new Date(1715400000 * 1000),
     });

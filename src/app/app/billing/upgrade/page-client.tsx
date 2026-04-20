@@ -14,8 +14,81 @@ interface UpgradePageClientProps {
   currentPlanId: PlanId;
   hasManagedSubscription: boolean;
   subscriptionStatus: string | null;
+  razorpayKeyId: string | null;
   userEmail: string | null;
   userName: string | null;
+}
+
+type RazorpayCheckoutOptions = {
+  key: string;
+  subscription_id: string;
+  name: string;
+  description: string;
+  prefill?: {
+    name?: string;
+    email?: string;
+    contact?: string;
+  };
+  notes?: Record<string, string>;
+  theme?: {
+    color?: string;
+  };
+  modal?: {
+    ondismiss?: () => void;
+    confirm_close?: boolean;
+  };
+  handler?: (response: {
+    razorpay_payment_id: string;
+    razorpay_subscription_id: string;
+    razorpay_signature: string;
+  }) => void;
+};
+
+declare global {
+  interface Window {
+    Razorpay?: new (options: RazorpayCheckoutOptions) => {
+      open: () => void;
+    };
+  }
+}
+
+function normalizeCheckoutContact(phone: string): string | undefined {
+  const digits = phone.replace(/\D/g, "");
+
+  if (digits.length === 10) return `+91${digits}`;
+  if (digits.length === 12 && digits.startsWith("91")) return `+${digits}`;
+  if (phone.startsWith("+") && digits.length >= 10) return phone;
+
+  return undefined;
+}
+
+async function loadRazorpayCheckoutScript(): Promise<boolean> {
+  if (typeof window === "undefined") return false;
+  if (window.Razorpay) return true;
+
+  await new Promise<void>((resolve, reject) => {
+    const existingScript = document.querySelector<HTMLScriptElement>(
+      'script[src="https://checkout.razorpay.com/v1/checkout.js"]',
+    );
+    if (existingScript) {
+      existingScript.addEventListener("load", () => resolve(), { once: true });
+      existingScript.addEventListener(
+        "error",
+        () => reject(new Error("Razorpay SDK failed to load")),
+        { once: true },
+      );
+      return;
+    }
+
+    const script = document.createElement("script");
+    script.src = "https://checkout.razorpay.com/v1/checkout.js";
+    script.async = true;
+    script.onload = () => resolve();
+    script.onerror = () => reject(new Error("Razorpay SDK failed to load"));
+    document.body.appendChild(script);
+  });
+
+  return Boolean(window.Razorpay);
 }
 
 export function UpgradePageClient({
@@ -23,6 +96,7 @@ export function UpgradePageClient({
   currentPlanId,
   hasManagedSubscription,
   subscriptionStatus: initialStatus,
+  razorpayKeyId,
   userEmail,
   userName,
 }: UpgradePageClientProps) {
@@ -175,8 +249,53 @@ export function UpgradePageClient({
         return;
       }
 
-      if (data.shortUrl) {
-        window.location.href = data.shortUrl;
+      if (data.subscriptionId) {
+        if (!razorpayKeyId) {
+          setError("Razorpay checkout is not configured.");
+          return;
+        }
+
+        const checkoutReady = await loadRazorpayCheckoutScript();
+        if (!checkoutReady || !window.Razorpay) {
+          setError("Could not load Razorpay checkout.");
+          return;
+        }
+
+        const nextPlan = PLANS.find((plan) => plan.id === planId);
+        const checkout = new window.Razorpay({
+          key: razorpayKeyId,
+          subscription_id: data.subscriptionId,
+          name: "Slipwise One",
+          description: `${nextPlan?.name ?? planId} subscription`,
+          prefill: {
+            name: contactName,
+            email: userEmail ?? undefined,
+            contact: phoneNumber ? normalizeCheckoutContact(phoneNumber) : undefined,
+          },
+          notes: {
+            orgId,
+            planId,
+            billingInterval,
+          },
+          theme: {
+            color: "#4f46e5",
+          },
+          modal: {
+            confirm_close: true,
+            ondismiss: () => {
+              setLoading(null);
+              router.refresh();
+            },
+          },
+          handler: () => {
+            router.push(
+              `/app/billing/success?plan=${encodeURIComponent(nextPlan?.name ?? planId)}&mode=checkout`,
+            );
+            router.refresh();
+          },
+        });
+
+        checkout.open();
         return;
       }
 
@@ -391,8 +510,7 @@ export function UpgradePageClient({
               Billing Contact Details
             </h2>
             <p className="mt-1 text-sm text-gray-500">
-              Enter your phone number for payment receipts and billing
-              notifications.
+              Enter your billing phone number before we send you to Razorpay.
             </p>
 
             <div className="mt-4 space-y-3">
@@ -435,7 +553,8 @@ export function UpgradePageClient({
                   autoFocus
                 />
                 <p className="mt-1 text-xs text-gray-400">
-                  Required — Razorpay uses this to prefill checkout
+                  Required for billing notifications. Razorpay may still ask you
+                  to confirm contact details on the hosted page.
                 </p>
                 {error ? (
                   <p className="mt-2 text-xs text-red-600">{error}</p>

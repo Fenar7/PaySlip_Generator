@@ -26,14 +26,12 @@ vi.mock("@/lib/multi-org", () => ({
 
 vi.mock("@/lib/razorpay", () => ({
   getRazorpay: vi.fn(),
-  createRazorpayCustomer: vi.fn(),
   createRazorpaySubscription: vi.fn(),
   changeSubscriptionPlan: vi.fn(),
   pauseRazorpaySubscription: vi.fn(),
   resumeRazorpaySubscription: vi.fn(),
   cancelRazorpaySubscription: vi.fn(),
   fetchRazorpaySubscription: vi.fn(),
-  updateRazorpayCustomer: vi.fn(),
 }));
 
 import { createSupabaseServer } from "@/lib/supabase/server";
@@ -42,7 +40,6 @@ import { getActiveOrg } from "@/lib/multi-org";
 import {
   changeSubscriptionPlan,
   fetchRazorpaySubscription,
-  createRazorpayCustomer,
   createRazorpaySubscription,
   getRazorpay,
   cancelRazorpaySubscription,
@@ -102,7 +99,6 @@ describe("billing Razorpay routes", () => {
       email: "owner@example.com",
     } as never);
     vi.mocked(db.subscription.findUnique).mockResolvedValue(null as never);
-    vi.mocked(createRazorpayCustomer).mockResolvedValue({ id: "cust_1" } as never);
     vi.mocked(createRazorpaySubscription).mockResolvedValue({
       id: "sub_1",
       short_url: "https://rzp.io/i/subscription",
@@ -118,19 +114,16 @@ describe("billing Razorpay routes", () => {
     const body = await response.json();
 
     expect(response.status).toBe(200);
-    expect(createRazorpayCustomer).toHaveBeenCalledWith({
-      name: "Owner Example",
-      email: "owner@example.com",
-      contact: undefined,
-    });
     expect(createRazorpaySubscription).toHaveBeenCalledWith({
       planId: "plan_starter_monthly",
-      customerId: "cust_1",
+      notifyInfo: {
+        email: "owner@example.com",
+        phone: undefined,
+      },
     });
     expect(db.subscription.create).toHaveBeenCalledWith({
       data: {
         orgId: "org-active",
-        razorpayCustomerId: "cust_1",
         razorpaySubId: "sub_1",
         razorpayPlanId: "plan_starter_monthly",
         planId: "free",
@@ -155,7 +148,6 @@ describe("billing Razorpay routes", () => {
       email: "owner@example.com",
     } as never);
     vi.mocked(db.subscription.findUnique).mockResolvedValue(null as never);
-    vi.mocked(createRazorpayCustomer).mockResolvedValue({ id: "cust_1" } as never);
     vi.mocked(createRazorpaySubscription).mockResolvedValue({
       id: "sub_1",
       short_url: "https://rzp.io/i/subscription",
@@ -171,10 +163,12 @@ describe("billing Razorpay routes", () => {
     );
 
     expect(response.status).toBe(200);
-    expect(createRazorpayCustomer).toHaveBeenCalledWith({
-      name: "Owner Example",
-      email: "owner@example.com",
-      contact: "919876543210",
+    expect(createRazorpaySubscription).toHaveBeenCalledWith({
+      planId: "plan_starter_monthly",
+      notifyInfo: {
+        email: "owner@example.com",
+        phone: "+919876543210",
+      },
     });
   });
 

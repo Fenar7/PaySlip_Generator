@@ -53,6 +53,7 @@ export default async function UpgradePage() {
       currentPlanId={currentPlanId}
       hasManagedSubscription={hasManagedSubscription}
       subscriptionStatus={sub?.status ?? null}
+      razorpayKeyId={process.env.RAZORPAY_KEY_ID ?? null}
       userEmail={userEmail}
       userName={userName}
     />
