@@ -13,12 +13,18 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const body = await request.json();
+  let body: Record<string, unknown>;
+  try {
+    body = await request.json();
+  } catch {
+    return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+  }
+
   const {
     orgId: requestedOrgId,
     resumeDate,
     reason,
-  }: { orgId?: string; resumeDate?: string; reason?: string } = body;
+  } = body as { orgId?: string; resumeDate?: string; reason?: string };
 
   const orgResult = await resolveBillingOrgId(user.id, requestedOrgId);
   if (!orgResult.success) {
