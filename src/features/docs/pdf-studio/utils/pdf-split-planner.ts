@@ -286,6 +286,10 @@ export function planSplitByTargetSize(options: {
 
   return {
     segments,
+    warning:
+      segments.length > 0
+        ? "Uses page-complexity estimates from the uploaded preview. Actual output sizes will still vary."
+        : undefined,
     heuristic: true,
   } satisfies PdfSplitPlan;
 }
@@ -320,6 +324,7 @@ export function planSplitByDetectedSeparators(
       detailForStartPage: (startPage) => candidateByPage.get(startPage)?.reason,
       heuristic: true,
     }),
+    warning: "Text separators are heuristic suggestions. Review each boundary before export.",
     heuristic: true,
   };
 }

@@ -18,7 +18,7 @@ import {
   type PdfPageDescriptor,
   type PdfSourceDocument,
 } from "@/features/docs/pdf-studio/utils/pdf-page-operations";
-import { readPdfPages } from "@/features/docs/pdf-studio/utils/pdf-reader";
+import { getPdfPageCount, readPdfPages } from "@/features/docs/pdf-studio/utils/pdf-reader";
 import { downloadPdfBytes } from "@/features/docs/pdf-studio/utils/zip-builder";
 
 export function MergeWorkspace() {
@@ -37,8 +37,27 @@ export function MergeWorkspace() {
 
       try {
         const uploadedDocuments: PdfSourceDocument[] = [];
+        let projectedPageCount = pages.length;
 
         for (const [fileIndex, file] of files.entries()) {
+          const pageCountResult = await getPdfPageCount(file);
+          if (!pageCountResult.ok) {
+            setError(pageCountResult.error);
+            analytics.trackFail({ stage: "upload", reason: pageCountResult.reason });
+            return;
+          }
+
+          projectedPageCount += pageCountResult.pageCount;
+          const projectedValidation = validatePdfStudioCombinedPageCount(
+            "merge",
+            projectedPageCount,
+          );
+          if (!projectedValidation.ok) {
+            setError(projectedValidation.error);
+            analytics.trackFail({ stage: "upload", reason: projectedValidation.reason });
+            return;
+          }
+
           const bytes = new Uint8Array(await file.arrayBuffer());
           const result = await readPdfPages(file, { toolId: "merge" });
 

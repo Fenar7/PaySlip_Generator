@@ -21,10 +21,10 @@ describe("pdf studio route metadata", () => {
   });
 
   it("uses public canonicals for new Phase 30 public-ready tools", () => {
-    const metadata = buildPdfStudioToolMetadata("extract-pages", "public");
+    const metadata = buildPdfStudioToolMetadata("rotate", "public");
 
-    expect(metadata.alternates?.canonical).toBe("/pdf-studio/extract-pages");
-    expect(metadata.title).toBe("Extract Pages | PDF Studio");
+    expect(metadata.alternates?.canonical).toBe("/pdf-studio/rotate");
+    expect(metadata.title).toBe("Rotate Pages | PDF Studio");
   });
 
   it("marks workspace pages as non-indexable while sharing canonical targets", () => {

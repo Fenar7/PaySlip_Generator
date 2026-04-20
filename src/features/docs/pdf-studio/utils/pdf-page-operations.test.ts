@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { PDFDocument } from "pdf-lib";
+import { PDFDocument, degrees } from "pdf-lib";
 import {
   buildPdfPageDescriptors,
   buildPdfSourceDocument,
@@ -23,6 +23,7 @@ describe("pdf page operations", () => {
       name: "Invoices.pdf",
       pages: Array.from({ length: 3 }, (_, pageIndex) => ({
         pageIndex,
+        previewBytes: 1,
         previewUrl: "",
         widthPt: 400,
         heightPt: 600,
@@ -35,6 +36,7 @@ describe("pdf page operations", () => {
       name: "Cover-Sheets.pdf",
       pages: Array.from({ length: 2 }, (_, pageIndex) => ({
         pageIndex,
+        previewBytes: 1,
         previewUrl: "",
         widthPt: 400,
         heightPt: 600,
@@ -68,6 +70,7 @@ describe("pdf page operations", () => {
       name: "sample.pdf",
       pages: Array.from({ length: 2 }, (_, pageIndex) => ({
         pageIndex,
+        previewBytes: 1,
         previewUrl: "",
         widthPt: 400,
         heightPt: 600,
@@ -88,5 +91,33 @@ describe("pdf page operations", () => {
 
     expect(exportedDocument.getPageCount()).toBe(2);
     expect(exportedDocument.getPages()[0].getRotation().angle).toBe(90);
+  });
+
+  it("composes user rotation with existing source page rotation metadata", async () => {
+    const sourceDocumentFile = await PDFDocument.create();
+    sourceDocumentFile.addPage([400, 600]).setRotation(degrees(90));
+    const sourceBytes = await sourceDocumentFile.save();
+    const sourceDocument = buildPdfSourceDocument({
+      bytes: sourceBytes,
+      name: "pre-rotated.pdf",
+      pages: [
+        {
+          pageIndex: 0,
+          previewBytes: 1,
+          previewUrl: "",
+          widthPt: 400,
+          heightPt: 600,
+          sourcePdfName: "pre-rotated.pdf",
+        },
+      ],
+      sourceIndex: 0,
+    });
+
+    const [page] = buildPdfPageDescriptors([sourceDocument]);
+    const [rotatedPage] = rotatePdfPageDescriptors([page], new Set([page.id]), 90);
+    const exportedBytes = await exportPdfFromPageDescriptors([rotatedPage], [sourceDocument]);
+    const exportedDocument = await PDFDocument.load(exportedBytes);
+
+    expect(exportedDocument.getPages()[0].getRotation().angle).toBe(180);
   });
 });

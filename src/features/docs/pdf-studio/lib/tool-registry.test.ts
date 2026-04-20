@@ -21,8 +21,8 @@ describe("pdf studio tool registry", () => {
   });
 
   it("adds the Phase 30 page-organization tools to the shared registry", () => {
-    expect(getPdfStudioTool("alternate-mix").publicPath).toBe(
-      "/pdf-studio/alternate-mix",
+    expect(getPdfStudioTool("alternate-mix").workspacePath).toBe(
+      "/app/docs/pdf-studio/alternate-mix",
     );
     expect(getPdfStudioTool("extract-pages").workspacePath).toBe(
       "/app/docs/pdf-studio/extract-pages",
@@ -57,8 +57,12 @@ describe("pdf studio tool registry", () => {
     expect(publicCatalog.flatMap((category) => category.tools)).not.toContain(
       "protect",
     );
-    expect(publicCatalog.flatMap((category) => category.tools)).toEqual(
-      expect.arrayContaining(["alternate-mix", "extract-pages", "rotate"]),
+    expect(publicCatalog.flatMap((category) => category.tools)).not.toContain(
+      "alternate-mix",
     );
+    expect(publicCatalog.flatMap((category) => category.tools)).not.toContain(
+      "extract-pages",
+    );
+    expect(publicCatalog.flatMap((category) => category.tools)).toContain("rotate");
   });
 });

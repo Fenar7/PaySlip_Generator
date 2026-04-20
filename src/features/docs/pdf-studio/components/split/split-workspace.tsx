@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { Button, Input } from "@/components/ui";
 import { PdfUploadZone } from "@/features/docs/pdf-studio/components/shared/pdf-upload-zone";
@@ -10,12 +10,17 @@ import {
 } from "@/features/docs/pdf-studio/components/shared/pdf-page-grid";
 import { SplitPlanPreview } from "@/features/docs/pdf-studio/components/split/split-plan-preview";
 import { usePdfStudioAnalytics } from "@/features/docs/pdf-studio/lib/analytics";
+import { usePdfStudioSurface } from "@/features/docs/pdf-studio/lib/surface";
 import {
   buildPdfStudioOutputName,
   buildPdfStudioSegmentName,
   getPdfStudioSourceBaseName,
 } from "@/features/docs/pdf-studio/lib/output";
-import { analyzePdfForSplit, type PdfSplitAnalysis } from "@/features/docs/pdf-studio/utils/pdf-analysis";
+import {
+  analyzePdfForSplit,
+  type PdfSplitAnalysis,
+  type PdfSplitAnalysisProgress,
+} from "@/features/docs/pdf-studio/utils/pdf-analysis";
 import { readPdfPages } from "@/features/docs/pdf-studio/utils/pdf-reader";
 import {
   parseRangeString,
@@ -72,6 +77,7 @@ function requiresAnalysis(mode: SplitMode) {
 
 export function SplitWorkspace() {
   const analytics = usePdfStudioAnalytics("split");
+  const { isPublic } = usePdfStudioSurface();
   const [pages, setPages] = useState<PageGridItem[]>([]);
   const [pdfBytes, setPdfBytes] = useState<Uint8Array | null>(null);
   const [pdfName, setPdfName] = useState("");
@@ -81,11 +87,27 @@ export function SplitWorkspace() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [sizeTargetMb, setSizeTargetMb] = useState(5);
   const [analysis, setAnalysis] = useState<PdfSplitAnalysis | null>(null);
+  const [analysisProgress, setAnalysisProgress] =
+    useState<PdfSplitAnalysisProgress | null>(null);
   const [analysisError, setAnalysisError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [analyzing, setAnalyzing] = useState(false);
   const [processing, setProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const splitModeGroups = useMemo(
+    () =>
+      isPublic
+        ? SPLIT_MODE_GROUPS.filter((group) => group.label === "Fundamentals")
+        : SPLIT_MODE_GROUPS,
+    [isPublic],
+  );
+
+  useEffect(() => {
+    if (isPublic && requiresAnalysis(splitMode)) {
+      setSplitMode("range");
+    }
+  }, [isPublic, splitMode]);
 
   const splitPlan = useMemo<PdfSplitPlan>(() => {
     switch (splitMode) {
@@ -149,6 +171,7 @@ export function SplitWorkspace() {
     setLoading(true);
     setError(null);
     setAnalysis(null);
+    setAnalysisProgress(null);
     setAnalysisError(null);
 
     try {
@@ -209,9 +232,16 @@ export function SplitWorkspace() {
     setAnalyzing(true);
     setAnalysisError(null);
     setError(null);
+    setAnalysisProgress({
+      processedPages: 0,
+      totalPages: pages.length,
+    });
 
     try {
-      const nextAnalysis = await analyzePdfForSplit(pdfBytes);
+      const nextAnalysis = await analyzePdfForSplit(pdfBytes, {
+        previewBytes: pages.map((page) => page.previewBytes),
+        onProgress: setAnalysisProgress,
+      });
       setAnalysis(nextAnalysis);
     } catch {
       setAnalysis(null);
@@ -219,8 +249,9 @@ export function SplitWorkspace() {
       analytics.trackFail({ stage: "process", reason: "processing-failed" });
     } finally {
       setAnalyzing(false);
+      setAnalysisProgress(null);
     }
-  }, [analytics, pdfBytes]);
+  }, [analytics, pages, pdfBytes]);
 
   const handleDownload = useCallback(async () => {
     if (!pdfBytes) {
@@ -316,6 +347,7 @@ export function SplitWorkspace() {
     setSelectedIds(new Set());
     setRangeStr("");
     setAnalysis(null);
+    setAnalysisProgress(null);
     setAnalysisError(null);
     setError(null);
   }, []);
@@ -333,8 +365,9 @@ export function SplitWorkspace() {
           Split PDF
         </h1>
         <p className="mt-1 max-w-3xl text-sm text-[var(--muted-foreground)]">
-          Preview every output file before export, from straightforward range
-          splits to bookmark, size-target, and text-separator analysis.
+          Preview every output file before export. Range-based split modes stay
+          browser-first everywhere, while heavier analysis modes stay inside the
+          workspace.
         </p>
       </div>
 
@@ -374,7 +407,7 @@ export function SplitWorkspace() {
           </div>
 
           <div className="mt-6 space-y-5 rounded-2xl border border-[var(--border-strong)] bg-white p-5 shadow-[var(--shadow-card)]">
-            {SPLIT_MODE_GROUPS.map((group) => (
+            {splitModeGroups.map((group) => (
               <div key={group.label}>
                 <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[var(--muted-foreground)]">
                   {group.label}
@@ -397,6 +430,19 @@ export function SplitWorkspace() {
                 </div>
               </div>
             ))}
+
+            {isPublic ? (
+              <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3">
+                <p className="text-sm font-medium text-amber-950">
+                  Advanced analysis stays in the workspace
+                </p>
+                <p className="mt-1 text-xs text-amber-900">
+                  Bookmark, size-estimate, and separator detection modes run a
+                  heavier analysis pass, so they stay in the workspace where the
+                  processing cost is disclosed more clearly.
+                </p>
+              </div>
+            ) : null}
 
             {splitMode === "range" ? (
               <div className="max-w-xl">
@@ -448,8 +494,9 @@ export function SplitWorkspace() {
                   label="Approximate size per file (MB)"
                 />
                 <p className="mt-2 text-xs text-[var(--muted-foreground)]">
-                  This mode uses document-level estimates, so the preview is
-                  intentionally labeled as approximate.
+                  This mode weights pages by preview complexity before it plans
+                  each file, but embedded content and compression still make the
+                  final PDF size approximate.
                 </p>
               </div>
             ) : null}
@@ -465,12 +512,18 @@ export function SplitWorkspace() {
                       {splitMode === "bookmarks"
                         ? "Reads bookmark destinations before export."
                         : splitMode === "size-target"
-                          ? "Builds estimated file groups from the source PDF size."
-                          : "Looks for heading- or separator-style text boundaries in the document."}
+                          ? "Builds approximate file groups from preview-complexity estimates."
+                          : "Looks for isolated heading-style page starts and filters repeated headers."}
                     </p>
                   </div>
                   <Button variant="secondary" onClick={handleAnalyze} disabled={analyzing}>
-                    {analyzing ? "Analyzing…" : analysis ? "Re-run analysis" : "Analyze document"}
+                    {analyzing
+                      ? analysisProgress
+                        ? `Analyzing ${analysisProgress.processedPages}/${analysisProgress.totalPages}…`
+                        : "Analyzing…"
+                      : analysis
+                        ? "Re-run analysis"
+                        : "Analyze document"}
                   </Button>
                 </div>
                 {analysis ? (
@@ -481,6 +534,13 @@ export function SplitWorkspace() {
                 ) : null}
                 {analysisError ? (
                   <p className="mt-3 text-xs text-red-600">{analysisError}</p>
+                ) : null}
+                {splitMode === "text-separators" && analysis ? (
+                  <p className="mt-3 text-xs text-[var(--muted-foreground)]">
+                    Repeated headers are filtered out, but separator detection is
+                    still heuristic. Confirm the preview matches the real
+                    document boundaries before export.
+                  </p>
                 ) : null}
               </div>
             ) : null}

@@ -63,6 +63,22 @@ describe("pdf split planner", () => {
       [3, 4],
       [5, 5],
     ]);
+    expect(plan.warning).toContain("page-complexity estimates");
+  });
+
+  it("keeps oversized pages as their own estimated output", () => {
+    const plan = planSplitByTargetSize({
+      totalPages: 3,
+      targetBytes: 100,
+      estimatedPageBytes: [150, 80, 80],
+    });
+
+    expect(plan.segments.map((segment) => [segment.startPage, segment.endPage])).toEqual([
+      [1, 1],
+      [2, 2],
+      [3, 3],
+    ]);
+    expect(plan.segments[0].estimatedSizeBytes).toBe(150);
   });
 
   it("uses detected separators as heuristic split starts", () => {
@@ -85,5 +101,6 @@ describe("pdf split planner", () => {
       [3, 5],
       [6, 8],
     ]);
+    expect(plan.warning).toContain("heuristic suggestions");
   });
 });

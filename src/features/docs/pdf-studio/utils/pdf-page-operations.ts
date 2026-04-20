@@ -112,9 +112,11 @@ export async function exportPdfFromPageDescriptors(
     }
 
     const [copiedPage] = await nextDocument.copyPages(loadedDocument, [page.pageIndex]);
-    const rotation = page.rotation ?? 0;
-    if (rotation !== 0) {
-      copiedPage.setRotation(degrees(rotation));
+    const sourceRotation = copiedPage.getRotation().angle ?? 0;
+    const appliedRotation = page.rotation ?? 0;
+    const composedRotation = ((sourceRotation + appliedRotation) % 360 + 360) % 360;
+    if (composedRotation !== 0) {
+      copiedPage.setRotation(degrees(composedRotation));
     }
     nextDocument.addPage(copiedPage);
   }

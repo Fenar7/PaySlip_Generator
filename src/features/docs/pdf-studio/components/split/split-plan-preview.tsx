@@ -26,9 +26,11 @@ export function SplitPlanPreview({
             Output preview
           </h2>
           <p className="mt-1 text-xs text-[var(--muted-foreground)]">
-            {plan.heuristic
-              ? "Estimated segments based on document analysis. Review them before export."
-              : "These output files will be created exactly as previewed."}
+            {plan.warning
+              ? plan.warning
+              : plan.heuristic
+                ? "Estimated segments based on document analysis. Review them before export."
+                : "These output files will be created exactly as previewed."}
           </p>
         </div>
         <span className="text-xs font-medium uppercase tracking-[0.14em] text-[var(--muted-foreground)]">
