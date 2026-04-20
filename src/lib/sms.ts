@@ -96,7 +96,7 @@ export async function sendSms(params: {
   }
 }
 
-function normalizeIndianPhone(phone: string): string | null {
+export function normalizeIndianPhone(phone: string): string | null {
   // Strip non-digits
   const digits = phone.replace(/\D/g, "");
 

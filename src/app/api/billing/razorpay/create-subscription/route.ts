@@ -5,6 +5,7 @@ import {
   createRazorpayCustomer,
   createRazorpaySubscription,
   getRazorpay,
+  updateRazorpayCustomer,
 } from "@/lib/razorpay";
 import {
   getRazorpayPlanId,
@@ -12,6 +13,7 @@ import {
   resolveBillingOrgId,
 } from "@/lib/billing";
 import { PLANS, type PlanId, type BillingInterval } from "@/lib/plans/config";
+import { normalizeIndianPhone } from "@/lib/sms";
 
 export const dynamic = "force-dynamic";
 
@@ -70,6 +72,17 @@ export async function POST(request: Request) {
   }
 
   const orgId = orgResult.orgId;
+  const normalizedPhone =
+    typeof phone === "string" && phone.trim()
+      ? (normalizeIndianPhone(phone) ?? undefined)
+      : undefined;
+
+  if (phone && !normalizedPhone) {
+    return NextResponse.json(
+      { error: "Enter a valid billing phone number" },
+      { status: 400 },
+    );
+  }
 
   if (planId === "free") {
     return NextResponse.json(
@@ -130,7 +143,7 @@ export async function POST(request: Request) {
       const customer = await createRazorpayCustomer({
         name: billingCustomer.data.name,
         email: billingCustomer.data.email,
-        contact: phone,
+        contact: normalizedPhone,
       });
       if (!customer) {
         return NextResponse.json(
@@ -139,6 +152,19 @@ export async function POST(request: Request) {
         );
       }
       customerId = customer.id;
+    } else if (normalizedPhone) {
+      const customer = await updateRazorpayCustomer({
+        customerId,
+        name: billingCustomer.data.name,
+        email: billingCustomer.data.email,
+        contact: normalizedPhone,
+      });
+      if (!customer) {
+        return NextResponse.json(
+          { error: "Failed to update billing contact" },
+          { status: 500 },
+        );
+      }
     }
 
     const rpSub = await createRazorpaySubscription({

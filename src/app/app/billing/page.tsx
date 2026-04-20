@@ -103,9 +103,10 @@ export default async function BillingPage() {
         {status === "pending" && (
           <div className="mt-4 rounded-md border border-amber-200 bg-amber-50 p-3">
             <p className="text-sm text-amber-800">
-              Your billing checkout has been created and is waiting for provider
-              confirmation. Paid feature limits stay on your current plan until
-              Razorpay confirms activation.
+              Razorpay is still confirming this subscription state. Refresh the
+              status to re-check provider confirmation. If this was a new
+              checkout you abandoned before paying, you can cancel it and start
+              over.
             </p>
           </div>
         )}
@@ -215,6 +216,8 @@ export default async function BillingPage() {
             orgId={activeOrg.id}
             canPause={planId !== "free" && status === "active"}
             canResume={status === "paused"}
+            canRefreshPending={status === "pending"}
+            canCancelPending={status === "pending" && planId === "free"}
           />
         </div>
       </div>

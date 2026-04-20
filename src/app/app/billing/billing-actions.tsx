@@ -7,14 +7,18 @@ interface BillingPageActionsProps {
   orgId: string;
   canPause: boolean;
   canResume: boolean;
+  canRefreshPending: boolean;
+  canCancelPending: boolean;
 }
 
-type BillingAction = "pause" | "resume";
+type BillingAction = "pause" | "resume" | "cancel-pending" | "sync";
 
 export function BillingPageActions({
   orgId,
   canPause,
   canResume,
+  canRefreshPending,
+  canCancelPending,
 }: BillingPageActionsProps) {
   const router = useRouter();
   const [pendingAction, setPendingAction] = useState<BillingAction | null>(null);
@@ -46,7 +50,7 @@ export function BillingPageActions({
     }
   }
 
-  if (!canPause && !canResume) {
+  if (!canPause && !canResume && !canRefreshPending && !canCancelPending) {
     return null;
   }
 
@@ -68,6 +72,26 @@ export function BillingPageActions({
           className="rounded-md bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700 disabled:opacity-60"
         >
           {pendingAction === "resume" ? "Resuming..." : "Resume Subscription"}
+        </button>
+      ) : null}
+      {canRefreshPending ? (
+        <button
+          onClick={() => handleAction("sync")}
+          disabled={pendingAction !== null}
+          className="rounded-md border border-blue-300 bg-white px-4 py-2 text-sm font-medium text-blue-700 hover:bg-blue-50 disabled:opacity-60"
+        >
+          {pendingAction === "sync" ? "Refreshing..." : "Refresh Status"}
+        </button>
+      ) : null}
+      {canCancelPending ? (
+        <button
+          onClick={() => handleAction("cancel-pending")}
+          disabled={pendingAction !== null}
+          className="rounded-md border border-red-300 bg-white px-4 py-2 text-sm font-medium text-red-700 hover:bg-red-50 disabled:opacity-60"
+        >
+          {pendingAction === "cancel-pending"
+            ? "Cancelling..."
+            : "Cancel Pending Checkout"}
         </button>
       ) : null}
       {error ? <p className="w-full text-sm text-red-600">{error}</p> : null}
