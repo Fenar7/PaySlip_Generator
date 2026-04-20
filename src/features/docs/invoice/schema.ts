@@ -35,6 +35,7 @@ const visibilitySchema = z.object({
 
 const lineItemFormSchema = z.object({
   description: z.string().trim().min(1, "Description is required."),
+  inventoryItemId: z.string().trim().optional(),
   quantity: z
     .string()
     .trim()

@@ -70,6 +70,14 @@ export async function recordStockEventTx(
   });
 
   if (existing) {
+    if (!isInbound(eventType) && existing.availableQty < Math.abs(qtyDelta)) {
+      throw new Error(
+        `Insufficient stock for item ${inventoryItemId} in warehouse ${warehouseId}: requested ${Math.abs(
+          qtyDelta,
+        )}, available ${existing.availableQty}`,
+      );
+    }
+
     const newQty = Math.max(0, existing.quantity + qtyDelta);
     const newValuation = Math.max(0, Number(existing.valuationAmount) + valuationDelta);
     const newAvailable = Math.max(0, newQty - existing.reservedQty);
@@ -84,6 +92,12 @@ export async function recordStockEventTx(
       },
     });
   } else {
+    if (!isInbound(eventType)) {
+      throw new Error(
+        `Cannot record outbound stock event for item ${inventoryItemId} in warehouse ${warehouseId} before stock exists.`,
+      );
+    }
+
     const newQty = Math.max(0, qtyDelta);
     const newValuation = Math.max(0, valuationDelta);
 

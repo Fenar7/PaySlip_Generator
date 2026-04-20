@@ -46,10 +46,19 @@ const mockDb = vi.hoisted(() => ({
   },
 }));
 
+const mockRedis = vi.hoisted(() => ({
+  get: vi.fn(),
+  set: vi.fn(),
+  del: vi.fn(),
+  exists: vi.fn(),
+  ping: vi.fn(),
+}));
+
 vi.mock("@/lib/db", () => ({ db: mockDb }));
 vi.mock("server-only", () => ({}));
 vi.mock("@/lib/email", () => ({ sendEmail: vi.fn().mockResolvedValue(undefined) }));
 vi.mock("@/lib/audit", () => ({ logAudit: vi.fn().mockReturnValue(Promise.resolve()) }));
+vi.mock("@/lib/redis-client", () => ({ redis: mockRedis }));
 vi.mock("next/navigation", () => ({ redirect: vi.fn() }));
 vi.mock("next/headers", () => ({
   cookies: vi.fn().mockResolvedValue({
@@ -57,6 +66,9 @@ vi.mock("next/headers", () => ({
     set: vi.fn(),
     delete: vi.fn(),
   }),
+}));
+vi.mock("@/lib/flow/workflow-engine", () => ({
+  fireWorkflowTrigger: vi.fn(),
 }));
 
 // ─── Imports after mocks ──────────────────────────────────────────────────────
@@ -135,6 +147,11 @@ function makeJwt(payload: Record<string, unknown>, secret = process.env.PORTAL_J
 beforeEach(() => {
   vi.clearAllMocks();
   process.env.PORTAL_JWT_SECRET = "test-portal-jwt-secret-that-is-long-enough";
+  mockRedis.get.mockResolvedValue(null);
+  mockRedis.set.mockResolvedValue(undefined);
+  mockRedis.del.mockResolvedValue(undefined);
+  mockRedis.exists.mockResolvedValue(false);
+  mockRedis.ping.mockResolvedValue(false);
   // Default: rate limit allows through
   mockDb.portalRateLimit.findUnique.mockResolvedValue(null);
   mockDb.portalRateLimit.upsert.mockResolvedValue({ key: "ml:test", count: 1, windowEnd: new Date() });
@@ -185,12 +202,7 @@ describe("requestMagicLink", () => {
   });
 
   it("returns generic success when rate limit exceeded", async () => {
-    // Rate limit already at max
-    mockDb.portalRateLimit.findUnique.mockResolvedValue({
-      key: "ml:org:hash",
-      count: 3,
-      windowEnd: new Date(Date.now() + 60000),
-    });
+    mockRedis.get.mockResolvedValue("3");
     mockDb.customer.findFirst.mockResolvedValue(makeCustomer());
     const result = await requestMagicLink("customer@example.com", ORG_SLUG);
     expect(result.success).toBe(true);

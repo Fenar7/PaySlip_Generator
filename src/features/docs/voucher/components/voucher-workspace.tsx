@@ -42,6 +42,7 @@ import {
   prepareDocumentExportDownload,
   startDocumentExportDownload,
 } from "@/lib/browser/document-export-handoff";
+import { normalizeMoney } from "@/lib/money";
 import { cn } from "@/lib/utils";
 import { DocumentPreviewSurface } from "@/components/document/document-preview-surface";
 import {
@@ -79,11 +80,11 @@ function buildLines(values: VoucherFormValues): VoucherInput["lines"] {
       description: item.description,
       date: item.date || undefined,
       time: item.time || undefined,
-      amount: parseFloat(String(item.amount)) || 0,
+      amount: normalizeMoney(item.amount),
       category: item.category || undefined,
     }));
   }
-  return [{ description: values.purpose, amount: parseFloat(values.amount) || 0 }];
+  return [{ description: values.purpose, amount: normalizeMoney(values.amount) }];
 }
 
 function VoucherPanel({
@@ -123,7 +124,7 @@ function VoucherPanel({
     const lineItems = values.lineItems ?? [];
     if (isMultiLine && lineItems.length > 0) {
       const total = lineItems.reduce(
-        (sum, item) => sum + (parseFloat(String(item.amount)) || 0),
+        (sum, item) => sum + normalizeMoney(item.amount),
         0
       );
       setValue("amount", total.toFixed(2));

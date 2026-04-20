@@ -54,6 +54,9 @@ vi.mock("@/lib/portal-auth", () => ({
   requestMagicLink: vi.fn(),
   logPortalAccess: mockLogPortalAccess,
 }));
+vi.mock("@/lib/flow/workflow-engine", () => ({
+  fireWorkflowTrigger: vi.fn(),
+}));
 vi.mock("next/navigation", () => ({ redirect: vi.fn() }));
 
 import {

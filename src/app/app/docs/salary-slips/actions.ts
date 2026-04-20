@@ -9,6 +9,7 @@ import { postSalarySlipAccrualTx, postSalarySlipPayoutTx } from "@/lib/accountin
 import { emitSalarySlipEvent } from "@/lib/document-events";
 import { syncSalarySlipToIndex } from "@/lib/docs-vault";
 import { checkUsageLimit } from "@/lib/usage-metering";
+import { fromMinorUnits, normalizeMoney, sumMinorUnits } from "@/lib/money";
 
 export type ActionResult<T> = 
   | { success: true; data: T }
@@ -28,6 +29,64 @@ export interface SalarySlipInput {
   components: SalaryComponentInput[];
 }
 
+function normalizeSalaryComponents(
+  components: SalaryComponentInput[],
+): { components: SalaryComponentInput[]; grossPay: number; netPay: number } {
+  const normalizedComponents = components.map((component) => ({
+    ...component,
+    label: component.label.trim(),
+    amount: normalizeMoney(component.amount),
+  }));
+
+  const grossPay = fromMinorUnits(
+    sumMinorUnits(
+      normalizedComponents
+        .filter((component) => component.type === "earning")
+        .map((component) => component.amount),
+    ),
+  );
+  const totalDeductions = fromMinorUnits(
+    sumMinorUnits(
+      normalizedComponents
+        .filter((component) => component.type === "deduction")
+        .map((component) => component.amount),
+    ),
+  );
+  const netPay = normalizeMoney(grossPay - totalDeductions);
+
+  if (grossPay <= 0) {
+    throw new Error("Salary slips need at least one earning component.");
+  }
+
+  if (netPay < 0) {
+    throw new Error("Net pay cannot be negative. Adjust deductions.");
+  }
+
+  return { components: normalizedComponents, grossPay, netPay };
+}
+
+async function syncSalarySlipRecordToIndex(orgId: string, slipId: string): Promise<void> {
+  const salarySlip = await db.salarySlip.findFirst({
+    where: { id: slipId, organizationId: orgId },
+    include: { employee: true },
+  });
+
+  if (!salarySlip) {
+    return;
+  }
+
+  await syncSalarySlipToIndex(orgId, {
+    id: salarySlip.id,
+    slipNumber: salarySlip.slipNumber,
+    status: salarySlip.status,
+    month: salarySlip.month,
+    year: salarySlip.year,
+    netPay: salarySlip.netPay,
+    archivedAt: salarySlip.archivedAt,
+    employee: salarySlip.employee ?? undefined,
+  });
+}
+
 export async function saveSalarySlip(
   input: SalarySlipInput,
   status: "draft" | "released" = "draft"
@@ -45,12 +104,7 @@ export async function saveSalarySlip(
     
     const slipNumber = await nextDocumentNumber(orgId, "salarySlip");
     
-    const earnings = input.components
-      .filter((c) => c.type === "earning")
-      .reduce((sum, c) => sum + c.amount, 0);
-    const deductions = input.components
-      .filter((c) => c.type === "deduction")
-      .reduce((sum, c) => sum + c.amount, 0);
+    const normalizedSalary = normalizeSalaryComponents(input.components);
     
     const salarySlip = await db.$transaction(async (tx) => {
       const created = await tx.salarySlip.create({
@@ -62,10 +116,10 @@ export async function saveSalarySlip(
           year: input.year,
           status,
           formData: input.formData as Prisma.InputJsonValue,
-          grossPay: earnings,
-          netPay: earnings - deductions,
+          grossPay: normalizedSalary.grossPay,
+          netPay: normalizedSalary.netPay,
           components: {
-            create: input.components.map((comp, index) => ({
+            create: normalizedSalary.components.map((comp, index) => ({
               label: comp.label,
               amount: comp.amount,
               type: comp.type,
@@ -87,27 +141,19 @@ export async function saveSalarySlip(
     });
     
     // Phase 19.2: emit normalized document event
-    void emitSalarySlipEvent(orgId, salarySlip.id, status === "released" ? "released" : "created", {
+    await emitSalarySlipEvent(orgId, salarySlip.id, status === "released" ? "released" : "created", {
       actorId: userId,
       metadata: { slipNumber },
     });
 
     // Phase 19.1: Sync to DocumentIndex
-    void syncSalarySlipToIndex(orgId, {
-      id: salarySlip.id,
-      slipNumber,
-      status,
-      month: input.month,
-      year: input.year,
-      netPay: salarySlip.netPay,
-      archivedAt: null,
-    });
+    await syncSalarySlipRecordToIndex(orgId, salarySlip.id);
 
     revalidatePath("/app/docs/salary-slips");
     return { success: true, data: { id: salarySlip.id, slipNumber } };
   } catch (error) {
     console.error("saveSalarySlip error:", error);
-    return { success: false, error: "Failed to save salary slip" };
+    return { success: false, error: error instanceof Error ? error.message : "Failed to save salary slip" };
   }
 }
 
@@ -116,7 +162,7 @@ export async function updateSalarySlip(
   input: Partial<SalarySlipInput>
 ): Promise<ActionResult<{ id: string }>> {
   try {
-    const { orgId } = await requireOrgContext();
+    const { orgId, userId } = await requireOrgContext();
     
     const existing = await db.salarySlip.findFirst({
       where: { id, organizationId: orgId },
@@ -124,6 +170,7 @@ export async function updateSalarySlip(
         id: true,
         grossPay: true,
         netPay: true,
+        status: true,
         accountingStatus: true,
       },
     });
@@ -132,76 +179,53 @@ export async function updateSalarySlip(
       return { success: false, error: "Salary slip not found" };
     }
     
-    if (existing.accountingStatus === "POSTED") {
-      return { success: false, error: "Released salary slips cannot be edited. Create a new payout or a reversing entry instead." };
+    if (existing.accountingStatus === "POSTED" || existing.status === "released") {
+      return {
+        success: false,
+        error: "Released salary slips are immutable. Create a corrective payout entry instead.",
+      };
     }
     
-    let grossPay = existing.grossPay;
-    let netPay = existing.netPay;
-    
-    if (input.components) {
-      const earnings = input.components
-        .filter((c) => c.type === "earning")
-        .reduce((sum, c) => sum + c.amount, 0);
-      const deductions = input.components
-        .filter((c) => c.type === "deduction")
-        .reduce((sum, c) => sum + c.amount, 0);
-      grossPay = earnings;
-      netPay = earnings - deductions;
-    }
-    
-    await db.salarySlip.update({
-      where: { id },
-      data: {
-        employeeId: input.employeeId,
-        month: input.month,
-        year: input.year,
-        formData: input.formData as Prisma.InputJsonValue | undefined,
-        grossPay,
-        netPay,
-      },
-    });
-    
-    if (input.components) {
-      await db.salaryComponent.deleteMany({ where: { salarySlipId: id } });
-      await db.salaryComponent.createMany({
-        data: input.components.map((comp, index) => ({
-          salarySlipId: id,
-          label: comp.label,
-          amount: comp.amount,
-          type: comp.type,
-          sortOrder: index,
-        })),
-      });
-    }
-    
-    // Phase 19.2: emit normalized document event
-    void emitSalarySlipEvent(orgId, id, "updated", { actorId: orgId });
+    const normalizedSalary = input.components
+      ? normalizeSalaryComponents(input.components)
+      : null;
 
-    // Phase 19.1: Sync updated slip to DocumentIndex
-    const updated = await db.salarySlip.findUnique({
-      where: { id },
-      include: { employee: true },
-    });
-    if (updated) {
-      void syncSalarySlipToIndex(orgId, {
-        id: updated.id,
-        slipNumber: updated.slipNumber,
-        status: updated.status,
-        month: updated.month,
-        year: updated.year,
-        netPay: updated.netPay,
-        archivedAt: updated.archivedAt,
-        employee: updated.employee ?? undefined,
+    await db.$transaction(async (tx) => {
+      await tx.salarySlip.update({
+        where: { id },
+        data: {
+          employeeId: input.employeeId,
+          month: input.month,
+          year: input.year,
+          formData: input.formData as Prisma.InputJsonValue | undefined,
+          grossPay: normalizedSalary?.grossPay ?? existing.grossPay,
+          netPay: normalizedSalary?.netPay ?? existing.netPay,
+        },
       });
-    }
+
+      if (normalizedSalary) {
+        await tx.salaryComponent.deleteMany({ where: { salarySlipId: id } });
+        await tx.salaryComponent.createMany({
+          data: normalizedSalary.components.map((comp, index) => ({
+            salarySlipId: id,
+            label: comp.label,
+            amount: comp.amount,
+            type: comp.type,
+            sortOrder: index,
+          })),
+        });
+      }
+    });
+    
+    await emitSalarySlipEvent(orgId, id, "updated", { actorId: userId });
+    await syncSalarySlipRecordToIndex(orgId, id);
 
     revalidatePath("/app/docs/salary-slips");
     revalidatePath(`/app/docs/salary-slips/${id}`);
     return { success: true, data: { id } };
   } catch (error) {
     console.error("updateSalarySlip error:", error);
-    return { success: false, error: "Failed to update salary slip" };
+    return { success: false, error: error instanceof Error ? error.message : "Failed to update salary slip" };
   }
 }
 
@@ -223,7 +247,8 @@ export async function releaseSalarySlip(id: string): Promise<ActionResult<void>>
     });
     
     // Phase 19.2: emit normalized document event
-    void emitSalarySlipEvent(orgId, id, "released", { actorId: userId });
+    await emitSalarySlipEvent(orgId, id, "released", { actorId: userId });
+    await syncSalarySlipRecordToIndex(orgId, id);
 
     revalidatePath("/app/docs/salary-slips");
     revalidatePath(`/app/docs/salary-slips/${id}`);
@@ -247,7 +272,8 @@ export async function payoutSalarySlip(id: string): Promise<ActionResult<void>> 
     });
 
     // Phase 19.2: emit normalized document event
-    void emitSalarySlipEvent(orgId, id, "paid", { actorId: userId });
+    await emitSalarySlipEvent(orgId, id, "paid", { actorId: userId });
+    await syncSalarySlipRecordToIndex(orgId, id);
 
     revalidatePath("/app/docs/salary-slips");
     revalidatePath(`/app/docs/salary-slips/${id}`);
@@ -260,7 +286,7 @@ export async function payoutSalarySlip(id: string): Promise<ActionResult<void>> 
 
 export async function archiveSalarySlip(id: string): Promise<ActionResult<void>> {
   try {
-    const { orgId } = await requireOrgContext();
+    const { orgId, userId } = await requireOrgContext();
     
     await db.salarySlip.update({
       where: { id, organizationId: orgId },
@@ -268,7 +294,8 @@ export async function archiveSalarySlip(id: string): Promise<ActionResult<void>>
     });
 
     // Phase 19.2: emit normalized document event
-    void emitSalarySlipEvent(orgId, id, "archived");
+    await emitSalarySlipEvent(orgId, id, "archived", { actorId: userId });
+    await syncSalarySlipRecordToIndex(orgId, id);
 
     revalidatePath("/app/docs/salary-slips");
     return { success: true, data: undefined };

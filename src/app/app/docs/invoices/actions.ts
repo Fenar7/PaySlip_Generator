@@ -14,6 +14,14 @@ import { emitInvoiceEvent } from "@/lib/document-events";
 import { syncInvoiceToIndex } from "@/lib/docs-vault";
 import { checkUsageLimit } from "@/lib/usage-metering";
 import { recordStockEventTx } from "@/lib/inventory/stock-events";
+import {
+  fromMinorUnits,
+  multiplyMoneyToMinorUnits,
+  normalizeMoney,
+  percentageOfMinorUnits,
+  sumMinorUnits,
+  toMinorUnits,
+} from "@/lib/money";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -37,11 +45,22 @@ type TxClient = Prisma.TransactionClient;
 
 export interface InvoiceLineItemInput {
   description: string;
+  inventoryItemId?: string | null;
   quantity: number;
   unitPrice: number;
   taxRate: number;
   discount: number;
 }
+
+type NormalizedInvoiceLineItemInput = {
+  description: string;
+  inventoryItemId: string | null;
+  quantity: number;
+  unitPrice: number;
+  taxRate: number;
+  discount: number;
+  amount: number;
+};
 
 export interface InvoiceInput {
   customerId?: string;
@@ -90,6 +109,159 @@ async function reverseInvoicePostingIfNeededTx(
   return reversal.id;
 }
 
+function normalizeInvoiceLineItems(
+  lineItems: InvoiceLineItemInput[],
+): { lineItems: NormalizedInvoiceLineItemInput[]; totalAmount: number } {
+  const normalizedLineItems = lineItems.map((item) => {
+    const quantity = Number(item.quantity);
+    if (!Number.isFinite(quantity) || quantity <= 0) {
+      throw new Error("Invoice quantities must be greater than zero.");
+    }
+
+    if (item.inventoryItemId && !Number.isInteger(quantity)) {
+      throw new Error("Inventory-linked invoice lines must use whole-number quantities.");
+    }
+
+    const unitPrice = normalizeMoney(item.unitPrice);
+    const taxRate = Number.isFinite(item.taxRate) ? Math.max(item.taxRate, 0) : 0;
+    const baseAmountMinor = multiplyMoneyToMinorUnits(quantity, unitPrice);
+    const discountMinor = Math.min(Math.max(toMinorUnits(item.discount), 0), baseAmountMinor);
+    const taxableMinor = Math.max(baseAmountMinor - discountMinor, 0);
+    const taxMinor = percentageOfMinorUnits(taxableMinor, taxRate);
+    const amountMinor = taxableMinor + taxMinor;
+
+    return {
+      description: item.description.trim(),
+      inventoryItemId: item.inventoryItemId?.trim() || null,
+      quantity,
+      unitPrice,
+      taxRate,
+      discount: fromMinorUnits(discountMinor),
+      amount: fromMinorUnits(amountMinor),
+    };
+  });
+
+  return {
+    lineItems: normalizedLineItems,
+    totalAmount: fromMinorUnits(sumMinorUnits(normalizedLineItems.map((item) => item.amount))),
+  };
+}
+
+async function syncInvoiceRecordToIndex(orgId: string, invoiceId: string): Promise<void> {
+  const invoice = await db.invoice.findFirst({
+    where: { id: invoiceId, organizationId: orgId },
+    include: { customer: true },
+  });
+
+  if (!invoice) {
+    return;
+  }
+
+  await syncInvoiceToIndex(orgId, {
+    id: invoice.id,
+    invoiceNumber: invoice.invoiceNumber,
+    status: invoice.status,
+    invoiceDate: invoice.invoiceDate,
+    totalAmount: invoice.totalAmount,
+    displayCurrency: invoice.displayCurrency,
+    archivedAt: invoice.archivedAt,
+    customer: invoice.customer ?? undefined,
+  });
+}
+
+async function dispatchInvoiceInventoryTx(
+  tx: TxClient,
+  input: {
+    orgId: string;
+    actorId: string;
+    invoiceId: string;
+    lineItems: Array<{
+      inventoryItemId: string | null;
+      quantity: number;
+      description: string;
+    }>;
+  },
+): Promise<void> {
+  for (const line of input.lineItems) {
+    if (!line.inventoryItemId) {
+      continue;
+    }
+
+    const dispatchQty = Math.trunc(line.quantity);
+    if (dispatchQty <= 0) {
+      continue;
+    }
+
+    const sourceLevel = await tx.stockLevel.findFirst({
+      where: {
+        inventoryItemId: line.inventoryItemId,
+        orgId: input.orgId,
+        availableQty: { gte: dispatchQty },
+      },
+      orderBy: { availableQty: "desc" },
+    });
+
+    if (!sourceLevel) {
+      throw new Error(`Insufficient stock to issue invoice line "${line.description}".`);
+    }
+
+    const avgUnitCost =
+      sourceLevel.quantity > 0
+        ? Number(sourceLevel.valuationAmount) / sourceLevel.quantity
+        : 0;
+
+    await recordStockEventTx(tx, {
+      orgId: input.orgId,
+      inventoryItemId: line.inventoryItemId,
+      warehouseId: sourceLevel.warehouseId,
+      eventType: StockEventType.SALES_DISPATCH,
+      quantity: dispatchQty,
+      unitCost: avgUnitCost,
+      referenceType: "Invoice",
+      referenceId: input.invoiceId,
+      note: `Issued from invoice ${input.invoiceId}`,
+      createdByUserId: input.actorId,
+    });
+  }
+}
+
+async function reverseInvoiceInventoryTx(
+  tx: TxClient,
+  input: {
+    orgId: string;
+    actorId: string;
+    invoiceId: string;
+    reason: string;
+  },
+): Promise<void> {
+  const stockEvents = await tx.stockEvent.findMany({
+    where: {
+      orgId: input.orgId,
+      referenceType: "Invoice",
+      referenceId: input.invoiceId,
+      eventType: StockEventType.SALES_DISPATCH,
+    },
+    orderBy: { createdAt: "asc" },
+  });
+
+  for (const stockEvent of stockEvents) {
+    await recordStockEventTx(tx, {
+      orgId: input.orgId,
+      inventoryItemId: stockEvent.inventoryItemId,
+      warehouseId: stockEvent.warehouseId,
+      eventType: StockEventType.RETURN_IN,
+      quantity: stockEvent.quantity,
+      unitCost: Number(stockEvent.unitCost),
+      referenceType: "Invoice",
+      referenceId: input.invoiceId,
+      note: input.reason.trim()
+        ? `Inventory restored after invoice cancellation: ${input.reason.trim()}`
+        : "Inventory restored after invoice cancellation",
+      createdByUserId: input.actorId,
+    });
+  }
+}
+
 // ─── Invoice Actions ──────────────────────────────────────────────────────────
 
 export async function saveInvoice(
@@ -109,12 +281,7 @@ export async function saveInvoice(
 
     const invoiceNumber = await nextDocumentNumber(orgId, "invoice");
 
-    const totalAmount = input.lineItems.reduce((sum, item) => {
-      const subtotal = item.quantity * item.unitPrice;
-      const tax = subtotal * (item.taxRate / 100);
-      const discount = item.discount;
-      return sum + subtotal + tax - discount;
-    }, 0);
+    const normalizedInvoice = normalizeInvoiceLineItems(input.lineItems);
 
     const invoice = await db.$transaction(async (tx) => {
       const created = await tx.invoice.create({
@@ -127,18 +294,17 @@ export async function saveInvoice(
           status,
           notes: input.notes || null,
           formData: input.formData as Prisma.InputJsonValue,
-          totalAmount,
+          totalAmount: normalizedInvoice.totalAmount,
           issuedAt: status === "ISSUED" ? new Date() : null,
           lineItems: {
-            create: input.lineItems.map((item, index) => ({
+            create: normalizedInvoice.lineItems.map((item, index) => ({
               description: item.description,
+              inventoryItemId: item.inventoryItemId,
               quantity: item.quantity,
               unitPrice: item.unitPrice,
               taxRate: item.taxRate,
               discount: item.discount,
-              amount:
-                item.quantity * item.unitPrice * (1 + item.taxRate / 100) -
-                item.discount,
+              amount: item.amount,
               sortOrder: index,
             })),
           },
@@ -167,6 +333,13 @@ export async function saveInvoice(
           orgId,
           invoiceId: created.id,
           actorId: userId,
+        });
+
+        await dispatchInvoiceInventoryTx(tx, {
+          orgId,
+          actorId: userId,
+          invoiceId: created.id,
+          lineItems: normalizedInvoice.lineItems,
         });
       }
 
@@ -206,22 +379,11 @@ export async function saveInvoice(
       });
     }
 
-    // Phase 19.2: emit normalized document event
-    void emitInvoiceEvent(orgId, invoice.id, status === "ISSUED" ? "issued" : "created", {
+    await emitInvoiceEvent(orgId, invoice.id, status === "ISSUED" ? "issued" : "created", {
       actorId: userId,
       metadata: { invoiceNumber },
     });
-
-    // Phase 19.1: Sync to DocumentIndex
-    void syncInvoiceToIndex(orgId, {
-      id: invoice.id,
-      invoiceNumber: invoice.invoiceNumber,
-      status: invoice.status,
-      invoiceDate: invoice.invoiceDate,
-      totalAmount: invoice.totalAmount,
-      displayCurrency: null,
-      archivedAt: invoice.archivedAt,
-    });
+    await syncInvoiceRecordToIndex(orgId, invoice.id);
 
     revalidatePath("/app/docs/invoices");
     return { success: true, data: { id: invoice.id, invoiceNumber } };
@@ -236,7 +398,7 @@ export async function saveInvoice(
       };
     }
     console.error("saveInvoice error:", error);
-    return { success: false, error: "Failed to save invoice" };
+    return { success: false, error: error instanceof Error ? error.message : "Failed to save invoice" };
   }
 }
 
@@ -259,65 +421,43 @@ export async function updateInvoice(
       return { success: false, error: "Posted invoices cannot be edited" };
     }
 
-    let totalAmount = existing.totalAmount;
-    if (input.lineItems) {
-      totalAmount = input.lineItems.reduce((sum, item) => {
-        const subtotal = item.quantity * item.unitPrice;
-        const tax = subtotal * (item.taxRate / 100);
-        return sum + subtotal + tax - item.discount;
-      }, 0);
-    }
+    const normalizedInvoice = input.lineItems
+      ? normalizeInvoiceLineItems(input.lineItems)
+      : null;
 
-    await db.invoice.update({
-      where: { id },
-      data: {
-        customerId: input.customerId,
-        invoiceDate: input.invoiceDate,
-        dueDate: input.dueDate,
-        notes: input.notes,
-        formData: input.formData as Prisma.InputJsonValue | undefined,
-        totalAmount,
-      },
+    await db.$transaction(async (tx) => {
+      await tx.invoice.update({
+        where: { id },
+        data: {
+          customerId: input.customerId,
+          invoiceDate: input.invoiceDate,
+          dueDate: input.dueDate,
+          notes: input.notes,
+          formData: input.formData as Prisma.InputJsonValue | undefined,
+          totalAmount: normalizedInvoice?.totalAmount ?? existing.totalAmount,
+        },
+      });
+
+      if (normalizedInvoice) {
+        await tx.invoiceLineItem.deleteMany({ where: { invoiceId: id } });
+        await tx.invoiceLineItem.createMany({
+          data: normalizedInvoice.lineItems.map((item, index) => ({
+            invoiceId: id,
+            description: item.description,
+            inventoryItemId: item.inventoryItemId,
+            quantity: item.quantity,
+            unitPrice: item.unitPrice,
+            taxRate: item.taxRate,
+            discount: item.discount,
+            amount: item.amount,
+            sortOrder: index,
+          })),
+        });
+      }
     });
 
-    if (input.lineItems) {
-      await db.invoiceLineItem.deleteMany({ where: { invoiceId: id } });
-      await db.invoiceLineItem.createMany({
-        data: input.lineItems.map((item, index) => ({
-          invoiceId: id,
-          description: item.description,
-          quantity: item.quantity,
-          unitPrice: item.unitPrice,
-          taxRate: item.taxRate,
-          discount: item.discount,
-          amount:
-            item.quantity * item.unitPrice * (1 + item.taxRate / 100) -
-            item.discount,
-          sortOrder: index,
-        })),
-      });
-    }
-
-    // Phase 19.2: emit normalized document event
-    void emitInvoiceEvent(orgId, id, "updated", { actorId: userId });
-
-    // Phase 19.1: Sync updated invoice to DocumentIndex
-    const updated = await db.invoice.findUnique({
-      where: { id },
-      include: { customer: true },
-    });
-    if (updated) {
-      void syncInvoiceToIndex(orgId, {
-        id: updated.id,
-        invoiceNumber: updated.invoiceNumber,
-        status: updated.status,
-        invoiceDate: updated.invoiceDate,
-        totalAmount: updated.totalAmount,
-        displayCurrency: updated.displayCurrency,
-        archivedAt: updated.archivedAt,
-        customer: updated.customer ?? undefined,
-      });
-    }
+    await emitInvoiceEvent(orgId, id, "updated", { actorId: userId });
+    await syncInvoiceRecordToIndex(orgId, id);
 
     revalidatePath("/app/docs/invoices");
     revalidatePath(`/app/docs/invoices/${id}`);
@@ -333,13 +473,13 @@ export async function updateInvoice(
       };
     }
     console.error("updateInvoice error:", error);
-    return { success: false, error: "Failed to update invoice" };
+    return { success: false, error: error instanceof Error ? error.message : "Failed to update invoice" };
   }
 }
 
 export async function archiveInvoice(id: string): Promise<ActionResult<void>> {
   try {
-    const { orgId } = await requireOrgContext();
+    const { orgId, userId } = await requireOrgContext();
 
     const existing = await db.invoice.findFirst({
       where: { id, organizationId: orgId },
@@ -354,8 +494,8 @@ export async function archiveInvoice(id: string): Promise<ActionResult<void>> {
       data: { archivedAt: new Date() },
     });
 
-    // Phase 19.2: emit normalized document event
-    void emitInvoiceEvent(orgId, id, "archived", { actorId: orgId });
+    await emitInvoiceEvent(orgId, id, "archived", { actorId: userId });
+    await syncInvoiceRecordToIndex(orgId, id);
 
     revalidatePath("/app/docs/invoices");
     return { success: true, data: undefined };
@@ -404,6 +544,7 @@ export async function duplicateInvoice(
         lineItems: {
           create: existing.lineItems.map((item) => ({
             description: item.description,
+            inventoryItemId: item.inventoryItemId,
             quantity: item.quantity,
             unitPrice: item.unitPrice,
             taxRate: item.taxRate,
@@ -415,13 +556,15 @@ export async function duplicateInvoice(
       },
     });
 
-    // Phase 19.2: emit normalized document event on both original and new
-    void emitInvoiceEvent(orgId, duplicate.id, "created", {
-      metadata: { duplicatedFrom: id, invoiceNumber: newNumber },
-    });
-    void emitInvoiceEvent(orgId, id, "duplicated", {
-      metadata: { newInvoiceId: duplicate.id, newInvoiceNumber: newNumber },
-    });
+    await Promise.all([
+      emitInvoiceEvent(orgId, duplicate.id, "created", {
+        metadata: { duplicatedFrom: id, invoiceNumber: newNumber },
+      }),
+      emitInvoiceEvent(orgId, id, "duplicated", {
+        metadata: { newInvoiceId: duplicate.id, newInvoiceNumber: newNumber },
+      }),
+      syncInvoiceRecordToIndex(orgId, duplicate.id),
+    ]);
 
     revalidatePath("/app/docs/invoices");
     return { success: true, data: { id: duplicate.id, invoiceNumber: newNumber } };
@@ -579,35 +722,12 @@ export async function issueInvoice(id: string): Promise<ActionResult<void>> {
         actorId: userId,
       });
 
-      // Auto-decrement inventory stock for line items linked to inventory items.
-      // Dispatch from the warehouse with the highest available stock for each item.
-      for (const line of existing.lineItems) {
-        if (!line.inventoryItemId) continue;
-
-        const sourceLevel = await tx.stockLevel.findFirst({
-          where: { inventoryItemId: line.inventoryItemId, orgId },
-          orderBy: { availableQty: "desc" },
-        });
-
-        if (!sourceLevel) continue;
-
-        const avgUnitCost =
-          sourceLevel.quantity > 0
-            ? Number(sourceLevel.valuationAmount) / sourceLevel.quantity
-            : 0;
-
-        await recordStockEventTx(tx, {
-          orgId,
-          inventoryItemId: line.inventoryItemId,
-          warehouseId: sourceLevel.warehouseId,
-          eventType: StockEventType.SALES_DISPATCH,
-          quantity: line.quantity,
-          unitCost: avgUnitCost,
-          referenceType: "Invoice",
-          referenceId: id,
-          createdByUserId: userId,
-        });
-      }
+      await dispatchInvoiceInventoryTx(tx, {
+        orgId,
+        actorId: userId,
+        invoiceId: id,
+        lineItems: existing.lineItems,
+      });
     });
 
     // Phase 17.4: Hook workflow trigger
@@ -625,12 +745,20 @@ export async function issueInvoice(id: string): Promise<ActionResult<void>> {
       },
     });
 
+    await Promise.all([
+      emitInvoiceEvent(orgId, id, "issued", {
+        actorId: userId,
+        metadata: { invoiceNumber: existing.invoiceNumber },
+      }),
+      syncInvoiceRecordToIndex(orgId, id),
+    ]);
+
     revalidatePath("/app/docs/invoices");
     revalidatePath(`/app/docs/invoices/${id}`);
     return { success: true, data: undefined };
   } catch (error) {
     console.error("issueInvoice error:", error);
-    return { success: false, error: "Failed to issue invoice" };
+    return { success: false, error: error instanceof Error ? error.message : "Failed to issue invoice" };
   }
 }
 
@@ -661,7 +789,9 @@ export async function markInvoicePaid(id: string): Promise<ActionResult<void>> {
 
     // Backwards-compat: compute remaining from totalAmount - amountPaid so that
     // legacy records (where remainingAmount column still holds the default 0) work correctly.
-    const remaining = Math.max(existing.totalAmount - existing.amountPaid, 0);
+    const remaining = fromMinorUnits(
+      Math.max(toMinorUnits(existing.totalAmount) - toMinorUnits(existing.amountPaid), 0),
+    );
 
     if (remaining <= 0) {
       return { success: false, error: "Invoice has no remaining balance" };
@@ -687,7 +817,28 @@ export async function markInvoicePaid(id: string): Promise<ActionResult<void>> {
       });
     });
 
-    await reconcileInvoicePayment(id, userId);
+    const reconcileResult = await reconcileInvoicePayment(id, userId);
+
+    if (reconcileResult.statusChanged) {
+      const eventType =
+        reconcileResult.derivedStatus === "PAID"
+          ? "paid"
+          : reconcileResult.derivedStatus === "PARTIALLY_PAID"
+            ? "partially_paid"
+            : null;
+
+      if (eventType) {
+        await emitInvoiceEvent(orgId, id, eventType, {
+          actorId: userId,
+          metadata: {
+            amountPaid: reconcileResult.amountPaid,
+            remainingAmount: reconcileResult.remainingAmount,
+          },
+        });
+      }
+    }
+
+    await syncInvoiceRecordToIndex(orgId, id);
 
     revalidatePath("/app/docs/invoices");
     revalidatePath(`/app/docs/invoices/${id}`);
@@ -791,7 +942,28 @@ export async function recordPayment(
       });
     });
 
-    await reconcileInvoicePayment(invoiceId, userId);
+    const reconcileResult = await reconcileInvoicePayment(invoiceId, userId);
+
+    if (reconcileResult.statusChanged) {
+      const eventType =
+        reconcileResult.derivedStatus === "PAID"
+          ? "paid"
+          : reconcileResult.derivedStatus === "PARTIALLY_PAID"
+            ? "partially_paid"
+            : null;
+
+      if (eventType) {
+        await emitInvoiceEvent(orgId, invoiceId, eventType, {
+          actorId: userId,
+          metadata: {
+            amountPaid: reconcileResult.amountPaid,
+            remainingAmount: reconcileResult.remainingAmount,
+          },
+        });
+      }
+    }
+
+    await syncInvoiceRecordToIndex(orgId, invoiceId);
 
     // Sprint 25.1: fire invoice.paid trigger once invoice reaches PAID status
     const updated = await db.invoice.findUnique({
@@ -854,6 +1026,11 @@ export async function markOverdue(invoiceId: string): Promise<ActionResult<void>
       }),
     ]);
 
+    await Promise.all([
+      emitInvoiceEvent(orgId, invoiceId, "overdue", { actorId: userId }),
+      syncInvoiceRecordToIndex(orgId, invoiceId),
+    ]);
+
     revalidatePath("/app/docs/invoices");
     revalidatePath(`/app/docs/invoices/${invoiceId}`);
     return { success: true, data: undefined };
@@ -896,6 +1073,14 @@ export async function disputeInvoice(
           reason,
         },
       }),
+    ]);
+
+    await Promise.all([
+      emitInvoiceEvent(orgId, invoiceId, "disputed", {
+        actorId: userId,
+        metadata: { reason },
+      }),
+      syncInvoiceRecordToIndex(orgId, invoiceId),
     ]);
 
     revalidatePath("/app/docs/invoices");
@@ -958,13 +1143,22 @@ export async function cancelInvoice(
           metadata: reversalJournalId ? ({ reversalJournalId } as Prisma.InputJsonValue) : undefined,
         },
       });
+
+      await reverseInvoiceInventoryTx(tx, {
+        orgId,
+        actorId: userId,
+        invoiceId,
+        reason,
+      });
     });
 
-    // Phase 19.2: emit normalized document event
-    void emitInvoiceEvent(orgId, invoiceId, "cancelled", {
-      actorId: userId,
-      metadata: { reason },
-    });
+    await Promise.all([
+      emitInvoiceEvent(orgId, invoiceId, "cancelled", {
+        actorId: userId,
+        metadata: { reason },
+      }),
+      syncInvoiceRecordToIndex(orgId, invoiceId),
+    ]);
 
     revalidatePath("/app/docs/invoices");
     revalidatePath(`/app/docs/invoices/${invoiceId}`);
@@ -1024,6 +1218,7 @@ export async function reissueInvoice(
           lineItems: {
             create: existing.lineItems.map((item) => ({
               description: item.description,
+              inventoryItemId: item.inventoryItemId,
               quantity: item.quantity,
               unitPrice: item.unitPrice,
               taxRate: item.taxRate,
@@ -1067,15 +1262,18 @@ export async function reissueInvoice(
       return newInvoice;
     });
 
-    // Phase 19.2: emit normalized document events — reissued original + created new
-    void emitInvoiceEvent(orgId, invoiceId, "reissued", {
-      actorId: userId,
-      metadata: { newInvoiceId: result.id, newInvoiceNumber: newNumber, reason },
-    });
-    void emitInvoiceEvent(orgId, result.id, "created", {
-      actorId: userId,
-      metadata: { reissuedFromId: invoiceId, invoiceNumber: newNumber },
-    });
+    await Promise.all([
+      emitInvoiceEvent(orgId, invoiceId, "reissued", {
+        actorId: userId,
+        metadata: { newInvoiceId: result.id, newInvoiceNumber: newNumber, reason },
+      }),
+      emitInvoiceEvent(orgId, result.id, "created", {
+        actorId: userId,
+        metadata: { reissuedFromId: invoiceId, invoiceNumber: newNumber },
+      }),
+      syncInvoiceRecordToIndex(orgId, invoiceId),
+      syncInvoiceRecordToIndex(orgId, result.id),
+    ]);
 
     revalidatePath("/app/docs/invoices");
     revalidatePath(`/app/docs/invoices/${invoiceId}`);

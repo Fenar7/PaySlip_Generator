@@ -63,6 +63,9 @@ vi.mock("next/headers", () => ({
   cookies: vi.fn().mockResolvedValue(mockCookies),
 }));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
+vi.mock("@/lib/flow/workflow-engine", () => ({
+  fireWorkflowTrigger: vi.fn(),
+}));
 
 // ─── Helpers ───────────────────────────────────────────────────────────────────
 

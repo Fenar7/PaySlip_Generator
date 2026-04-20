@@ -4,6 +4,7 @@ import { useCallback, useRef, useState } from "react";
 import { Button, Badge } from "@/components/ui";
 import { cn } from "@/lib/utils";
 import {
+  PDF_TO_IMAGE_MAX_PAGES,
   renderPdfPagesToImages,
   type RenderOptions,
   type RenderedPage,
@@ -53,8 +54,8 @@ export function PdfToImageWorkspace() {
           data: arrayBuffer,
         }).promise;
 
-        if (pdf.numPages > 20) {
-          setError(`PDF has ${pdf.numPages} pages (max 20 for image conversion).`);
+        if (pdf.numPages > PDF_TO_IMAGE_MAX_PAGES) {
+          setError(`PDF has ${pdf.numPages} pages (max ${PDF_TO_IMAGE_MAX_PAGES} for image conversion).`);
           setFile(null);
         }
       } catch (err) {
@@ -189,7 +190,7 @@ export function PdfToImageWorkspace() {
           <p className="text-sm font-medium text-[#1a1a1a]">
             {loading ? "Reading PDF…" : "Upload a PDF to convert"}
           </p>
-          <p className="mt-1 text-xs text-[#666]">Up to 20 pages</p>
+          <p className="mt-1 text-xs text-[#666]">Up to {PDF_TO_IMAGE_MAX_PAGES} pages</p>
           <input
             ref={fileInputRef}
             type="file"

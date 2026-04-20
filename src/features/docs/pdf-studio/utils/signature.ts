@@ -1,22 +1,27 @@
 const STORAGE_KEY = "slipwise-saved-signatures";
 const MAX_SAVED = 3;
 
-export function getSavedSignatures(): string[] {
+function scopedStorageKey(scope?: string): string {
+  const normalizedScope = scope?.trim().replace(/[^a-zA-Z0-9_-]/g, "_") || "anonymous";
+  return `${STORAGE_KEY}:${normalizedScope}`;
+}
+
+export function getSavedSignatures(scope?: string): string[] {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw = localStorage.getItem(scopedStorageKey(scope));
     return raw ? JSON.parse(raw) : [];
   } catch {
     return [];
   }
 }
 
-export function saveSignature(dataUrl: string): void {
-  const saved = getSavedSignatures();
+export function saveSignature(dataUrl: string, scope?: string): void {
+  const saved = getSavedSignatures(scope);
   saved.unshift(dataUrl);
   if (saved.length > MAX_SAVED) saved.pop();
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(saved));
+  localStorage.setItem(scopedStorageKey(scope), JSON.stringify(saved));
 }
 
-export function clearSavedSignatures(): void {
-  localStorage.removeItem(STORAGE_KEY);
+export function clearSavedSignatures(scope?: string): void {
+  localStorage.removeItem(scopedStorageKey(scope));
 }

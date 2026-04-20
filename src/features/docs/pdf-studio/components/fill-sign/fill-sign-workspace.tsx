@@ -9,6 +9,7 @@ import {
 } from "react";
 import { Button, Badge } from "@/components/ui";
 import { cn } from "@/lib/utils";
+import { useActiveOrg } from "@/hooks/use-active-org";
 import { SignatureCanvas } from "./signature-canvas";
 import {
   getSavedSignatures,
@@ -41,6 +42,8 @@ type PlacingMode =
 // ── Component ──────────────────────────────────────────────────────────
 
 export function FillSignWorkspace() {
+  const { activeOrg, isLoading: isOrgLoading } = useActiveOrg();
+  const orgScope = activeOrg?.id ?? "anonymous";
   // PDF state
   const [file, setFile] = useState<File | null>(null);
   const [pdfBytes, setPdfBytes] = useState<Uint8Array | null>(null);
@@ -90,8 +93,12 @@ export function FillSignWorkspace() {
 
   // Load saved signatures on mount
   useEffect(() => {
-    setSavedSigs(getSavedSignatures());
-  }, []);
+    if (isOrgLoading) {
+      return;
+    }
+
+    setSavedSigs(getSavedSignatures(orgScope));
+  }, [orgScope, isOrgLoading]);
 
   // ── File upload ──────────────────────────────────────────────────────
 
@@ -133,21 +140,29 @@ export function FillSignWorkspace() {
           const page = await pdf.getPage(i);
           const viewport = page.getViewport({ scale: 150 / 72 });
           const canvas = document.createElement("canvas");
-          canvas.width = viewport.width;
-          canvas.height = viewport.height;
-          const ctx = canvas.getContext("2d");
-          if (!ctx) throw new Error("Canvas context failed");
-          await page.render({ canvas: null, canvasContext: ctx, viewport }).promise;
+          try {
+            canvas.width = viewport.width;
+            canvas.height = viewport.height;
+            const ctx = canvas.getContext("2d");
+            if (!ctx) throw new Error("Canvas context failed");
+            await page.render({ canvas: null, canvasContext: ctx, viewport }).promise;
 
-          const originalVp = page.getViewport({ scale: 1 });
-          previews.push({
-            pageIndex: i - 1,
-            dataUrl: canvas.toDataURL("image/jpeg", 0.85),
-            widthPt: originalVp.width,
-            heightPt: originalVp.height,
-          });
-          canvas.remove();
+            const originalVp = page.getViewport({ scale: 1 });
+            previews.push({
+              pageIndex: i - 1,
+              dataUrl: canvas.toDataURL("image/jpeg", 0.85),
+              widthPt: originalVp.width,
+              heightPt: originalVp.height,
+            });
+          } finally {
+            canvas.width = 0;
+            canvas.height = 0;
+            canvas.remove();
+            page.cleanup();
+          }
         }
+
+        await pdf.destroy();
 
         setPages(previews);
       } catch (err) {
@@ -163,19 +178,19 @@ export function FillSignWorkspace() {
   // ── Signature actions ────────────────────────────────────────────────
 
   const handleSignatureSave = useCallback((dataUrl: string) => {
-    saveSignature(dataUrl);
-    setSavedSigs(getSavedSignatures());
+    saveSignature(dataUrl, orgScope);
+    setSavedSigs(getSavedSignatures(orgScope));
     setPlacingMode({ type: "signature", dataUrl });
-  }, []);
+  }, [orgScope]);
 
   const handleUseSavedSignature = useCallback((dataUrl: string) => {
     setPlacingMode({ type: "signature", dataUrl });
   }, []);
 
   const handleClearSaved = useCallback(() => {
-    clearSavedSignatures();
+    clearSavedSignatures(orgScope);
     setSavedSigs([]);
-  }, []);
+  }, [orgScope]);
 
   // ── Page click for placing ──────────────────────────────────────────
 

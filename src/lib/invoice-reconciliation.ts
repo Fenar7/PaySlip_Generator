@@ -1,6 +1,7 @@
 import "server-only";
 import { db } from "@/lib/db";
 import type { Prisma } from "@/generated/prisma/client";
+import { fromMinorUnits, sumMinorUnits, toMinorUnits } from "@/lib/money";
 
 // ─── Invoice Reconciliation Service ──────────────────────────────────────────
 //
@@ -61,8 +62,11 @@ export async function reconcileInvoicePayment(
   });
 
   // Compute settled totals
-  const amountPaid = invoice.payments.reduce((sum, p) => sum + p.amount, 0);
-  const remainingAmount = Math.max(invoice.totalAmount - amountPaid, 0);
+  const amountPaidMinor = sumMinorUnits(invoice.payments.map((payment) => payment.amount));
+  const totalAmountMinor = toMinorUnits(invoice.totalAmount);
+  const remainingAmountMinor = Math.max(totalAmountMinor - amountPaidMinor, 0);
+  const amountPaid = fromMinorUnits(amountPaidMinor);
+  const remainingAmount = fromMinorUnits(remainingAmountMinor);
 
   // Determine the latest payment method for snapshot
   const latestPayment = invoice.payments[0] ?? null;
@@ -72,9 +76,9 @@ export async function reconcileInvoicePayment(
 
   // Derive payment status
   let derivedStatus: string;
-  if (remainingAmount === 0 && amountPaid >= invoice.totalAmount) {
+  if (remainingAmountMinor <= 0 && amountPaidMinor >= totalAmountMinor) {
     derivedStatus = "PAID";
-  } else if (amountPaid > 0) {
+  } else if (amountPaidMinor > 0) {
     derivedStatus = "PARTIALLY_PAID";
   } else {
     // Preserve the current lifecycle status (not a payment status)
@@ -103,7 +107,7 @@ export async function reconcileInvoicePayment(
     remainingAmount,
     lastPaymentAt,
     lastPaymentMethod,
-    paymentPromiseDate: remainingAmount === 0 ? null : paymentPromiseDate,
+     paymentPromiseDate: remainingAmountMinor === 0 ? null : paymentPromiseDate,
     status: derivedStatus as Prisma.EnumInvoiceStatusFieldUpdateOperationsInput["set"],
     ...(derivedStatus === "PAID" && !invoice.payments.length
       ? {}
@@ -172,7 +176,10 @@ export async function validatePaymentAmount(
     return { valid: false, remaining: invoice.remainingAmount, error: "Amount must be greater than zero" };
   }
 
-  if (amount > invoice.remainingAmount + 0.01) {
+  const amountMinor = toMinorUnits(amount);
+  const remainingMinor = toMinorUnits(invoice.remainingAmount);
+
+  if (amountMinor > remainingMinor) {
     return {
       valid: false,
       remaining: invoice.remainingAmount,

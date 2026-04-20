@@ -4,6 +4,14 @@ import type {
   InvoiceLineItem,
 } from "@/features/docs/invoice/types";
 import { amountToWords } from "@/features/docs/voucher/utils/amount-to-words";
+import {
+  fromMinorUnits,
+  multiplyMoneyToMinorUnits,
+  normalizeMoney,
+  percentageOfMinorUnits,
+  sumMinorUnits,
+  toMinorUnits,
+} from "@/lib/money";
 
 function formatCurrency(value: number) {
   return new Intl.NumberFormat("en-IN", {
@@ -36,25 +44,28 @@ function normalizeLineItems(rows: InvoiceFormValues["lineItems"]) {
   for (const row of rows) {
     const description = row.description.trim();
     const quantity = Number(row.quantity || 0);
-    const unitPrice = Number(row.unitPrice || 0);
-    const taxRate = Number(row.taxRate || 0);
-    const discountAmount = Number(row.discountAmount || 0);
-    const baseAmount = Number.isFinite(quantity * unitPrice)
-      ? quantity * unitPrice
+    const safeUnitPrice = normalizeMoney(row.unitPrice);
+    const safeTaxRate = Number.isFinite(Number(row.taxRate))
+      ? Math.max(Number(row.taxRate), 0)
       : 0;
-    const safeDiscountAmount = Math.min(
-      Number.isFinite(discountAmount) ? Math.max(discountAmount, 0) : 0,
-      baseAmount,
+    const baseAmountMinor = multiplyMoneyToMinorUnits(quantity, safeUnitPrice);
+    const safeDiscountAmountMinor = Math.min(
+      Math.max(toMinorUnits(row.discountAmount), 0),
+      baseAmountMinor,
     );
-    const taxableAmount = Math.max(baseAmount - safeDiscountAmount, 0);
-    const safeTaxRate = Number.isFinite(taxRate) ? Math.max(taxRate, 0) : 0;
-    const taxAmount = taxableAmount * (safeTaxRate / 100);
-    const lineTotal = taxableAmount + taxAmount;
+    const taxableAmountMinor = Math.max(baseAmountMinor - safeDiscountAmountMinor, 0);
+    const taxAmountMinor = percentageOfMinorUnits(taxableAmountMinor, safeTaxRate);
+    const lineTotalMinor = taxableAmountMinor + taxAmountMinor;
+    const baseAmount = fromMinorUnits(baseAmountMinor);
+    const safeDiscountAmount = fromMinorUnits(safeDiscountAmountMinor);
+    const taxableAmount = fromMinorUnits(taxableAmountMinor);
+    const taxAmount = fromMinorUnits(taxAmountMinor);
+    const lineTotal = fromMinorUnits(lineTotalMinor);
 
     items.push({
       description: description || "Untitled item",
       quantity: Number.isFinite(quantity) && quantity > 0 ? quantity : 0,
-      unitPrice: Number.isFinite(unitPrice) ? Math.max(unitPrice, 0) : 0,
+      unitPrice: safeUnitPrice,
       taxRate: safeTaxRate,
       discountAmount: safeDiscountAmount,
       baseAmount,
@@ -62,7 +73,7 @@ function normalizeLineItems(rows: InvoiceFormValues["lineItems"]) {
       taxAmount,
       lineTotal,
       unitPriceFormatted: formatCurrency(
-        Number.isFinite(unitPrice) ? Math.max(unitPrice, 0) : 0,
+        Number.isFinite(safeUnitPrice) ? Math.max(safeUnitPrice, 0) : 0,
       ),
       discountAmountFormatted: formatCurrency(safeDiscountAmount),
       baseAmountFormatted: formatCurrency(baseAmount),
@@ -76,27 +87,26 @@ function normalizeLineItems(rows: InvoiceFormValues["lineItems"]) {
 
 export function normalizeInvoice(values: InvoiceFormValues): InvoiceDocument {
   const lineItems = normalizeLineItems(values.lineItems);
-  const subtotal = lineItems.reduce((sum, item) => sum + item.taxableAmount, 0);
-  const totalDiscount = lineItems.reduce(
-    (sum, item) => sum + item.discountAmount,
+  const subtotalMinor = sumMinorUnits(lineItems.map((item) => item.taxableAmount));
+  const totalDiscountMinor = sumMinorUnits(lineItems.map((item) => item.discountAmount));
+  const totalTaxMinor = sumMinorUnits(lineItems.map((item) => item.taxAmount));
+  const extraChargesMinor = Math.max(toMinorUnits(values.extraCharges), 0);
+  const invoiceLevelDiscountMinor = Math.max(toMinorUnits(values.invoiceLevelDiscount), 0);
+  const lineItemsGrandTotalMinor = sumMinorUnits(lineItems.map((item) => item.lineTotal));
+  const grandTotalMinor = Math.max(
+    lineItemsGrandTotalMinor + extraChargesMinor - invoiceLevelDiscountMinor,
     0,
   );
-  const totalTax = lineItems.reduce((sum, item) => sum + item.taxAmount, 0);
-  const extraCharges = Number.isFinite(Number(values.extraCharges))
-    ? Math.max(Number(values.extraCharges), 0)
-    : 0;
-  const invoiceLevelDiscount = Number.isFinite(Number(values.invoiceLevelDiscount))
-    ? Math.max(Number(values.invoiceLevelDiscount), 0)
-    : 0;
-  const lineItemsGrandTotal = lineItems.reduce((sum, item) => sum + item.lineTotal, 0);
-  const grandTotal = Math.max(
-    lineItemsGrandTotal + extraCharges - invoiceLevelDiscount,
-    0,
-  );
-  const amountPaid = Number.isFinite(Number(values.amountPaid))
-    ? Math.max(Number(values.amountPaid), 0)
-    : 0;
-  const balanceDue = Math.max(grandTotal - amountPaid, 0);
+  const amountPaidMinor = Math.max(toMinorUnits(values.amountPaid), 0);
+  const balanceDueMinor = Math.max(grandTotalMinor - amountPaidMinor, 0);
+  const subtotal = fromMinorUnits(subtotalMinor);
+  const totalDiscount = fromMinorUnits(totalDiscountMinor);
+  const totalTax = fromMinorUnits(totalTaxMinor);
+  const extraCharges = fromMinorUnits(extraChargesMinor);
+  const invoiceLevelDiscount = fromMinorUnits(invoiceLevelDiscountMinor);
+  const grandTotal = fromMinorUnits(grandTotalMinor);
+  const amountPaid = fromMinorUnits(amountPaidMinor);
+  const balanceDue = fromMinorUnits(balanceDueMinor);
   const visibility = values.visibility;
 
   return {

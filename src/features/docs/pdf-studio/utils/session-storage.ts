@@ -3,6 +3,11 @@
 import { PDF_STUDIO_DEFAULT_SETTINGS, PDF_STUDIO_SESSION_STORAGE_KEY } from "@/features/docs/pdf-studio/constants";
 import type { ImageItem, PageSettings, PdfStudioSession } from "@/features/docs/pdf-studio/types";
 
+function scopedSessionStorageKey(scope?: string): string {
+  const normalizedScope = scope?.trim().replace(/[^a-zA-Z0-9_-]/g, "_") || "anonymous";
+  return `${PDF_STUDIO_SESSION_STORAGE_KEY}:${normalizedScope}`;
+}
+
 function cloneDefaultSettings(): PageSettings {
   const defaults = PDF_STUDIO_DEFAULT_SETTINGS;
   return {
@@ -247,13 +252,13 @@ function sanitizeSettings(settings: unknown): PageSettings {
   };
 }
 
-export function loadPdfStudioSession(): PdfStudioSession | null {
+export function loadPdfStudioSession(scope?: string): PdfStudioSession | null {
   if (typeof window === "undefined") {
     return null;
   }
 
   try {
-    const raw = window.localStorage.getItem(PDF_STUDIO_SESSION_STORAGE_KEY);
+    const raw = window.localStorage.getItem(scopedSessionStorageKey(scope));
     if (!raw) {
       return null;
     }
@@ -271,7 +276,7 @@ export function loadPdfStudioSession(): PdfStudioSession | null {
   }
 }
 
-export function savePdfStudioSession(images: ImageItem[], settings: PageSettings): boolean {
+export function savePdfStudioSession(images: ImageItem[], settings: PageSettings, scope?: string): boolean {
   if (typeof window === "undefined") {
     return false;
   }
@@ -321,17 +326,17 @@ export function savePdfStudioSession(images: ImageItem[], settings: PageSettings
   };
 
   try {
-    window.localStorage.setItem(PDF_STUDIO_SESSION_STORAGE_KEY, JSON.stringify(payload));
+    window.localStorage.setItem(scopedSessionStorageKey(scope), JSON.stringify(payload));
     return true;
   } catch {
     return false;
   }
 }
 
-export function clearPdfStudioSession(): void {
+export function clearPdfStudioSession(scope?: string): void {
   if (typeof window === "undefined") {
     return;
   }
 
-  window.localStorage.removeItem(PDF_STUDIO_SESSION_STORAGE_KEY);
+  window.localStorage.removeItem(scopedSessionStorageKey(scope));
 }
