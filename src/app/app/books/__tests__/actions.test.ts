@@ -159,6 +159,9 @@ function mockReadAccess() {
     orgId: ORG_ID,
     userId: USER_ID,
     role: "admin",
+    representedId: null,
+    proxyGrantId: null,
+    proxyScope: [],
   });
   vi.mocked(canReadBooks).mockReturnValue(true);
 }
@@ -707,6 +710,9 @@ describe("Books actions", () => {
       orgId: ORG_ID,
       userId: USER_ID,
       role: "finance_manager",
+      representedId: null,
+      proxyGrantId: null,
+      proxyScope: [],
     });
     vi.mocked(canWriteBooks).mockReturnValue(true);
     vi.mocked(createGlAccount).mockResolvedValue({
@@ -739,6 +745,9 @@ describe("Books actions", () => {
       orgId: ORG_ID,
       userId: USER_ID,
       role: "viewer",
+      representedId: null,
+      proxyGrantId: null,
+      proxyScope: [],
     });
     vi.mocked(canReadBooks).mockReturnValue(false);
 
@@ -756,6 +765,9 @@ describe("Books actions", () => {
       orgId: ORG_ID,
       userId: USER_ID,
       role: "finance_manager",
+      representedId: null,
+      proxyGrantId: null,
+      proxyScope: [],
     });
     vi.mocked(canWriteBooks).mockReturnValue(true);
     vi.mocked(db.vendorBill.findFirst).mockResolvedValue({
