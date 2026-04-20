@@ -18,7 +18,7 @@ export default async function AppLayout({
   }
 
   return (
-    <AppShell>
+    <AppShell orgName={context.orgName}>
       {children}
     </AppShell>
   );

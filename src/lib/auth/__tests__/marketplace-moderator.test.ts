@@ -13,7 +13,7 @@ vi.mock("@/lib/db", () => ({
       findUnique: vi.fn(),
     },
     member: {
-      findFirst: vi.fn(),
+      findMany: vi.fn(),
     },
     proxyGrant: {
       findFirst: vi.fn(),
@@ -70,13 +70,16 @@ describe("marketplace moderator auth", () => {
         }),
       },
     } as never);
-    vi.mocked(db.member.findFirst).mockResolvedValue({
-      organizationId: "org-1",
-      role: "admin",
-      organization: {
-        slug: "acme",
+    vi.mocked(db.member.findMany).mockResolvedValue([
+      {
+        organizationId: "org-1",
+        role: "admin",
+        organization: {
+          name: "Acme",
+          slug: "acme",
+        },
       },
-    } as never);
+    ] as never);
 
     await expect(requireMarketplaceModerator()).resolves.toEqual({
       userId: "mod-1",
@@ -95,7 +98,7 @@ describe("marketplace moderator auth", () => {
         }),
       },
     } as never);
-    vi.mocked(db.member.findFirst).mockResolvedValue(null as never);
+    vi.mocked(db.member.findMany).mockResolvedValue([] as never);
 
     await expect(requireMarketplaceModerator()).rejects.toThrow(
       "Marketplace moderation access denied",

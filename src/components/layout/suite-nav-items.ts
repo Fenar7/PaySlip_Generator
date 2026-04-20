@@ -13,7 +13,7 @@ export const suiteNavItems: NavItem[] = [
     suite: "home",
   },
   {
-    href: "/app/docs/invoices/new",
+    href: "/app/docs",
     label: "Docs",
     suite: "docs",
     children: [
@@ -22,14 +22,14 @@ export const suiteNavItems: NavItem[] = [
       { href: "/app/docs/salary-slips/new", label: "Salary Slips" },
       { href: "/app/docs/invoices", label: "Invoice Vault" },
       { href: "/app/docs/vouchers", label: "Voucher Vault" },
-      { href: "/app/docs/templates", label: "✨ Templates" },
+      { href: "/app/docs/templates", label: "Templates" },
       { href: "/app/docs/templates/marketplace", label: "Template Marketplace" },
       { href: "/app/docs/templates/publisher/payouts", label: "Publisher Payouts" },
       { href: "/app/docs/pdf-studio", label: "PDF Studio" },
     ],
   },
   {
-    href: "/app/data/customers",
+    href: "/app/data",
     label: "Master Data",
     suite: "data",
     children: [
@@ -40,7 +40,7 @@ export const suiteNavItems: NavItem[] = [
     ],
   },
   {
-    href: "/app/pay/receivables",
+    href: "/app/pay",
     label: "Pay",
     suite: "pay",
     children: [
@@ -83,7 +83,7 @@ export const suiteNavItems: NavItem[] = [
     ],
   },
   {
-    href: "/app/flow/tickets",
+    href: "/app/flow",
     label: "Flow",
     suite: "flow",
     children: [
@@ -96,7 +96,7 @@ export const suiteNavItems: NavItem[] = [
     ],
   },
   {
-    href: "/app/intel/dashboard",
+    href: "/app/intel",
     label: "Intel",
     suite: "intel",
     children: [

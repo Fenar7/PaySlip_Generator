@@ -27,6 +27,8 @@ export function DocumentBrandMark({
           src={branding.logoDataUrl}
           alt={`${branding.companyName || "Company"} logo`}
           className={imageClassName}
+          loading="lazy"
+          decoding="async"
         />
       ) : (
         <span className={initialsClassName}>{initials}</span>

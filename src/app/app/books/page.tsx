@@ -7,7 +7,7 @@ import { JournalRowActions } from "./components/journal-row-actions";
 import { PeriodActionButtons } from "./components/period-action-buttons";
 
 export const metadata = {
-  title: "SW Books | Slipwise",
+  title: "SW> Books | Slipwise One",
 };
 
 export default async function BooksOverviewPage() {
@@ -28,7 +28,7 @@ export default async function BooksOverviewPage() {
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <div className="flex items-center gap-2">
-            <h1 className="text-2xl font-semibold text-slate-900">SW Books</h1>
+            <h1 className="text-2xl font-semibold text-slate-900">SW&gt; Books</h1>
             <Badge variant={trialBalance.balanced ? "success" : "danger"}>
               {trialBalance.balanced ? "Balanced" : "Out of balance"}
             </Badge>

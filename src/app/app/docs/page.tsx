@@ -4,7 +4,7 @@ import { getDocsSummary } from "@/lib/docs-vault";
 import type { DocsSummary, VaultRow } from "@/lib/docs-vault";
 
 export const metadata = {
-  title: "SW Docs | Slipwise",
+  title: "SW> Docs | Slipwise One",
   description: "SW Docs — document operations hub. Manage invoices, vouchers, salary slips, and quotes.",
 };
 

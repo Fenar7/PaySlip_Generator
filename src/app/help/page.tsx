@@ -13,16 +13,28 @@ export default async function HelpCenterPage({ searchParams }: Props) {
   const searchResults = query ? await searchArticles(query) : null;
 
   return (
-    <div className="mx-auto max-w-4xl px-4 py-12">
-      <div className="mb-8 text-center">
-        <h1 className="text-3xl font-bold tracking-tight">Help Center</h1>
-        <p className="mt-2 text-muted-foreground">
-          Find answers to common questions about Slipwise One
+    <div className="mx-auto max-w-5xl px-4 py-12">
+      <div className="mb-8">
+        <p className="text-[0.72rem] font-semibold uppercase tracking-[0.28em] text-[var(--muted-foreground)]">
+          Help Center
+        </p>
+        <h1 className="mt-3 text-3xl font-semibold tracking-tight text-[var(--foreground)]">
+          Find the right answer quickly.
+        </h1>
+        <p className="mt-3 max-w-2xl text-[var(--foreground-soft)]">
+          Browse setup, billing, API, and troubleshooting guides from one calm,
+          searchable support surface.
         </p>
       </div>
 
-      {/* Search */}
-      <form method="GET" className="mb-10">
+      <form method="GET" className="mb-10 rounded-[1.5rem] border border-[var(--border-soft)] bg-white p-4 shadow-[var(--shadow-soft)] sm:p-5">
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2 text-sm text-[var(--muted-foreground)]">
+          <span>{index.categories.length} help categories</span>
+          <span>
+            {index.categories.reduce((total, category) => total + category.articles.length, 0)}{" "}
+            articles
+          </span>
+        </div>
         <div className="relative">
           <input
             type="text"
@@ -40,16 +52,15 @@ export default async function HelpCenterPage({ searchParams }: Props) {
         </div>
       </form>
 
-      {/* Search Results */}
       {searchResults && (
         <div className="mb-10">
           <h2 className="mb-4 text-lg font-semibold">
             {searchResults.length} result{searchResults.length !== 1 ? "s" : ""} for &ldquo;{query}&rdquo;
           </h2>
           {searchResults.length === 0 ? (
-            <p className="text-muted-foreground">
-              No articles found. Try a different search term.
-            </p>
+            <div className="rounded-[1.25rem] border border-dashed border-[var(--border-soft)] bg-white px-5 py-8 text-sm text-[var(--muted-foreground)] shadow-[var(--shadow-soft)]">
+              No articles found. Try a broader search term or browse a category below.
+            </div>
           ) : (
             <ul className="space-y-3">
               {searchResults.map((article) => (
@@ -70,18 +81,24 @@ export default async function HelpCenterPage({ searchParams }: Props) {
         </div>
       )}
 
-      {/* Categories Grid */}
       {!searchResults && (
         <div className="grid gap-6 sm:grid-cols-2">
           {index.categories.map((category) => (
             <div
               key={category.slug}
-              className="rounded-lg border p-6 shadow-sm"
+              className="rounded-[1.5rem] border border-[var(--border-soft)] bg-white p-6 shadow-[var(--shadow-soft)]"
             >
-              <h2 className="mb-1 text-lg font-semibold">{category.title}</h2>
-              <p className="mb-4 text-sm text-muted-foreground">
-                {category.description}
-              </p>
+              <div className="mb-4 flex items-start justify-between gap-3">
+                <div>
+                  <h2 className="mb-1 text-lg font-semibold">{category.title}</h2>
+                  <p className="text-sm text-muted-foreground">
+                    {category.description}
+                  </p>
+                </div>
+                <span className="slipwise-chip px-2.5 py-1 text-[0.68rem] font-medium">
+                  {category.articles.length} articles
+                </span>
+              </div>
               <ul className="space-y-2">
                 {category.articles.map((article) => (
                   <li key={article.slug}>
@@ -99,7 +116,6 @@ export default async function HelpCenterPage({ searchParams }: Props) {
         </div>
       )}
 
-      {/* Footer */}
       <div className="mt-12 border-t pt-8 text-center text-sm text-muted-foreground">
         <p>
           Can&apos;t find what you&apos;re looking for?{" "}
