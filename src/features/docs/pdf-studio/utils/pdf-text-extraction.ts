@@ -7,39 +7,51 @@ import type {
 import { renderPdfPagesToImages } from "@/features/docs/pdf-studio/utils/pdf-to-image";
 import { processImageForOcr } from "@/features/docs/pdf-studio/utils/ocr-processor";
 import { validatePdfStudioPageCount } from "@/features/docs/pdf-studio/lib/ingestion";
+import {
+  destroyPdfJsDocument,
+  openPdfJsDocument,
+} from "@/features/docs/pdf-studio/utils/pdfjs-client";
 
 async function extractSelectableText(pdfBytes: Uint8Array) {
-  const pdfjsLib = await import("pdfjs-dist");
-  pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
-    "pdfjs-dist/build/pdf.worker.min.mjs",
-    import.meta.url,
-  ).toString();
+  let loadingTask: Awaited<ReturnType<typeof openPdfJsDocument>>["loadingTask"] | null =
+    null;
+  let pdf: Awaited<ReturnType<typeof openPdfJsDocument>>["pdf"] | null = null;
 
-  const pdf = await pdfjsLib.getDocument({ data: pdfBytes }).promise;
-  const pageValidation = validatePdfStudioPageCount("pdf-to-text", pdf.numPages);
-  if (!pageValidation.ok) {
-    await pdf.destroy();
-    throw new Error(pageValidation.error);
+  try {
+    const opened = await openPdfJsDocument(pdfBytes);
+    loadingTask = opened.loadingTask;
+    pdf = opened.pdf;
+
+    const pageValidation = validatePdfStudioPageCount("pdf-to-text", pdf.numPages);
+    if (!pageValidation.ok) {
+      throw new Error(pageValidation.error);
+    }
+
+    const parts: string[] = [];
+    for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber += 1) {
+      const page = await pdf.getPage(pageNumber);
+      try {
+        const content = await page.getTextContent();
+        const lines = content.items
+          .map((item) => ("str" in item ? item.str : ""))
+          .join(" ")
+          .replace(/[ \t]{2,}/g, " ")
+          .trim();
+        parts.push(lines);
+      } finally {
+        page.cleanup();
+      }
+    }
+
+    return {
+      text: parts.filter(Boolean).join("\n\n").trim(),
+      pageCount: pdf.numPages,
+    };
+  } finally {
+    if (loadingTask) {
+      await destroyPdfJsDocument(loadingTask, pdf);
+    }
   }
-
-  const parts: string[] = [];
-  for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber += 1) {
-    const page = await pdf.getPage(pageNumber);
-    const content = await page.getTextContent();
-    const lines = content.items
-      .map((item) => ("str" in item ? item.str : ""))
-      .join(" ")
-      .replace(/[ \t]{2,}/g, " ")
-      .trim();
-    parts.push(lines);
-    page.cleanup();
-  }
-
-  await pdf.destroy();
-  return {
-    text: parts.filter(Boolean).join("\n\n").trim(),
-    pageCount: pdf.numPages,
-  };
 }
 
 async function extractTextWithOcr(

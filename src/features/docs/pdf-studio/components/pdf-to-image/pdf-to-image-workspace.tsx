@@ -15,6 +15,7 @@ import {
   type RenderOptions,
   type RenderedPage,
 } from "@/features/docs/pdf-studio/utils/pdf-to-image";
+import { getPdfPageCount } from "@/features/docs/pdf-studio/utils/pdf-reader";
 import { buildZip, downloadBlob } from "@/features/docs/pdf-studio/utils/zip-builder";
 
 // ── Component ──────────────────────────────────────────────────────────
@@ -55,36 +56,30 @@ export function PdfToImageWorkspace() {
       setPages([]);
 
       try {
-        // Validate page count
-        const pdfjsLib = await import("pdfjs-dist");
-        pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
-          "pdfjs-dist/build/pdf.worker.min.mjs",
-          import.meta.url,
-        ).toString();
-
-        const arrayBuffer = await f.arrayBuffer();
-        const pdf = await pdfjsLib.getDocument({
-          data: arrayBuffer,
-        }).promise;
+        const pageCountResult = await getPdfPageCount(f);
+        if (!pageCountResult.ok) {
+          setError(pageCountResult.error);
+          setFile(null);
+          analytics.trackFail({ stage: "upload", reason: pageCountResult.reason });
+          return;
+        }
 
         const pageValidation = validatePdfStudioPageCount(
           "pdf-to-image",
-          pdf.numPages,
+          pageCountResult.pageCount,
         );
         if (!pageValidation.ok) {
           setError(pageValidation.error);
           setFile(null);
           analytics.trackFail({ stage: "upload", reason: pageValidation.reason });
-          await pdf.destroy();
           return;
         }
         analytics.trackUpload({
           fileCount: 1,
-          pageCount: pdf.numPages,
+          pageCount: pageCountResult.pageCount,
           totalBytes: f.size,
         });
-        await pdf.destroy();
-      } catch (err) {
+      } catch {
         setError("Unable to read this PDF. Please verify the file is valid and try again.");
         setFile(null);
         analytics.trackFail({
@@ -137,7 +132,7 @@ export function PdfToImageWorkspace() {
         dpi,
         pageCount: result.data.length,
       });
-    } catch (err) {
+    } catch {
       setError("Rendering failed. Please try again with a smaller or simpler PDF.");
       analytics.trackFail({
         stage: "render",

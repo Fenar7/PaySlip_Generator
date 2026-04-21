@@ -1,15 +1,26 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const loadingTaskDestroy = vi.fn();
-const pdfCleanup = vi.fn();
-const pageCleanup = vi.fn();
-const render = vi.fn();
-const getPage = vi.fn();
-const getDocument = vi.fn();
+const {
+  loadingTaskDestroy,
+  pdfCleanup,
+  pageCleanup,
+  render,
+  getPage,
+  openPdfJsDocument,
+  destroyPdfJsDocument,
+} = vi.hoisted(() => ({
+  loadingTaskDestroy: vi.fn(),
+  pdfCleanup: vi.fn(),
+  pageCleanup: vi.fn(),
+  render: vi.fn(),
+  getPage: vi.fn(),
+  openPdfJsDocument: vi.fn(),
+  destroyPdfJsDocument: vi.fn(),
+}));
 
-vi.mock("pdfjs-dist", () => ({
-  GlobalWorkerOptions: { workerSrc: "" },
-  getDocument,
+vi.mock("@/features/docs/pdf-studio/utils/pdfjs-client", () => ({
+  openPdfJsDocument,
+  destroyPdfJsDocument,
 }));
 
 import { getPdfPageCount, readPdfPages } from "@/features/docs/pdf-studio/utils/pdf-reader";
@@ -21,7 +32,8 @@ describe("pdf reader", () => {
     pageCleanup.mockReset();
     render.mockReset();
     getPage.mockReset();
-    getDocument.mockReset();
+    openPdfJsDocument.mockReset();
+    destroyPdfJsDocument.mockReset();
 
     render.mockResolvedValue(undefined);
     getPage.mockResolvedValue({
@@ -32,14 +44,14 @@ describe("pdf reader", () => {
       render: vi.fn().mockReturnValue({ promise: render() }),
       cleanup: pageCleanup,
     });
-    getDocument.mockImplementation(() => ({
-      promise: Promise.resolve({
+    openPdfJsDocument.mockResolvedValue({
+      loadingTask: { destroy: loadingTaskDestroy },
+      pdf: {
         numPages: 2,
         cleanup: pdfCleanup,
         getPage,
-      }),
-      destroy: loadingTaskDestroy,
-    }));
+      },
+    });
 
     vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue({} as CanvasRenderingContext2D);
     vi.spyOn(HTMLCanvasElement.prototype, "toDataURL").mockReturnValue(
@@ -53,8 +65,7 @@ describe("pdf reader", () => {
 
     expect(result.ok).toBe(true);
     expect(pageCleanup).toHaveBeenCalledTimes(2);
-    expect(pdfCleanup).toHaveBeenCalledTimes(1);
-    expect(loadingTaskDestroy).toHaveBeenCalledTimes(1);
+    expect(destroyPdfJsDocument).toHaveBeenCalledTimes(1);
   });
 
   it("releases pdf.js resources after page-count inspection", async () => {
@@ -62,7 +73,6 @@ describe("pdf reader", () => {
     const result = await getPdfPageCount(file);
 
     expect(result).toEqual({ ok: true, pageCount: 2 });
-    expect(pdfCleanup).toHaveBeenCalledTimes(1);
-    expect(loadingTaskDestroy).toHaveBeenCalledTimes(1);
+    expect(destroyPdfJsDocument).toHaveBeenCalledTimes(1);
   });
 });

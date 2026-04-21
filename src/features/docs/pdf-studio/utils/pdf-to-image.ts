@@ -1,4 +1,8 @@
 import { validatePdfStudioPageCount } from "@/features/docs/pdf-studio/lib/ingestion";
+import {
+  destroyPdfJsDocument,
+  openPdfJsDocument,
+} from "@/features/docs/pdf-studio/utils/pdfjs-client";
 
 export interface RenderOptions {
   format: "jpeg" | "png";
@@ -22,20 +26,19 @@ export async function renderPdfPagesToImages(
   options: RenderOptions,
   onProgress?: (current: number, total: number) => void,
 ): Promise<{ ok: true; data: RenderedPage[] } | { ok: false; error: string }> {
-  try {
-    const pdfjsLib = await import("pdfjs-dist");
-    pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
-      "pdfjs-dist/build/pdf.worker.min.mjs",
-      import.meta.url,
-    ).toString();
+  let loadingTask: Awaited<ReturnType<typeof openPdfJsDocument>>["loadingTask"] | null =
+    null;
+  let pdf: Awaited<ReturnType<typeof openPdfJsDocument>>["pdf"] | null = null;
 
-    const pdf = await pdfjsLib.getDocument({ data: pdfBytes }).promise;
+  try {
+    const opened = await openPdfJsDocument(pdfBytes);
+    loadingTask = opened.loadingTask;
+    pdf = opened.pdf;
     const pageValidation = validatePdfStudioPageCount(
       "pdf-to-image",
       pdf.numPages,
     );
     if (!pageValidation.ok) {
-      await pdf.destroy();
       return {
         ok: false,
         error: pageValidation.error,
@@ -55,7 +58,6 @@ export async function renderPdfPagesToImages(
       renderedPixels += pagePixels;
       if (renderedPixels > PDF_TO_IMAGE_MAX_TOTAL_PIXELS) {
         page.cleanup();
-        await pdf.destroy();
         return {
           ok: false,
           error: "This PDF is too large to convert safely in the browser. Try a lower DPI or a shorter PDF.",
@@ -68,7 +70,6 @@ export async function renderPdfPagesToImages(
         canvas.height = viewport.height;
         const ctx = canvas.getContext("2d");
         if (!ctx) {
-          await pdf.destroy();
           return { ok: false, error: "Failed to create canvas context" };
         }
 
@@ -85,7 +86,6 @@ export async function renderPdfPagesToImages(
         });
 
         if (!blob) {
-          await pdf.destroy();
           return { ok: false, error: "Failed to encode the rendered page image." };
         }
 
@@ -104,11 +104,13 @@ export async function renderPdfPagesToImages(
       }
     }
 
-    await pdf.destroy();
-
     return { ok: true, data: pages };
   } catch (err) {
     const msg = err instanceof Error ? err.message : "Unknown error";
     return { ok: false, error: `Failed to render PDF: ${msg}` };
+  } finally {
+    if (loadingTask) {
+      await destroyPdfJsDocument(loadingTask, pdf);
+    }
   }
 }

@@ -2,6 +2,12 @@
 
 import { validatePdfStudioPageCount } from "@/features/docs/pdf-studio/lib/ingestion";
 import type { PdfStudioToolId } from "@/features/docs/pdf-studio/types";
+import {
+  destroyPdfJsDocument,
+  openPdfJsDocument,
+  type PdfJsDocumentProxy,
+  type PdfJsLoadingTask,
+} from "@/features/docs/pdf-studio/utils/pdfjs-client";
 
 export interface PdfPageItem {
   pageIndex: number;
@@ -33,12 +39,6 @@ type PdfReadOptions =
       maxPages?: number;
     };
 
-type PdfJsModule = Awaited<typeof import("pdfjs-dist")>;
-type PdfLoadingTask = ReturnType<PdfJsModule["getDocument"]>;
-type PdfDocumentProxy = Awaited<PdfLoadingTask["promise"]>;
-
-let cachedPdfJsModulePromise: Promise<PdfJsModule> | null = null;
-
 function dataUrlPayloadToBytes(dataUrl: string) {
   const [, payload = ""] = dataUrl.split(",", 2);
   if (!payload) {
@@ -49,53 +49,13 @@ function dataUrlPayloadToBytes(dataUrl: string) {
   return Math.floor((payload.length * 3) / 4) - padding;
 }
 
-async function getPdfJs() {
-  if (!cachedPdfJsModulePromise) {
-    cachedPdfJsModulePromise = import("pdfjs-dist").then((pdfjsLib) => {
-      pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
-        "pdfjs-dist/build/pdf.worker.min.mjs",
-        import.meta.url,
-      ).toString();
-      return pdfjsLib;
-    });
-  }
-
-  return cachedPdfJsModulePromise;
-}
-
-async function openPdfDocument(data: ArrayBuffer | Uint8Array) {
-  const pdfjsLib = await getPdfJs();
-  const loadingTask = pdfjsLib.getDocument({ data });
-  const pdf = await loadingTask.promise;
-  return { loadingTask, pdf };
-}
-
-async function destroyPdfDocument(
-  loadingTask: PdfLoadingTask,
-  pdf: PdfDocumentProxy | null,
-) {
-  if (pdf) {
-    try {
-      pdf.cleanup();
-    } catch {
-      // Ignore cleanup failures from partially-loaded or already-destroyed docs.
-    }
-  }
-
-  try {
-    await loadingTask.destroy();
-  } catch {
-    // Ignore destroy failures; callers only need best-effort cleanup.
-  }
-}
-
 export async function getPdfPageCount(file: File): Promise<PdfPageCountResult> {
-  let loadingTask: PdfLoadingTask | null = null;
-  let pdf: PdfDocumentProxy | null = null;
+  let loadingTask: PdfJsLoadingTask | null = null;
+  let pdf: PdfJsDocumentProxy | null = null;
 
   try {
     const arrayBuffer = await file.arrayBuffer();
-    const opened = await openPdfDocument(arrayBuffer);
+    const opened = await openPdfJsDocument(arrayBuffer);
     loadingTask = opened.loadingTask;
     pdf = opened.pdf;
 
@@ -108,7 +68,7 @@ export async function getPdfPageCount(file: File): Promise<PdfPageCountResult> {
     };
   } finally {
     if (loadingTask) {
-      await destroyPdfDocument(loadingTask, pdf);
+      await destroyPdfJsDocument(loadingTask, pdf);
     }
   }
 }
@@ -117,12 +77,12 @@ export async function readPdfPages(
   file: File,
   options: PdfReadOptions = 50,
 ): Promise<PdfReadResult> {
-  let loadingTask: PdfLoadingTask | null = null;
-  let pdf: PdfDocumentProxy | null = null;
+  let loadingTask: PdfJsLoadingTask | null = null;
+  let pdf: PdfJsDocumentProxy | null = null;
 
   try {
     const arrayBuffer = await file.arrayBuffer();
-    const opened = await openPdfDocument(arrayBuffer);
+    const opened = await openPdfJsDocument(arrayBuffer);
     loadingTask = opened.loadingTask;
     pdf = opened.pdf;
 
@@ -202,7 +162,7 @@ export async function readPdfPages(
     };
   } finally {
     if (loadingTask) {
-      await destroyPdfDocument(loadingTask, pdf);
+      await destroyPdfJsDocument(loadingTask, pdf);
     }
   }
 }

@@ -1,4 +1,9 @@
 import { validatePdfStudioPageCount } from "@/features/docs/pdf-studio/lib/ingestion";
+import {
+  destroyPdfJsDocument,
+  getPdfJsClient,
+  openPdfJsDocument,
+} from "@/features/docs/pdf-studio/utils/pdfjs-client";
 
 /**
  * Extract raster images embedded in a PDF file using pdfjs-dist.
@@ -17,28 +22,27 @@ export interface ExtractedPdfImage {
   blob: Blob;
 }
 
-const PDF_IMAGE_EXTRACT_MAX_PAGES = 40;
 const PDF_IMAGE_EXTRACT_MAX_IMAGES = 60;
 
 export async function extractImagesFromPdf(
   pdfBytes: Uint8Array,
   onProgress?: (current: number, total: number) => void,
 ): Promise<{ ok: true; images: ExtractedPdfImage[] } | { ok: false; error: string }> {
-  try {
-    const pdfjsLib = await import("pdfjs-dist");
-    pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
-      "pdfjs-dist/build/pdf.worker.min.mjs",
-      import.meta.url,
-    ).toString();
+  let loadingTask: Awaited<ReturnType<typeof openPdfJsDocument>>["loadingTask"] | null =
+    null;
+  let pdf: Awaited<ReturnType<typeof openPdfJsDocument>>["pdf"] | null = null;
 
-    const pdf = await pdfjsLib.getDocument({ data: pdfBytes }).promise;
+  try {
+    const pdfjsLib = await getPdfJsClient();
+    const opened = await openPdfJsDocument(pdfBytes);
+    loadingTask = opened.loadingTask;
+    pdf = opened.pdf;
     const totalPages = pdf.numPages;
     const pageValidation = validatePdfStudioPageCount(
       "extract-images",
       totalPages,
     );
     if (!pageValidation.ok) {
-      await pdf.destroy();
       return {
         ok: false,
         error: pageValidation.error,
@@ -83,7 +87,6 @@ export async function extractImagesFromPdf(
         let imageIndex = 0;
         for (const name of imgNames) {
           if (results.length >= PDF_IMAGE_EXTRACT_MAX_IMAGES) {
-            await pdf.destroy();
             return {
               ok: false,
               error: `This PDF contains too many embedded images to extract safely in the browser (max ${PDF_IMAGE_EXTRACT_MAX_IMAGES}).`,
@@ -144,13 +147,15 @@ export async function extractImagesFromPdf(
       }
     }
 
-    await pdf.destroy();
-
     return { ok: true, images: results };
   } catch (error) {
     return {
       ok: false,
       error: error instanceof Error ? error.message : "Unknown extraction error",
     };
+  } finally {
+    if (loadingTask) {
+      await destroyPdfJsDocument(loadingTask, pdf);
+    }
   }
 }

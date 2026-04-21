@@ -6,6 +6,10 @@ import { Button } from "@/components/ui";
 import { usePdfStudioAnalytics } from "@/features/docs/pdf-studio/lib/analytics";
 import { validatePdfStudioFiles } from "@/features/docs/pdf-studio/lib/ingestion";
 import { buildPdfStudioOutputName } from "@/features/docs/pdf-studio/lib/output";
+import {
+  destroyPdfJsDocument,
+  openPdfJsDocument,
+} from "@/features/docs/pdf-studio/utils/pdfjs-client";
 import { downloadPdfBytes } from "@/features/docs/pdf-studio/utils/zip-builder";
 
 type RepairStatus = "idle" | "analyzing" | "repaired" | "partial" | "failed";
@@ -178,16 +182,13 @@ export function RepairWorkspace() {
       }
 
       // Attempt 2: Try pdfjs-dist for partial recovery
+      let loadingTask: Awaited<ReturnType<typeof openPdfJsDocument>>["loadingTask"] | null =
+        null;
+      let pdfDoc: Awaited<ReturnType<typeof openPdfJsDocument>>["pdf"] | null = null;
       try {
-        const pdfjsLib = await import("pdfjs-dist");
-
-        // Configure worker
-        if (typeof window !== "undefined") {
-          pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdn.jsdelivr.net/npm/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.mjs`;
-        }
-
-        const loadingTask = pdfjsLib.getDocument({ data: bytes.slice() });
-        const pdfDoc = await loadingTask.promise;
+        const opened = await openPdfJsDocument(bytes.slice());
+        loadingTask = opened.loadingTask;
+        pdfDoc = opened.pdf;
         const pageCount = pdfDoc.numPages;
 
         // Re-export pages via pdf-lib
@@ -223,8 +224,6 @@ export function RepairWorkspace() {
         const savedBytes = await newDoc.save();
         const repairedBytes = new Uint8Array(savedBytes);
 
-        await pdfDoc.destroy();
-
         setResult({
           status: "partial",
           message: `Partial recovery: ${pageCount} page${pageCount !== 1 ? "s" : ""} extracted as images. Some text, links, or form data may be lost.`,
@@ -241,6 +240,10 @@ export function RepairWorkspace() {
         return;
       } catch {
         // Both methods failed
+      } finally {
+        if (loadingTask) {
+          await destroyPdfJsDocument(loadingTask, pdfDoc);
+        }
       }
 
       setResult({

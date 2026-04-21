@@ -7,6 +7,10 @@ import { cn } from "@/lib/utils";
 import { usePdfStudioAnalytics } from "@/features/docs/pdf-studio/lib/analytics";
 import { validatePdfStudioFiles } from "@/features/docs/pdf-studio/lib/ingestion";
 import { buildPdfStudioOutputName } from "@/features/docs/pdf-studio/lib/output";
+import {
+  destroyPdfJsDocument,
+  openPdfJsDocument,
+} from "@/features/docs/pdf-studio/utils/pdfjs-client";
 import { downloadPdfBytes } from "@/features/docs/pdf-studio/utils/zip-builder";
 import { validatePasswords } from "@/features/docs/pdf-studio/utils/password";
 import { PASSWORD_PERMISSION_PRESETS } from "@/features/docs/pdf-studio/constants";
@@ -269,7 +273,7 @@ export function ProtectUnlockWorkspaceWithOptions(props?: {
           fileCount: 1,
           totalBytes: f.size,
         });
-      } catch (err) {
+      } catch {
         const message =
           "Unable to read this PDF. Please verify the file is valid and try again.";
         setUnlock((prev) => ({
@@ -301,19 +305,17 @@ export function ProtectUnlockWorkspaceWithOptions(props?: {
       action: "unlock",
       outputKind: "image-only-pdf",
     });
+    let loadingTask: Awaited<ReturnType<typeof openPdfJsDocument>>["loadingTask"] | null =
+      null;
+    let pdf: Awaited<ReturnType<typeof openPdfJsDocument>>["pdf"] | null = null;
 
     try {
       // Verify password using pdfjs-dist (which supports password decryption)
-      const pdfjsLib = await import("pdfjs-dist");
-      pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
-        "pdfjs-dist/build/pdf.worker.min.mjs",
-        import.meta.url,
-      ).toString();
-
-      const pdf = await pdfjsLib.getDocument({
-        data: unlock.pdfBytes,
+      const opened = await openPdfJsDocument(unlock.pdfBytes, {
         password: unlock.password,
-      }).promise;
+      });
+      loadingTask = opened.loadingTask;
+      pdf = opened.pdf;
 
       // Re-create an unencrypted PDF by rendering each page into a new
       // image-based PDF. This is an explicit fallback, not a lossless unlock.
@@ -373,6 +375,10 @@ export function ProtectUnlockWorkspaceWithOptions(props?: {
         stage: "process",
         reason: "incorrect-password",
       });
+    } finally {
+      if (loadingTask) {
+        await destroyPdfJsDocument(loadingTask, pdf);
+      }
     }
   }, [analytics, unlock.file, unlock.password, unlock.pdfBytes]);
 
