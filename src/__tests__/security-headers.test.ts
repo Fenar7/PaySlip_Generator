@@ -22,9 +22,14 @@ describe("Security Headers", () => {
       expect(csp).toContain("https://checkout.razorpay.com");
     });
 
-    it("should not allow unsafe-eval in script-src", () => {
+    it("should not allow unsafe-eval in production script-src", () => {
       const csp = buildTestCsp();
       expect(csp).not.toContain("'unsafe-eval'");
+    });
+
+    it("should allow unsafe-eval in development script-src for Next dev runtime", () => {
+      const csp = buildTestCsp({ isDev: true });
+      expect(csp).toContain("'unsafe-eval'");
     });
 
     it("should disallow framing (frame-ancestors none)", () => {
@@ -122,10 +127,11 @@ const SECURITY_HEADERS: Record<string, string> = {
   "Strict-Transport-Security": "max-age=63072000; includeSubDomains; preload",
 };
 
-function buildTestCsp(): string {
+function buildTestCsp(options?: { isDev?: boolean }): string {
+  const isDev = options?.isDev === true;
   const directives = [
     "default-src 'self'",
-    "script-src 'self' 'unsafe-inline' https://js.stripe.com https://checkout.razorpay.com",
+    `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ""} https://js.stripe.com https://checkout.razorpay.com`,
     "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
     "img-src 'self' data: blob: https: http:",
     "font-src 'self' https://fonts.gstatic.com data:",
