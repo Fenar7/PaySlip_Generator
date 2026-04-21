@@ -34,10 +34,11 @@ type DeskewPreviewState = {
 async function renderDeskewPreview(
   imageUrl: string,
   cleanupPreset: ScanCleanupPreset,
+  monoThreshold: number,
   manualAngle: number,
 ): Promise<DeskewPreviewState> {
   const sourceCanvas = await loadImageUrlToCanvas(imageUrl);
-  const cleanedCanvas = applyScanCleanup(sourceCanvas, cleanupPreset);
+  const cleanedCanvas = applyScanCleanup(sourceCanvas, cleanupPreset, monoThreshold);
   const analysis = analyzeSkew(cleanedCanvas);
   const finalAngle = manualAngle !== 0 ? manualAngle : analysis.angle;
   const afterCanvas =
@@ -55,10 +56,11 @@ async function renderDeskewPreview(
 async function processDeskewedPage(
   imageUrl: string,
   cleanupPreset: ScanCleanupPreset,
+  monoThreshold: number,
   manualAngle: number,
 ) {
   const sourceCanvas = await loadImageUrlToCanvas(imageUrl);
-  const cleanedCanvas = applyScanCleanup(sourceCanvas, cleanupPreset);
+  const cleanedCanvas = applyScanCleanup(sourceCanvas, cleanupPreset, monoThreshold);
   const analysis = analyzeSkew(cleanedCanvas);
   const finalAngle = manualAngle !== 0 ? manualAngle : analysis.angle;
   const outputCanvas =
@@ -86,11 +88,14 @@ export function DeskewWorkspace() {
   const [images, setImages] = useState<ImageItem[]>([]);
   const [activePageIndex, setActivePageIndex] = useState(0);
   const [cleanupPreset, setCleanupPreset] = useState<ScanCleanupPreset>("none");
-  const [manualAngle, setManualAngle] = useState(0);
+  const [monoThreshold, setMonoThreshold] = useState(128);
+  const [manualAngles, setManualAngles] = useState<Map<number, number>>(new Map());
   const [preview, setPreview] = useState<DeskewPreviewState | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [statusMessage, setStatusMessage] = useState("");
   const [processing, setProcessing] = useState(false);
+
+  const activeManualAngle = manualAngles.get(activePageIndex) ?? 0;
 
   const activeImage = images[activePageIndex] ?? null;
   const baseName = useMemo(
@@ -118,7 +123,8 @@ export function DeskewWorkspace() {
     setImages(buildImageItemsFromScanPages(result.pages));
     setActivePageIndex(0);
     setCleanupPreset("none");
-    setManualAngle(0);
+    setMonoThreshold(128);
+    setManualAngles(new Map());
     setPreview(null);
     setError(null);
     setStatusMessage(
@@ -148,7 +154,8 @@ export function DeskewWorkspace() {
       const nextPreview = await renderDeskewPreview(
         activeImage.previewUrl,
         cleanupPreset,
-        manualAngle,
+        monoThreshold,
+        activeManualAngle,
       );
       setPreview(nextPreview);
       setStatusMessage(
@@ -182,20 +189,23 @@ export function DeskewWorkspace() {
       inputKind: fileClass,
       pageCount: images.length,
       cleanupPreset,
-      manualAngle,
+      manualAngle: activeManualAngle,
     });
 
     try {
       const processedPages = [];
       let reviewCount = 0;
 
-      for (const image of images) {
+      for (let index = 0; index < images.length; index += 1) {
+        const image = images[index];
+        const pageAngle = manualAngles.get(index) ?? 0;
         const processed = await processDeskewedPage(
           image.previewUrl,
           cleanupPreset,
-          manualAngle,
+          monoThreshold,
+          pageAngle,
         );
-        if (manualAngle === 0 && processed.analysis.requiresManualReview) {
+        if (pageAngle === 0 && processed.analysis.requiresManualReview) {
           reviewCount += 1;
         }
         processedPages.push({
@@ -317,25 +327,45 @@ export function DeskewWorkspace() {
             ) : null}
 
             <div className="mt-4 grid gap-3 sm:grid-cols-2">
+              <div className="space-y-3">
+                <label className="block rounded-xl border border-[#e5e5e5] bg-white px-4 py-3 text-sm text-[#1a1a1a]">
+                  <span className="block text-xs font-medium uppercase tracking-[0.15em] text-[#666]">
+                    Cleanup preset
+                  </span>
+                  <select
+                    className="mt-2 w-full rounded-lg border border-[#e5e5e5] px-3 py-2 text-sm"
+                    value={cleanupPreset}
+                    onChange={(event) =>
+                      setCleanupPreset(event.target.value as ScanCleanupPreset)
+                    }
+                  >
+                    <option value="none">None</option>
+                    <option value="contrast">Contrast normalize</option>
+                    <option value="monochrome">Monochrome prep</option>
+                  </select>
+                </label>
+
+                {cleanupPreset === "monochrome" ? (
+                  <label className="block rounded-xl border border-[#e5e5e5] bg-white px-4 py-3 text-sm text-[#1a1a1a]">
+                    <span className="block text-xs font-medium uppercase tracking-[0.15em] text-[#666]">
+                      Monochrome threshold
+                    </span>
+                    <select
+                      className="mt-2 w-full rounded-lg border border-[#e5e5e5] px-3 py-2 text-sm"
+                      value={monoThreshold}
+                      onChange={(event) => setMonoThreshold(Number(event.target.value))}
+                    >
+                      <option value={100}>Light text (100)</option>
+                      <option value={128}>Balanced (128)</option>
+                      <option value={160}>Dark text (160)</option>
+                    </select>
+                  </label>
+                ) : null}
+              </div>
+
               <label className="rounded-xl border border-[#e5e5e5] bg-white px-4 py-3 text-sm text-[#1a1a1a]">
                 <span className="block text-xs font-medium uppercase tracking-[0.15em] text-[#666]">
-                  Cleanup preset
-                </span>
-                <select
-                  className="mt-2 w-full rounded-lg border border-[#e5e5e5] px-3 py-2 text-sm"
-                  value={cleanupPreset}
-                  onChange={(event) =>
-                    setCleanupPreset(event.target.value as ScanCleanupPreset)
-                  }
-                >
-                  <option value="none">None</option>
-                  <option value="contrast">Contrast normalize</option>
-                  <option value="monochrome">Monochrome prep</option>
-                </select>
-              </label>
-              <label className="rounded-xl border border-[#e5e5e5] bg-white px-4 py-3 text-sm text-[#1a1a1a]">
-                <span className="block text-xs font-medium uppercase tracking-[0.15em] text-[#666]">
-                  Manual angle override
+                  Manual angle — page {activePageIndex + 1}
                 </span>
                 <input
                   className="mt-3 w-full accent-[var(--accent)]"
@@ -343,12 +373,19 @@ export function DeskewWorkspace() {
                   min={-10}
                   max={10}
                   step={0.5}
-                  value={manualAngle}
-                  onChange={(event) => setManualAngle(Number(event.target.value))}
+                  value={activeManualAngle}
+                  onChange={(event) =>
+                    setManualAngles((prev) => {
+                      const next = new Map(prev);
+                      next.set(activePageIndex, Number(event.target.value));
+                      return next;
+                    })
+                  }
                 />
                 <span className="mt-1 block text-xs text-[#666]">
-                  {manualAngle > 0 ? "+" : ""}
-                  {manualAngle.toFixed(1)}°
+                  {activeManualAngle > 0 ? "+" : ""}
+                  {activeManualAngle.toFixed(1)}°
+                  {images.length > 1 ? ` · page ${activePageIndex + 1} only` : ""}
                 </span>
               </label>
             </div>

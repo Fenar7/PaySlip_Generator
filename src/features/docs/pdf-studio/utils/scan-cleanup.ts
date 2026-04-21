@@ -7,6 +7,7 @@ function clampChannel(value: number) {
 export function transformScanPixels(
   input: Uint8ClampedArray,
   preset: ScanCleanupPreset,
+  threshold = 128,
 ): Uint8ClampedArray {
   const data = new Uint8ClampedArray(input);
 
@@ -46,7 +47,6 @@ export function transformScanPixels(
       continue;
     }
 
-    const threshold = 168;
     const monochrome = normalized >= threshold ? 255 : 0;
     data[index] = monochrome;
     data[index + 1] = monochrome;
@@ -59,6 +59,7 @@ export function transformScanPixels(
 export function applyScanCleanup(
   canvas: HTMLCanvasElement,
   preset: ScanCleanupPreset,
+  threshold = 128,
 ): HTMLCanvasElement {
   if (preset === "none") {
     return canvas;
@@ -75,7 +76,7 @@ export function applyScanCleanup(
   }
 
   const imageData = sourceCtx.getImageData(0, 0, canvas.width, canvas.height);
-  const transformed = transformScanPixels(imageData.data, preset);
+  const transformed = transformScanPixels(imageData.data, preset, threshold);
   const outputData = new ImageData(transformed, canvas.width, canvas.height);
   ctx.putImageData(outputData, 0, 0);
   return output;
@@ -84,7 +85,9 @@ export function applyScanCleanup(
 export async function loadImageUrlToCanvas(url: string): Promise<HTMLCanvasElement> {
   return new Promise((resolve, reject) => {
     const img = new Image();
-    img.crossOrigin = "anonymous";
+    if (url.startsWith("http")) {
+      img.crossOrigin = "anonymous";
+    }
     img.onload = () => {
       const canvas = document.createElement("canvas");
       canvas.width = img.naturalWidth;

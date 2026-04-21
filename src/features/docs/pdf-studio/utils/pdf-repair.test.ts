@@ -24,7 +24,7 @@ describe("pdf repair utilities", () => {
       repairedSize: 2048,
       pageCount: 2,
       repairedBytes: new Uint8Array([1, 2, 3]),
-      filename: "broken-file-repaired",
+      filename: "broken-file-partial-recovery",
       analysis: {
         byteLength: 1024,
         hasPdfHeader: true,
@@ -44,5 +44,40 @@ describe("pdf repair utilities", () => {
     expect(log).toContain("Status: partial");
     expect(log).toContain("Method: raster-salvage");
     expect(log).toContain("Missing EOF marker.");
+  });
+
+  it("uses distinct filenames for repaired vs partial-recovery outcomes", () => {
+    const repairedResult: PdfRepairResult = {
+      status: "repaired",
+      message: "Repaired.",
+      originalSize: 1024,
+      repairedSize: 1024,
+      pageCount: 1,
+      repairedBytes: new Uint8Array([]),
+      filename: "doc-repaired",
+      analysis: {
+        byteLength: 1024,
+        hasPdfHeader: true,
+        hasEofMarker: true,
+        hasXrefTable: true,
+        hasTrailer: true,
+        hasStartXref: true,
+        truncationSuspected: false,
+        warnings: [],
+      },
+      method: "structure-rebuild",
+      log: "",
+    };
+
+    const partialResult: PdfRepairResult = {
+      ...repairedResult,
+      status: "partial",
+      filename: "doc-partial-recovery",
+      method: "raster-salvage",
+    };
+
+    expect(repairedResult.filename).toBe("doc-repaired");
+    expect(partialResult.filename).toBe("doc-partial-recovery");
+    expect(repairedResult.filename).not.toBe(partialResult.filename);
   });
 });

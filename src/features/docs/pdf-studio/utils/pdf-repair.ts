@@ -75,10 +75,54 @@ export function analyzePdfDamage(bytes: Uint8Array): PdfRepairAnalysis {
   return analysis;
 }
 
-async function validateRecoveredPdf(bytes: Uint8Array) {
-  const { PDFDocument } = await import("pdf-lib");
-  const pdf = await PDFDocument.load(bytes, { throwOnInvalidObject: false });
-  return pdf.getPageCount();
+class RecoveryExhaustedError extends Error {
+  readonly kind = "recovery-exhausted" as const;
+  constructor() {
+    super("Recovery exhausted: no pages could be rendered.");
+  }
+}
+
+/**
+ * Cross-validates a recovered PDF using two independent loaders.
+ * pdf-lib strict load confirms structural validity; pdfjs-dist confirms
+ * pages are actually renderable. Returns the agreed page count, or 0 if
+ * either loader disagrees, throws, or finds zero pages.
+ */
+async function validateRecoveredPdf(bytes: Uint8Array): Promise<number> {
+  let pdfLibCount = 0;
+  try {
+    const { PDFDocument } = await import("pdf-lib");
+    const strictPdf = await PDFDocument.load(bytes, { throwOnInvalidObject: true });
+    pdfLibCount = strictPdf.getPageCount();
+  } catch {
+    return 0;
+  }
+
+  if (pdfLibCount === 0) {
+    return 0;
+  }
+
+  try {
+    const pdfjsLib = await import("pdfjs-dist");
+    if (typeof window !== "undefined") {
+      pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
+        "pdfjs-dist/build/pdf.worker.min.mjs",
+        import.meta.url,
+      ).toString();
+    }
+    const loadingTask = pdfjsLib.getDocument({ data: bytes.slice() });
+    const doc = await loadingTask.promise;
+    const pdfjsCount = doc.numPages;
+    await doc.destroy();
+    await loadingTask.destroy();
+    if (pdfjsCount !== pdfLibCount) {
+      return 0;
+    }
+  } catch {
+    return 0;
+  }
+
+  return pdfLibCount;
 }
 
 async function attemptStructureRepair(
@@ -90,6 +134,9 @@ async function attemptStructureRepair(
   });
   const savedBytes = new Uint8Array(await pdfDoc.save());
   const pageCount = await validateRecoveredPdf(savedBytes);
+  if (pageCount === 0) {
+    throw new Error("Structure repair produced an unverifiable output.");
+  }
   return { repairedBytes: savedBytes, pageCount };
 }
 
@@ -169,7 +216,7 @@ async function attemptRasterSalvage(
   }
 
   if (recoveredPages === 0) {
-    throw new Error("No recoverable pages were found.");
+    throw new RecoveryExhaustedError();
   }
 
   const repairedBytes = new Uint8Array(await outputPdf.save());
@@ -211,7 +258,7 @@ export async function repairPdfDocument(
   bytes: Uint8Array,
 ): Promise<PdfRepairResult> {
   const analysis = analyzePdfDamage(bytes);
-  const filename = file.name.replace(/\.pdf$/iu, "") + "-repaired";
+  const baseFilename = file.name.replace(/\.pdf$/iu, "");
 
   try {
     const repaired = await attemptStructureRepair(bytes);
@@ -223,7 +270,7 @@ export async function repairPdfDocument(
       repairedSize: repaired.repairedBytes.length,
       pageCount: repaired.pageCount,
       repairedBytes: repaired.repairedBytes,
-      filename,
+      filename: `${baseFilename}-repaired`,
       analysis,
       method: "structure-rebuild",
       log: "",
@@ -246,7 +293,7 @@ export async function repairPdfDocument(
       repairedSize: salvaged.repairedBytes.length,
       pageCount: salvaged.pageCount,
       repairedBytes: salvaged.repairedBytes,
-      filename,
+      filename: `${baseFilename}-partial-recovery`,
       analysis: {
         ...analysis,
         warnings: [
@@ -263,15 +310,14 @@ export async function repairPdfDocument(
     const failedResult: PdfRepairResult = {
       status: "failed",
       message:
-        salvageError instanceof Error &&
-        salvageError.message === "No recoverable pages were found."
+        salvageError instanceof RecoveryExhaustedError
           ? "This PDF is too damaged to recover safely. No valid pages could be rendered."
           : "This PDF is too damaged to repair safely in the browser. Try a desktop repair tool for deeper recovery.",
       originalSize: file.size,
       repairedSize: 0,
       pageCount: 0,
       repairedBytes: null,
-      filename,
+      filename: `${baseFilename}-repair-failed`,
       analysis: {
         ...analysis,
         warnings: [

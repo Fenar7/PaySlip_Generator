@@ -166,13 +166,14 @@ export function OcrWorkspace() {
     let failedCount = 0;
 
     try {
-      for (let index = 0; index < images.length; index += 1) {
+      const snapshot = [...images];
+      for (let index = 0; index < snapshot.length; index += 1) {
         if (cancelRequestedRef.current) {
           break;
         }
 
-        const image = images[index];
-        setStatusMessage(`Running OCR on page ${index + 1} of ${images.length}…`);
+        const image = snapshot[index];
+        setStatusMessage(`Running OCR on page ${index + 1} of ${snapshot.length}…`);
         setImages((current) =>
           current.map((item) =>
             item.id === image.id
@@ -182,7 +183,7 @@ export function OcrWorkspace() {
         );
 
         try {
-          const blob = await dataUrlToBlob(image.previewUrl);
+          const blob = dataUrlToBlob(image.previewUrl);
           const result = await processImageForOcrDetailed(blob, {
             dedupeKey: image.id,
             language,
@@ -242,7 +243,7 @@ export function OcrWorkspace() {
 
       analytics.trackSuccess({
         action: "ocr",
-        pageCount: images.length,
+        pageCount: snapshot.length,
         completeCount: completedCount,
         failedCount,
       });
@@ -458,7 +459,7 @@ export function OcrWorkspace() {
                     onClick={() => void handleDownloadSearchablePdf()}
                     disabled={isExportingPdf}
                   >
-                    {isExportingPdf ? "Generating PDF…" : "Download Searchable PDF"}
+                    {isExportingPdf ? "Generating PDF…" : "Download rasterized searchable copy"}
                   </Button>
                 </div>
               </div>

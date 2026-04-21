@@ -40,7 +40,7 @@ export async function loadScanSourcePages(
       ok: true,
       fileClass,
       pages: readResult.data.map((page) => ({
-        id: `${file.name}-page-${page.pageIndex + 1}`,
+        id: `page-${crypto.randomUUID()}-${page.pageIndex}`,
         name: `${file.name.replace(/\.pdf$/iu, "")} — Page ${page.pageIndex + 1}`,
         previewUrl: page.previewUrl,
         width: page.widthPt,
@@ -61,7 +61,7 @@ export async function loadScanSourcePages(
       fileClass,
       pages: [
         {
-          id: `${file.name}-image-0`,
+          id: `image-${crypto.randomUUID()}-0`,
           name: file.name,
           previewUrl,
           width: dimensions.width,
@@ -95,7 +95,10 @@ export function buildImageItemsFromScanPages(
   }));
 }
 
-export async function dataUrlToBlob(dataUrl: string): Promise<Blob> {
-  const response = await fetch(dataUrl);
-  return response.blob();
+export function dataUrlToBlob(dataUrl: string): Blob {
+  const [header, b64] = dataUrl.split(",");
+  const mime = header.match(/:(.*?);/)?.[1] ?? "image/png";
+  const binary = atob(b64);
+  const bytes = new Uint8Array(binary.length).map((_, i) => binary.charCodeAt(i));
+  return new Blob([bytes], { type: mime });
 }
