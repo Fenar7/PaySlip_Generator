@@ -1,3 +1,11 @@
+import {
+  destroyPdfJsDocument,
+  getPdfJsClient,
+  PDFJS_PUBLIC_WASM_URL,
+  type PdfJsDocumentProxy,
+  type PdfJsLoadingTask,
+} from "@/features/docs/pdf-studio/utils/pdfjs-client";
+
 export type RepairStatus = "idle" | "analyzing" | "repaired" | "partial" | "failed";
 
 export type PdfRepairAnalysis = {
@@ -102,24 +110,26 @@ async function validateRecoveredPdf(bytes: Uint8Array): Promise<number> {
     return 0;
   }
 
+  let loadingTask: PdfJsLoadingTask | null = null;
+  let doc: PdfJsDocumentProxy | null = null;
+
   try {
-    const pdfjsLib = await import("pdfjs-dist");
-    if (typeof window !== "undefined") {
-      pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
-        "pdfjs-dist/build/pdf.worker.min.mjs",
-        import.meta.url,
-      ).toString();
-    }
-    const loadingTask = pdfjsLib.getDocument({ data: bytes.slice() });
-    const doc = await loadingTask.promise;
+    const pdfjsLib = await getPdfJsClient();
+    loadingTask = pdfjsLib.getDocument({
+      data: bytes.slice(),
+      wasmUrl: PDFJS_PUBLIC_WASM_URL,
+    });
+    doc = await loadingTask.promise;
     const pdfjsCount = doc.numPages;
-    await doc.destroy();
-    await loadingTask.destroy();
     if (pdfjsCount !== pdfLibCount) {
       return 0;
     }
   } catch {
     return 0;
+  } finally {
+    if (loadingTask) {
+      await destroyPdfJsDocument(loadingTask, doc);
+    }
   }
 
   return pdfLibCount;
@@ -148,15 +158,11 @@ async function attemptRasterSalvage(
   recoveredPages: number;
   failedPages: number[];
 }> {
-  const pdfjsLib = await import("pdfjs-dist");
-  if (typeof window !== "undefined") {
-    pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
-      "pdfjs-dist/build/pdf.worker.min.mjs",
-      import.meta.url,
-    ).toString();
-  }
-
-  const loadingTask = pdfjsLib.getDocument({ data: bytes.slice() });
+  const pdfjsLib = await getPdfJsClient();
+  const loadingTask = pdfjsLib.getDocument({
+    data: bytes.slice(),
+    wasmUrl: PDFJS_PUBLIC_WASM_URL,
+  });
   const sourcePdf = await loadingTask.promise;
   const { PDFDocument } = await import("pdf-lib");
   const outputPdf = await PDFDocument.create();
@@ -203,16 +209,7 @@ async function attemptRasterSalvage(
       }
     }
   } finally {
-    try {
-      await sourcePdf.destroy();
-    } catch {
-      // Best-effort cleanup only.
-    }
-    try {
-      await loadingTask.destroy();
-    } catch {
-      // Best-effort cleanup only.
-    }
+    await destroyPdfJsDocument(loadingTask, sourcePdf);
   }
 
   if (recoveredPages === 0) {

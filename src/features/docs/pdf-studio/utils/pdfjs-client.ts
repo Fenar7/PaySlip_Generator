@@ -7,8 +7,14 @@
 // compilation, ensuring internal message-protocol compatibility at runtime.
 import type { DocumentInitParameters } from "pdfjs-dist/types/src/display/api";
 
-type PdfJsModule = typeof import("pdfjs-dist");
-export type PdfJsLoadingTask = ReturnType<PdfJsModule["getDocument"]>;
+type PdfJsNamespaceModule = typeof import("pdfjs-dist");
+type PdfJsRuntimeModule = {
+  GlobalWorkerOptions: PdfJsNamespaceModule["GlobalWorkerOptions"];
+  getDocument: PdfJsNamespaceModule["getDocument"];
+  OPS: PdfJsNamespaceModule["OPS"];
+};
+
+export type PdfJsLoadingTask = ReturnType<PdfJsRuntimeModule["getDocument"]>;
 export type PdfJsDocumentProxy = Awaited<PdfJsLoadingTask["promise"]>;
 export type PdfJsFailureCode =
   | "pdf-runtime-failed"
@@ -21,12 +27,12 @@ export type PdfJsFailure = {
   cause: unknown;
 };
 
-let cachedPdfJsModulePromise: Promise<PdfJsModule> | null = null;
+let cachedPdfJsModulePromise: Promise<PdfJsRuntimeModule> | null = null;
 
 // WASM binaries (openjpeg.wasm, qcms_bg.wasm, jbig2.wasm) are served as
 // static assets from public/vendor/pdfjs/wasm/. PDF.js fetches them lazily
 // only when a PDF uses JPEG2000, JBIG2, or QCMS color-space compression.
-const PDFJS_PUBLIC_WASM_URL = "/vendor/pdfjs/wasm/";
+export const PDFJS_PUBLIC_WASM_URL = "/vendor/pdfjs/wasm/";
 
 // Worker URL resolved by webpack at build time from the pdfjs-dist package.
 // Using new URL(…, import.meta.url) makes webpack emit the worker as a
@@ -35,6 +41,36 @@ const PDFJS_WORKER_URL = new URL(
   "pdfjs-dist/build/pdf.worker.min.mjs",
   import.meta.url,
 ).toString();
+
+function isPdfJsRuntimeModule(value: unknown): value is PdfJsRuntimeModule {
+  if (typeof value !== "object" || value === null) {
+    return false;
+  }
+
+  const candidate = value as Partial<PdfJsRuntimeModule>;
+  return (
+    typeof candidate.getDocument === "function" &&
+    typeof candidate.GlobalWorkerOptions === "object" &&
+    candidate.GlobalWorkerOptions !== null &&
+    typeof candidate.OPS === "object" &&
+    candidate.OPS !== null
+  );
+}
+
+function resolvePdfJsRuntimeModule(moduleNamespace: unknown): PdfJsRuntimeModule {
+  if (isPdfJsRuntimeModule(moduleNamespace)) {
+    return moduleNamespace;
+  }
+
+  if (typeof moduleNamespace === "object" && moduleNamespace !== null) {
+    const defaultExport = (moduleNamespace as { default?: unknown }).default;
+    if (isPdfJsRuntimeModule(defaultExport)) {
+      return defaultExport;
+    }
+  }
+
+  throw new Error("Invalid PDF.js runtime module shape.");
+}
 
 export function normalizePdfJsError(error: unknown): PdfJsFailure {
   if (
@@ -54,7 +90,7 @@ export function normalizePdfJsError(error: unknown): PdfJsFailure {
     error instanceof Error ? error.message : String(error ?? "");
 
   if (
-    /Unable to load wasm data|Setting up fake worker failed|Setting up worker failed|fetchBinaryData|FetchBinaryData|wasmUrl|worker/i.test(
+    /Unable to load wasm data|Setting up fake worker failed|Setting up worker failed|fetchBinaryData|FetchBinaryData|wasmUrl|worker|Object\.defineProperty called on non-object|Cannot redefine property|Invalid PDF\.js runtime module shape/i.test(
       errorMessage,
     )
   ) {
@@ -76,7 +112,8 @@ export function normalizePdfJsError(error: unknown): PdfJsFailure {
 export async function getPdfJsClient() {
   if (!cachedPdfJsModulePromise) {
     cachedPdfJsModulePromise = import("pdfjs-dist")
-      .then((pdfjsLib) => {
+      .then((moduleNamespace) => {
+        const pdfjsLib = resolvePdfJsRuntimeModule(moduleNamespace);
         if (pdfjsLib.GlobalWorkerOptions.workerSrc !== PDFJS_WORKER_URL) {
           pdfjsLib.GlobalWorkerOptions.workerSrc = PDFJS_WORKER_URL;
         }

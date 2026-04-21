@@ -1,18 +1,32 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const destroyMock = vi.fn();
-const pageCleanupMock = vi.fn();
-const renderMock = vi.fn();
-const getPageMock = vi.fn();
-const getDocumentMock = vi.fn();
+const {
+  destroyMock,
+  pageCleanupMock,
+  renderMock,
+  getPageMock,
+  getDocumentMock,
+  destroyPdfJsDocumentMock,
+  getPdfJsClientMock,
+} = vi.hoisted(() => ({
+  destroyMock: vi.fn(),
+  pageCleanupMock: vi.fn(),
+  renderMock: vi.fn(),
+  getPageMock: vi.fn(),
+  getDocumentMock: vi.fn(),
+  destroyPdfJsDocumentMock: vi.fn(),
+  getPdfJsClientMock: vi.fn(),
+}));
 
-vi.mock("pdfjs-dist", () => ({
-  GlobalWorkerOptions: { workerSrc: "" },
-  OPS: {
-    paintImageXObject: "paintImageXObject",
-    paintXObject: "paintXObject",
-  },
-  getDocument: getDocumentMock,
+vi.mock("@/features/docs/pdf-studio/utils/pdfjs-client", () => ({
+  getPdfJsClient: getPdfJsClientMock,
+  destroyPdfJsDocument: destroyPdfJsDocumentMock,
+  normalizePdfJsError: (error: unknown) => ({
+    code: "pdf-read-failed",
+    message: error instanceof Error ? error.message : String(error),
+    cause: error,
+  }),
+  PDFJS_PUBLIC_WASM_URL: "/vendor/pdfjs/wasm/",
 }));
 
 import { extractImagesFromPdf } from "@/features/docs/pdf-studio/utils/pdf-image-extractor";
@@ -39,8 +53,17 @@ describe("pdf image extractor", () => {
       promise: Promise.resolve({
         numPages: 1,
         getPage: getPageMock,
-        destroy: destroyMock,
       }),
+      destroy: destroyMock,
+    });
+    destroyPdfJsDocumentMock.mockResolvedValue(undefined);
+    getPdfJsClientMock.mockResolvedValue({
+      GlobalWorkerOptions: { workerSrc: "" },
+      OPS: {
+        paintImageXObject: "paintImageXObject",
+        paintXObject: "paintXObject",
+      },
+      getDocument: getDocumentMock,
     });
 
     vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue(
@@ -67,6 +90,12 @@ describe("pdf image extractor", () => {
       expect(result.images).toHaveLength(1);
       expect(result.images[0].source).toBe("page-render");
     }
+    expect(getDocumentMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        wasmUrl: "/vendor/pdfjs/wasm/",
+      }),
+    );
+    expect(destroyPdfJsDocumentMock).toHaveBeenCalledTimes(1);
     expect(pageCleanupMock).toHaveBeenCalledTimes(1);
   });
 });

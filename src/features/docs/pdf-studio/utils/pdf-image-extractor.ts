@@ -1,4 +1,12 @@
 import { validatePdfStudioPageCount } from "@/features/docs/pdf-studio/lib/ingestion";
+import {
+  destroyPdfJsDocument,
+  getPdfJsClient,
+  normalizePdfJsError,
+  PDFJS_PUBLIC_WASM_URL,
+  type PdfJsDocumentProxy,
+  type PdfJsLoadingTask,
+} from "@/features/docs/pdf-studio/utils/pdfjs-client";
 
 export interface ExtractedPdfImage {
   pageIndex: number;
@@ -19,17 +27,18 @@ export async function extractImagesFromPdf(
   | { ok: true; images: ExtractedPdfImage[]; fallbackUsed: boolean }
   | { ok: false; error: string }
 > {
-  try {
-    const pdfjsLib = await import("pdfjs-dist");
-    pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
-      "pdfjs-dist/build/pdf.worker.min.mjs",
-      import.meta.url,
-    ).toString();
+  let loadingTask: PdfJsLoadingTask | null = null;
+  let pdf: PdfJsDocumentProxy | null = null;
 
-    const pdf = await pdfjsLib.getDocument({ data: pdfBytes }).promise;
+  try {
+    const pdfjsLib = await getPdfJsClient();
+    loadingTask = pdfjsLib.getDocument({
+      data: pdfBytes,
+      wasmUrl: PDFJS_PUBLIC_WASM_URL,
+    });
+    pdf = await loadingTask.promise;
     const pageValidation = validatePdfStudioPageCount("extract-images", pdf.numPages);
     if (!pageValidation.ok) {
-      await pdf.destroy();
       return { ok: false, error: pageValidation.error };
     }
 
@@ -73,7 +82,6 @@ export async function extractImagesFromPdf(
         let imageIndex = 0;
         for (const name of imgNames) {
           if (results.length >= PDF_IMAGE_EXTRACT_MAX_IMAGES) {
-            await pdf.destroy();
             return {
               ok: false,
               error: `This PDF contains too many embedded images to extract safely in the browser (max ${PDF_IMAGE_EXTRACT_MAX_IMAGES}).`,
@@ -163,8 +171,6 @@ export async function extractImagesFromPdf(
       }
     }
 
-    await pdf.destroy();
-
     if (results.length > 0) {
       return { ok: true, images: results, fallbackUsed: false };
     }
@@ -177,7 +183,11 @@ export async function extractImagesFromPdf(
   } catch (error) {
     return {
       ok: false,
-      error: error instanceof Error ? error.message : "Unknown extraction error",
+      error: normalizePdfJsError(error).message,
     };
+  } finally {
+    if (loadingTask) {
+      await destroyPdfJsDocument(loadingTask, pdf);
+    }
   }
 }
