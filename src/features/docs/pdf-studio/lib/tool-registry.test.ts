@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
+  getPdfStudioToolBySlug,
   getPdfStudioTool,
+  isPdfStudioToolAvailableOnSurface,
+  listPdfStudioTools,
   listPdfStudioToolsByCategory,
 } from "@/features/docs/pdf-studio/lib/tool-registry";
 
@@ -28,6 +31,19 @@ describe("pdf studio tool registry", () => {
       "/app/docs/pdf-studio/extract-pages",
     );
     expect(getPdfStudioTool("rotate").publicPath).toBe("/pdf-studio/rotate");
+  });
+
+  it("lists extract-pages on the public catalog and resolves its public slug", () => {
+    const publicTools = listPdfStudioTools("public").map((tool) => tool.id);
+    const extractedPagesTool = getPdfStudioToolBySlug("extract-pages");
+
+    expect(publicTools).toContain("extract-pages");
+    expect(extractedPagesTool?.id).toBe("extract-pages");
+    expect(
+      extractedPagesTool
+        ? isPdfStudioToolAvailableOnSurface(extractedPagesTool, "public")
+        : false,
+    ).toBe(true);
   });
 
   it("registers the Phase 31 tools on the workspace surface", () => {
@@ -168,9 +184,6 @@ describe("pdf studio tool registry", () => {
       "alternate-mix",
     );
     expect(publicCatalog.flatMap((category) => category.tools)).not.toContain(
-      "extract-pages",
-    );
-    expect(publicCatalog.flatMap((category) => category.tools)).not.toContain(
       "editor",
     );
     expect(publicCatalog.flatMap((category) => category.tools)).not.toContain(
@@ -227,5 +240,8 @@ describe("pdf studio tool registry", () => {
     expect(publicCatalog.flatMap((category) => category.tools)).toContain("ocr");
     expect(publicCatalog.flatMap((category) => category.tools)).toContain("deskew");
     expect(publicCatalog.flatMap((category) => category.tools)).toContain("rotate");
+    expect(publicCatalog.flatMap((category) => category.tools)).toContain(
+      "extract-pages",
+    );
   });
 });

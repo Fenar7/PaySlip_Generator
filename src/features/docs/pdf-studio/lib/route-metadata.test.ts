@@ -27,6 +27,14 @@ describe("pdf studio route metadata", () => {
     expect(metadata.title).toBe("Rotate Pages | PDF Studio");
   });
 
+  it("builds public metadata for extract-pages", () => {
+    const metadata = buildPdfStudioToolMetadata("extract-pages", "public");
+
+    expect(metadata.alternates?.canonical).toBe("/pdf-studio/extract-pages");
+    expect(metadata.title).toBe("Extract Pages | PDF Studio");
+    expect(metadata.description).toContain("Runs entirely in your browser");
+  });
+
   it("marks workspace pages as non-indexable while sharing canonical targets", () => {
     const metadata = buildPdfStudioToolMetadata("protect", "workspace");
 

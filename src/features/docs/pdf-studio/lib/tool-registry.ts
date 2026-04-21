@@ -167,7 +167,7 @@ export const PDF_STUDIO_TOOL_REGISTRY: Record<
     category: "page-organization",
     workspacePath: "/app/docs/pdf-studio/extract-pages",
     publicPath: "/pdf-studio/extract-pages",
-    availability: WORKSPACE_ONLY,
+    availability: PUBLIC_AND_WORKSPACE,
     executionMode: "browser",
     inputTypes: ["pdf"],
     outputLabel: "PDF / ZIP",
