@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, type FormEvent } from "react";
-import { uploadPaymentProof } from "@/app/invoice/[token]/actions";
+import { MAX_PAYMENT_PROOF_BYTES } from "@/features/pay/lib/payment-proof";
 
 const PAYMENT_METHODS = [
   { value: "bank_transfer", label: "Bank Transfer" },
@@ -10,8 +10,6 @@ const PAYMENT_METHODS = [
   { value: "cheque", label: "Cheque" },
   { value: "other", label: "Other" },
 ];
-
-const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
 
 export function ProofUploadForm({
   token,
@@ -40,17 +38,8 @@ export function ProofUploadForm({
     if (!form.get("paymentDate")) errs.paymentDate = "Select a payment date";
     if (!form.get("paymentMethod")) errs.paymentMethod = "Select a payment method";
     if (!selectedFile) errs.file = "Upload a proof file";
-    if (selectedFile && selectedFile.size > MAX_FILE_SIZE) errs.file = "File must be under 5MB";
+    if (selectedFile && selectedFile.size > MAX_PAYMENT_PROOF_BYTES) errs.file = "File must be under 5MB";
     return errs;
-  }
-
-  async function fileToBase64(file: File): Promise<string> {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => resolve(reader.result as string);
-      reader.onerror = reject;
-      reader.readAsDataURL(file);
-    });
   }
 
   async function handleSubmit(e: FormEvent<HTMLFormElement>) {
@@ -62,21 +51,20 @@ export function ProofUploadForm({
 
     setLoading(true);
     try {
-      const fileUrl = await fileToBase64(selectedFile!);
-      const result = await uploadPaymentProof(token, {
-        amount: Number(form.get("amount")),
-        paymentDate: form.get("paymentDate") as string,
-        paymentMethod: form.get("paymentMethod") as string,
-        note: (form.get("note") as string) || undefined,
-        fileUrl,
-        fileName: selectedFile!.name,
-        plannedNextPaymentDate: (form.get("plannedNextPaymentDate") as string) || undefined,
-      });
+      form.set("file", selectedFile!, selectedFile!.name);
+      form.set("fileName", selectedFile!.name);
 
-      if (result.success) {
+      const response = await fetch(`/invoice/${encodeURIComponent(token)}/proof`, {
+        method: "POST",
+        body: form,
+      });
+      const result = (await response.json()) as { success: boolean; error?: string };
+
+      if (response.ok && result.success) {
         setSuccess(true);
+        setSelectedFile(null);
       } else {
-        setErrors({ form: result.error });
+        setErrors({ form: result.error ?? "Failed to upload payment proof." });
       }
     } catch {
       setErrors({ form: "Something went wrong. Please try again." });
@@ -87,7 +75,7 @@ export function ProofUploadForm({
 
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0] ?? null;
-    if (file && file.size > MAX_FILE_SIZE) {
+    if (file && file.size > MAX_PAYMENT_PROOF_BYTES) {
       setErrors((prev) => ({ ...prev, file: "File must be under 5MB" }));
       setSelectedFile(null);
       return;
@@ -227,7 +215,7 @@ export function ProofUploadForm({
           <input
             ref={fileRef}
             type="file"
-            accept="image/*,application/pdf"
+            accept=".pdf,.jpg,.jpeg,.png,.webp,.gif,.bmp,.heic,.heif,application/pdf,image/jpeg,image/png,image/webp,image/gif,image/bmp,image/heic,image/heif"
             onChange={handleFileChange}
             className="hidden"
           />
