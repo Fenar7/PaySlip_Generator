@@ -8,7 +8,14 @@ export default defineConfig({
     environment: "jsdom",
     globals: true,
     setupFiles: ["./vitest.setup.ts"],
-    exclude: ["tests/**", "node_modules/**"],
+    exclude: [
+      "tests/**",
+      "node_modules/**",
+      ".next/**",
+      "**/.next/**",
+      "coverage/**",
+      "dist/**",
+    ],
     testTimeout: 30000,
   },
   resolve: {

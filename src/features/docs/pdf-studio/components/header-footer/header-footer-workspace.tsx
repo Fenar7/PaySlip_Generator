@@ -15,6 +15,7 @@ import {
   type HeaderFooterSettings,
 } from "@/features/docs/pdf-studio/utils/header-footer-writer";
 import { downloadPdfBytes } from "@/features/docs/pdf-studio/utils/zip-builder";
+import type { PdfStampScope } from "@/features/docs/pdf-studio/types";
 
 // ── Defaults ───────────────────────────────────────────────────────────
 
@@ -62,6 +63,8 @@ export function HeaderFooterWorkspace() {
   const [footer, setFooter] = useState<HeaderFooterConfig>({
     ...DEFAULT_CONFIG,
   });
+  const [scope, setScope] = useState<PdfStampScope>("all");
+  const [skipFirstPage, setSkipFirstPage] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -164,6 +167,8 @@ export function HeaderFooterWorkspace() {
         header,
         footer,
         filename: file.name.replace(/\.pdf$/i, ""),
+        scope,
+        skipFirstPage,
       };
       const result = await injectHeaderFooter(pdfBytes, settings);
       const baseName = file.name.replace(/\.pdf$/i, "");
@@ -186,7 +191,7 @@ export function HeaderFooterWorkspace() {
     } finally {
       setGenerating(false);
     }
-  }, [analytics, file, footer, hasContent, header, pdfBytes]);
+  }, [analytics, file, footer, hasContent, header, pdfBytes, scope, skipFirstPage]);
 
   // ── Config panel sub-component ───────────────────────────────────────
 
@@ -350,7 +355,7 @@ export function HeaderFooterWorkspace() {
             Header &amp; Footer
           </h1>
           <p className="mt-2 text-sm text-[#666]">
-            Add custom headers and footers to all PDF pages
+            Add custom headers and footers with odd/even scopes and first-page exceptions
           </p>
         </div>
 
@@ -418,6 +423,8 @@ export function HeaderFooterWorkspace() {
               setPreviewUrl(null);
               setHeader({ ...DEFAULT_CONFIG });
               setFooter({ ...DEFAULT_CONFIG });
+              setScope("all");
+              setSkipFirstPage(false);
               setError(null);
               setSuccess(false);
             }}
@@ -428,6 +435,29 @@ export function HeaderFooterWorkspace() {
 
         <div className="rounded-xl bg-[#f5f5f5] px-3 py-2 text-xs text-[#666] truncate">
           {file.name}
+        </div>
+
+        <div className="grid grid-cols-2 gap-3 rounded-xl border border-[#e5e5e5] bg-white p-4">
+          <label className="text-xs font-semibold text-[#1a1a1a]">
+            Scope
+            <select
+              value={scope}
+              onChange={(e) => setScope(e.target.value as PdfStampScope)}
+              className="mt-1 w-full rounded-xl border border-[#e5e5e5] bg-white px-3 py-2 text-sm text-[#1a1a1a] focus:border-[#999] focus:outline-none"
+            >
+              <option value="all">All pages</option>
+              <option value="odd">Odd pages</option>
+              <option value="even">Even pages</option>
+            </select>
+          </label>
+          <label className="flex items-center gap-2 self-end text-xs text-[#444]">
+            <input
+              type="checkbox"
+              checked={skipFirstPage}
+              onChange={(e) => setSkipFirstPage(e.target.checked)}
+            />
+            Skip first page
+          </label>
         </div>
 
         <ConfigPanel

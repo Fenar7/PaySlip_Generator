@@ -10,7 +10,17 @@ export type PdfStudioToolId =
   | "organize"
   | "rotate"
   | "resize-pages"
+  | "editor"
   | "fill-sign"
+  | "create-forms"
+  | "page-numbers"
+  | "bates"
+  | "metadata"
+  | "rename"
+  | "remove-annotations"
+  | "bookmarks"
+  | "flatten"
+  | "n-up"
   | "protect"
   | "header-footer"
   | "repair"
@@ -39,6 +49,7 @@ export type PdfMetadata = {
 
 export type PageNumberFormat = 'number' | 'page-number' | 'number-of-total' | 'page-number-of-total';
 export type PageNumberPosition = 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right' | 'bottom-center';
+export type PdfStampScope = "all" | "odd" | "even";
 
 export type PageNumberSettings = {
   enabled: boolean;
@@ -46,6 +57,7 @@ export type PageNumberSettings = {
   format: PageNumberFormat;
   startFrom: number;
   skipFirstPage: boolean;
+  scope?: PdfStampScope;
 };
 
 // Alias for backward compatibility
@@ -103,6 +115,77 @@ export type WatermarkSettings = {
 
 // Legacy type alias for backward compatibility
 export type PdfWatermarkSettings = WatermarkSettings;
+
+export type PdfEditorShapeType = "rectangle" | "ellipse" | "line";
+
+export type PdfEditorBaseObject = {
+  id: string;
+  pageIndex: number;
+  x: number;
+  y: number;
+};
+
+export type PdfEditorTextObject = PdfEditorBaseObject & {
+  type: "text" | "date" | "initials";
+  text: string;
+  fontSize: number;
+  color: string;
+  fontFamily: "helvetica" | "times";
+};
+
+export type PdfEditorShapeObject = PdfEditorBaseObject & {
+  type: "shape";
+  shapeType: PdfEditorShapeType;
+  width: number;
+  height: number;
+  strokeColor: string;
+  fillColor?: string;
+  strokeWidth: number;
+};
+
+export type PdfEditorImageObject = PdfEditorBaseObject & {
+  type: "signature" | "image";
+  dataUrl: string;
+  width: number;
+  height: number;
+};
+
+export type PdfEditorObject =
+  | PdfEditorTextObject
+  | PdfEditorShapeObject
+  | PdfEditorImageObject;
+
+export type PdfFormFieldKind = "text" | "checkbox" | "signature" | "date";
+
+export type PdfFormFieldDraft = {
+  id: string;
+  name: string;
+  label: string;
+  kind: PdfFormFieldKind;
+  pageIndex: number;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  required: boolean;
+  defaultValue?: string;
+};
+
+export type PdfBookmarkDraft = {
+  id: string;
+  title: string;
+  pageNumber: number;
+  level: number;
+};
+
+export type PdfRenameCaseStyle = "original" | "lower" | "upper" | "kebab" | "snake";
+
+export type PdfRenameRuleSettings = {
+  prefix: string;
+  suffix: string;
+  replaceSpacesWith: "-" | "_" | "none";
+  caseStyle: PdfRenameCaseStyle;
+};
 
 export type ImageCrop = {
   x: number;

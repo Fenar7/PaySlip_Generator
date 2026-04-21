@@ -33,4 +33,12 @@ describe("pdf studio route metadata", () => {
     expect(metadata.alternates?.canonical).toBe("/app/docs/pdf-studio/protect");
     expect(metadata.robots).toEqual({ index: false, follow: false });
   });
+
+  it("keeps new Phase 31 workspace-only tools non-indexable", () => {
+    const metadata = buildPdfStudioToolMetadata("flatten", "workspace");
+
+    expect(metadata.alternates?.canonical).toBe("/app/docs/pdf-studio/flatten");
+    expect(metadata.robots).toEqual({ index: false, follow: false });
+    expect(metadata.title).toBe("Flatten PDF | PDF Studio");
+  });
 });
