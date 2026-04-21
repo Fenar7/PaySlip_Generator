@@ -100,6 +100,9 @@ describe("pdf studio tool registry", () => {
       },
       outputLabel: "Image-only PDF",
     });
+    expect(getPdfStudioTool("repair")).toMatchObject({
+      outputLabel: "PDF / Log",
+    });
     expect(getPdfStudioTool("grayscale")).toMatchObject({
       workspacePath: "/app/docs/pdf-studio/grayscale",
       availability: {

@@ -519,7 +519,7 @@ export const PDF_STUDIO_TOOL_REGISTRY: Record<
     id: "repair",
     title: "Repair PDF",
     description:
-      "Analyze corrupted PDFs, attempt repair, and clearly report repaired, partial, or failed outcomes.",
+      "Analyze corrupted PDFs, attempt repair, and download a repair log with explicit repaired, partial, or failed outcomes.",
     icon: "🔧",
     category: "edit-enhance",
     workspacePath: "/app/docs/pdf-studio/repair",
@@ -527,7 +527,7 @@ export const PDF_STUDIO_TOOL_REGISTRY: Record<
     availability: PUBLIC_AND_WORKSPACE,
     executionMode: "browser",
     inputTypes: ["pdf"],
-    outputLabel: "PDF",
+    outputLabel: "PDF / Log",
     limits: SHARED_PDF_LIMITS,
     defaultOutputBase: "repaired-document",
     keywords: ["repair pdf", "fix corrupted pdf", "recover pdf"],
