@@ -92,6 +92,34 @@ describe("pdfjs client", () => {
     });
   });
 
+  it("falls back to a no-worker open when worker bootstrap keeps failing", async () => {
+    getDocument
+      .mockImplementationOnce(() => {
+        throw new Error("Setting up worker failed");
+      })
+      .mockImplementationOnce(() => {
+        throw new Error("Setting up worker failed");
+      })
+      .mockImplementationOnce(() => {
+        throw new Error("Setting up worker failed");
+      })
+      .mockImplementationOnce(() => ({
+        promise: Promise.resolve({ numPages: 1 }),
+        destroy: vi.fn(),
+      }));
+
+    const { openPdfJsDocument } = await import("@/features/docs/pdf-studio/utils/pdfjs-client");
+    const opened = await openPdfJsDocument(new Uint8Array([1, 2, 3]));
+
+    expect(opened.pdf.numPages).toBe(1);
+    expect(getDocument).toHaveBeenCalledTimes(4);
+    expect(getDocument).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        disableWorker: true,
+      }),
+    );
+  });
+
   it("classifies defineProperty bootstrap crashes as runtime failures", async () => {
     const { normalizePdfJsError } = await import("@/features/docs/pdf-studio/utils/pdfjs-client");
     const failure = normalizePdfJsError(

@@ -41,6 +41,8 @@ const PDFJS_WORKER_URL = new URL(
   "pdfjs-dist/build/pdf.worker.min.mjs",
   import.meta.url,
 ).toString();
+const PDFJS_PUBLIC_WORKER_URL = "/vendor/pdfjs/pdf.worker.min.mjs";
+let preferredWorkerSrc = PDFJS_WORKER_URL;
 
 function isPdfJsRuntimeModule(value: unknown): value is PdfJsRuntimeModule {
   if (typeof value !== "object" || value === null) {
@@ -109,14 +111,42 @@ export function normalizePdfJsError(error: unknown): PdfJsFailure {
   };
 }
 
+function applyWorkerSrc(pdfjsLib: PdfJsRuntimeModule, workerSrc: string) {
+  if (pdfjsLib.GlobalWorkerOptions.workerSrc !== workerSrc) {
+    pdfjsLib.GlobalWorkerOptions.workerSrc = workerSrc;
+  }
+}
+
+async function openPdfJsDocumentOnce(
+  pdfjsLib: PdfJsRuntimeModule,
+  data: ArrayBuffer | Uint8Array,
+  options: Omit<DocumentInitParameters, "data" | "wasmUrl"> | undefined,
+  workerSrc: string,
+  disableWorker = false,
+) {
+  applyWorkerSrc(pdfjsLib, workerSrc);
+  const loadingTask = pdfjsLib.getDocument({
+    data,
+    wasmUrl: PDFJS_PUBLIC_WASM_URL,
+    ...options,
+    ...(disableWorker ? { disableWorker: true } : {}),
+  });
+
+  try {
+    const pdf = await loadingTask.promise;
+    return { loadingTask, pdf };
+  } catch (error) {
+    await destroyPdfJsDocument(loadingTask, null);
+    throw error;
+  }
+}
+
 export async function getPdfJsClient() {
   if (!cachedPdfJsModulePromise) {
     cachedPdfJsModulePromise = import("pdfjs-dist")
       .then((moduleNamespace) => {
         const pdfjsLib = resolvePdfJsRuntimeModule(moduleNamespace);
-        if (pdfjsLib.GlobalWorkerOptions.workerSrc !== PDFJS_WORKER_URL) {
-          pdfjsLib.GlobalWorkerOptions.workerSrc = PDFJS_WORKER_URL;
-        }
+        applyWorkerSrc(pdfjsLib, preferredWorkerSrc);
         return pdfjsLib;
       })
       .catch((error) => {
@@ -132,17 +162,55 @@ export async function openPdfJsDocument(
   data: ArrayBuffer | Uint8Array,
   options?: Omit<DocumentInitParameters, "data" | "wasmUrl">,
 ) {
+  const pdfjsLib = await getPdfJsClient();
+  const initialWorkerSrc = preferredWorkerSrc;
+
   try {
-    const pdfjsLib = await getPdfJsClient();
-    const loadingTask = pdfjsLib.getDocument({
-      data,
-      wasmUrl: PDFJS_PUBLIC_WASM_URL,
-      ...options,
-    });
-    const pdf = await loadingTask.promise;
-    return { loadingTask, pdf };
+    return await openPdfJsDocumentOnce(pdfjsLib, data, options, initialWorkerSrc);
   } catch (error) {
-    throw normalizePdfJsError(error);
+    const primaryFailure = normalizePdfJsError(error);
+    if (primaryFailure.code !== "pdf-runtime-failed" || options?.disableWorker) {
+      throw primaryFailure;
+    }
+
+    try {
+      return await openPdfJsDocumentOnce(pdfjsLib, data, options, initialWorkerSrc);
+    } catch (retryError) {
+      const retryFailure = normalizePdfJsError(retryError);
+      if (retryFailure.code !== "pdf-runtime-failed") {
+        throw retryFailure;
+      }
+    }
+
+    if (initialWorkerSrc !== PDFJS_PUBLIC_WORKER_URL) {
+      try {
+        const opened = await openPdfJsDocumentOnce(
+          pdfjsLib,
+          data,
+          options,
+          PDFJS_PUBLIC_WORKER_URL,
+        );
+        preferredWorkerSrc = PDFJS_PUBLIC_WORKER_URL;
+        return opened;
+      } catch (publicWorkerError) {
+        const publicWorkerFailure = normalizePdfJsError(publicWorkerError);
+        if (publicWorkerFailure.code !== "pdf-runtime-failed") {
+          throw publicWorkerFailure;
+        }
+      }
+    }
+
+    try {
+      return await openPdfJsDocumentOnce(
+        pdfjsLib,
+        data,
+        options,
+        initialWorkerSrc,
+        true,
+      );
+    } catch (fallbackError) {
+      throw normalizePdfJsError(fallbackError);
+    }
   }
 }
 
