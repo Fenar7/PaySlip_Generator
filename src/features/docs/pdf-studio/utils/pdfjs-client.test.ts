@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const getDocument = vi.fn();
 const workerOptions = { workerSrc: "" };
 
-vi.mock("pdfjs-dist/legacy/build/pdf.mjs", () => ({
+vi.mock("pdfjs-dist", () => ({
   GlobalWorkerOptions: workerOptions,
   getDocument,
 }));
@@ -15,13 +15,16 @@ describe("pdfjs client", () => {
     vi.resetModules();
   });
 
-  it("configures the served worker source before opening a document", async () => {
+  it("configures the webpack-resolved worker URL before opening a document", async () => {
     const { getPdfJsClient } = await import("@/features/docs/pdf-studio/utils/pdfjs-client");
 
     const pdfjs = await getPdfJsClient();
 
     expect(pdfjs.getDocument).toBe(getDocument);
-    expect(workerOptions.workerSrc).toBe("/vendor/pdfjs/pdf.worker.min.mjs");
+    // In vitest (jsdom), import.meta.url is a file:// URL, so the resolved
+    // worker URL starts with the test environment base rather than a public path.
+    // We verify it is non-empty and contains the expected worker filename.
+    expect(workerOptions.workerSrc).toMatch(/pdf\.worker\.min\.mjs/);
   });
 
   it("cleans up loading tasks through the shared destroy helper", async () => {

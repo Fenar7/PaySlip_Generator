@@ -3,6 +3,7 @@
 import {
   destroyPdfJsDocument,
   openPdfJsDocument,
+  type PdfJsDocumentProxy,
 } from "@/features/docs/pdf-studio/utils/pdfjs-client";
 
 export type PdfBookmarkBoundary = {
@@ -69,7 +70,7 @@ async function openPdfDocument(pdfBytes: Uint8Array) {
 }
 
 async function resolveDestinationPageNumber(
-  pdfDocument: PdfDocumentProxy,
+  pdfDocument: PdfJsDocumentProxy,
   destination: PdfOutlineItem["dest"],
 ) {
   let resolvedDestination = destination;
@@ -94,7 +95,7 @@ async function resolveDestinationPageNumber(
 }
 
 async function flattenBookmarks(
-  pdfDocument: PdfDocumentProxy,
+  pdfDocument: PdfJsDocumentProxy,
   outline: PdfOutlineItem[],
   level = 0,
 ): Promise<PdfBookmarkBoundary[]> {
@@ -252,7 +253,7 @@ export function detectSeparatorCandidates(
   });
 }
 
-async function getNormalizedPageText(pdfDocument: PdfDocumentProxy, pageNumber: number) {
+async function getNormalizedPageText(pdfDocument: PdfJsDocumentProxy, pageNumber: number) {
   const page = await pdfDocument.getPage(pageNumber);
 
   try {

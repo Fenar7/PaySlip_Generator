@@ -28,6 +28,7 @@ export type PdfStudioFailureReason =
   | "processing-failed"
   | "render-failed"
   | "validation-failed"
+  | "password-protected"
   | "password-required"
   | "password-mismatch"
   | "password-too-short"

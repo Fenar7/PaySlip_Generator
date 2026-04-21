@@ -1,6 +1,13 @@
 "use client";
 
-type PdfJsModule = typeof import("pdfjs-dist/legacy/build/pdf.mjs");
+// Import the standard pdfjs-dist entry (build/pdf.mjs). We load the module
+// dynamically so webpack code-splits it into its own chunk. The worker is
+// also resolved via new URL(…, import.meta.url) so webpack creates a
+// compatible sibling chunk — both chunks come from the same webpack
+// compilation, ensuring internal message-protocol compatibility at runtime.
+import type { DocumentInitParameters } from "pdfjs-dist/types/src/display/api";
+
+type PdfJsModule = typeof import("pdfjs-dist");
 export type PdfJsLoadingTask = ReturnType<PdfJsModule["getDocument"]>;
 export type PdfJsDocumentProxy = Awaited<PdfJsLoadingTask["promise"]>;
 export type PdfJsFailureCode =
@@ -16,9 +23,18 @@ export type PdfJsFailure = {
 
 let cachedPdfJsModulePromise: Promise<PdfJsModule> | null = null;
 
-const PDFJS_PUBLIC_ASSET_BASE = "/vendor/pdfjs";
-const PDFJS_PUBLIC_WORKER_SRC = `${PDFJS_PUBLIC_ASSET_BASE}/pdf.worker.min.mjs`;
-const PDFJS_PUBLIC_WASM_URL = `${PDFJS_PUBLIC_ASSET_BASE}/wasm/`;
+// WASM binaries (openjpeg.wasm, qcms_bg.wasm, jbig2.wasm) are served as
+// static assets from public/vendor/pdfjs/wasm/. PDF.js fetches them lazily
+// only when a PDF uses JPEG2000, JBIG2, or QCMS color-space compression.
+const PDFJS_PUBLIC_WASM_URL = "/vendor/pdfjs/wasm/";
+
+// Worker URL resolved by webpack at build time from the pdfjs-dist package.
+// Using new URL(…, import.meta.url) makes webpack emit the worker as a
+// separate chunk that is guaranteed to match the main module chunk.
+const PDFJS_WORKER_URL = new URL(
+  "pdfjs-dist/build/pdf.worker.min.mjs",
+  import.meta.url,
+).toString();
 
 export function normalizePdfJsError(error: unknown): PdfJsFailure {
   if (
@@ -59,10 +75,10 @@ export function normalizePdfJsError(error: unknown): PdfJsFailure {
 
 export async function getPdfJsClient() {
   if (!cachedPdfJsModulePromise) {
-    cachedPdfJsModulePromise = import("pdfjs-dist/legacy/build/pdf.mjs")
+    cachedPdfJsModulePromise = import("pdfjs-dist")
       .then((pdfjsLib) => {
-        if (pdfjsLib.GlobalWorkerOptions.workerSrc !== PDFJS_PUBLIC_WORKER_SRC) {
-          pdfjsLib.GlobalWorkerOptions.workerSrc = PDFJS_PUBLIC_WORKER_SRC;
+        if (pdfjsLib.GlobalWorkerOptions.workerSrc !== PDFJS_WORKER_URL) {
+          pdfjsLib.GlobalWorkerOptions.workerSrc = PDFJS_WORKER_URL;
         }
         return pdfjsLib;
       })
@@ -77,7 +93,7 @@ export async function getPdfJsClient() {
 
 export async function openPdfJsDocument(
   data: ArrayBuffer | Uint8Array,
-  options?: Partial<Parameters<PdfJsModule["getDocument"]>[0]>,
+  options?: Omit<DocumentInitParameters, "data" | "wasmUrl">,
 ) {
   try {
     const pdfjsLib = await getPdfJsClient();

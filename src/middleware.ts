@@ -79,6 +79,9 @@ function buildCsp(): string {
     "font-src 'self' https://fonts.gstatic.com data:",
     `connect-src ${connectSrc}`,
     "frame-src https://js.stripe.com https://checkout.razorpay.com",
+    // Allow same-origin web workers (PDF.js uses a webpack-emitted worker chunk
+    // served from /_next/static/…). blob: allows inline workers if ever needed.
+    "worker-src 'self' blob:",
     "frame-ancestors 'none'",
     "base-uri 'self'",
     "form-action 'self'",
