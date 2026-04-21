@@ -5,6 +5,7 @@ import {
   decryptIntegrationSecret,
   encryptIntegrationSecret,
   mergeIntegrationConfig,
+  sanitizeIntegrationSyncError,
 } from "@/lib/integrations/secrets";
 
 const ZOHO_AUTH_URL = "https://accounts.zoho.in/oauth/v2/auth";
@@ -97,7 +98,7 @@ export async function handleCallback(
         connectedAt,
         disconnectedAt: null,
         connectionStatus: "connected",
-        credentialVersion: "encrypted_v1",
+        credentialVersion: "encrypted_v2",
         lastSyncStatus: "connected",
         lastSyncError: null,
       }),
@@ -112,7 +113,7 @@ export async function handleCallback(
         connectedAt,
         disconnectedAt: null,
         connectionStatus: "connected",
-        credentialVersion: "encrypted_v1",
+        credentialVersion: "encrypted_v2",
         lastSyncStatus: "connected",
         lastSyncError: null,
       }),
@@ -149,7 +150,20 @@ export async function refreshTokenIfNeeded(orgId: string): Promise<string> {
   });
 
   if (!res.ok) {
-    throw new Error("Zoho token refresh failed");
+    // Best-effort: mark integration as auth_expired so UI can prompt reconnect.
+    // .catch(() => {}) ensures this state update failure doesn't mask the auth error.
+    db.orgIntegration
+      .update({
+        where: { orgId_provider: { orgId, provider: "zoho" } },
+        data: {
+          config: mergeIntegrationConfig(integration.config, {
+            lastSyncStatus: "auth_expired",
+            lastSyncError: "Zoho access token could not be refreshed. Please reconnect.",
+          }),
+        },
+      })
+      .catch(() => {});
+    throw new Error("Zoho access token could not be refreshed. Please reconnect.");
   }
 
   const tokens = (await res.json()) as {
@@ -163,7 +177,7 @@ export async function refreshTokenIfNeeded(orgId: string): Promise<string> {
       accessToken: encryptIntegrationSecret(tokens.access_token),
       tokenExpiresAt: new Date(Date.now() + tokens.expires_in * 1000),
       config: mergeIntegrationConfig(integration.config, {
-        credentialVersion: "encrypted_v1",
+        credentialVersion: "encrypted_v2",
         lastTokenRefreshAt: new Date().toISOString(),
         lastSyncError: null,
       }),
@@ -241,18 +255,19 @@ export async function syncInvoices(orgId: string): Promise<{ synced: number }> {
         synced++;
       } else {
         failedInvoices.push(inv.invoiceNumber);
-        const errBody = await res.text();
-        console.error(`Zoho sync failed for ${inv.invoiceNumber}:`, errBody);
+        // Log HTTP status only — never log response body which may contain provider details
+        console.error(`Zoho sync failed for ${inv.invoiceNumber}: HTTP ${res.status}`);
       }
     }
   } catch (error) {
+    console.error("Zoho sync unexpected error:", error instanceof Error ? error.message : "unknown");
     await db.orgIntegration.update({
       where: { orgId_provider: { orgId, provider: "zoho" } },
       data: {
         config: mergeIntegrationConfig(integration.config, {
           lastSyncAttemptAt: syncStartedAt.toISOString(),
           lastSyncStatus: "failed",
-          lastSyncError: error instanceof Error ? error.message : "Zoho sync failed",
+          lastSyncError: sanitizeIntegrationSyncError(error),
         }),
       },
     });
@@ -273,7 +288,7 @@ export async function syncInvoices(orgId: string): Promise<{ synced: number }> {
               : "failed",
         lastSyncError:
           failedInvoices.length > 0
-            ? `Failed invoices: ${failedInvoices.slice(0, 5).join(", ")}`
+            ? `${failedInvoices.length} invoice(s) failed to sync.`
             : null,
         syncedCount: synced,
         attemptedCount: invoices.length,
@@ -292,10 +307,14 @@ export async function disconnect(orgId: string): Promise<void> {
   if (!integration) return;
 
   try {
-    await fetch(
-      `${ZOHO_REVOKE_URL}?token=${decryptIntegrationSecret(integration.refreshToken)}`,
-      { method: "POST" }
-    );
+    // Token must be sent in POST body, never as a URL query param (URLs are logged by servers)
+    await fetch(ZOHO_REVOKE_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({
+        token: decryptIntegrationSecret(integration.refreshToken),
+      }),
+    });
   } catch {
     // Best-effort revocation
   }

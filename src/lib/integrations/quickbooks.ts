@@ -5,6 +5,7 @@ import {
   decryptIntegrationSecret,
   encryptIntegrationSecret,
   mergeIntegrationConfig,
+  sanitizeIntegrationSyncError,
 } from "@/lib/integrations/secrets";
 
 const QB_AUTH_URL = "https://appcenter.intuit.com/connect/oauth2";
@@ -86,7 +87,7 @@ export async function handleCallback(
         connectedAt,
         disconnectedAt: null,
         connectionStatus: "connected",
-        credentialVersion: "encrypted_v1",
+        credentialVersion: "encrypted_v2",
         lastSyncStatus: "connected",
         lastSyncError: null,
       }),
@@ -101,7 +102,7 @@ export async function handleCallback(
         connectedAt,
         disconnectedAt: null,
         connectionStatus: "connected",
-        credentialVersion: "encrypted_v1",
+        credentialVersion: "encrypted_v2",
         lastSyncStatus: "connected",
         lastSyncError: null,
       }),
@@ -142,7 +143,20 @@ export async function refreshTokenIfNeeded(orgId: string): Promise<string> {
   });
 
   if (!res.ok) {
-    throw new Error("QuickBooks token refresh failed");
+    // Best-effort: mark integration as auth_expired so UI can prompt reconnect.
+    db.orgIntegration
+      .update({
+        where: { orgId_provider: { orgId, provider: "quickbooks" } },
+        data: {
+          config: mergeIntegrationConfig(integration.config, {
+            lastSyncStatus: "auth_expired",
+            lastSyncError:
+              "QuickBooks access token could not be refreshed. Please reconnect.",
+          }),
+        },
+      })
+      .catch(() => {});
+    throw new Error("QuickBooks access token could not be refreshed. Please reconnect.");
   }
 
   const tokens = (await res.json()) as {
@@ -158,7 +172,7 @@ export async function refreshTokenIfNeeded(orgId: string): Promise<string> {
       refreshToken: encryptIntegrationSecret(tokens.refresh_token),
       tokenExpiresAt: new Date(Date.now() + tokens.expires_in * 1000),
       config: mergeIntegrationConfig(integration.config, {
-        credentialVersion: "encrypted_v1",
+        credentialVersion: "encrypted_v2",
         lastTokenRefreshAt: new Date().toISOString(),
         lastSyncError: null,
       }),
@@ -244,18 +258,24 @@ export async function syncInvoices(orgId: string): Promise<{ synced: number }> {
         synced++;
       } else {
         failedInvoices.push(inv.invoiceNumber);
-        const errBody = await res.text();
-        console.error(`QuickBooks sync failed for ${inv.invoiceNumber}:`, errBody);
+        // Log HTTP status only — never log response body which may contain provider details
+        console.error(
+          `QuickBooks sync failed for ${inv.invoiceNumber}: HTTP ${res.status}`,
+        );
       }
     }
   } catch (error) {
+    console.error(
+      "QuickBooks sync unexpected error:",
+      error instanceof Error ? error.message : "unknown",
+    );
     await db.orgIntegration.update({
       where: { orgId_provider: { orgId, provider: "quickbooks" } },
       data: {
         config: mergeIntegrationConfig(integration.config, {
           lastSyncAttemptAt: syncStartedAt.toISOString(),
           lastSyncStatus: "failed",
-          lastSyncError: error instanceof Error ? error.message : "QuickBooks sync failed",
+          lastSyncError: sanitizeIntegrationSyncError(error),
         }),
       },
     });
@@ -276,7 +296,7 @@ export async function syncInvoices(orgId: string): Promise<{ synced: number }> {
               : "failed",
         lastSyncError:
           failedInvoices.length > 0
-            ? `Failed invoices: ${failedInvoices.slice(0, 5).join(", ")}`
+            ? `${failedInvoices.length} invoice(s) failed to sync.`
             : null,
         syncedCount: synced,
         attemptedCount: invoices.length,

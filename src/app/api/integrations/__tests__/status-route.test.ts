@@ -37,7 +37,7 @@ describe("integration status route", () => {
         config: {
           connectionStatus: "connected",
           lastSyncStatus: "partial_success",
-          lastSyncError: "Failed invoices: INV-3",
+          lastSyncError: "2 invoice(s) failed to sync.",
           syncedCount: 2,
           attemptedCount: 3,
         },
@@ -54,7 +54,7 @@ describe("integration status route", () => {
         externalOrgId: "realm-1",
         connectionStatus: "connected",
         lastSyncStatus: "partial_success",
-        lastSyncError: "Failed invoices: INV-3",
+        lastSyncError: "2 invoice(s) failed to sync.",
         syncedCount: 2,
         attemptedCount: 3,
       }),
@@ -65,6 +65,31 @@ describe("integration status route", () => {
         lastSyncStatus: null,
       }),
     ]);
+  });
+
+
+  it("returns auth_expired status when token refresh has failed", async () => {
+    vi.mocked(db.orgIntegration.findMany).mockResolvedValue([
+      {
+        provider: "zoho",
+        isActive: true,
+        lastSyncAt: new Date("2026-04-20T10:00:00.000Z"),
+        tokenExpiresAt: new Date("2026-04-20T10:30:00.000Z"),
+        externalOrgId: "zorg-1",
+        config: {
+          connectionStatus: "connected",
+          lastSyncStatus: "auth_expired",
+          lastSyncError: "Zoho access token could not be refreshed. Please reconnect.",
+        },
+      },
+    ] as never);
+
+    const response = await GET();
+    const body = await response.json();
+
+    const zoho = body.find((p: { provider: string }) => p.provider === "zoho");
+    expect(zoho.lastSyncStatus).toBe("auth_expired");
+    expect(zoho.lastSyncError).toContain("reconnect");
   });
 
   it("returns 401 when the request is unauthenticated", async () => {

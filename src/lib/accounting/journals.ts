@@ -478,6 +478,6 @@ export async function listJournalEntries(orgId: string, filters: JournalListFilt
         },
       },
     },
-    orderBy: [{ entryDate: "desc" }, { createdAt: "desc" }],
+    orderBy: [{ entryDate: "desc" }, { createdAt: "desc" }, { id: "asc" }],
   });
 }

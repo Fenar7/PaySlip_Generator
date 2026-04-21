@@ -25,7 +25,10 @@ BEGIN
       NULL;
   END;
 
-  RAISE EXCEPTION 'Unable to normalize Books date value: %', value;
+  -- Unparseable values return NULL rather than failing the migration.
+  -- Operators can identify affected rows post-migration with:
+  --   SELECT id FROM <table> WHERE <column> IS NULL AND <original_column> IS NOT NULL
+  RETURN NULL;
 END;
 $$;
 

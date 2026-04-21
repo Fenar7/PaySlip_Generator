@@ -798,14 +798,14 @@ export async function buildAuditPackage(orgId: string, fiscalPeriodId: string) {
           in: ["vendor_bill", "journal_entry"],
         },
       },
-      orderBy: [{ createdAt: "desc" }],
+      orderBy: [{ createdAt: "desc" }, { id: "asc" }],
     }),
     db.fiscalPeriod.findMany({
       where: {
         orgId,
         reopenedAt: { not: null },
       },
-      orderBy: [{ reopenedAt: "desc" }],
+      orderBy: [{ reopenedAt: "desc" }, { id: "asc" }],
       select: {
         id: true,
         label: true,
