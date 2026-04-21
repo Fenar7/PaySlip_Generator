@@ -3,6 +3,7 @@ import {
   buildPdfStudioAcceptString,
   buildPdfStudioUploadSummary,
   classifyPdfStudioFile,
+  validatePdfStudioCombinedPageCount,
   validatePdfStudioFiles,
   validatePdfStudioPageCount,
 } from "@/features/docs/pdf-studio/lib/ingestion";
@@ -67,5 +68,18 @@ describe("pdf studio ingestion helpers", () => {
     expect(buildPdfStudioUploadSummary("create")).toBe(
       "images • up to 30 files • max 50MB each",
     );
+  });
+
+  it("enforces exact combined-page boundaries for page-organization tools", () => {
+    expect(validatePdfStudioPageCount("merge", 200)).toEqual({ ok: true });
+    expect(validatePdfStudioCombinedPageCount("alternate-mix", 200)).toEqual({
+      ok: true,
+    });
+    expect(validatePdfStudioCombinedPageCount("alternate-mix", 201)).toEqual({
+      ok: false,
+      error:
+        "Alternate & Mix PDFs supports up to 200 total pages per run. This selection contains 201 pages.",
+      reason: "page-limit-exceeded",
+    });
   });
 });

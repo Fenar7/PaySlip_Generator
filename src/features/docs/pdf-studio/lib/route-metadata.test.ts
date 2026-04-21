@@ -20,6 +20,13 @@ describe("pdf studio route metadata", () => {
     expect(metadata.description).toContain("Runs entirely in your browser");
   });
 
+  it("uses public canonicals for new Phase 30 public-ready tools", () => {
+    const metadata = buildPdfStudioToolMetadata("rotate", "public");
+
+    expect(metadata.alternates?.canonical).toBe("/pdf-studio/rotate");
+    expect(metadata.title).toBe("Rotate Pages | PDF Studio");
+  });
+
   it("marks workspace pages as non-indexable while sharing canonical targets", () => {
     const metadata = buildPdfStudioToolMetadata("protect", "workspace");
 

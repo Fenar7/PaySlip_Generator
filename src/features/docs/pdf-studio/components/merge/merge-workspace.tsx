@@ -4,34 +4,31 @@ import { useCallback, useState } from "react";
 import Link from "next/link";
 import { Button, Input } from "@/components/ui";
 import { PdfUploadZone } from "@/features/docs/pdf-studio/components/shared/pdf-upload-zone";
-import { usePdfStudioAnalytics } from "@/features/docs/pdf-studio/lib/analytics";
-import { buildPdfStudioOutputName } from "@/features/docs/pdf-studio/lib/output";
 import {
   PdfPageGrid,
   type PageGridItem,
 } from "@/features/docs/pdf-studio/components/shared/pdf-page-grid";
-import { readPdfPages } from "@/features/docs/pdf-studio/utils/pdf-reader";
+import { usePdfStudioAnalytics } from "@/features/docs/pdf-studio/lib/analytics";
+import { validatePdfStudioCombinedPageCount } from "@/features/docs/pdf-studio/lib/ingestion";
+import { buildPdfStudioOutputName } from "@/features/docs/pdf-studio/lib/output";
+import {
+  buildPdfPageDescriptors,
+  buildPdfSourceDocument,
+  exportPdfFromPageDescriptors,
+  type PdfPageDescriptor,
+  type PdfSourceDocument,
+} from "@/features/docs/pdf-studio/utils/pdf-page-operations";
+import { getPdfPageCount, readPdfPages } from "@/features/docs/pdf-studio/utils/pdf-reader";
 import { downloadPdfBytes } from "@/features/docs/pdf-studio/utils/zip-builder";
-
-const MAX_FILES = 10;
-const MAX_TOTAL_PAGES = 200;
-
-interface UploadedPdf {
-  name: string;
-  bytes: Uint8Array;
-  pageCount: number;
-}
 
 export function MergeWorkspace() {
   const analytics = usePdfStudioAnalytics("merge");
   const [pages, setPages] = useState<PageGridItem[]>([]);
-  const [uploadedPdfs, setUploadedPdfs] = useState<UploadedPdf[]>([]);
+  const [sourceDocuments, setSourceDocuments] = useState<PdfSourceDocument[]>([]);
   const [filename, setFilename] = useState("merged-document");
   const [loading, setLoading] = useState(false);
   const [processing, setProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  const totalPageCount = pages.length;
 
   const handleFiles = useCallback(
     async (files: File[]) => {
@@ -39,50 +36,65 @@ export function MergeWorkspace() {
       setError(null);
 
       try {
-        const newPdfs: UploadedPdf[] = [];
-        const newPages: PageGridItem[] = [];
+        const uploadedDocuments: PdfSourceDocument[] = [];
+        let projectedPageCount = pages.length;
 
-        for (const file of files) {
+        for (const [fileIndex, file] of files.entries()) {
+          const pageCountResult = await getPdfPageCount(file);
+          if (!pageCountResult.ok) {
+            setError(pageCountResult.error);
+            analytics.trackFail({ stage: "upload", reason: pageCountResult.reason });
+            return;
+          }
+
+          projectedPageCount += pageCountResult.pageCount;
+          const projectedValidation = validatePdfStudioCombinedPageCount(
+            "merge",
+            projectedPageCount,
+          );
+          if (!projectedValidation.ok) {
+            setError(projectedValidation.error);
+            analytics.trackFail({ stage: "upload", reason: projectedValidation.reason });
+            return;
+          }
+
           const bytes = new Uint8Array(await file.arrayBuffer());
           const result = await readPdfPages(file, { toolId: "merge" });
 
           if (!result.ok) {
             setError(result.error);
             analytics.trackFail({ stage: "upload", reason: result.reason });
-            setLoading(false);
             return;
           }
 
-          newPdfs.push({
-            name: file.name,
-            bytes,
-            pageCount: result.data.length,
-          });
-
-          result.data.forEach((page) => {
-            newPages.push({
-              ...page,
-              id: `${file.name}-${page.pageIndex}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-            });
-          });
+          uploadedDocuments.push(
+            buildPdfSourceDocument({
+              bytes,
+              name: file.name,
+              pages: result.data,
+              sourceIndex: sourceDocuments.length + fileIndex,
+            }),
+          );
         }
 
-        const allPages = [...pages, ...newPages];
-        if (allPages.length > MAX_TOTAL_PAGES) {
-          setError(`Total pages exceed ${MAX_TOTAL_PAGES} limit`);
-          setLoading(false);
+        const nextDocuments = [...sourceDocuments, ...uploadedDocuments];
+        const nextPages = [...pages, ...buildPdfPageDescriptors(uploadedDocuments)];
+        const pageValidation = validatePdfStudioCombinedPageCount("merge", nextPages.length);
+        if (!pageValidation.ok) {
+          setError(pageValidation.error);
+          analytics.trackFail({ stage: "upload", reason: pageValidation.reason });
           return;
         }
 
-        setUploadedPdfs((prev) => [...prev, ...newPdfs]);
-        setPages(allPages);
+        setSourceDocuments(nextDocuments);
+        setPages(nextPages);
         analytics.trackUpload({
-          fileCount: files.length,
-          pageCount: allPages.length,
+          fileCount: uploadedDocuments.length,
+          pageCount: nextPages.length,
           totalBytes: files.reduce((sum, file) => sum + file.size, 0),
         });
       } catch {
-        setError("Failed to read one or more PDF files");
+        setError("Failed to read one or more PDF files.");
         analytics.trackFail({
           stage: "upload",
           reason: "pdf-read-failed",
@@ -91,75 +103,79 @@ export function MergeWorkspace() {
         setLoading(false);
       }
     },
-    [pages, uploadedPdfs.length]
+    [analytics, pages, sourceDocuments],
   );
 
   const handleReorder = useCallback((reordered: PageGridItem[]) => {
     setPages(reordered);
   }, []);
 
+  const handleRemoveSource = useCallback((sourceDocumentId: string) => {
+    setSourceDocuments((prev) =>
+      prev.filter((document) => document.id !== sourceDocumentId),
+    );
+    setPages((prev) =>
+      prev.filter((page) => page.sourceDocumentId !== sourceDocumentId),
+    );
+    setError(null);
+  }, []);
+
   const handleMerge = useCallback(async () => {
-    if (uploadedPdfs.length === 0) return;
+    if (sourceDocuments.length === 0 || pages.length === 0) {
+      return;
+    }
+
     setProcessing(true);
     setError(null);
     analytics.trackStart({
-      fileCount: uploadedPdfs.length,
+      fileCount: sourceDocuments.length,
       pageCount: pages.length,
     });
 
     try {
-      const { PDFDocument } = await import("pdf-lib");
+      const orderedPages: PdfPageDescriptor[] = pages.map((page) => ({
+        ...page,
+        originalPageNumber: page.originalPageNumber ?? page.pageIndex + 1,
+        rotation: page.rotation ?? 0,
+        sourceDocumentId: page.sourceDocumentId ?? "source-document",
+        sourceLabel: page.sourceLabel ?? page.sourcePdfName,
+      }));
+      const resultBytes = await exportPdfFromPageDescriptors(
+        orderedPages,
+        sourceDocuments,
+      );
+      const resolvedFilename = filename.trim() || "merged-document";
 
-      // Build merged doc following grid order
-      const mergedDoc = await PDFDocument.create();
-
-      // Create a map of source pdf bytes by name
-      const pdfByName = new Map<string, Uint8Array>();
-      for (const pdf of uploadedPdfs) {
-        pdfByName.set(pdf.name, pdf.bytes);
-      }
-
-      for (const page of pages) {
-        const srcBytes = pdfByName.get(page.sourcePdfName);
-        if (!srcBytes) continue;
-        const srcDoc = await PDFDocument.load(srcBytes);
-        const [copiedPage] = await mergedDoc.copyPages(srcDoc, [
-          page.pageIndex,
-        ]);
-        mergedDoc.addPage(copiedPage);
-      }
-
-      const resultBytes = await mergedDoc.save();
-      const name = filename.trim() || "merged-document";
       downloadPdfBytes(
         resultBytes,
         buildPdfStudioOutputName({
           toolId: "merge",
-          baseName: name,
+          baseName: resolvedFilename,
           extension: "pdf",
         }),
       );
+
       analytics.trackSuccess({
-        fileCount: uploadedPdfs.length,
+        fileCount: sourceDocuments.length,
         pageCount: pages.length,
-        output: "pdf",
       });
     } catch {
-      setError("Failed to merge PDFs");
+      setError("Failed to merge PDFs.");
       analytics.trackFail({ stage: "process", reason: "processing-failed" });
     } finally {
       setProcessing(false);
     }
-  }, [uploadedPdfs, pages, filename]);
+  }, [analytics, filename, pages, sourceDocuments]);
 
   const handleClear = useCallback(() => {
     setPages([]);
-    setUploadedPdfs([]);
+    setSourceDocuments([]);
+    setFilename("merged-document");
     setError(null);
   }, []);
 
   return (
-    <div className="mx-auto max-w-5xl px-4 py-8 sm:px-6 lg:px-8">
+    <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:px-8">
       <div className="pdf-studio-tool-header mb-6">
         <Link
           href="/app/docs/pdf-studio"
@@ -170,9 +186,10 @@ export function MergeWorkspace() {
         <h1 className="mt-2 text-xl font-bold tracking-tight text-[var(--foreground)] sm:text-2xl">
           Merge PDFs
         </h1>
-        <p className="mt-1 text-sm text-[var(--muted-foreground)]">
-          Combine multiple PDF files into a single document. Drag to reorder
-          pages.
+        <p className="mt-1 max-w-3xl text-sm text-[var(--muted-foreground)]">
+          Combine multiple PDFs into one document, keep the source files labeled
+          in the preview, and drag pages into the exact final order before you
+          export.
         </p>
       </div>
 
@@ -180,47 +197,26 @@ export function MergeWorkspace() {
         onFiles={handleFiles}
         toolId="merge"
         multiple
-        currentFileCount={uploadedPdfs.length}
-        label={
-          pages.length > 0 ? "Add more PDFs" : "Drop your PDFs here"
-        }
+        currentFileCount={sourceDocuments.length}
+        label={pages.length > 0 ? "Add more PDFs" : "Drop your PDFs here"}
         disabled={loading}
         error={error}
       />
 
-      {loading && (
-        <div className="mt-4 flex items-center gap-2 text-sm text-[var(--muted-foreground)]">
-          <svg
-            className="h-4 w-4 animate-spin"
-            viewBox="0 0 24 24"
-            fill="none"
-          >
-            <circle
-              className="opacity-25"
-              cx="12"
-              cy="12"
-              r="10"
-              stroke="currentColor"
-              strokeWidth="4"
-            />
-            <path
-              className="opacity-75"
-              fill="currentColor"
-              d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
-            />
-          </svg>
+      {loading ? (
+        <p className="mt-4 text-sm text-[var(--muted-foreground)]">
           Reading PDF pages…
-        </div>
-      )}
+        </p>
+      ) : null}
 
-      {pages.length > 0 && (
+      {pages.length > 0 ? (
         <>
           <div className="mt-6 flex flex-wrap items-center justify-between gap-3">
-            <div className="flex items-center gap-3">
+            <div className="flex flex-wrap items-center gap-3">
               <span className="text-sm font-medium text-[var(--foreground)]">
-                {totalPageCount} page{totalPageCount !== 1 ? "s" : ""} from{" "}
-                {uploadedPdfs.length} file
-                {uploadedPdfs.length !== 1 ? "s" : ""}
+                {pages.length} page{pages.length !== 1 ? "s" : ""} from{" "}
+                {sourceDocuments.length} file
+                {sourceDocuments.length !== 1 ? "s" : ""}
               </span>
               <button
                 onClick={handleClear}
@@ -229,12 +225,13 @@ export function MergeWorkspace() {
                 Clear all
               </button>
             </div>
+
             <div className="flex items-center gap-3">
               <Input
                 value={filename}
-                onChange={(e) => setFilename(e.target.value)}
+                onChange={(event) => setFilename(event.target.value)}
                 placeholder="Filename"
-                className="h-9 w-48 text-sm"
+                className="h-9 w-52 text-sm"
               />
               <Button
                 onClick={handleMerge}
@@ -246,6 +243,34 @@ export function MergeWorkspace() {
             </div>
           </div>
 
+          <div className="mt-4 flex flex-wrap gap-2">
+            {sourceDocuments.map((document) => (
+              <div
+                key={document.id}
+                className="inline-flex items-center gap-2 rounded-full border border-[var(--border-strong)] bg-white px-3 py-1.5 text-xs text-[var(--foreground)]"
+              >
+                <span className="font-medium">{document.sourceLabel}</span>
+                <span className="text-[var(--muted-foreground)]">
+                  {document.pages.length} page
+                  {document.pages.length !== 1 ? "s" : ""}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => handleRemoveSource(document.id)}
+                  className="text-[var(--muted-foreground)] transition-colors hover:text-red-600"
+                  aria-label={`Remove ${document.name}`}
+                >
+                  ×
+                </button>
+              </div>
+            ))}
+          </div>
+
+          <p className="mt-3 text-xs text-[var(--muted-foreground)]">
+            Drag pages to reorder them. The source badge under each thumbnail
+            shows which uploaded file that page came from.
+          </p>
+
           <div className="mt-4">
             <PdfPageGrid
               pages={pages}
@@ -254,7 +279,7 @@ export function MergeWorkspace() {
             />
           </div>
         </>
-      )}
+      ) : null}
     </div>
   );
 }

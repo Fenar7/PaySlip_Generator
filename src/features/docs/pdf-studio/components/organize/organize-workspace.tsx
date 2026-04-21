@@ -13,6 +13,7 @@ import {
 import { readPdfPages } from "@/features/docs/pdf-studio/utils/pdf-reader";
 import { downloadPdfBytes } from "@/features/docs/pdf-studio/utils/zip-builder";
 import { PDFDocument, degrees } from "pdf-lib";
+import { getPdfStudioSourceBaseName } from "@/features/docs/pdf-studio/lib/output";
 
 export function OrganizeWorkspace() {
   const analytics = usePdfStudioAnalytics("organize");
@@ -44,7 +45,10 @@ export function OrganizeWorkspace() {
       const gridPages = result.data.map((p) => ({
         ...p,
         id: `page-${p.pageIndex}`,
+        originalPageNumber: p.pageIndex + 1,
         rotation: 0,
+        sourceDocumentId: "source-document",
+        sourceLabel: getPdfStudioSourceBaseName(file.name, "document"),
       }));
 
       setPdfBytes(bytes);

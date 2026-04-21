@@ -204,3 +204,19 @@ export function validatePdfStudioPageCount(
     reason: "page-limit-exceeded" as const,
   };
 }
+
+export function validatePdfStudioCombinedPageCount(
+  toolId: PdfStudioToolId,
+  totalPages: number,
+) {
+  const tool = getPdfStudioTool(toolId);
+  if (!tool.limits.maxPages || totalPages <= tool.limits.maxPages) {
+    return { ok: true as const };
+  }
+
+  return {
+    ok: false as const,
+    error: `${tool.title} supports up to ${tool.limits.maxPages} total pages per run. This selection contains ${totalPages} pages.`,
+    reason: "page-limit-exceeded" as const,
+  };
+}
