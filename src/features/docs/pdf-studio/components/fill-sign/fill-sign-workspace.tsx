@@ -31,7 +31,7 @@ import { downloadPdfBytes } from "@/features/docs/pdf-studio/utils/zip-builder";
 
 // ── Types ──────────────────────────────────────────────────────────────
 
-type SidebarTab = "signature" | "text";
+type SidebarTab = "signature" | "text" | "initials" | "date";
 
 interface PagePreview {
   pageIndex: number;
@@ -43,7 +43,9 @@ interface PagePreview {
 type PlacingMode =
   | { type: "none" }
   | { type: "signature"; dataUrl: string }
-  | { type: "text" };
+  | { type: "text" }
+  | { type: "initials" }
+  | { type: "date" };
 
 // ── Component ──────────────────────────────────────────────────────────
 
@@ -72,6 +74,7 @@ export function FillSignWorkspace() {
 
   // Text tool state
   const [newText, setNewText] = useState("Text");
+  const [newInitials, setNewInitials] = useState("AB");
   const [newFontSize, setNewFontSize] = useState(12);
   const [newTextColor, setNewTextColor] = useState<"black" | "blue" | "red">(
     "black",
@@ -244,21 +247,27 @@ export function FillSignWorkspace() {
         };
         setSignatureAnnotations((prev) => [...prev, ann]);
         setPlacingMode({ type: "none" });
-      } else if (placingMode.type === "text") {
+      } else {
+        const text =
+          placingMode.type === "initials"
+            ? (newInitials.trim() || "AB").slice(0, 4).toUpperCase()
+            : placingMode.type === "date"
+              ? new Date().toLocaleDateString()
+              : newText || "Text";
         const ann: TextAnnotation = {
           id: `txt-${Date.now()}`,
-          text: newText || "Text",
+          text,
           pageIndex: currentPage,
           x: Math.min(relX, 0.9),
           y: Math.min(relY, 0.95),
-          fontSize: newFontSize,
+          fontSize: placingMode.type === "initials" ? Math.max(newFontSize, 16) : newFontSize,
           color: newTextColor,
         };
         setTextAnnotations((prev) => [...prev, ann]);
         setPlacingMode({ type: "none" });
       }
     },
-    [placingMode, currentPage, newText, newFontSize, newTextColor],
+    [placingMode, currentPage, newFontSize, newInitials, newText, newTextColor],
   );
 
   // ── Drag support ─────────────────────────────────────────────────────
@@ -412,7 +421,7 @@ export function FillSignWorkspace() {
             Fill &amp; Sign
           </h1>
           <p className="mt-2 text-sm text-[#666]">
-            Add text and signatures to any PDF document
+            Add text, initials, date stamps, and signatures to any PDF document
           </p>
         </div>
 
@@ -476,11 +485,11 @@ export function FillSignWorkspace() {
 
         {/* Tabs */}
         <div className="mb-4 flex rounded-xl bg-[#f5f5f5] p-1">
-          {(["signature", "text"] as SidebarTab[]).map((tab) => (
+          {(["signature", "text", "initials", "date"] as SidebarTab[]).map((tab) => (
             <button
               key={tab}
               className={cn(
-                "flex-1 rounded-lg py-2 text-xs font-medium capitalize transition-colors",
+                "flex-1 rounded-lg py-2 text-[11px] font-medium capitalize transition-colors",
                 activeTab === tab
                   ? "bg-white text-[#1a1a1a] shadow-sm"
                   : "text-[#666] hover:text-[#1a1a1a]",
@@ -629,6 +638,61 @@ export function FillSignWorkspace() {
           </div>
         )}
 
+        {activeTab === "initials" && (
+          <div className="space-y-4">
+            <div>
+              <label className="mb-1.5 block text-xs font-semibold text-[#1a1a1a]">
+                Initials
+              </label>
+              <input
+                type="text"
+                maxLength={4}
+                value={newInitials}
+                onChange={(e) => setNewInitials(e.target.value)}
+                className="w-full rounded-xl border border-[#e5e5e5] bg-white px-3 py-2 text-sm text-[#1a1a1a] uppercase focus:border-[#999] focus:outline-none"
+                placeholder="AB"
+              />
+            </div>
+            <Button
+              variant="secondary"
+              size="sm"
+              className="w-full"
+              onClick={() => setPlacingMode({ type: "initials" })}
+            >
+              Place Initials
+            </Button>
+            {placingMode.type === "initials" && (
+              <div className="rounded-xl border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-700">
+                Click on the document to place initials
+              </div>
+            )}
+          </div>
+        )}
+
+        {activeTab === "date" && (
+          <div className="space-y-4">
+            <div className="rounded-xl border border-[#e5e5e5] bg-[#fafafa] px-3 py-3 text-sm text-[#444]">
+              Date stamp preview:{" "}
+              <span className="font-medium text-[#1a1a1a]">
+                {new Date().toLocaleDateString()}
+              </span>
+            </div>
+            <Button
+              variant="secondary"
+              size="sm"
+              className="w-full"
+              onClick={() => setPlacingMode({ type: "date" })}
+            >
+              Place Date Stamp
+            </Button>
+            {placingMode.type === "date" && (
+              <div className="rounded-xl border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-700">
+                Click on the document to place the current date
+              </div>
+            )}
+          </div>
+        )}
+
         {/* Actions */}
         <div className="mt-6 space-y-3 border-t border-[#e5e5e5] pt-4">
           <div className="flex items-center justify-between text-xs text-[#666]">
@@ -640,7 +704,7 @@ export function FillSignWorkspace() {
             disabled={totalAnnotations === 0 || generating}
             onClick={handleDownload}
           >
-            {generating ? "Generating…" : "Download Signed PDF"}
+             {generating ? "Generating…" : "Download Signed PDF"}
           </Button>
           <Button
             variant="secondary"
