@@ -3,6 +3,7 @@
 import { useCallback, useMemo, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui";
+import type { PdfStudioOcrMode } from "@/features/docs/pdf-studio/types";
 
 // --- Types ---
 
@@ -11,9 +12,7 @@ type OcrLanguage = {
   label: string;
 };
 
-type OcrMode = "fast" | "accurate";
-
-type OcrImageResult = {
+export type OcrImageResult = {
   imageId: string;
   imageName: string;
   text: string;
@@ -25,12 +24,13 @@ type OcrEnhancementPanelProps = {
   language?: string;
   onLanguageChange?: (lang: string) => void;
   /** Current OCR mode */
-  mode?: OcrMode;
-  onModeChange?: (mode: OcrMode) => void;
+  mode?: PdfStudioOcrMode;
+  onModeChange?: (mode: PdfStudioOcrMode) => void;
   /** OCR results to display */
   results?: OcrImageResult[];
   /** Whether OCR is currently running */
   isProcessing?: boolean;
+  exportFilename?: string;
   className?: string;
 };
 
@@ -128,6 +128,7 @@ export function OcrEnhancementPanel({
   onModeChange,
   results = [],
   isProcessing = false,
+  exportFilename = "ocr-output.txt",
   className,
 }: OcrEnhancementPanelProps) {
   const [copied, setCopied] = useState(false);
@@ -154,8 +155,8 @@ export function OcrEnhancementPanel({
 
   const handleExportTxt = useCallback(() => {
     if (!allText) return;
-    downloadTextFile(allText, "ocr-output.txt");
-  }, [allText]);
+    downloadTextFile(allText, exportFilename);
+  }, [allText, exportFilename]);
 
   return (
     <div

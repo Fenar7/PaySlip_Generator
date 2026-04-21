@@ -1,6 +1,6 @@
 "use server";
 
-import { createSupabaseServer } from "@/lib/supabase/server";
+import { createSupabaseAdmin, createSupabaseServer } from "@/lib/supabase/server";
 import { db } from "@/lib/db";
 
 export type StorageBucket = "logos" | "attachments" | "proofs";
@@ -9,6 +9,10 @@ export interface UploadResult {
   storageKey: string;
   publicUrl?: string;
 }
+
+type StorageClientOptions = {
+  useAdmin?: boolean;
+};
 
 function extractOrgIdFromStorageKey(storageKey: string): string | null {
   const [orgId] = storageKey.split("/");
@@ -45,14 +49,19 @@ async function assertResidencyCompatible(
 /**
  * Server-side file upload to Supabase Storage
  */
+async function getStorageClient(options?: StorageClientOptions) {
+  return options?.useAdmin ? createSupabaseAdmin() : createSupabaseServer();
+}
+
 export async function uploadFileServer(
   bucket: StorageBucket,
   path: string,
   fileBuffer: Buffer,
-  contentType: string
+  contentType: string,
+  options?: StorageClientOptions,
 ): Promise<UploadResult> {
   await assertResidencyCompatible(path, "upload");
-  const supabase = await createSupabaseServer();
+  const supabase = await getStorageClient(options);
 
   const { data, error } = await supabase.storage
     .from(bucket)
@@ -87,14 +96,17 @@ export async function uploadFileServer(
 export async function getSignedUrlServer(
   bucket: StorageBucket,
   storageKey: string,
-  expiresInSeconds: number = 3600
+  expiresInSeconds: number = 3600,
+  options?: StorageClientOptions & { download?: boolean | string },
 ): Promise<string> {
   await assertResidencyCompatible(storageKey, "read");
-  const supabase = await createSupabaseServer();
+  const supabase = await getStorageClient(options);
 
   const { data, error } = await supabase.storage
     .from(bucket)
-    .createSignedUrl(storageKey, expiresInSeconds);
+    .createSignedUrl(storageKey, expiresInSeconds, {
+      download: options?.download,
+    });
 
   if (error) {
     console.error("Server signed URL error:", error);
@@ -109,9 +121,10 @@ export async function getSignedUrlServer(
  */
 export async function deleteFileServer(
   bucket: StorageBucket,
-  storageKey: string
+  storageKey: string,
+  options?: StorageClientOptions,
 ): Promise<void> {
-  const supabase = await createSupabaseServer();
+  const supabase = await getStorageClient(options);
 
   const { error } = await supabase.storage.from(bucket).remove([storageKey]);
 
@@ -119,4 +132,22 @@ export async function deleteFileServer(
     console.error("Server delete error:", error);
     throw new Error(`Failed to delete file: ${error.message}`);
   }
+}
+
+export async function downloadFileServer(
+  bucket: StorageBucket,
+  storageKey: string,
+  options?: StorageClientOptions,
+): Promise<Uint8Array> {
+  await assertResidencyCompatible(storageKey, "read");
+  const supabase = await getStorageClient(options);
+
+  const { data, error } = await supabase.storage.from(bucket).download(storageKey);
+
+  if (error || !data) {
+    console.error("Server download error:", error);
+    throw new Error(`Failed to download file: ${error?.message ?? "Unknown storage error"}`);
+  }
+
+  return new Uint8Array(await data.arrayBuffer());
 }

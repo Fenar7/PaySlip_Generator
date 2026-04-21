@@ -7,13 +7,16 @@ import type { PdfPageItem } from "@/features/docs/pdf-studio/utils/pdf-reader";
 
 export interface PageGridItem extends PdfPageItem {
   id: string;
+  originalPageNumber?: number;
   rotation?: number;
+  sourceDocumentId?: string;
+  sourceLabel?: string;
 }
 
 interface PdfPageThumbnailProps {
   item: PageGridItem;
   index: number;
-  mode: "select" | "reorder" | "delete";
+  mode: "select" | "reorder" | "delete" | "preview";
   isSelected?: boolean;
   isMarkedForDeletion?: boolean;
   onToggleSelect?: (id: string) => void;
@@ -34,7 +37,7 @@ function PdfPageThumbnail({
 }: PdfPageThumbnailProps) {
   const sortable = useSortable({
     id: item.id,
-    disabled: mode === "select" || mode === "delete",
+    disabled: mode === "select" || mode === "delete" || mode === "preview",
   });
 
   const style = {
@@ -46,6 +49,14 @@ function PdfPageThumbnail({
     if (mode === "select") onToggleSelect?.(item.id);
     if (mode === "delete") onToggleSelect?.(item.id);
   };
+
+  const previewStyle =
+    item.rotation && item.rotation !== 0
+      ? {
+          transform: `rotate(${item.rotation}deg)`,
+          transition: "transform 200ms ease",
+        }
+      : undefined;
 
   return (
     <div
@@ -69,13 +80,13 @@ function PdfPageThumbnail({
         <img
           src={item.previewUrl}
           alt={`Page ${index + 1}`}
-          className={cn(
-            "aspect-[3/4] w-full object-contain",
-            isMarkedForDeletion && "opacity-30",
-            item.rotation && `rotate-[${item.rotation}deg]`
-          )}
-          draggable={false}
-        />
+        className={cn(
+          "aspect-[3/4] w-full object-contain",
+          isMarkedForDeletion && "opacity-30",
+        )}
+        style={previewStyle}
+        draggable={false}
+      />
         {isMarkedForDeletion && (
           <div className="absolute inset-0 flex items-center justify-center bg-red-500/10">
             <span className="text-2xl">🗑️</span>
@@ -100,10 +111,20 @@ function PdfPageThumbnail({
         )}
       </div>
 
-      <div className="flex items-center justify-between px-2 py-1.5">
-        <span className="text-[0.65rem] font-medium text-[var(--muted-foreground)]">
-          Page {index + 1}
-        </span>
+      <div className="space-y-1 px-2 py-1.5">
+        <div className="flex items-center justify-between gap-2">
+          <span className="text-[0.65rem] font-medium text-[var(--muted-foreground)]">
+            Output {index + 1}
+          </span>
+          <span className="truncate text-[0.65rem] text-[var(--muted-foreground)]">
+            Page {item.originalPageNumber ?? item.pageIndex + 1}
+          </span>
+        </div>
+        {item.sourceLabel ? (
+          <p className="truncate text-[0.6rem] font-medium uppercase tracking-[0.14em] text-[var(--muted-foreground)]">
+            {item.sourceLabel}
+          </p>
+        ) : null}
         <div className="flex items-center gap-1">
           {mode === "reorder" && (
             <>
@@ -204,7 +225,7 @@ import {
 
 interface PdfPageGridProps {
   pages: PageGridItem[];
-  mode: "select" | "reorder" | "delete";
+  mode: "select" | "reorder" | "delete" | "preview";
   selectedIds?: Set<string>;
   deletedIds?: Set<string>;
   onToggleSelect?: (id: string) => void;
@@ -259,7 +280,7 @@ export function PdfPageGrid({
     <DndContext
       sensors={sensors}
       collisionDetection={closestCenter}
-      onDragEnd={handleDragEnd}
+      onDragEnd={mode === "reorder" ? handleDragEnd : undefined}
     >
       <SortableContext
         items={pages.map((p) => p.id)}

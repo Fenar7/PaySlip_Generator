@@ -10,6 +10,12 @@ import {
 import { Button, Badge } from "@/components/ui";
 import { cn } from "@/lib/utils";
 import { useActiveOrg } from "@/hooks/use-active-org";
+import { usePdfStudioAnalytics } from "@/features/docs/pdf-studio/lib/analytics";
+import {
+  validatePdfStudioFiles,
+  validatePdfStudioPageCount,
+} from "@/features/docs/pdf-studio/lib/ingestion";
+import { buildPdfStudioOutputName } from "@/features/docs/pdf-studio/lib/output";
 import { SignatureCanvas } from "./signature-canvas";
 import {
   getSavedSignatures,
@@ -25,7 +31,7 @@ import { downloadPdfBytes } from "@/features/docs/pdf-studio/utils/zip-builder";
 
 // ── Types ──────────────────────────────────────────────────────────────
 
-type SidebarTab = "signature" | "text";
+type SidebarTab = "signature" | "text" | "initials" | "date";
 
 interface PagePreview {
   pageIndex: number;
@@ -37,11 +43,14 @@ interface PagePreview {
 type PlacingMode =
   | { type: "none" }
   | { type: "signature"; dataUrl: string }
-  | { type: "text" };
+  | { type: "text" }
+  | { type: "initials" }
+  | { type: "date" };
 
 // ── Component ──────────────────────────────────────────────────────────
 
 export function FillSignWorkspace() {
+  const analytics = usePdfStudioAnalytics("fill-sign");
   const { activeOrg, isLoading: isOrgLoading } = useActiveOrg();
   const orgScope = activeOrg?.id ?? "anonymous";
   // PDF state
@@ -65,6 +74,7 @@ export function FillSignWorkspace() {
 
   // Text tool state
   const [newText, setNewText] = useState("Text");
+  const [newInitials, setNewInitials] = useState("AB");
   const [newFontSize, setNewFontSize] = useState(12);
   const [newTextColor, setNewTextColor] = useState<"black" | "blue" | "red">(
     "black",
@@ -105,8 +115,13 @@ export function FillSignWorkspace() {
   const handleFileSelect = useCallback(
     async (e: React.ChangeEvent<HTMLInputElement>) => {
       const f = e.target.files?.[0];
-      if (!f || f.type !== "application/pdf") {
-        setError("Please select a valid PDF file.");
+      if (!f) {
+        return;
+      }
+      const fileValidation = validatePdfStudioFiles("fill-sign", [f]);
+      if (!fileValidation.ok) {
+        setError(fileValidation.error);
+        analytics.trackFail({ stage: "upload", reason: fileValidation.reason });
         return;
       }
 
@@ -129,9 +144,15 @@ export function FillSignWorkspace() {
         ).toString();
 
         const pdf = await pdfjsLib.getDocument({ data: bytes }).promise;
-        if (pdf.numPages > 50) {
-          setError("PDF exceeds 50 pages limit.");
+        const pageValidation = validatePdfStudioPageCount(
+          "fill-sign",
+          pdf.numPages,
+        );
+        if (!pageValidation.ok) {
+          setError(pageValidation.error);
           setLoading(false);
+          analytics.trackFail({ stage: "upload", reason: pageValidation.reason });
+          await pdf.destroy();
           return;
         }
 
@@ -165,14 +186,22 @@ export function FillSignWorkspace() {
         await pdf.destroy();
 
         setPages(previews);
+        analytics.trackUpload({
+          fileCount: 1,
+          pageCount: previews.length,
+          totalBytes: f.size,
+        });
       } catch (err) {
-        const msg = err instanceof Error ? err.message : "Unknown error";
-        setError(`Failed to read PDF: ${msg}`);
+        setError("Unable to read this PDF. Please verify the file is valid and try again.");
+        analytics.trackFail({
+          stage: "upload",
+          reason: "pdf-read-failed",
+        });
       } finally {
         setLoading(false);
       }
     },
-    [],
+    [analytics],
   );
 
   // ── Signature actions ────────────────────────────────────────────────
@@ -218,21 +247,27 @@ export function FillSignWorkspace() {
         };
         setSignatureAnnotations((prev) => [...prev, ann]);
         setPlacingMode({ type: "none" });
-      } else if (placingMode.type === "text") {
+      } else {
+        const text =
+          placingMode.type === "initials"
+            ? (newInitials.trim() || "AB").slice(0, 4).toUpperCase()
+            : placingMode.type === "date"
+              ? new Date().toLocaleDateString()
+              : newText || "Text";
         const ann: TextAnnotation = {
           id: `txt-${Date.now()}`,
-          text: newText || "Text",
+          text,
           pageIndex: currentPage,
           x: Math.min(relX, 0.9),
           y: Math.min(relY, 0.95),
-          fontSize: newFontSize,
+          fontSize: placingMode.type === "initials" ? Math.max(newFontSize, 16) : newFontSize,
           color: newTextColor,
         };
         setTextAnnotations((prev) => [...prev, ann]);
         setPlacingMode({ type: "none" });
       }
     },
-    [placingMode, currentPage, newText, newFontSize, newTextColor],
+    [placingMode, currentPage, newFontSize, newInitials, newText, newTextColor],
   );
 
   // ── Drag support ─────────────────────────────────────────────────────
@@ -311,6 +346,12 @@ export function FillSignWorkspace() {
   const handleDownload = useCallback(async () => {
     if (!pdfBytes || !file) return;
     setGenerating(true);
+    setError(null);
+    analytics.trackStart({
+      pageCount: pages.length,
+      textAnnotations: textAnnotations.length,
+      signatureAnnotations: signatureAnnotations.length,
+    });
     try {
       const result = await embedAnnotations(
         pdfBytes,
@@ -318,14 +359,36 @@ export function FillSignWorkspace() {
         signatureAnnotations,
       );
       const baseName = file.name.replace(/\.pdf$/i, "");
-      downloadPdfBytes(result, `${baseName}-signed.pdf`);
+      downloadPdfBytes(
+        result,
+        buildPdfStudioOutputName({
+          toolId: "fill-sign",
+          baseName: `${baseName}-signed`,
+          extension: "pdf",
+        }),
+      );
+      analytics.trackSuccess({
+        pageCount: pages.length,
+        textAnnotations: textAnnotations.length,
+        signatureAnnotations: signatureAnnotations.length,
+      });
     } catch (err) {
-      const msg = err instanceof Error ? err.message : "Unknown error";
-      setError(`Failed to generate PDF: ${msg}`);
+      setError("Could not generate the signed PDF. Please try again.");
+      analytics.trackFail({
+        stage: "generate",
+        reason: "processing-failed",
+      });
     } finally {
       setGenerating(false);
     }
-  }, [pdfBytes, file, textAnnotations, signatureAnnotations]);
+  }, [
+    analytics,
+    file,
+    pages.length,
+    pdfBytes,
+    signatureAnnotations,
+    textAnnotations,
+  ]);
 
   // ── Current page annotations ─────────────────────────────────────────
 
@@ -353,12 +416,12 @@ export function FillSignWorkspace() {
   if (!file || pages.length === 0) {
     return (
       <div className="mx-auto max-w-3xl px-4 py-8 sm:py-12">
-        <div className="mb-8 text-center">
+        <div className="pdf-studio-tool-header mb-8 text-center">
           <h1 className="text-2xl font-bold text-[#1a1a1a] sm:text-3xl">
             Fill &amp; Sign
           </h1>
           <p className="mt-2 text-sm text-[#666]">
-            Add text and signatures to any PDF document
+            Add text, initials, date stamps, and signatures to any PDF document
           </p>
         </div>
 
@@ -422,11 +485,11 @@ export function FillSignWorkspace() {
 
         {/* Tabs */}
         <div className="mb-4 flex rounded-xl bg-[#f5f5f5] p-1">
-          {(["signature", "text"] as SidebarTab[]).map((tab) => (
+          {(["signature", "text", "initials", "date"] as SidebarTab[]).map((tab) => (
             <button
               key={tab}
               className={cn(
-                "flex-1 rounded-lg py-2 text-xs font-medium capitalize transition-colors",
+                "flex-1 rounded-lg py-2 text-[11px] font-medium capitalize transition-colors",
                 activeTab === tab
                   ? "bg-white text-[#1a1a1a] shadow-sm"
                   : "text-[#666] hover:text-[#1a1a1a]",
@@ -575,6 +638,61 @@ export function FillSignWorkspace() {
           </div>
         )}
 
+        {activeTab === "initials" && (
+          <div className="space-y-4">
+            <div>
+              <label className="mb-1.5 block text-xs font-semibold text-[#1a1a1a]">
+                Initials
+              </label>
+              <input
+                type="text"
+                maxLength={4}
+                value={newInitials}
+                onChange={(e) => setNewInitials(e.target.value)}
+                className="w-full rounded-xl border border-[#e5e5e5] bg-white px-3 py-2 text-sm text-[#1a1a1a] uppercase focus:border-[#999] focus:outline-none"
+                placeholder="AB"
+              />
+            </div>
+            <Button
+              variant="secondary"
+              size="sm"
+              className="w-full"
+              onClick={() => setPlacingMode({ type: "initials" })}
+            >
+              Place Initials
+            </Button>
+            {placingMode.type === "initials" && (
+              <div className="rounded-xl border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-700">
+                Click on the document to place initials
+              </div>
+            )}
+          </div>
+        )}
+
+        {activeTab === "date" && (
+          <div className="space-y-4">
+            <div className="rounded-xl border border-[#e5e5e5] bg-[#fafafa] px-3 py-3 text-sm text-[#444]">
+              Date stamp preview:{" "}
+              <span className="font-medium text-[#1a1a1a]">
+                {new Date().toLocaleDateString()}
+              </span>
+            </div>
+            <Button
+              variant="secondary"
+              size="sm"
+              className="w-full"
+              onClick={() => setPlacingMode({ type: "date" })}
+            >
+              Place Date Stamp
+            </Button>
+            {placingMode.type === "date" && (
+              <div className="rounded-xl border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-700">
+                Click on the document to place the current date
+              </div>
+            )}
+          </div>
+        )}
+
         {/* Actions */}
         <div className="mt-6 space-y-3 border-t border-[#e5e5e5] pt-4">
           <div className="flex items-center justify-between text-xs text-[#666]">
@@ -586,7 +704,7 @@ export function FillSignWorkspace() {
             disabled={totalAnnotations === 0 || generating}
             onClick={handleDownload}
           >
-            {generating ? "Generating…" : "Download Signed PDF"}
+             {generating ? "Generating…" : "Download Signed PDF"}
           </Button>
           <Button
             variant="secondary"
