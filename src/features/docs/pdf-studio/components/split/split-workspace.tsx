@@ -4,6 +4,11 @@ import { useCallback, useMemo, useState } from "react";
 import Link from "next/link";
 import { Button, Input } from "@/components/ui";
 import { PdfUploadZone } from "@/features/docs/pdf-studio/components/shared/pdf-upload-zone";
+import { usePdfStudioAnalytics } from "@/features/docs/pdf-studio/lib/analytics";
+import {
+  buildPdfStudioOutputName,
+  buildPdfStudioPartName,
+} from "@/features/docs/pdf-studio/lib/output";
 import {
   PdfPageGrid,
   type PageGridItem,
@@ -25,6 +30,7 @@ import { cn } from "@/lib/utils";
 type SplitMode = "range" | "every-n" | "extract";
 
 export function SplitWorkspace() {
+  const analytics = usePdfStudioAnalytics("split");
   const [pages, setPages] = useState<PageGridItem[]>([]);
   const [pdfBytes, setPdfBytes] = useState<Uint8Array | null>(null);
   const [pdfName, setPdfName] = useState("");
@@ -44,15 +50,16 @@ export function SplitWorkspace() {
     setLoading(true);
     setError(null);
 
-    try {
-      const bytes = new Uint8Array(await file.arrayBuffer());
-      const result = await readPdfPages(file, 200);
+      try {
+        const bytes = new Uint8Array(await file.arrayBuffer());
+        const result = await readPdfPages(file, { toolId: "split" });
 
-      if (!result.ok) {
-        setError(result.error);
-        setLoading(false);
-        return;
-      }
+        if (!result.ok) {
+          setError(result.error);
+          analytics.trackFail({ stage: "upload", reason: result.reason });
+          setLoading(false);
+          return;
+        }
 
       const gridPages = result.data.map((p) => ({
         ...p,
@@ -61,14 +68,20 @@ export function SplitWorkspace() {
 
       setPdfBytes(bytes);
       setPdfName(file.name.replace(/\.pdf$/i, ""));
-      setPages(gridPages);
-      setSelectedIds(new Set());
-      setRangeStr("");
-    } catch {
-      setError("Failed to read PDF");
-    } finally {
-      setLoading(false);
-    }
+        setPages(gridPages);
+        setSelectedIds(new Set());
+        setRangeStr("");
+        analytics.trackUpload({
+          fileCount: 1,
+          pageCount: gridPages.length,
+          totalBytes: file.size,
+        });
+      } catch {
+        setError("Failed to read PDF");
+        analytics.trackFail({ stage: "upload", reason: "pdf-read-failed" });
+      } finally {
+        setLoading(false);
+      }
   }, []);
 
   const toggleSelect = useCallback((id: string) => {
@@ -90,6 +103,10 @@ export function SplitWorkspace() {
 
     setProcessing(true);
     setError(null);
+    analytics.trackStart({
+      pageCount: pages.length,
+      mode: splitMode,
+    });
 
     try {
       if (splitMode === "range") {
@@ -107,14 +124,33 @@ export function SplitWorkspace() {
         }
 
         if (result.data.length === 1) {
-          downloadPdfBytes(result.data[0], `${pdfName}-split.pdf`);
+          downloadPdfBytes(
+            result.data[0],
+            buildPdfStudioOutputName({
+              toolId: "split",
+              baseName: `${pdfName}-split`,
+              extension: "pdf",
+            }),
+          );
         } else {
           const files = result.data.map((data, i) => ({
-            name: `${pdfName}-part${i + 1}.pdf`,
+            name: buildPdfStudioPartName({
+              toolId: "split",
+              baseName: `${pdfName}-split`,
+              part: i + 1,
+              extension: "pdf",
+            }),
             data,
           }));
           const zip = buildZip(files);
-          downloadBlob(zip, `${pdfName}-split.zip`);
+          downloadBlob(
+            zip,
+            buildPdfStudioOutputName({
+              toolId: "split",
+              baseName: `${pdfName}-split`,
+              extension: "zip",
+            }),
+          );
         }
       } else if (splitMode === "every-n") {
         if (everyN < 1) {
@@ -130,14 +166,33 @@ export function SplitWorkspace() {
         }
 
         if (result.data.length === 1) {
-          downloadPdfBytes(result.data[0], `${pdfName}-split.pdf`);
+          downloadPdfBytes(
+            result.data[0],
+            buildPdfStudioOutputName({
+              toolId: "split",
+              baseName: `${pdfName}-split`,
+              extension: "pdf",
+            }),
+          );
         } else {
           const files = result.data.map((data, i) => ({
-            name: `${pdfName}-part${i + 1}.pdf`,
+            name: buildPdfStudioPartName({
+              toolId: "split",
+              baseName: `${pdfName}-split`,
+              part: i + 1,
+              extension: "pdf",
+            }),
             data,
           }));
           const zip = buildZip(files);
-          downloadBlob(zip, `${pdfName}-split.zip`);
+          downloadBlob(
+            zip,
+            buildPdfStudioOutputName({
+              toolId: "split",
+              baseName: `${pdfName}-split`,
+              extension: "zip",
+            }),
+          );
         }
       } else {
         // extract mode
@@ -155,10 +210,22 @@ export function SplitWorkspace() {
           setProcessing(false);
           return;
         }
-        downloadPdfBytes(result.data, `${pdfName}-extracted.pdf`);
+        downloadPdfBytes(
+          result.data,
+          buildPdfStudioOutputName({
+            toolId: "split",
+            baseName: `${pdfName}-extracted-pages`,
+            extension: "pdf",
+          }),
+        );
       }
+      analytics.trackSuccess({
+        pageCount: pages.length,
+        mode: splitMode,
+      });
     } catch {
       setError("Failed to split PDF");
+      analytics.trackFail({ stage: "process", reason: "processing-failed" });
     } finally {
       setProcessing(false);
     }
@@ -180,7 +247,7 @@ export function SplitWorkspace() {
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-8 sm:px-6 lg:px-8">
-      <div className="mb-6">
+      <div className="pdf-studio-tool-header mb-6">
         <Link
           href="/app/docs/pdf-studio"
           className="text-xs text-[var(--muted-foreground)] transition-colors hover:text-[var(--foreground)]"
@@ -199,6 +266,7 @@ export function SplitWorkspace() {
       {!pdfBytes && (
         <PdfUploadZone
           onFiles={handleFile}
+          toolId="split"
           label="Drop your PDF here"
           disabled={loading}
           error={error}

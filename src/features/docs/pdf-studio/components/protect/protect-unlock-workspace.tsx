@@ -4,6 +4,9 @@ import { useCallback, useRef, useState } from "react";
 import { PDFDocument } from "pdf-lib";
 import { Button, Badge } from "@/components/ui";
 import { cn } from "@/lib/utils";
+import { usePdfStudioAnalytics } from "@/features/docs/pdf-studio/lib/analytics";
+import { validatePdfStudioFiles } from "@/features/docs/pdf-studio/lib/ingestion";
+import { buildPdfStudioOutputName } from "@/features/docs/pdf-studio/lib/output";
 import { downloadPdfBytes } from "@/features/docs/pdf-studio/utils/zip-builder";
 
 // ── Types ──────────────────────────────────────────────────────────────
@@ -36,6 +39,7 @@ interface UnlockState {
 // ── Component ──────────────────────────────────────────────────────────
 
 export function ProtectUnlockWorkspace() {
+  const analytics = usePdfStudioAnalytics("protect");
   const [activeTab, setActiveTab] = useState<ActiveTab>("protect");
 
   // Protect state
@@ -67,15 +71,26 @@ export function ProtectUnlockWorkspace() {
   const handleProtectFileSelect = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
       const f = e.target.files?.[0];
-      if (!f || f.type !== "application/pdf") return;
+      if (!f) return;
+      const fileValidation = validatePdfStudioFiles("protect", [f]);
+      if (!fileValidation.ok) {
+        setProtect((prev) => ({ ...prev, error: fileValidation.error }));
+        analytics.trackFail({ stage: "upload", reason: fileValidation.reason });
+        return;
+      }
       setProtect((prev) => ({
         ...prev,
         file: f,
         status: "idle",
         error: null,
       }));
+      analytics.trackUpload({
+        action: "protect",
+        fileCount: 1,
+        totalBytes: f.size,
+      });
     },
-    [],
+    [analytics],
   );
 
   const handleProtect = useCallback(async () => {
@@ -104,6 +119,10 @@ export function ProtectUnlockWorkspace() {
     }
 
     setProtect((prev) => ({ ...prev, status: "processing", error: null }));
+    analytics.trackStart({
+      action: "protect",
+      requiresProcessing: true,
+    });
 
     try {
       const arrayBuffer = await protect.file.arrayBuffer();
@@ -144,21 +163,60 @@ export function ProtectUnlockWorkspace() {
       const encryptedBuffer = await response.arrayBuffer();
       const encryptedBytes = new Uint8Array(encryptedBuffer);
       const baseName = protect.file.name.replace(/\.pdf$/i, "");
-      downloadPdfBytes(encryptedBytes, `${baseName}-protected.pdf`);
+      downloadPdfBytes(
+        encryptedBytes,
+        buildPdfStudioOutputName({
+          toolId: "protect",
+          baseName: `${baseName}-protected`,
+          extension: "pdf",
+        }),
+      );
 
       setProtect((prev) => ({ ...prev, status: "done" }));
+      analytics.trackSuccess({
+        action: "protect",
+        requiresProcessing: true,
+      });
     } catch (err) {
-      const msg = err instanceof Error ? err.message : "Unknown error";
-      setProtect((prev) => ({ ...prev, status: "error", error: msg }));
+      const message =
+        err instanceof Error && err.message === "Too many requests. Please wait and try again."
+          ? "Too many protection requests are already running. Please wait a moment and try again."
+          : err instanceof Error && err.message === "PDF is too large to encrypt."
+            ? "This PDF exceeds the current protection limit."
+            : "Protection failed. Please try again.";
+
+      const reason =
+        err instanceof Error && err.message === "Too many requests. Please wait and try again."
+          ? "rate-limited"
+          : err instanceof Error && err.message === "PDF is too large to encrypt."
+            ? "payload-too-large"
+            : "encryption-failed";
+
+      setProtect((prev) => ({ ...prev, status: "error", error: message }));
+      analytics.trackFail({
+        action: "protect",
+        stage: "process",
+        reason,
+      });
     }
-  }, [protect]);
+  }, [analytics, protect]);
 
   // ── Unlock handlers ──────────────────────────────────────────────────
 
   const handleUnlockFileSelect = useCallback(
     async (e: React.ChangeEvent<HTMLInputElement>) => {
       const f = e.target.files?.[0];
-      if (!f || f.type !== "application/pdf") return;
+      if (!f) return;
+      const fileValidation = validatePdfStudioFiles("protect", [f]);
+      if (!fileValidation.ok) {
+        setUnlock((prev) => ({
+          ...prev,
+          status: "error",
+          error: fileValidation.error,
+        }));
+        analytics.trackFail({ stage: "upload", reason: fileValidation.reason });
+        return;
+      }
 
       setUnlock((prev) => ({
         ...prev,
@@ -202,16 +260,27 @@ export function ProtectUnlockWorkspace() {
             status: "idle",
           }));
         }
+        analytics.trackUpload({
+          action: "unlock",
+          fileCount: 1,
+          totalBytes: f.size,
+        });
       } catch (err) {
-        const msg = err instanceof Error ? err.message : "Unknown error";
+        const message =
+          "Unable to read this PDF. Please verify the file is valid and try again.";
         setUnlock((prev) => ({
           ...prev,
           status: "error",
-          error: `Failed to read PDF: ${msg}`,
+          error: message,
         }));
+        analytics.trackFail({
+          action: "unlock",
+          stage: "upload",
+          reason: "pdf-read-failed",
+        });
       }
     },
-    [],
+    [analytics],
   );
 
   const handleUnlock = useCallback(async () => {
@@ -224,6 +293,10 @@ export function ProtectUnlockWorkspace() {
     }
 
     setUnlock((prev) => ({ ...prev, status: "unlocking", error: null }));
+    analytics.trackStart({
+      action: "unlock",
+      outputKind: "image-only-pdf",
+    });
 
     try {
       // Verify password using pdfjs-dist (which supports password decryption)
@@ -238,7 +311,8 @@ export function ProtectUnlockWorkspace() {
         password: unlock.password,
       }).promise;
 
-      // Re-create an unencrypted PDF by copying pages
+      // Re-create an unencrypted PDF by rendering each page into a new
+      // image-based PDF. This is an explicit fallback, not a lossless unlock.
       const newDoc = await PDFDocument.create();
       for (let i = 1; i <= pdf.numPages; i++) {
         const page = await pdf.getPage(i);
@@ -268,17 +342,35 @@ export function ProtectUnlockWorkspace() {
 
       const savedBytes = await newDoc.save();
       const baseName = unlock.file?.name.replace(/\.pdf$/i, "") ?? "document";
-      downloadPdfBytes(savedBytes, `${baseName}-unlocked.pdf`);
+      downloadPdfBytes(
+        savedBytes,
+        buildPdfStudioOutputName({
+          toolId: "protect",
+          baseName: `${baseName}-unlocked`,
+          extension: "pdf",
+        }),
+      );
 
       setUnlock((prev) => ({ ...prev, status: "done" }));
+      analytics.trackSuccess({
+        action: "unlock",
+        outputKind: "image-only-pdf",
+      });
     } catch {
+      const message =
+        "Incorrect password or this PDF cannot be converted with the current image-only unlock fallback.";
       setUnlock((prev) => ({
         ...prev,
         status: "error",
-        error: "Incorrect password or corrupted file. Please try again.",
+        error: message,
       }));
+      analytics.trackFail({
+        action: "unlock",
+        stage: "process",
+        reason: "incorrect-password",
+      });
     }
-  }, [unlock.pdfBytes, unlock.password, unlock.file]);
+  }, [analytics, unlock.file, unlock.password, unlock.pdfBytes]);
 
   // ── Render ───────────────────────────────────────────────────────────
 
@@ -286,10 +378,11 @@ export function ProtectUnlockWorkspace() {
     <div className="mx-auto max-w-2xl px-4 py-8 sm:py-12">
       <div className="mb-8 text-center">
         <h1 className="text-2xl font-bold text-[#1a1a1a] sm:text-3xl">
-          Protect &amp; Unlock
+          Protect PDF
         </h1>
         <p className="mt-2 text-sm text-[#666]">
-          Add password protection or remove it from PDFs
+          Add password protection in the workspace, or use the image-only
+          unlock fallback when you can accept fidelity loss.
         </p>
       </div>
 
@@ -307,7 +400,7 @@ export function ProtectUnlockWorkspace() {
               )}
               onClick={() => setActiveTab(tab)}
             >
-              {tab}
+              {tab === "protect" ? "Protect" : "Image-only unlock"}
             </button>
           ))}
         </div>
@@ -573,7 +666,7 @@ export function ProtectUnlockWorkspace() {
                 Upload a protected PDF
               </p>
               <p className="mt-1 text-xs text-[#666]">
-                Remove password protection from your PDF
+                Convert a password-protected PDF into an image-only PDF
               </p>
               <input
                 ref={unlockFileRef}
@@ -641,6 +734,12 @@ export function ProtectUnlockWorkspace() {
 
               {unlock.needsPassword && (
                 <>
+                  <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                    This fallback rebuilds the PDF from page images. Searchable
+                    text, links, form fields, metadata, annotations, and vector
+                    fidelity will be lost.
+                  </div>
+
                   <div>
                     <label className="mb-1.5 block text-xs font-semibold text-[#1a1a1a]">
                       Enter Password
@@ -684,7 +783,7 @@ export function ProtectUnlockWorkspace() {
                   >
                     {unlock.status === "unlocking"
                       ? "Unlocking…"
-                      : "Unlock & Download"}
+                      : "Unlock as image-only PDF"}
                   </Button>
                 </>
               )}

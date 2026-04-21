@@ -10,6 +10,12 @@ import {
 import { Button, Badge } from "@/components/ui";
 import { cn } from "@/lib/utils";
 import { useActiveOrg } from "@/hooks/use-active-org";
+import { usePdfStudioAnalytics } from "@/features/docs/pdf-studio/lib/analytics";
+import {
+  validatePdfStudioFiles,
+  validatePdfStudioPageCount,
+} from "@/features/docs/pdf-studio/lib/ingestion";
+import { buildPdfStudioOutputName } from "@/features/docs/pdf-studio/lib/output";
 import { SignatureCanvas } from "./signature-canvas";
 import {
   getSavedSignatures,
@@ -42,6 +48,7 @@ type PlacingMode =
 // ── Component ──────────────────────────────────────────────────────────
 
 export function FillSignWorkspace() {
+  const analytics = usePdfStudioAnalytics("fill-sign");
   const { activeOrg, isLoading: isOrgLoading } = useActiveOrg();
   const orgScope = activeOrg?.id ?? "anonymous";
   // PDF state
@@ -105,8 +112,13 @@ export function FillSignWorkspace() {
   const handleFileSelect = useCallback(
     async (e: React.ChangeEvent<HTMLInputElement>) => {
       const f = e.target.files?.[0];
-      if (!f || f.type !== "application/pdf") {
-        setError("Please select a valid PDF file.");
+      if (!f) {
+        return;
+      }
+      const fileValidation = validatePdfStudioFiles("fill-sign", [f]);
+      if (!fileValidation.ok) {
+        setError(fileValidation.error);
+        analytics.trackFail({ stage: "upload", reason: fileValidation.reason });
         return;
       }
 
@@ -129,9 +141,15 @@ export function FillSignWorkspace() {
         ).toString();
 
         const pdf = await pdfjsLib.getDocument({ data: bytes }).promise;
-        if (pdf.numPages > 50) {
-          setError("PDF exceeds 50 pages limit.");
+        const pageValidation = validatePdfStudioPageCount(
+          "fill-sign",
+          pdf.numPages,
+        );
+        if (!pageValidation.ok) {
+          setError(pageValidation.error);
           setLoading(false);
+          analytics.trackFail({ stage: "upload", reason: pageValidation.reason });
+          await pdf.destroy();
           return;
         }
 
@@ -165,14 +183,22 @@ export function FillSignWorkspace() {
         await pdf.destroy();
 
         setPages(previews);
+        analytics.trackUpload({
+          fileCount: 1,
+          pageCount: previews.length,
+          totalBytes: f.size,
+        });
       } catch (err) {
-        const msg = err instanceof Error ? err.message : "Unknown error";
-        setError(`Failed to read PDF: ${msg}`);
+        setError("Unable to read this PDF. Please verify the file is valid and try again.");
+        analytics.trackFail({
+          stage: "upload",
+          reason: "pdf-read-failed",
+        });
       } finally {
         setLoading(false);
       }
     },
-    [],
+    [analytics],
   );
 
   // ── Signature actions ────────────────────────────────────────────────
@@ -311,6 +337,12 @@ export function FillSignWorkspace() {
   const handleDownload = useCallback(async () => {
     if (!pdfBytes || !file) return;
     setGenerating(true);
+    setError(null);
+    analytics.trackStart({
+      pageCount: pages.length,
+      textAnnotations: textAnnotations.length,
+      signatureAnnotations: signatureAnnotations.length,
+    });
     try {
       const result = await embedAnnotations(
         pdfBytes,
@@ -318,14 +350,36 @@ export function FillSignWorkspace() {
         signatureAnnotations,
       );
       const baseName = file.name.replace(/\.pdf$/i, "");
-      downloadPdfBytes(result, `${baseName}-signed.pdf`);
+      downloadPdfBytes(
+        result,
+        buildPdfStudioOutputName({
+          toolId: "fill-sign",
+          baseName: `${baseName}-signed`,
+          extension: "pdf",
+        }),
+      );
+      analytics.trackSuccess({
+        pageCount: pages.length,
+        textAnnotations: textAnnotations.length,
+        signatureAnnotations: signatureAnnotations.length,
+      });
     } catch (err) {
-      const msg = err instanceof Error ? err.message : "Unknown error";
-      setError(`Failed to generate PDF: ${msg}`);
+      setError("Could not generate the signed PDF. Please try again.");
+      analytics.trackFail({
+        stage: "generate",
+        reason: "processing-failed",
+      });
     } finally {
       setGenerating(false);
     }
-  }, [pdfBytes, file, textAnnotations, signatureAnnotations]);
+  }, [
+    analytics,
+    file,
+    pages.length,
+    pdfBytes,
+    signatureAnnotations,
+    textAnnotations,
+  ]);
 
   // ── Current page annotations ─────────────────────────────────────────
 
@@ -353,7 +407,7 @@ export function FillSignWorkspace() {
   if (!file || pages.length === 0) {
     return (
       <div className="mx-auto max-w-3xl px-4 py-8 sm:py-12">
-        <div className="mb-8 text-center">
+        <div className="pdf-studio-tool-header mb-8 text-center">
           <h1 className="text-2xl font-bold text-[#1a1a1a] sm:text-3xl">
             Fill &amp; Sign
           </h1>

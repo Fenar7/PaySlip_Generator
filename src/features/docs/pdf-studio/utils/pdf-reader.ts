@@ -1,5 +1,8 @@
 "use client";
 
+import { validatePdfStudioPageCount } from "@/features/docs/pdf-studio/lib/ingestion";
+import type { PdfStudioToolId } from "@/features/docs/pdf-studio/types";
+
 export interface PdfPageItem {
   pageIndex: number;
   previewUrl: string;
@@ -10,11 +13,24 @@ export interface PdfPageItem {
 
 export type PdfReadResult =
   | { ok: true; data: PdfPageItem[] }
-  | { ok: false; error: string };
+  | {
+      ok: false;
+      error: string;
+      reason:
+        | "page-limit-exceeded"
+        | "pdf-read-failed";
+    };
+
+type PdfReadOptions =
+  | number
+  | {
+      toolId?: PdfStudioToolId;
+      maxPages?: number;
+    };
 
 export async function readPdfPages(
   file: File,
-  maxPages = 50
+  options: PdfReadOptions = 50,
 ): Promise<PdfReadResult> {
   try {
     const pdfjsLib = await import("pdfjs-dist");
@@ -26,10 +42,31 @@ export async function readPdfPages(
     const arrayBuffer = await file.arrayBuffer();
     const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
 
-    if (pdf.numPages > maxPages) {
+    if (typeof options === "number") {
+      if (pdf.numPages > options) {
+        return {
+          ok: false,
+          error: `This PDF has ${pdf.numPages} pages. The current limit is ${options} pages.`,
+          reason: "page-limit-exceeded",
+        };
+      }
+    } else if (options.toolId) {
+      const pageValidation = validatePdfStudioPageCount(
+        options.toolId,
+        pdf.numPages,
+      );
+      if (!pageValidation.ok) {
+        return {
+          ok: false,
+          error: pageValidation.error,
+          reason: pageValidation.reason,
+        };
+      }
+    } else if (options.maxPages && pdf.numPages > options.maxPages) {
       return {
         ok: false,
-        error: `PDF has ${pdf.numPages} pages (max ${maxPages})`,
+        error: `This PDF has ${pdf.numPages} pages. The current limit is ${options.maxPages} pages.`,
+        reason: "page-limit-exceeded",
       };
     }
 
@@ -42,7 +79,11 @@ export async function readPdfPages(
       canvas.height = viewport.height;
       const ctx = canvas.getContext("2d");
       if (!ctx) {
-        return { ok: false, error: "Failed to create canvas context" };
+        return {
+          ok: false,
+          error: "Unable to read this PDF. Please verify the file and try again.",
+          reason: "pdf-read-failed",
+        };
       }
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       await page.render({ canvasContext: ctx, viewport } as any).promise;
@@ -60,7 +101,10 @@ export async function readPdfPages(
 
     return { ok: true, data: pages };
   } catch (err) {
-    const msg = err instanceof Error ? err.message : "Unknown error";
-    return { ok: false, error: `Failed to read PDF: ${msg}` };
+    return {
+      ok: false,
+      error: "Unable to read this PDF. Please verify the file is valid and try again.",
+      reason: "pdf-read-failed",
+    };
   }
 }
