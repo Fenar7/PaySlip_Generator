@@ -17,6 +17,7 @@ import { MergeWorkspace } from "@/features/docs/pdf-studio/components/merge/merg
 import { MetadataWorkspace } from "@/features/docs/pdf-studio/components/metadata/metadata-workspace";
 import { NUpWorkspace } from "@/features/docs/pdf-studio/components/n-up/n-up-workspace";
 import { OrganizeWorkspace } from "@/features/docs/pdf-studio/components/organize/organize-workspace";
+import { OcrWorkspace } from "@/features/docs/pdf-studio/components/ocr/ocr-workspace";
 import { PageNumbersWorkspace } from "@/features/docs/pdf-studio/components/page-numbers/page-numbers-workspace";
 import { PdfToExcelWorkspace } from "@/features/docs/pdf-studio/components/pdf-to-excel/pdf-to-excel-workspace";
 import { PdfStudioWorkspace } from "@/features/docs/pdf-studio/components/pdf-studio-workspace";
@@ -63,6 +64,7 @@ const TOOL_COMPONENTS: Record<PdfStudioToolId, ComponentType> = {
   bookmarks: BookmarksWorkspace,
   flatten: FlattenWorkspace,
   repair: RepairWorkspace,
+  ocr: OcrWorkspace,
   "pdf-to-image": PdfToImageWorkspace,
   "extract-images": ExtractImagesWorkspace,
   "pdf-to-text": PdfToTextWorkspace,

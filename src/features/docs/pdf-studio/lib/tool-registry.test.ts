@@ -80,6 +80,12 @@ describe("pdf studio tool registry", () => {
       executionMode: "browser",
       outputLabel: "TXT",
     });
+    expect(getPdfStudioTool("ocr")).toMatchObject({
+      workspacePath: "/app/docs/pdf-studio/ocr",
+      publicPath: "/pdf-studio/ocr",
+      executionMode: "browser",
+      outputLabel: "Searchable PDF / TXT",
+    });
     expect(getPdfStudioTool("unlock")).toMatchObject({
       workspacePath: "/app/docs/pdf-studio/unlock",
       availability: {
@@ -209,6 +215,7 @@ describe("pdf studio tool registry", () => {
     expect(publicCatalog.flatMap((category) => category.tools)).toContain("watermark");
     expect(publicCatalog.flatMap((category) => category.tools)).toContain("jpg-to-pdf");
     expect(publicCatalog.flatMap((category) => category.tools)).toContain("pdf-to-text");
+    expect(publicCatalog.flatMap((category) => category.tools)).toContain("ocr");
     expect(publicCatalog.flatMap((category) => category.tools)).toContain("rotate");
   });
 });

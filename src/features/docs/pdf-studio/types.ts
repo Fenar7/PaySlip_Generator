@@ -28,6 +28,7 @@ export type PdfStudioToolId =
   | "grayscale"
   | "header-footer"
   | "repair"
+  | "ocr"
   | "pdf-to-image"
   | "extract-images"
   | "pdf-to-text"
@@ -225,6 +226,7 @@ export type ImageItem = {
   sizeBytes: number;
   isConverting?: boolean;
   ocrText?: string;
+  ocrConfidence?: number;
   ocrStatus?: 'pending' | 'processing' | 'complete' | 'error' | 'cancelled';
   ocrErrorMessage?: string;
 };
@@ -282,6 +284,8 @@ export type PdfStudioSession = {
 };
 
 export type PdfTextExtractionMode = "auto" | "selectable" | "ocr";
+
+export type PdfStudioOcrMode = "fast" | "accurate";
 
 export type PdfTextExtractionResult = {
   mode: Exclude<PdfTextExtractionMode, "auto">;

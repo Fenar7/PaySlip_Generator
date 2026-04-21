@@ -532,6 +532,27 @@ export const PDF_STUDIO_TOOL_REGISTRY: Record<
     defaultOutputBase: "repaired-document",
     keywords: ["repair pdf", "fix corrupted pdf", "recover pdf"],
   },
+  ocr: {
+    id: "ocr",
+    title: "OCR PDF & Images",
+    description:
+      "Recognize text in scanned PDFs or images, review confidence page by page, and export a searchable raster PDF or TXT file.",
+    icon: "🔎",
+    category: "convert-export",
+    workspacePath: "/app/docs/pdf-studio/ocr",
+    publicPath: "/pdf-studio/ocr",
+    availability: PUBLIC_AND_WORKSPACE,
+    executionMode: "browser",
+    inputTypes: ["pdf", "image"],
+    outputLabel: "Searchable PDF / TXT",
+    limits: {
+      maxFiles: 1,
+      maxSizeMb: 40,
+      maxPages: 30,
+    },
+    defaultOutputBase: "ocr-document",
+    keywords: ["ocr pdf", "scan to text", "searchable pdf", "image to text"],
+  },
   "pdf-to-image": {
     id: "pdf-to-image",
     title: "PDF to Image",
