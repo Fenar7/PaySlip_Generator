@@ -135,7 +135,6 @@ export async function markAsViewed(token: string): Promise<ActionResult<void>> {
     return { success: false, error: "Failed to mark as viewed" };
   }
 }
-
 export async function uploadPaymentProof(
   token: string,
   data: {

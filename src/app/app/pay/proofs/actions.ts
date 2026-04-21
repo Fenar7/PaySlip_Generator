@@ -6,6 +6,7 @@ import { toAccountingNumber } from "@/lib/accounting/utils";
 import { revalidatePath } from "next/cache";
 import { reconcileInvoicePayment } from "@/lib/invoice-reconciliation";
 import { postInvoicePaymentTx } from "@/lib/accounting";
+import { resolvePaymentProofUrl } from "@/features/pay/server/payment-proof-storage";
 
 export type ActionResult<T> =
   | { success: true; data: T }
@@ -146,11 +147,13 @@ export async function getProofDetail(proofId: string): Promise<
     const resultingStatus: "PAID" | "PARTIALLY_PAID" =
       proofAmount >= effectiveRemaining ? "PAID" : "PARTIALLY_PAID";
 
+    const fileUrl = await resolvePaymentProofUrl(proof.fileUrl);
+
     return {
       success: true,
       data: {
         id: proof.id,
-        fileUrl: proof.fileUrl,
+        fileUrl,
         fileName: proof.fileName,
         amount: proofAmount,
         paymentDate: proof.paymentDate,
