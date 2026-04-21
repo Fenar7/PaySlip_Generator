@@ -1,6 +1,5 @@
 import { NextRequest } from "next/server";
 import { confirmBankTransactionMatch } from "@/lib/accounting";
-import { logAudit } from "@/lib/audit";
 import {
   BooksApiError,
   BooksApiErrorCode,
@@ -14,7 +13,7 @@ export async function POST(request: NextRequest) {
   try {
     const { orgId, userId } = await requireBooksApiWrite("bankReconciliation");
     const body = (await request.json().catch(() => null)) as
-      | { bankTransactionId?: string; matchId?: string; matchedAmount?: number | string }
+      | { bankTransactionId?: string; matchId?: string; matchedAmount?: number | string; reason?: string }
       | null;
 
     if (!body) {
@@ -38,15 +37,7 @@ export async function POST(request: NextRequest) {
       bankTransactionId,
       matchId,
       matchedAmount: parseOptionalNumber(body.matchedAmount, "matchedAmount"),
-    });
-
-    await logAudit({
-      orgId,
-      actorId: userId,
-      action: "books.reconciliation_confirmed",
-      entityType: "BankTransaction",
-      entityId: bankTransactionId,
-      metadata: { matchId },
+      reason: typeof body.reason === "string" ? body.reason : undefined,
     });
 
     return booksApiResponse({ id: match.id });

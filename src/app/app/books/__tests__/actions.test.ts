@@ -33,15 +33,35 @@ vi.mock("@/lib/db", () => ({
       findFirst: vi.fn(),
       update: vi.fn(),
     },
+    paymentRun: {
+      findFirst: vi.fn(),
+    },
+    approvalRequest: {
+      findFirst: vi.fn(),
+      update: vi.fn(),
+    },
+    fiscalPeriod: {
+      findFirst: vi.fn(),
+    },
+    profile: {
+      findUnique: vi.fn(),
+    },
+    auditLog: {
+      create: vi.fn(),
+    },
   },
 }));
 
 vi.mock("@/lib/auth", () => ({
   requireOrgContext: vi.fn(),
+  requireRole: vi.fn(),
 }));
 
 vi.mock("@/lib/books-permissions", () => ({
+  canApprovePaymentRun: vi.fn(),
+  canExecuteBooksPaymentRun: vi.fn(),
   canReadBooks: vi.fn(),
+  canRejectPaymentRun: vi.fn(),
   canWriteBooks: vi.fn(),
 }));
 
@@ -73,6 +93,7 @@ vi.mock("@/lib/accounting", () => ({
   getBankStatementImportDetail: vi.fn(),
   getCashFlowStatement: vi.fn(),
   getCloseWorkspace: vi.fn(),
+  getFiscalPeriodReopenImpact: vi.fn(),
   getGeneralLedger: vi.fn(),
   getGstTieOut: vi.fn(),
   getPaymentRun: vi.fn(),
@@ -90,11 +111,10 @@ vi.mock("@/lib/accounting", () => ({
   listPaymentRuns: vi.fn(),
   listVendorBills: vi.fn(),
   lockFiscalPeriod: vi.fn(),
-  markCloseRunReopened: vi.fn(),
   postJournalEntry: vi.fn(),
   refreshReconciliationSuggestions: vi.fn(),
   rejectBankTransactionMatch: vi.fn(),
-  reopenFiscalPeriod: vi.fn(),
+  resubmitPaymentRun: vi.fn(),
   reverseJournalEntry: vi.fn(),
   updateCloseTaskStatus: vi.fn(),
   updateVendorBill: vi.fn(),
@@ -104,34 +124,63 @@ vi.mock("@/lib/storage/upload-server", () => ({
   getSignedUrlServer: vi.fn(),
   uploadFileServer: vi.fn(),
 }));
+vi.mock("@/lib/flow/approvals", () => ({
+  createApprovalRequest: vi.fn(),
+}));
 vi.mock("../../flow/approvals/actions", () => ({
+  approveRequest: vi.fn(),
+  rejectRequest: vi.fn(),
   requestApproval: vi.fn(),
 }));
 
-import { requireOrgContext } from "@/lib/auth";
-import { canReadBooks, canWriteBooks } from "@/lib/books-permissions";
+import { requireOrgContext, requireRole } from "@/lib/auth";
+import {
+  canApprovePaymentRun,
+  canExecuteBooksPaymentRun,
+  canReadBooks,
+  canRejectPaymentRun,
+  canWriteBooks,
+} from "@/lib/books-permissions";
 import { db } from "@/lib/db";
+import { createApprovalRequest } from "@/lib/flow/approvals";
 import { checkFeature } from "@/lib/plans";
 import {
   createAndPostJournal,
   ensureBooksSetup,
   createGlAccount,
+  confirmBankTransactionMatch,
+  buildAuditPackage,
+  getPaymentRun,
+  getFiscalPeriodReopenImpact,
   getTrialBalance,
   listFiscalPeriods,
   listGlAccounts,
   listJournalEntries,
+  resubmitPaymentRun,
 } from "@/lib/accounting";
 import { getSignedUrlServer, uploadFileServer } from "@/lib/storage/upload-server";
 import { revalidatePath } from "next/cache";
-import { requestApproval } from "../../flow/approvals/actions";
 import {
+  approveRequest,
+  rejectRequest,
+  requestApproval,
+} from "../../flow/approvals/actions";
+import {
+  approveBooksPaymentRun,
   createChartAccount,
   exportBooksJournalRegisterCsv,
+  exportBooksAuditPackageJson,
+  exportBooksPaymentRunPayoutCsv,
   exportBooksTrialBalanceCsv,
   exportChartOfAccountsCsv,
   getBooksSettings,
   getBooksJournalAttachmentDownloadUrl,
   createManualJournal,
+  confirmBooksReconciliationMatch,
+  rejectBooksPaymentRun,
+  reopenBooksClosedPeriod,
+  requestBooksPaymentRunApproval,
+  resubmitBooksPaymentRun,
   updateBooksSettingsDefaultMappings,
   uploadBooksJournalAttachment,
   requestBooksVendorBillApproval,
@@ -163,11 +212,22 @@ function mockReadAccess() {
     proxyGrantId: null,
     proxyScope: [],
   });
+  vi.mocked(requireRole).mockResolvedValue({
+    orgId: ORG_ID,
+    userId: USER_ID,
+    role: "admin",
+    representedId: null,
+    proxyGrantId: null,
+    proxyScope: [],
+  });
   vi.mocked(canReadBooks).mockReturnValue(true);
 }
 
 function mockWriteAccess() {
   vi.mocked(canWriteBooks).mockReturnValue(true);
+  vi.mocked(canApprovePaymentRun).mockReturnValue(true);
+  vi.mocked(canExecuteBooksPaymentRun).mockReturnValue(true);
+  vi.mocked(canRejectPaymentRun).mockReturnValue(true);
 }
 
 function buildValidAccounts() {
@@ -812,6 +872,221 @@ describe("Books actions", () => {
       data: {
         status: "PENDING_APPROVAL",
       },
+    });
+  });
+
+  it("prevents duplicate payment run approval requests", async () => {
+    vi.mocked(db.paymentRun.findFirst).mockResolvedValue({
+      id: "run-1",
+      status: "DRAFT",
+    } as never);
+    vi.mocked(db.approvalRequest.findFirst).mockResolvedValue({
+      id: "approval-existing",
+    } as never);
+
+    const result = await requestBooksPaymentRunApproval("run-1");
+
+    expect(result).toEqual({
+      success: false,
+      error: "This payment run already has an active approval request.",
+    });
+    expect(requestApproval).not.toHaveBeenCalled();
+  });
+
+  it("routes payment run approvals through the flow approval queue", async () => {
+    vi.mocked(db.approvalRequest.findFirst).mockResolvedValue({
+      id: "approval-1",
+    } as never);
+    vi.mocked(approveRequest).mockResolvedValue({
+      success: true,
+      data: undefined,
+    } as never);
+
+    const result = await approveBooksPaymentRun("run-1");
+
+    expect(result).toEqual({ success: true, data: null });
+    expect(approveRequest).toHaveBeenCalledWith("approval-1");
+  });
+
+  it("routes payment run rejections through the flow approval queue", async () => {
+    vi.mocked(db.approvalRequest.findFirst).mockResolvedValue({
+      id: "approval-2",
+    } as never);
+    vi.mocked(rejectRequest).mockResolvedValue({
+      success: true,
+      data: undefined,
+    } as never);
+
+    const result = await rejectBooksPaymentRun({
+      paymentRunId: "run-1",
+      reason: "Totals need another review",
+    });
+
+    expect(result).toEqual({ success: true, data: null });
+    expect(rejectRequest).toHaveBeenCalledWith("approval-2", "Totals need another review");
+  });
+
+  it("allows only the original requester to resubmit a rejected payment run", async () => {
+    vi.mocked(resubmitPaymentRun).mockResolvedValue({
+      id: "run-1",
+      status: "DRAFT",
+    } as never);
+
+    const result = await resubmitBooksPaymentRun("run-1");
+
+    expect(result).toEqual({ success: true, data: null });
+    expect(resubmitPaymentRun).toHaveBeenCalledWith({
+      orgId: ORG_ID,
+      paymentRunId: "run-1",
+      actorId: USER_ID,
+    });
+  });
+
+  it("submits fiscal period reopen requests into the approval workflow", async () => {
+    vi.mocked(db.fiscalPeriod.findFirst).mockResolvedValue({
+      id: "period-1",
+      label: "FY26-MAR",
+      status: "LOCKED",
+    } as never);
+    vi.mocked(db.approvalRequest.findFirst).mockResolvedValue(null as never);
+    vi.mocked(db.profile.findUnique).mockResolvedValue({
+      name: "Admin User",
+    } as never);
+    vi.mocked(createApprovalRequest).mockResolvedValue({
+      id: "approval-period-1",
+    } as never);
+    vi.mocked(getFiscalPeriodReopenImpact).mockResolvedValue({
+      journalCount: 4,
+      postedJournalCount: 3,
+      draftJournalCount: 1,
+      affectedAccountCount: 2,
+      affectedAccounts: [
+        { id: "bank", code: "1110", name: "Primary Bank" },
+        { id: "ar", code: "1100", name: "Accounts Receivable" },
+      ],
+      earliestEntryDate: "2026-03-01T00:00:00.000Z",
+      latestEntryDate: "2026-03-31T00:00:00.000Z",
+      closeCompletedAt: "2026-04-01T09:00:00.000Z",
+      sampleEntries: [
+        {
+          id: "jrnl-1",
+          entryNumber: "JE-001",
+          entryDate: "2026-03-31T00:00:00.000Z",
+          status: "POSTED",
+          source: "MANUAL",
+          sourceRef: null,
+        },
+      ],
+    } as never);
+    vi.mocked(db.approvalRequest.update).mockResolvedValue({} as never);
+    vi.mocked(db.auditLog.create).mockResolvedValue({} as never);
+
+    const result = await reopenBooksClosedPeriod("period-1", "Bank statement correction required");
+
+    expect(result).toEqual({ success: true, data: null });
+    expect(createApprovalRequest).toHaveBeenCalledWith({
+      docType: "fiscal-period-reopen",
+      docId: "period-1",
+      orgId: ORG_ID,
+      requestedById: USER_ID,
+      requestedByName: "Admin User",
+      docNumber: "FY26-MAR",
+    });
+    expect(db.approvalRequest.update).toHaveBeenCalledWith({
+      where: { id: "approval-period-1" },
+      data: { note: "Bank statement correction required" },
+    });
+    expect(db.auditLog.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        action: "books.period.reopen_requested",
+        metadata: expect.objectContaining({
+          reopenImpact: expect.objectContaining({
+            journalCount: 4,
+            affectedAccountCount: 2,
+          }),
+        }),
+      }),
+    });
+  });
+
+  it("passes reconciliation reasons through the Books action", async () => {
+    vi.mocked(confirmBankTransactionMatch).mockResolvedValue({
+      id: "match-1",
+    } as never);
+
+    const result = await confirmBooksReconciliationMatch({
+      bankTransactionId: "txn-1",
+      matchId: "match-1",
+      matchedAmount: 125.5,
+      reason: "Matched against the customer collection advice.",
+    });
+
+    expect(result).toEqual({ success: true, data: { id: "match-1" } });
+    expect(confirmBankTransactionMatch).toHaveBeenCalledWith({
+      orgId: ORG_ID,
+      actorId: USER_ID,
+      bankTransactionId: "txn-1",
+      matchId: "match-1",
+      matchedAmount: 125.5,
+      reason: "Matched against the customer collection advice.",
+    });
+  });
+
+  it("serializes audit package exports deterministically", async () => {
+    vi.mocked(buildAuditPackage).mockResolvedValue({
+      orgId: ORG_ID,
+      generatedAt: "2026-04-30T00:00:00.000Z",
+      closeRun: {
+        tasks: [{ code: "bank_reconciliation_complete" }],
+      },
+      fiscalPeriod: {
+        label: "FY26-APR",
+      },
+      reports: {
+        zeta: 2,
+        alpha: 1,
+      },
+    } as never);
+
+    const result = await exportBooksAuditPackageJson("period-1");
+
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data).toBe(
+        JSON.stringify(
+          {
+            closeRun: {
+              tasks: [{ code: "bank_reconciliation_complete" }],
+            },
+            fiscalPeriod: {
+              label: "FY26-APR",
+            },
+            generatedAt: "2026-04-30T00:00:00.000Z",
+            orgId: ORG_ID,
+            reports: {
+              alpha: 1,
+              zeta: 2,
+            },
+          },
+          null,
+          2,
+        ),
+      );
+    }
+  });
+
+  it("blocks payout exports until a payment run is approved", async () => {
+    vi.mocked(getPaymentRun).mockResolvedValue({
+      id: "run-1",
+      runNumber: "RUN-001",
+      status: "REJECTED",
+    } as never);
+
+    const result = await exportBooksPaymentRunPayoutCsv("run-1");
+
+    expect(result).toEqual({
+      success: false,
+      error: "Payout exports are only available for approved, processing, or completed runs.",
     });
   });
 });

@@ -33,7 +33,9 @@ import { db } from "@/lib/db";
 import { incrementUsage } from "@/lib/plans/usage";
 import {
   confirmBankTransactionMatch,
+  ignoreBankTransaction,
   importBankStatement,
+  rejectBankTransactionMatch,
 } from "../banking";
 import { resetBooksBankingConfigForTests } from "../config";
 
@@ -176,6 +178,9 @@ describe("banking reconciliation", () => {
             .fn()
             .mockResolvedValueOnce({ _sum: { matchedAmount: 90 } }),
         },
+        auditLog: {
+          create: vi.fn(),
+        },
       } as never),
     );
 
@@ -225,6 +230,9 @@ describe("banking reconciliation", () => {
             totalAmount: 80,
           }),
         },
+        auditLog: {
+          create: vi.fn(),
+        },
       } as never),
     );
 
@@ -237,5 +245,174 @@ describe("banking reconciliation", () => {
         matchedAmount: 60,
       }),
     ).rejects.toThrow("Matched amount exceeds the available amount for the selected entity.");
+  });
+
+  it("records reconciliation confirmation reasons in the audit trail", async () => {
+    const auditLogCreate = vi.fn().mockResolvedValue({});
+    vi.mocked(db.$transaction).mockImplementation(async (callback) =>
+      callback({
+        bankTransaction: {
+          findFirst: vi.fn().mockResolvedValue({
+            id: "txn-1",
+            orgId: "org-1",
+            amount: 100,
+            direction: "CREDIT",
+            txnDate: new Date("2026-04-01T00:00:00Z"),
+            bankAccount: {
+              id: "bank-1",
+              name: "Primary Bank",
+              glAccountId: "gl-bank",
+              gatewayClearingAccountId: null,
+            },
+          }),
+          findUnique: vi.fn(),
+          findUniqueOrThrow: vi.fn().mockResolvedValue({
+            id: "txn-1",
+            amount: 100,
+            status: "SUGGESTED",
+            matches: [
+              {
+                id: "match-1",
+                status: "CONFIRMED",
+                matchedAmount: 50,
+              },
+            ],
+          }),
+          update: vi.fn().mockResolvedValue({}),
+        },
+        bankTransactionMatch: {
+          findFirst: vi.fn().mockResolvedValue({
+            id: "match-1",
+            entityType: "VOUCHER",
+            entityId: "voucher-1",
+            matchedAmount: 50,
+            confidenceScore: 98,
+            status: "SUGGESTED",
+            createdByUserId: null,
+          }),
+          update: vi.fn().mockResolvedValue({
+            id: "match-1",
+            entityType: "VOUCHER",
+            entityId: "voucher-1",
+          }),
+          aggregate: vi
+            .fn()
+            .mockResolvedValueOnce({ _sum: { matchedAmount: 0 } })
+            .mockResolvedValueOnce({ _sum: { matchedAmount: 0 } }),
+        },
+        voucher: {
+          findUnique: vi.fn().mockResolvedValue({
+            totalAmount: 100,
+          }),
+        },
+        auditLog: {
+          create: auditLogCreate,
+        },
+      } as never),
+    );
+
+    await confirmBankTransactionMatch({
+      orgId: "org-1",
+      actorId: "user-1",
+      bankTransactionId: "txn-1",
+      matchId: "match-1",
+      reason: "Matched to the monthly bank fee debit.",
+    });
+
+    expect(auditLogCreate).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        action: "books.reconciliation.confirmed",
+        metadata: expect.objectContaining({
+          reason: "Matched to the monthly bank fee debit.",
+        }),
+      }),
+    });
+  });
+
+  it("audits rejected reconciliation suggestions inside the service", async () => {
+    const auditLogCreate = vi.fn().mockResolvedValue({});
+    vi.mocked(db.$transaction).mockImplementation(async (callback) =>
+      callback({
+        bankTransaction: {
+          findUniqueOrThrow: vi.fn().mockResolvedValue({
+            id: "txn-2",
+            amount: 100,
+            status: "SUGGESTED",
+            matches: [],
+          }),
+          update: vi.fn().mockResolvedValue({}),
+        },
+        bankTransactionMatch: {
+          findFirst: vi.fn().mockResolvedValue({
+            id: "match-2",
+            entityType: "VOUCHER",
+            entityId: "voucher-1",
+            status: "SUGGESTED",
+          }),
+          update: vi.fn().mockResolvedValue({
+            id: "match-2",
+            entityType: "VOUCHER",
+            entityId: "voucher-1",
+          }),
+        },
+        auditLog: {
+          create: auditLogCreate,
+        },
+      } as never),
+    );
+
+    await rejectBankTransactionMatch({
+      orgId: "org-1",
+      actorId: "user-1",
+      bankTransactionId: "txn-2",
+      matchId: "match-2",
+    });
+
+    expect(auditLogCreate).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        action: "books.reconciliation.rejected",
+        entityId: "txn-2",
+      }),
+    });
+  });
+
+  it("audits ignored bank transactions inside the service", async () => {
+    const auditLogCreate = vi.fn().mockResolvedValue({});
+    vi.mocked(db.$transaction).mockImplementation(async (callback) =>
+      callback({
+        bankTransaction: {
+          findFirst: vi.fn().mockResolvedValue({
+            id: "txn-3",
+          }),
+          findUniqueOrThrow: vi.fn().mockResolvedValue({
+            id: "txn-3",
+            amount: 100,
+            status: "IGNORED",
+            matches: [],
+          }),
+          update: vi.fn().mockResolvedValue({}),
+        },
+        bankTransactionMatch: {
+          aggregate: vi.fn().mockResolvedValue({ _sum: { matchedAmount: 0 } }),
+          updateMany: vi.fn().mockResolvedValue({ count: 1 }),
+        },
+        auditLog: {
+          create: auditLogCreate,
+        },
+      } as never),
+    );
+
+    await ignoreBankTransaction({
+      orgId: "org-1",
+      actorId: "user-1",
+      bankTransactionId: "txn-3",
+    });
+
+    expect(auditLogCreate).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        action: "books.reconciliation.ignored",
+        entityId: "txn-3",
+      }),
+    });
   });
 });

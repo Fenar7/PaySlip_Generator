@@ -119,6 +119,7 @@ describe("Books reconciliation API routes", () => {
           bankTransactionId: "txn-1",
           matchId: "match-1",
           matchedAmount: "125.75",
+          reason: "Matched against the deposited customer receipt.",
         }),
       }),
     );
@@ -132,15 +133,9 @@ describe("Books reconciliation API routes", () => {
       bankTransactionId: "txn-1",
       matchId: "match-1",
       matchedAmount: 125.75,
+      reason: "Matched against the deposited customer receipt.",
     });
-    expect(mockedLogAudit).toHaveBeenCalledWith({
-      orgId: "org-1",
-      actorId: "user-1",
-      action: "books.reconciliation_confirmed",
-      entityType: "BankTransaction",
-      entityId: "txn-1",
-      metadata: { matchId: "match-1" },
-    });
+    expect(mockedLogAudit).not.toHaveBeenCalled();
   });
 
   it("blocks ignore writes for members without admin access", async () => {
@@ -190,14 +185,7 @@ describe("Books reconciliation API routes", () => {
       bankTransactionId: "txn-2",
       matchId: "match-2",
     });
-    expect(mockedLogAudit).toHaveBeenCalledWith({
-      orgId: "org-1",
-      actorId: "user-1",
-      action: "books.reconciliation_rejected",
-      entityType: "BankTransaction",
-      entityId: "txn-2",
-      metadata: { matchId: "match-2" },
-    });
+    expect(mockedLogAudit).not.toHaveBeenCalled();
   });
 
   it("audits ignored transactions", async () => {
@@ -214,12 +202,6 @@ describe("Books reconciliation API routes", () => {
 
     expect(response.status).toBe(200);
     expect(body.data).toEqual({ id: "txn-7" });
-    expect(mockedLogAudit).toHaveBeenCalledWith({
-      orgId: "org-1",
-      actorId: "user-1",
-      action: "books.reconciliation_ignored",
-      entityType: "BankTransaction",
-      entityId: "txn-7",
-    });
+    expect(mockedLogAudit).not.toHaveBeenCalled();
   });
 });

@@ -14,7 +14,15 @@ import {
 } from "@/lib/books-permissions";
 import { hasPermission } from "@/lib/permissions";
 import { revalidatePath } from "next/cache";
-import { postVendorBillTx, postVoucherTx } from "@/lib/accounting";
+import {
+  approvePaymentRunTx,
+  getFiscalPeriodReopenImpact,
+  markCloseRunReopenedTx,
+  postVendorBillTx,
+  postVoucherTx,
+  rejectPaymentRun,
+  reopenFiscalPeriodTx,
+} from "@/lib/accounting";
 import { createNotification } from "@/lib/notifications";
 import {
   advanceApprovalChain,
@@ -45,6 +53,8 @@ function docTypeToLabel(docType: string): string {
       return "Vendor Bill";
     case "payment-run":
       return "Payment Run";
+    case "fiscal-period-reopen":
+      return "Fiscal Period Reopen";
     default:
       return docType;
   }
@@ -62,6 +72,7 @@ interface ApprovalDocumentSummary {
 const FINANCE_APPROVAL_DOC_TYPES: ApprovalDocType[] = [
   "vendor-bill",
   "payment-run",
+  "fiscal-period-reopen",
 ] as const;
 
 function getApprovalVisibilityWhere(
@@ -98,6 +109,13 @@ function revalidateApprovalDocumentPaths(docType: ApprovalDocType, docId: string
     revalidatePath("/app/books/payment-runs");
     revalidatePath(`/app/books/payment-runs/${docId}`);
     revalidatePath("/app/books/vendor-bills");
+    return;
+  }
+
+  if (docType === "fiscal-period-reopen") {
+    revalidatePath("/app/books");
+    revalidatePath("/app/books/settings");
+    revalidatePath("/app/books/close");
   }
 }
 
@@ -138,6 +156,13 @@ async function getDocNumber(docType: string, docId: string): Promise<string> {
       });
       return run?.runNumber ?? docId;
     }
+    case "fiscal-period-reopen": {
+      const period = await db.fiscalPeriod.findUnique({
+        where: { id: docId },
+        select: { label: true },
+      });
+      return period?.label ?? docId;
+    }
     default:
       return docId;
   }
@@ -161,8 +186,11 @@ async function getApprovalDocumentSummaries(
   const paymentRunIds = approvals
     .filter((approval) => approval.docType === "payment-run")
     .map((approval) => approval.docId);
+  const fiscalPeriodIds = approvals
+    .filter((approval) => approval.docType === "fiscal-period-reopen")
+    .map((approval) => approval.docId);
 
-  const [invoices, vouchers, salarySlips, vendorBills, paymentRuns] = await Promise.all([
+  const [invoices, vouchers, salarySlips, vendorBills, paymentRuns, fiscalPeriods] = await Promise.all([
     invoiceIds.length > 0
       ? db.invoice.findMany({
           where: { id: { in: invoiceIds } },
@@ -223,6 +251,16 @@ async function getApprovalDocumentSummaries(
           },
         })
       : Promise.resolve([]),
+    fiscalPeriodIds.length > 0
+      ? db.fiscalPeriod.findMany({
+          where: { id: { in: fiscalPeriodIds } },
+          select: {
+            id: true,
+            label: true,
+            endDate: true,
+          },
+        })
+      : Promise.resolve([]),
   ]);
 
   const documents = new Map<string, ApprovalDocumentSummary>();
@@ -271,6 +309,15 @@ async function getApprovalDocumentSummaries(
       entityName: null,
       amount: paymentRun.totalAmount,
       date: paymentRun.scheduledDate.toISOString().slice(0, 10),
+    });
+  }
+
+  for (const period of fiscalPeriods) {
+    documents.set(`fiscal-period-reopen:${period.id}`, {
+      number: period.label,
+      entityName: "Governed period reopen",
+      amount: 0,
+      date: period.endDate.toISOString().slice(0, 10),
     });
   }
 
@@ -323,6 +370,12 @@ export async function requestApproval(
         break;
       case "payment-run":
         docExists = !!(await db.paymentRun.findFirst({
+          where: { id: docId, orgId },
+          select: { id: true },
+        }));
+        break;
+      case "fiscal-period-reopen":
+        docExists = !!(await db.fiscalPeriod.findFirst({
           where: { id: docId, orgId },
           select: { id: true },
         }));
@@ -461,6 +514,7 @@ export interface ApprovalDetail {
   note: string | null;
   createdAt: Date;
   decidedAt: Date | null;
+  reopenImpact: import("@/lib/accounting").FiscalPeriodReopenImpact | null;
   document: {
     number: string;
     entityName: string | null;
@@ -498,6 +552,10 @@ export async function getApprovalDetail(
 
     const documents = await getApprovalDocumentSummaries([approval]);
     const document = documents.get(`${approval.docType}:${approval.docId}`) ?? null;
+    const reopenImpact =
+      approval.docType === "fiscal-period-reopen"
+        ? await getFiscalPeriodReopenImpact(orgId, approval.docId)
+        : null;
 
     return {
       success: true,
@@ -514,6 +572,7 @@ export async function getApprovalDetail(
         note: approval.note,
         createdAt: approval.createdAt,
         decidedAt: approval.decidedAt,
+        reopenImpact,
         document,
       },
     };
@@ -594,34 +653,73 @@ export async function approveRequest(
       return { success: true, data: undefined };
     }
 
-    // Chain fully approved — finalize document state
-    await db.$transaction(async (tx) => {
-      await tx.approvalRequest.update({
-        where: { id: requestId },
-        data: {
-          status: "APPROVED",
-          approverId: userId,
-          approverName,
-          decidedAt: new Date(),
-          note: note ?? null,
-        },
-      });
-
-      if (approval.docType === "voucher") {
-        await tx.voucher.update({ where: { id: approval.docId }, data: { status: "approved" } });
-        await postVoucherTx(tx, { orgId, voucherId: approval.docId, actorId: userId });
-      } else if (approval.docType === "salary-slip") {
-        await tx.salarySlip.update({ where: { id: approval.docId }, data: { status: "approved" } });
-      } else if (approval.docType === "vendor-bill") {
-        await tx.vendorBill.update({ where: { id: approval.docId }, data: { status: "APPROVED" } });
-        await postVendorBillTx(tx, { orgId, vendorBillId: approval.docId, actorId: userId });
-      } else if (approval.docType === "payment-run") {
-        await tx.paymentRun.update({
-          where: { id: approval.docId },
-          data: { status: "APPROVED", approvedByUserId: userId, approvedAt: new Date() },
+    if (approval.docType === "payment-run") {
+      await db.$transaction(async (tx) => {
+        await approvePaymentRunTx(tx, orgId, approval.docId, userId);
+        await tx.approvalRequest.update({
+          where: { id: requestId },
+          data: {
+            status: "APPROVED",
+            approverId: userId,
+            approverName,
+            decidedAt: new Date(),
+            note: note ?? null,
+          },
         });
+      });
+    } else if (approval.docType === "fiscal-period-reopen") {
+      const reopenReason = approval.note?.trim();
+      if (!reopenReason) {
+        return { success: false, error: "A reopen reason is required on the approval request." };
       }
-    });
+
+      await db.$transaction(async (tx) => {
+        await reopenFiscalPeriodTx(tx, {
+          orgId,
+          periodId: approval.docId,
+          actorId: userId,
+          reason: reopenReason,
+        });
+        await markCloseRunReopenedTx(tx, {
+          orgId,
+          fiscalPeriodId: approval.docId,
+          actorId: userId,
+          reason: reopenReason,
+        });
+        await tx.approvalRequest.update({
+          where: { id: requestId },
+          data: {
+            status: "APPROVED",
+            approverId: userId,
+            approverName,
+            decidedAt: new Date(),
+          },
+        });
+      });
+    } else {
+      await db.$transaction(async (tx) => {
+        await tx.approvalRequest.update({
+          where: { id: requestId },
+          data: {
+            status: "APPROVED",
+            approverId: userId,
+            approverName,
+            decidedAt: new Date(),
+            note: note ?? null,
+          },
+        });
+
+        if (approval.docType === "voucher") {
+          await tx.voucher.update({ where: { id: approval.docId }, data: { status: "approved" } });
+          await postVoucherTx(tx, { orgId, voucherId: approval.docId, actorId: userId });
+        } else if (approval.docType === "salary-slip") {
+          await tx.salarySlip.update({ where: { id: approval.docId }, data: { status: "approved" } });
+        } else if (approval.docType === "vendor-bill") {
+          await tx.vendorBill.update({ where: { id: approval.docId }, data: { status: "APPROVED" } });
+          await postVendorBillTx(tx, { orgId, vendorBillId: approval.docId, actorId: userId });
+        }
+      });
+    }
 
     const docNumber = await getDocNumber(approval.docType, approval.docId);
 
@@ -711,8 +809,14 @@ export async function rejectRequest(
       decisionContext.delegatedFromId,
     );
 
-    await db.$transaction(async (tx) => {
-      await tx.approvalRequest.update({
+    if (approval.docType === "payment-run") {
+      await rejectPaymentRun({
+        orgId,
+        paymentRunId: approval.docId,
+        reason: note.trim(),
+        actorId: userId,
+      });
+      await db.approvalRequest.update({
         where: { id: requestId },
         data: {
           status: "REJECTED",
@@ -722,16 +826,29 @@ export async function rejectRequest(
           note: note.trim(),
         },
       });
+    } else {
+      await db.$transaction(async (tx) => {
+        await tx.approvalRequest.update({
+          where: { id: requestId },
+          data: {
+            status: "REJECTED",
+            approverId: userId,
+            approverName,
+            decidedAt: new Date(),
+            note:
+              approval.docType === "fiscal-period-reopen"
+                ? approval.note
+                : note.trim(),
+          },
+        });
 
-      if (isFinanceApprovalDocType(approval.docType)) {
-        if (approval.docType === "vendor-bill") {
-          await tx.vendorBill.update({ where: { id: approval.docId }, data: { status: "DRAFT" } });
+        if (isFinanceApprovalDocType(approval.docType)) {
+          if (approval.docType === "vendor-bill") {
+            await tx.vendorBill.update({ where: { id: approval.docId }, data: { status: "DRAFT" } });
+          }
         }
-        if (approval.docType === "payment-run") {
-          await tx.paymentRun.update({ where: { id: approval.docId }, data: { status: "DRAFT" } });
-        }
-      }
-    });
+      });
+    }
 
     const docNumber = await getDocNumber(approval.docType, approval.docId);
 

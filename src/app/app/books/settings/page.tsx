@@ -133,7 +133,8 @@ export default async function BooksSettingsPage() {
         <CardHeader>
           <h2 className="text-lg font-semibold text-slate-900">Fiscal periods</h2>
           <p className="mt-1 text-sm text-slate-500">
-            Lock periods here, or reopen them as a direct admin action with a required reason and audit trail.
+            Lock periods here, or request a governed reopen with a required reason, approval trail, and
+            audit log.
           </p>
         </CardHeader>
         <CardContent className="px-0 py-0">

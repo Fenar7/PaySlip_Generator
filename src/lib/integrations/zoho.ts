@@ -1,6 +1,11 @@
 import "server-only";
 
 import { db } from "@/lib/db";
+import {
+  decryptIntegrationSecret,
+  encryptIntegrationSecret,
+  mergeIntegrationConfig,
+} from "@/lib/integrations/secrets";
 
 const ZOHO_AUTH_URL = "https://accounts.zoho.in/oauth/v2/auth";
 const ZOHO_TOKEN_URL = "https://accounts.zoho.in/oauth/v2/token";
@@ -73,22 +78,44 @@ export async function handleCallback(
     externalOrgId = orgsData.organizations?.[0]?.organization_id ?? null;
   }
 
+  const existing = await db.orgIntegration.findUnique({
+    where: { orgId_provider: { orgId, provider: "zoho" } },
+    select: { config: true },
+  });
+  const connectedAt = new Date().toISOString();
+
   await db.orgIntegration.upsert({
     where: { orgId_provider: { orgId, provider: "zoho" } },
     create: {
       orgId,
       provider: "zoho",
-      accessToken: tokens.access_token,
-      refreshToken: tokens.refresh_token,
+      accessToken: encryptIntegrationSecret(tokens.access_token),
+      refreshToken: encryptIntegrationSecret(tokens.refresh_token),
       tokenExpiresAt: new Date(Date.now() + tokens.expires_in * 1000),
       externalOrgId,
+      config: mergeIntegrationConfig(undefined, {
+        connectedAt,
+        disconnectedAt: null,
+        connectionStatus: "connected",
+        credentialVersion: "encrypted_v1",
+        lastSyncStatus: "connected",
+        lastSyncError: null,
+      }),
       isActive: true,
     },
     update: {
-      accessToken: tokens.access_token,
-      refreshToken: tokens.refresh_token,
+      accessToken: encryptIntegrationSecret(tokens.access_token),
+      refreshToken: encryptIntegrationSecret(tokens.refresh_token),
       tokenExpiresAt: new Date(Date.now() + tokens.expires_in * 1000),
       externalOrgId,
+      config: mergeIntegrationConfig(existing?.config, {
+        connectedAt,
+        disconnectedAt: null,
+        connectionStatus: "connected",
+        credentialVersion: "encrypted_v1",
+        lastSyncStatus: "connected",
+        lastSyncError: null,
+      }),
       isActive: true,
     },
   });
@@ -105,7 +132,7 @@ export async function refreshTokenIfNeeded(orgId: string): Promise<string> {
 
   const fiveMinutes = 5 * 60 * 1000;
   if (integration.tokenExpiresAt.getTime() - Date.now() > fiveMinutes) {
-    return integration.accessToken;
+    return decryptIntegrationSecret(integration.accessToken);
   }
 
   const { clientId, clientSecret } = getClientCredentials();
@@ -115,7 +142,7 @@ export async function refreshTokenIfNeeded(orgId: string): Promise<string> {
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body: new URLSearchParams({
       grant_type: "refresh_token",
-      refresh_token: integration.refreshToken,
+      refresh_token: decryptIntegrationSecret(integration.refreshToken),
       client_id: clientId,
       client_secret: clientSecret,
     }),
@@ -133,8 +160,13 @@ export async function refreshTokenIfNeeded(orgId: string): Promise<string> {
   await db.orgIntegration.update({
     where: { orgId_provider: { orgId, provider: "zoho" } },
     data: {
-      accessToken: tokens.access_token,
+      accessToken: encryptIntegrationSecret(tokens.access_token),
       tokenExpiresAt: new Date(Date.now() + tokens.expires_in * 1000),
+      config: mergeIntegrationConfig(integration.config, {
+        credentialVersion: "encrypted_v1",
+        lastTokenRefreshAt: new Date().toISOString(),
+        lastSyncError: null,
+      }),
     },
   });
 
@@ -152,6 +184,20 @@ export async function syncInvoices(orgId: string): Promise<{ synced: number }> {
     throw new Error("Zoho organization ID not found");
   }
 
+  const syncStartedAt = new Date();
+  await db.orgIntegration.update({
+    where: { orgId_provider: { orgId, provider: "zoho" } },
+    data: {
+      config: mergeIntegrationConfig(integration.config, {
+        connectionStatus: "connected",
+        disconnectedAt: null,
+        lastSyncAttemptAt: syncStartedAt.toISOString(),
+        lastSyncStatus: "running",
+        lastSyncError: null,
+      }),
+    },
+  });
+
   const invoices = await db.invoice.findMany({
     where: { organizationId: orgId, status: "ISSUED" },
     include: {
@@ -161,45 +207,78 @@ export async function syncInvoices(orgId: string): Promise<{ synced: number }> {
   });
 
   let synced = 0;
+  const failedInvoices: string[] = [];
 
-  for (const inv of invoices) {
-    const zohoInvoice = {
-      customer_name: inv.customer?.name ?? "Cash Customer",
-      invoice_number: inv.invoiceNumber,
-      date: inv.invoiceDate,
-      line_items: inv.lineItems.map((item) => ({
-        name: item.description,
-        description: item.description,
-        quantity: item.quantity,
-        rate: item.unitPrice,
-        tax_percentage: item.taxRate,
-        discount: item.discount,
-      })),
-    };
+  try {
+    for (const inv of invoices) {
+      const zohoInvoice = {
+        customer_name: inv.customer?.name ?? "Cash Customer",
+        invoice_number: inv.invoiceNumber,
+        date: inv.invoiceDate,
+        line_items: inv.lineItems.map((item) => ({
+          name: item.description,
+          description: item.description,
+          quantity: item.quantity,
+          rate: item.unitPrice,
+          tax_percentage: item.taxRate,
+          discount: item.discount,
+        })),
+      };
 
-    const res = await fetch(
-      `${ZOHO_API_BASE}/invoices?organization_id=${integration.externalOrgId}`,
-      {
-        method: "POST",
-        headers: {
-          Authorization: `Zoho-oauthtoken ${accessToken}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ invoice: zohoInvoice }),
+      const res = await fetch(
+        `${ZOHO_API_BASE}/invoices?organization_id=${integration.externalOrgId}`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Zoho-oauthtoken ${accessToken}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ invoice: zohoInvoice }),
+        }
+      );
+
+      if (res.ok) {
+        synced++;
+      } else {
+        failedInvoices.push(inv.invoiceNumber);
+        const errBody = await res.text();
+        console.error(`Zoho sync failed for ${inv.invoiceNumber}:`, errBody);
       }
-    );
-
-    if (res.ok) {
-      synced++;
-    } else {
-      const errBody = await res.text();
-      console.error(`Zoho sync failed for ${inv.invoiceNumber}:`, errBody);
     }
+  } catch (error) {
+    await db.orgIntegration.update({
+      where: { orgId_provider: { orgId, provider: "zoho" } },
+      data: {
+        config: mergeIntegrationConfig(integration.config, {
+          lastSyncAttemptAt: syncStartedAt.toISOString(),
+          lastSyncStatus: "failed",
+          lastSyncError: error instanceof Error ? error.message : "Zoho sync failed",
+        }),
+      },
+    });
+    throw error;
   }
 
   await db.orgIntegration.update({
     where: { orgId_provider: { orgId, provider: "zoho" } },
-    data: { lastSyncAt: new Date() },
+    data: {
+      lastSyncAt: new Date(),
+      config: mergeIntegrationConfig(integration.config, {
+        lastSyncAttemptAt: syncStartedAt.toISOString(),
+        lastSyncStatus:
+          failedInvoices.length === 0
+            ? "success"
+            : synced > 0
+              ? "partial_success"
+              : "failed",
+        lastSyncError:
+          failedInvoices.length > 0
+            ? `Failed invoices: ${failedInvoices.slice(0, 5).join(", ")}`
+            : null,
+        syncedCount: synced,
+        attemptedCount: invoices.length,
+      }),
+    },
   });
 
   return { synced };
@@ -214,7 +293,7 @@ export async function disconnect(orgId: string): Promise<void> {
 
   try {
     await fetch(
-      `${ZOHO_REVOKE_URL}?token=${integration.refreshToken}`,
+      `${ZOHO_REVOKE_URL}?token=${decryptIntegrationSecret(integration.refreshToken)}`,
       { method: "POST" }
     );
   } catch {
@@ -223,6 +302,12 @@ export async function disconnect(orgId: string): Promise<void> {
 
   await db.orgIntegration.update({
     where: { orgId_provider: { orgId, provider: "zoho" } },
-    data: { isActive: false },
+    data: {
+      isActive: false,
+      config: mergeIntegrationConfig(integration.config, {
+        connectionStatus: "disconnected",
+        disconnectedAt: new Date().toISOString(),
+      }),
+    },
   });
 }

@@ -846,51 +846,63 @@ export async function approvePaymentRun(
 ) {
   await ensureBooksSetup(orgId);
 
-  return db.$transaction(async (tx) => {
-    const run = await tx.paymentRun.findFirst({
-      where: {
-        id: paymentRunId,
-        orgId,
-      },
-      select: {
-        id: true,
-        runNumber: true,
-        status: true,
-      },
-    });
+  return db.$transaction((tx) => approvePaymentRunTx(tx, orgId, paymentRunId, actorId));
+}
 
-    if (!run) {
-      throw new Error("Payment run not found.");
-    }
-
-    if (run.status === "CANCELLED" || run.status === "COMPLETED") {
-      throw new Error("This payment run can no longer be approved.");
-    }
-
-    const updated = await tx.paymentRun.update({
-      where: { id: paymentRunId },
-      data: {
-        status: "APPROVED",
-        approvedAt: new Date(),
-        approvedByUserId: actorId,
-      },
-    });
-
-    await tx.auditLog.create({
-      data: {
-        orgId,
-        actorId,
-        action: "books.payment_run.approved",
-        entityType: "payment_run",
-        entityId: paymentRunId,
-        metadata: {
-          runNumber: run.runNumber,
-        },
-      },
-    });
-
-    return updated;
+export async function approvePaymentRunTx(
+  tx: TxClient,
+  orgId: string,
+  paymentRunId: string,
+  actorId: string,
+) {
+  const run = await tx.paymentRun.findFirst({
+    where: {
+      id: paymentRunId,
+      orgId,
+    },
+    select: {
+      id: true,
+      runNumber: true,
+      status: true,
+      requestedByUserId: true,
+    },
   });
+
+  if (!run) {
+    throw new Error("Payment run not found.");
+  }
+
+  if (run.status !== "PENDING_APPROVAL") {
+    throw new Error("Only payment runs awaiting approval can be approved.");
+  }
+
+  if (run.requestedByUserId && run.requestedByUserId === actorId) {
+    throw new Error("You cannot approve a payment run that you requested.");
+  }
+
+  const updated = await tx.paymentRun.update({
+    where: { id: paymentRunId },
+    data: {
+      status: "APPROVED",
+      approvedAt: new Date(),
+      approvedByUserId: actorId,
+    },
+  });
+
+  await tx.auditLog.create({
+    data: {
+      orgId,
+      actorId,
+      action: "books.payment_run.approved",
+      entityType: "payment_run",
+      entityId: paymentRunId,
+      metadata: {
+        runNumber: run.runNumber,
+      },
+    },
+  });
+
+  return updated;
 }
 
 export async function executePaymentRun(input: {
@@ -926,6 +938,10 @@ export async function executePaymentRun(input: {
         throw new Error("This payment run is still awaiting approval.");
       }
 
+      if (run.status === "DRAFT" || run.status === "REJECTED" || run.status === "FAILED") {
+        throw new Error("Only approved payment runs can be executed.");
+      }
+
       if (run.status === "COMPLETED") {
         throw new Error("This payment run has already been executed.");
       }
@@ -936,6 +952,14 @@ export async function executePaymentRun(input: {
 
       if (run.items.length === 0) {
         throw new Error("This payment run has no pending items to execute.");
+      }
+
+      if (run.requestedByUserId && run.requestedByUserId === input.actorId) {
+        throw new Error("The requester must be different from the payment executor.");
+      }
+
+      if (run.approvedByUserId && run.approvedByUserId === input.actorId) {
+        throw new Error("The approver must be different from the payment executor.");
       }
 
       await tx.paymentRun.update({
@@ -1136,7 +1160,7 @@ export async function rejectPaymentRun(input: {
   return db.$transaction(async (tx) => {
     const run = await tx.paymentRun.findFirst({
       where: { id: input.paymentRunId, orgId: input.orgId },
-      select: { id: true, runNumber: true, status: true },
+      select: { id: true, runNumber: true, status: true, requestedByUserId: true },
     });
 
     if (!run) {
@@ -1145,6 +1169,10 @@ export async function rejectPaymentRun(input: {
 
     if (run.status !== "PENDING_APPROVAL") {
       throw new Error("Only pending approval runs can be rejected");
+    }
+
+    if (run.requestedByUserId && run.requestedByUserId === input.actorId) {
+      throw new Error("You cannot reject a payment run that you requested.");
     }
 
     const updated = await tx.paymentRun.update({
@@ -1190,7 +1218,7 @@ export async function resubmitPaymentRun(input: {
   return db.$transaction(async (tx) => {
     const run = await tx.paymentRun.findFirst({
       where: { id: input.paymentRunId, orgId: input.orgId },
-      select: { id: true, runNumber: true, status: true },
+      select: { id: true, runNumber: true, status: true, requestedByUserId: true },
     });
 
     if (!run) {
@@ -1199,6 +1227,10 @@ export async function resubmitPaymentRun(input: {
 
     if (run.status !== "REJECTED") {
       throw new Error("Only rejected runs can be resubmitted");
+    }
+
+    if (run.requestedByUserId && run.requestedByUserId !== input.actorId) {
+      throw new Error("Only the original requester can resubmit this payment run.");
     }
 
     const updated = await tx.paymentRun.update({

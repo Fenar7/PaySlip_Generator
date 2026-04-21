@@ -17,6 +17,8 @@ const mocks = vi.hoisted(() => ({
   paymentRunFindFirst: vi.fn(),
   paymentRunFindUnique: vi.fn(),
   paymentRunUpdate: vi.fn(),
+  fiscalPeriodFindFirst: vi.fn(),
+  fiscalPeriodFindMany: vi.fn(),
   salarySlipFindFirst: vi.fn(),
   salarySlipFindMany: vi.fn(),
   salarySlipFindUnique: vi.fn(),
@@ -29,6 +31,11 @@ const mocks = vi.hoisted(() => ({
   txPaymentRunUpdate: vi.fn(),
   txSalarySlipUpdate: vi.fn(),
   txVoucherUpdate: vi.fn(),
+  approvePaymentRunTx: vi.fn(),
+  rejectPaymentRun: vi.fn(),
+  reopenFiscalPeriodTx: vi.fn(),
+  markCloseRunReopenedTx: vi.fn(),
+  getFiscalPeriodReopenImpact: vi.fn(),
   createApprovalRequest: vi.fn(),
   advanceApprovalChain: vi.fn(),
   getApprovalDocumentAmount: vi.fn(),
@@ -58,6 +65,10 @@ vi.mock("@/lib/db", () => ({
       findUnique: mocks.paymentRunFindUnique,
       update: mocks.paymentRunUpdate,
       findMany: vi.fn(),
+    },
+    fiscalPeriod: {
+      findFirst: mocks.fiscalPeriodFindFirst,
+      findMany: mocks.fiscalPeriodFindMany,
     },
     salarySlip: {
       findFirst: mocks.salarySlipFindFirst,
@@ -103,6 +114,11 @@ vi.mock("@/lib/flow/approvals", () => ({
 vi.mock("@/lib/accounting", () => ({
   postVendorBillTx: vi.fn(),
   postVoucherTx: vi.fn(),
+  approvePaymentRunTx: mocks.approvePaymentRunTx,
+  getFiscalPeriodReopenImpact: mocks.getFiscalPeriodReopenImpact,
+  rejectPaymentRun: mocks.rejectPaymentRun,
+  reopenFiscalPeriodTx: mocks.reopenFiscalPeriodTx,
+  markCloseRunReopenedTx: mocks.markCloseRunReopenedTx,
 }));
 
 import { requireOrgContext } from "@/lib/auth";
@@ -128,6 +144,8 @@ describe("Flow approval authorization", () => {
     mocks.vendorBillFindUnique.mockResolvedValue({ billNumber: "BILL-001" });
     mocks.paymentRunFindFirst.mockResolvedValue({ id: "run-1", status: "PENDING" });
     mocks.paymentRunFindUnique.mockResolvedValue({ runNumber: "RUN-001" });
+    mocks.fiscalPeriodFindFirst.mockResolvedValue({ id: "period-1", status: "LOCKED" });
+    mocks.fiscalPeriodFindMany.mockResolvedValue([]);
     mocks.salarySlipFindFirst.mockResolvedValue({ id: "slip-1" });
     mocks.salarySlipFindMany.mockResolvedValue([]);
     mocks.salarySlipFindUnique.mockResolvedValue({ slipNumber: "SLIP-001" });
@@ -142,6 +160,21 @@ describe("Flow approval authorization", () => {
     mocks.txPaymentRunUpdate.mockResolvedValue({});
     mocks.txSalarySlipUpdate.mockResolvedValue({});
     mocks.txVoucherUpdate.mockResolvedValue({});
+    mocks.approvePaymentRunTx.mockResolvedValue(undefined);
+    mocks.rejectPaymentRun.mockResolvedValue(undefined);
+    mocks.reopenFiscalPeriodTx.mockResolvedValue(undefined);
+    mocks.markCloseRunReopenedTx.mockResolvedValue(undefined);
+    mocks.getFiscalPeriodReopenImpact.mockResolvedValue({
+      journalCount: 0,
+      postedJournalCount: 0,
+      draftJournalCount: 0,
+      affectedAccountCount: 0,
+      affectedAccounts: [],
+      earliestEntryDate: null,
+      latestEntryDate: null,
+      closeCompletedAt: null,
+      sampleEntries: [],
+    });
     mocks.createApprovalRequest.mockResolvedValue({ id: "approval-1" });
     mocks.advanceApprovalChain.mockResolvedValue({ status: "APPROVED" });
     mocks.getApprovalDocumentAmount.mockResolvedValue(2500);
@@ -211,7 +244,7 @@ describe("Flow approval authorization", () => {
       where: {
         orgId: "org-1",
         OR: [
-          { docType: { notIn: ["vendor-bill", "payment-run"] } },
+          { docType: { notIn: ["vendor-bill", "payment-run", "fiscal-period-reopen"] } },
           { requestedById: "hr-1" },
         ],
       },
@@ -329,7 +362,7 @@ describe("Flow approval authorization", () => {
     });
   });
 
-  it("returns rejected payment runs to draft", async () => {
+  it("marks rejected payment runs as REJECTED through the payment-run service", async () => {
     mocks.approvalRequestFindFirst.mockResolvedValue({
       id: "approval-4",
       docType: "payment-run",
@@ -345,9 +378,20 @@ describe("Flow approval authorization", () => {
       success: true,
       data: undefined,
     });
-    expect(mocks.txPaymentRunUpdate).toHaveBeenCalledWith({
-      where: { id: "run-1" },
-      data: { status: "DRAFT" },
+    expect(mocks.rejectPaymentRun).toHaveBeenCalledWith({
+      orgId: "org-1",
+      paymentRunId: "run-1",
+      reason: "Rework the batch totals",
+      actorId: "user-1",
+    });
+    expect(mocks.approvalRequestUpdate).toHaveBeenCalledWith({
+      where: { id: "approval-4" },
+      data: expect.objectContaining({
+        status: "REJECTED",
+        approverId: "user-1",
+        approverName: "Approver",
+        note: "Rework the batch totals",
+      }),
     });
   });
 
@@ -385,6 +429,59 @@ describe("Flow approval authorization", () => {
         }),
       }),
     );
+  });
+
+  it("includes reopen impact context in fiscal period approval detail", async () => {
+    mocks.approvalRequestFindFirst.mockResolvedValue({
+      id: "approval-5",
+      docType: "fiscal-period-reopen",
+      docId: "period-1",
+      orgId: "org-1",
+      requestedById: "requester-1",
+      requestedByName: "Requester",
+      approverId: null,
+      approverName: null,
+      status: "PENDING",
+      note: "Need to correct the April close pack.",
+      createdAt: new Date("2026-04-01T00:00:00.000Z"),
+      decidedAt: null,
+    });
+    mocks.fiscalPeriodFindMany.mockResolvedValue([
+      {
+        id: "period-1",
+        label: "FY26-APR",
+        endDate: new Date("2026-04-30T00:00:00.000Z"),
+      },
+    ]);
+    mocks.getFiscalPeriodReopenImpact.mockResolvedValue({
+      journalCount: 7,
+      postedJournalCount: 7,
+      draftJournalCount: 0,
+      affectedAccountCount: 3,
+      affectedAccounts: [{ id: "bank", code: "1110", name: "Primary Bank" }],
+      earliestEntryDate: "2026-04-01T00:00:00.000Z",
+      latestEntryDate: "2026-04-30T00:00:00.000Z",
+      closeCompletedAt: "2026-05-01T10:00:00.000Z",
+      sampleEntries: [],
+    });
+
+    const result = await getApprovalDetail("approval-5");
+
+    expect(result).toEqual({
+      success: true,
+      data: expect.objectContaining({
+        id: "approval-5",
+        docType: "fiscal-period-reopen",
+        note: "Need to correct the April close pack.",
+        reopenImpact: expect.objectContaining({
+          journalCount: 7,
+          affectedAccountCount: 3,
+        }),
+        document: expect.objectContaining({
+          number: "FY26-APR",
+        }),
+      }),
+    });
   });
 
   it("blocks finance approval detail access for non-finance roles", async () => {

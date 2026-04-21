@@ -20,6 +20,7 @@ export const APPROVAL_DOC_TYPES = [
   "salary-slip",
   "vendor-bill",
   "payment-run",
+  "fiscal-period-reopen",
 ] as const;
 
 export type ApprovalDocType = (typeof APPROVAL_DOC_TYPES)[number];
@@ -27,12 +28,15 @@ export type ApprovalDocType = (typeof APPROVAL_DOC_TYPES)[number];
 const FINANCE_APPROVAL_DOC_TYPE_SET = new Set<ApprovalDocType>([
   "vendor-bill",
   "payment-run",
+  "fiscal-period-reopen",
 ]);
 
 type NonFinanceApprovalDocType = Exclude<
   ApprovalDocType,
-  "vendor-bill" | "payment-run"
+  "vendor-bill" | "payment-run" | "fiscal-period-reopen"
 >;
+
+const BOOKS_GOVERNANCE_ROLE_SET = new Set<Role>(["owner", "admin"]);
 
 const APPROVAL_MODULE_BY_DOC_TYPE: Record<NonFinanceApprovalDocType, Module> = {
   invoice: "invoices",
@@ -65,6 +69,22 @@ export function canDecideFinanceApproval(role: string): boolean {
   return isBooksFinanceRole(role);
 }
 
+export function canApprovePaymentRun(role: string): boolean {
+  return isBooksFinanceRole(role);
+}
+
+export function canRejectPaymentRun(role: string): boolean {
+  return isBooksFinanceRole(role);
+}
+
+export function canExecuteBooksPaymentRun(role: string): boolean {
+  return isBooksFinanceRole(role);
+}
+
+export function canReopenBooksPeriod(role: string): boolean {
+  return BOOKS_GOVERNANCE_ROLE_SET.has(role as Role);
+}
+
 export function isFinanceApprovalDocType(
   docType: string,
 ): docType is "vendor-bill" | "payment-run" {
@@ -76,6 +96,10 @@ export function isApprovalDocType(docType: string): docType is ApprovalDocType {
 }
 
 export function canRequestApprovalForDoc(role: string, docType: ApprovalDocType): boolean {
+  if (docType === "fiscal-period-reopen") {
+    return canWriteBooks(role);
+  }
+
   if (isFinanceApprovalDocType(docType)) {
     return canWriteBooks(role);
   }
@@ -106,6 +130,10 @@ export function canDecideApprovalForDoc(
   role: string,
   docType: ApprovalDocType,
 ): boolean {
+  if (docType === "fiscal-period-reopen") {
+    return canReopenBooksPeriod(role);
+  }
+
   if (isFinanceApprovalDocType(docType)) {
     return canDecideFinanceApproval(role);
   }

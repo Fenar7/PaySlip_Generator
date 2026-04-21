@@ -234,43 +234,58 @@ export async function reopenFiscalPeriod(input: {
     throw new Error("A reopen reason is required.");
   }
 
-  return db.$transaction(async (tx) => {
-    const period = await tx.fiscalPeriod.findFirst({
-      where: { id: input.periodId, orgId: input.orgId },
-    });
+  return db.$transaction((tx) => reopenFiscalPeriodTx(tx, input));
+}
 
-    if (!period) {
-      throw new Error("Fiscal period not found.");
-    }
+export async function reopenFiscalPeriodTx(
+  tx: TxClient,
+  input: {
+    orgId: string;
+    periodId: string;
+    actorId: string;
+    reason: string;
+  },
+): Promise<FiscalPeriod> {
+  const reason = input.reason.trim();
+  if (!reason) {
+    throw new Error("A reopen reason is required.");
+  }
 
-    if (period.status === "OPEN") {
-      throw new Error(`Fiscal period ${period.label} is already open.`);
-    }
-
-    const updated = await tx.fiscalPeriod.update({
-      where: { id: period.id },
-      data: {
-        status: "OPEN",
-        reopenedAt: new Date(),
-        reopenedBy: input.actorId,
-        reopenReason: reason,
-      },
-    });
-
-    await tx.auditLog.create({
-      data: {
-        orgId: input.orgId,
-        actorId: input.actorId,
-        action: "books.period.reopened",
-        entityType: "fiscal_period",
-        entityId: period.id,
-        metadata: {
-          label: period.label,
-          reason,
-        },
-      },
-    });
-
-    return updated;
+  const period = await tx.fiscalPeriod.findFirst({
+    where: { id: input.periodId, orgId: input.orgId },
   });
+
+  if (!period) {
+    throw new Error("Fiscal period not found.");
+  }
+
+  if (period.status === "OPEN") {
+    throw new Error(`Fiscal period ${period.label} is already open.`);
+  }
+
+  const updated = await tx.fiscalPeriod.update({
+    where: { id: period.id },
+    data: {
+      status: "OPEN",
+      reopenedAt: new Date(),
+      reopenedBy: input.actorId,
+      reopenReason: reason,
+    },
+  });
+
+  await tx.auditLog.create({
+    data: {
+      orgId: input.orgId,
+      actorId: input.actorId,
+      action: "books.period.reopened",
+      entityType: "fiscal_period",
+      entityId: period.id,
+      metadata: {
+        label: period.label,
+        reason,
+      },
+    },
+  });
+
+  return updated;
 }

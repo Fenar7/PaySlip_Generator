@@ -1669,9 +1669,11 @@ export async function confirmBankTransactionMatch(input: {
   bankTransactionId: string;
   matchId: string;
   matchedAmount?: number;
+  reason?: string;
 }) {
   return db.$transaction(async (tx) => {
     const { reconMatchToleranceAmount } = getBooksBankingConfig();
+    const trimmedReason = input.reason?.trim() || null;
     const bankTxn = await tx.bankTransaction.findFirst({
       where: { id: input.bankTransactionId, orgId: input.orgId },
       include: {
@@ -1858,12 +1860,13 @@ export async function confirmBankTransactionMatch(input: {
         action: "books.reconciliation.confirmed",
         entityType: "bank_transaction",
         entityId: bankTxn.id,
-        metadata: {
+        metadata: toJsonValue({
           matchId: updatedMatch.id,
           entityType: updatedMatch.entityType,
           entityId: updatedMatch.entityId,
           matchedAmount,
-        },
+          reason: trimmedReason,
+        }),
       },
     });
 
@@ -1899,6 +1902,21 @@ export async function rejectBankTransactionMatch(input: {
     const updated = await tx.bankTransactionMatch.update({
       where: { id: match.id },
       data: { status: "REJECTED" },
+    });
+
+    await tx.auditLog.create({
+      data: {
+        orgId: input.orgId,
+        actorId: input.actorId,
+        action: "books.reconciliation.rejected",
+        entityType: "bank_transaction",
+        entityId: input.bankTransactionId,
+        metadata: toJsonValue({
+          matchId: updated.id,
+          entityType: updated.entityType,
+          entityId: updated.entityId,
+        }),
+      },
     });
 
     await syncBankTransactionStatusTx(tx, input.bankTransactionId);
@@ -1937,6 +1955,16 @@ export async function ignoreBankTransaction(input: {
         status: "SUGGESTED",
       },
       data: { status: "IGNORED" },
+    });
+
+    await tx.auditLog.create({
+      data: {
+        orgId: input.orgId,
+        actorId: input.actorId,
+        action: "books.reconciliation.ignored",
+        entityType: "bank_transaction",
+        entityId: bankTxn.id,
+      },
     });
 
     return bankTxn;

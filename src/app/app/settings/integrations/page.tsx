@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useEffect, useState } from "react";
 import { Card, CardHeader, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useActiveOrg } from "@/hooks/use-active-org";
@@ -9,6 +9,14 @@ interface IntegrationStatus {
   provider: string;
   isActive: boolean;
   lastSyncAt: string | null;
+  tokenExpiresAt: string | null;
+  externalOrgId: string | null;
+  connectionStatus: string;
+  lastSyncAttemptAt: string | null;
+  lastSyncStatus: string | null;
+  lastSyncError: string | null;
+  syncedCount: number | null;
+  attemptedCount: number | null;
 }
 
 export default function IntegrationsPage() {
@@ -17,26 +25,45 @@ export default function IntegrationsPage() {
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState<string | null>(null);
 
-  const fetchIntegrations = useCallback(async () => {
-    if (!activeOrg) return;
-    try {
-      const res = await fetch(
-        `/api/integrations/status?orgId=${activeOrg.id}`
-      );
-      if (res.ok) {
-        const data = (await res.json()) as IntegrationStatus[];
-        setIntegrations(data);
-      }
-    } catch {
-      // Integration status unavailable
-    } finally {
-      setLoading(false);
-    }
-  }, [activeOrg]);
-
   useEffect(() => {
-    fetchIntegrations();
-  }, [fetchIntegrations]);
+    let cancelled = false;
+
+    async function loadIntegrations() {
+      if (!activeOrg) {
+        setIntegrations([]);
+        setLoading(false);
+        return;
+      }
+
+      setLoading(true);
+      try {
+        const res = await fetch("/api/integrations/status", {
+          cache: "no-store",
+        });
+        if (!res.ok || cancelled) {
+          return;
+        }
+        const data = (await res.json()) as IntegrationStatus[];
+        if (!cancelled) {
+          setIntegrations(data);
+        }
+      } catch {
+        if (!cancelled) {
+          setIntegrations([]);
+        }
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      }
+    }
+
+    void loadIntegrations();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [activeOrg]);
 
   function getStatus(provider: string): IntegrationStatus | undefined {
     return integrations.find((i) => i.provider === provider);
@@ -46,7 +73,10 @@ export default function IntegrationsPage() {
     setSyncing(provider);
     try {
       await fetch(`/api/integrations/${provider}/sync`, { method: "POST" });
-      await fetchIntegrations();
+      const res = await fetch("/api/integrations/status", { cache: "no-store" });
+      if (res.ok) {
+        setIntegrations((await res.json()) as IntegrationStatus[]);
+      }
     } finally {
       setSyncing(null);
     }
@@ -57,7 +87,10 @@ export default function IntegrationsPage() {
       await fetch(`/api/integrations/${provider}/disconnect`, {
         method: "DELETE",
       });
-      await fetchIntegrations();
+      const res = await fetch("/api/integrations/status", { cache: "no-store" });
+      if (res.ok) {
+        setIntegrations((await res.json()) as IntegrationStatus[]);
+      }
     } catch {
       // Disconnect failed
     }
@@ -66,6 +99,19 @@ export default function IntegrationsPage() {
   function formatDate(dateStr: string | null): string {
     if (!dateStr) return "Never";
     return new Date(dateStr).toLocaleString();
+  }
+
+  function formatSyncSummary(status: IntegrationStatus | undefined): string {
+    if (!status?.lastSyncStatus) {
+      return "No sync attempts recorded yet.";
+    }
+
+    const countSummary =
+      status.attemptedCount != null && status.syncedCount != null
+        ? ` (${status.syncedCount}/${status.attemptedCount} invoices synced)`
+        : "";
+
+    return `${status.lastSyncStatus.replaceAll("_", " ")}${countSummary}`;
   }
 
   if (loading) {
@@ -228,6 +274,18 @@ export default function IntegrationsPage() {
               </a>
             )}
           </div>
+          {getStatus("quickbooks")?.isActive && (
+            <div className="mt-3 space-y-1 text-xs text-[#666]">
+              <p>Status: {formatSyncSummary(getStatus("quickbooks"))}</p>
+              <p>Token expiry: {formatDate(getStatus("quickbooks")?.tokenExpiresAt ?? null)}</p>
+              <p>Company ID: {getStatus("quickbooks")?.externalOrgId ?? "Pending callback"}</p>
+              {getStatus("quickbooks")?.lastSyncError && (
+                <p className="text-red-600">
+                  Last sync issue: {getStatus("quickbooks")?.lastSyncError}
+                </p>
+              )}
+            </div>
+          )}
         </CardContent>
       </Card>
 
@@ -282,6 +340,18 @@ export default function IntegrationsPage() {
               </a>
             )}
           </div>
+          {getStatus("zoho")?.isActive && (
+            <div className="mt-3 space-y-1 text-xs text-[#666]">
+              <p>Status: {formatSyncSummary(getStatus("zoho"))}</p>
+              <p>Token expiry: {formatDate(getStatus("zoho")?.tokenExpiresAt ?? null)}</p>
+              <p>Organization ID: {getStatus("zoho")?.externalOrgId ?? "Pending callback"}</p>
+              {getStatus("zoho")?.lastSyncError && (
+                <p className="text-red-600">
+                  Last sync issue: {getStatus("zoho")?.lastSyncError}
+                </p>
+              )}
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>

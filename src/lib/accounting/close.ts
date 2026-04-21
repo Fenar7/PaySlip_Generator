@@ -1,5 +1,6 @@
 import "server-only";
 
+import type { Prisma } from "@/generated/prisma/client";
 import { db } from "@/lib/db";
 import {
   getAccountsPayableAging,
@@ -21,6 +22,8 @@ type CloseTaskCode =
   | "gst_tie_out_reviewed"
   | "tds_tie_out_reviewed"
   | "approval_exceptions_resolved";
+
+type TxClient = Prisma.TransactionClient;
 
 const CLOSE_TASK_DEFINITIONS: Array<{
   code: CloseTaskCode;
@@ -93,6 +96,160 @@ function monthYearKey(date: Date) {
 
 function toJsonValue(value: unknown) {
   return value as Parameters<typeof db.closeTask.upsert>[0]["create"]["metadata"];
+}
+
+const RECONCILIATION_AUDIT_ACTIONS = [
+  "books.reconciliation.confirmed",
+  "books.reconciliation.rejected",
+  "books.reconciliation.ignored",
+  "books.reconciliation_confirmed",
+  "books.reconciliation_rejected",
+  "books.reconciliation_ignored",
+] as const;
+
+function normalizeReconciliationAuditAction(action: string) {
+  return action.replace("books.reconciliation_", "books.reconciliation.");
+}
+
+export interface FiscalPeriodReopenImpact {
+  journalCount: number;
+  postedJournalCount: number;
+  draftJournalCount: number;
+  affectedAccountCount: number;
+  affectedAccounts: Array<{
+    id: string;
+    code: string;
+    name: string;
+  }>;
+  earliestEntryDate: string | null;
+  latestEntryDate: string | null;
+  closeCompletedAt: string | null;
+  sampleEntries: Array<{
+    id: string;
+    entryNumber: string;
+    entryDate: string;
+    status: string;
+    source: string;
+    sourceRef: string | null;
+  }>;
+}
+
+async function listReconciliationEvidence(orgId: string, startDate: Date, endDate: Date) {
+  const events = await db.auditLog.findMany({
+    where: {
+      orgId,
+      action: {
+        in: [...RECONCILIATION_AUDIT_ACTIONS],
+      },
+      createdAt: {
+        gte: startDate,
+        lte: endDate,
+      },
+    },
+    select: {
+      id: true,
+      action: true,
+      entityType: true,
+      entityId: true,
+      actorId: true,
+      createdAt: true,
+      metadata: true,
+    },
+    orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+  });
+
+  return events.map((event) => ({
+    id: event.id,
+    action: normalizeReconciliationAuditAction(event.action),
+    actorId: event.actorId,
+    entityType: event.entityType,
+    entityId: event.entityId,
+    createdAt: event.createdAt.toISOString(),
+    metadata: event.metadata ?? null,
+  }));
+}
+
+export async function getFiscalPeriodReopenImpact(
+  orgId: string,
+  fiscalPeriodId: string,
+): Promise<FiscalPeriodReopenImpact> {
+  const [journals, closeRun] = await Promise.all([
+    db.journalEntry.findMany({
+      where: {
+        orgId,
+        fiscalPeriodId,
+      },
+      select: {
+        id: true,
+        entryNumber: true,
+        entryDate: true,
+        status: true,
+        source: true,
+        sourceRef: true,
+        lines: {
+          select: {
+            account: {
+              select: {
+                id: true,
+                code: true,
+                name: true,
+              },
+            },
+          },
+        },
+      },
+      orderBy: [{ entryDate: "desc" }, { createdAt: "desc" }],
+    }),
+    db.closeRun.findFirst({
+      where: {
+        orgId,
+        fiscalPeriodId,
+      },
+      select: {
+        completedAt: true,
+      },
+    }),
+  ]);
+
+  const affectedAccounts = new Map<string, { id: string; code: string; name: string }>();
+
+  for (const journal of journals) {
+    for (const line of journal.lines) {
+      if (!affectedAccounts.has(line.account.id)) {
+        affectedAccounts.set(line.account.id, {
+          id: line.account.id,
+          code: line.account.code,
+          name: line.account.name,
+        });
+      }
+    }
+  }
+
+  const sortedAccounts = Array.from(affectedAccounts.values()).sort((left, right) =>
+    left.code.localeCompare(right.code),
+  );
+  const sortedJournalDates = journals
+    .map((journal) => journal.entryDate)
+    .sort((left, right) => left.getTime() - right.getTime());
+
+  return {
+    journalCount: journals.length,
+    postedJournalCount: journals.filter((journal) => journal.status === "POSTED").length,
+    draftJournalCount: journals.filter((journal) => journal.status === "DRAFT").length,
+    affectedAccountCount: sortedAccounts.length,
+    affectedAccounts: sortedAccounts.slice(0, 8),
+    earliestEntryDate: sortedJournalDates[0]?.toISOString() ?? null,
+    latestEntryDate: sortedJournalDates.at(-1)?.toISOString() ?? null,
+    closeCompletedAt: closeRun?.completedAt?.toISOString() ?? null,
+    sampleEntries: journals.slice(0, 5).map((journal) => ({
+      id: journal.id,
+      entryNumber: journal.entryNumber,
+      entryDate: journal.entryDate.toISOString(),
+      status: journal.status,
+      source: journal.source,
+      sourceRef: journal.sourceRef ?? null,
+    })),
+  };
 }
 
 async function getOrCreateCloseRun(orgId: string, fiscalPeriodId: string, actorId?: string) {
@@ -578,7 +735,19 @@ export async function markCloseRunReopened(input: {
   actorId: string;
   reason: string;
 }) {
-  const closeRun = await db.closeRun.findFirst({
+  return db.$transaction((tx) => markCloseRunReopenedTx(tx, input));
+}
+
+export async function markCloseRunReopenedTx(
+  tx: TxClient,
+  input: {
+    orgId: string;
+    fiscalPeriodId: string;
+    actorId: string;
+    reason: string;
+  },
+) {
+  const closeRun = await tx.closeRun.findFirst({
     where: {
       orgId: input.orgId,
       fiscalPeriodId: input.fiscalPeriodId,
@@ -589,7 +758,7 @@ export async function markCloseRunReopened(input: {
     return null;
   }
 
-  return db.closeRun.update({
+  return tx.closeRun.update({
     where: { id: closeRun.id },
     data: {
       status: "REOPENED",
@@ -605,7 +774,7 @@ export async function buildAuditPackage(orgId: string, fiscalPeriodId: string) {
   const periodStart = workspace.period.startDate.toISOString().slice(0, 10);
   const periodEnd = workspace.period.endDate.toISOString().slice(0, 10);
 
-  const [journalRegister, trialBalance, generalLedger, attachments, reopenedPeriods] = await Promise.all([
+  const [journalRegister, trialBalance, generalLedger, attachments, reopenedPeriods, reconciliationEvidence] = await Promise.all([
     listJournalEntries(orgId, {
       startDate: periodStart,
       endDate: periodEnd,
@@ -644,10 +813,12 @@ export async function buildAuditPackage(orgId: string, fiscalPeriodId: string) {
         reopenedAt: true,
       },
     }),
+    listReconciliationEvidence(orgId, workspace.period.startDate, workspace.period.endDate),
   ]);
 
   return {
-    generatedAt: new Date().toISOString(),
+    generatedAt: workspace.closeRun.completedAt?.toISOString() ?? workspace.period.endDate.toISOString(),
+    packageVersion: 2,
     orgId,
     fiscalPeriod: {
       id: workspace.period.id,
@@ -661,13 +832,17 @@ export async function buildAuditPackage(orgId: string, fiscalPeriodId: string) {
       status: workspace.closeRun.status,
       blockerCount: workspace.closeRun.blockerCount,
       completedAt: workspace.closeRun.completedAt?.toISOString() ?? null,
-      tasks: workspace.closeRun.tasks,
+      tasks: [...workspace.closeRun.tasks].sort((left, right) => left.code.localeCompare(right.code)),
     },
     reports: workspace.reports,
     journalRegister,
     trialBalance,
     generalLedger,
     reopenedPeriods,
+    reconciliationEvidence: {
+      eventCount: reconciliationEvidence.length,
+      events: reconciliationEvidence,
+    },
     attachmentIndex: attachments.map((attachment) => ({
       id: attachment.id,
       entityType: attachment.entityType,
