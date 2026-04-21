@@ -214,8 +214,13 @@ function GenerationDialog({
   );
 }
 
-export function PdfStudioWorkspace() {
-  const analytics = usePdfStudioAnalytics("create");
+export function PdfStudioWorkspace(props?: {
+  toolId?: "create" | "jpg-to-pdf";
+  title?: string;
+  description?: string;
+}) {
+  const toolId = props?.toolId ?? "create";
+  const analytics = usePdfStudioAnalytics(toolId);
   const { activeOrg, isLoading: isOrgLoading } = useActiveOrg();
   const orgScope = activeOrg?.id ?? "anonymous";
   const [images, setImages] = useState<ImageItem[]>([]);
@@ -464,7 +469,7 @@ export function PdfStudioWorkspace() {
         downloadPdfBlob(
           encryptedBytes,
           buildPdfStudioOutputName({
-            toolId: "create",
+            toolId,
             baseName: settings.filename,
             extension: "pdf",
           }),
@@ -474,7 +479,7 @@ export function PdfStudioWorkspace() {
         downloadPdfBlob(
           pdfBytes,
           buildPdfStudioOutputName({
-            toolId: "create",
+            toolId,
             baseName: settings.filename,
             extension: "pdf",
           }),
@@ -713,10 +718,11 @@ export function PdfStudioWorkspace() {
                 PDF Studio
               </p>
               <h1 className="mt-3 max-w-3xl text-[2.3rem] leading-[0.98] tracking-[-0.05em] text-[var(--foreground)] md:text-[3rem]">
-                Images to PDF
+                {props?.title ?? "Images to PDF"}
               </h1>
               <p className="mt-3 max-w-3xl text-[0.98rem] leading-7 text-[var(--foreground-soft)]">
-                Upload up to {PDF_STUDIO_MAX_IMAGES} images, arrange them, configure page settings, and generate a clean downloadable PDF — entirely in your browser.
+                {props?.description ??
+                  `Upload up to ${PDF_STUDIO_MAX_IMAGES} images, arrange them, configure page settings, and generate a clean downloadable PDF — entirely in your browser.`}
               </p>
               <div className="mt-5 hidden flex-wrap gap-2 xl:flex">
                 <Link href="/" className="inline-flex items-center justify-center rounded-full border border-[var(--border-strong)] bg-white px-4 py-2.5 text-sm font-medium text-[var(--foreground)] shadow-[var(--shadow-soft)] transition-colors hover:bg-[var(--surface-soft)]">

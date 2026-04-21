@@ -2,6 +2,7 @@ export type ImageRotation = 0 | 90 | 180 | 270;
 
 export type PdfStudioToolId =
   | "create"
+  | "jpg-to-pdf"
   | "merge"
   | "alternate-mix"
   | "split"
@@ -22,10 +23,19 @@ export type PdfStudioToolId =
   | "flatten"
   | "n-up"
   | "protect"
+  | "unlock"
+  | "watermark"
+  | "grayscale"
   | "header-footer"
   | "repair"
   | "pdf-to-image"
-  | "extract-images";
+  | "extract-images"
+  | "pdf-to-text"
+  | "pdf-to-word"
+  | "pdf-to-excel"
+  | "pdf-to-ppt"
+  | "word-to-pdf"
+  | "html-to-pdf";
 
 export type PdfStudioToolSurface = "workspace" | "public";
 export type PdfStudioToolCategory =
@@ -88,6 +98,11 @@ export type PasswordValidation = {
   score: number;
 };
 
+export type PasswordPermissionPreset =
+  | "balanced"
+  | "view-only"
+  | "restricted";
+
 export type WatermarkPosition = 
   | 'top-left' | 'top-center' | 'top-right'
   | 'center-left' | 'center' | 'center-right'
@@ -112,6 +127,12 @@ export type WatermarkSettings = {
   rotation: number;
   scope: 'all' | 'first';
 };
+
+export type WatermarkPresetId =
+  | "draft"
+  | "confidential"
+  | "paid"
+  | "copy";
 
 // Legacy type alias for backward compatibility
 export type PdfWatermarkSettings = WatermarkSettings;
@@ -259,3 +280,26 @@ export type PdfStudioSession = {
   savedAt: string;
   watermarkImageCleared?: boolean; // Set when image watermark was cleared on restore
 };
+
+export type PdfTextExtractionMode = "auto" | "selectable" | "ocr";
+
+export type PdfTextExtractionResult = {
+  mode: Exclude<PdfTextExtractionMode, "auto">;
+  text: string;
+  pageCount: number;
+  usedOcr: boolean;
+};
+
+export type PdfStudioConversionJobStatus =
+  | "pending"
+  | "processing"
+  | "completed"
+  | "retry_pending"
+  | "dead_letter";
+
+export type PdfStudioConversionKind =
+  | "pdf-to-word"
+  | "pdf-to-excel"
+  | "pdf-to-ppt"
+  | "word-to-pdf"
+  | "html-to-pdf";
