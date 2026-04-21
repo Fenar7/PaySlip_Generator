@@ -3,7 +3,7 @@ import "server-only";
 import type { Prisma } from "@/generated/prisma/client";
 import { getRequiredSystemAccountsTx, SYSTEM_ACCOUNT_KEYS } from "./accounts";
 import { createAndPostJournalTx } from "./journals";
-import { cleanText, parseAccountingDate, roundMoney } from "./utils";
+import { cleanText, parseAccountingDate, roundMoney, toAccountingNumber } from "./utils";
 
 type TxClient = Prisma.TransactionClient;
 
@@ -60,11 +60,14 @@ export async function postInvoiceIssueTx(
   ]);
 
   const gstTotal = roundMoney(
-    invoice.gstTotalCgst + invoice.gstTotalSgst + invoice.gstTotalIgst + invoice.gstTotalCess,
+    toAccountingNumber(invoice.gstTotalCgst) +
+      toAccountingNumber(invoice.gstTotalSgst) +
+      toAccountingNumber(invoice.gstTotalIgst) +
+      toAccountingNumber(invoice.gstTotalCess),
   );
   const revenueAmount = invoice.reverseCharge
     ? roundMoney(invoice.totalAmount)
-    : roundMoney(invoice.totalAmount - gstTotal);
+    : roundMoney(toAccountingNumber(invoice.totalAmount) - gstTotal);
 
   if (revenueAmount < 0) {
     throw new Error("Invoice revenue amount cannot be negative.");
@@ -381,9 +384,12 @@ export async function postVendorBillTx(
     accounts[SYSTEM_ACCOUNT_KEYS.OPERATING_EXPENSES].id;
 
   const taxAmount = roundMoney(
-    bill.gstTotalCgst + bill.gstTotalSgst + bill.gstTotalIgst + bill.gstTotalCess,
+    toAccountingNumber(bill.gstTotalCgst) +
+      toAccountingNumber(bill.gstTotalSgst) +
+      toAccountingNumber(bill.gstTotalIgst) +
+      toAccountingNumber(bill.gstTotalCess),
   );
-  const expenseAmount = roundMoney(bill.totalAmount - taxAmount);
+  const expenseAmount = roundMoney(toAccountingNumber(bill.totalAmount) - taxAmount);
 
   if (expenseAmount < 0) {
     throw new Error("Vendor bill expense amount cannot be negative.");

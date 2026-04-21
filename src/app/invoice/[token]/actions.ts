@@ -1,6 +1,7 @@
 "use server";
 
 import { db } from "@/lib/db";
+import { formatIsoDate, toAccountingNumber } from "@/lib/accounting/utils";
 
 export type ActionResult<T> =
   | { success: true; data: T }
@@ -42,13 +43,15 @@ export async function getPublicInvoice(token: string) {
         invoice: {
           id: invoice.id,
           invoiceNumber: invoice.invoiceNumber,
-          invoiceDate: invoice.invoiceDate,
-          dueDate: invoice.dueDate,
+          invoiceDate: formatIsoDate(invoice.invoiceDate),
+          dueDate: invoice.dueDate ? formatIsoDate(invoice.dueDate) : null,
           status: invoice.status,
-          totalAmount: invoice.totalAmount,
-          amountPaid: invoice.amountPaid,
-          remainingAmount: invoice.remainingAmount,
-          paymentPromiseDate: invoice.paymentPromiseDate ?? null,
+          totalAmount: toAccountingNumber(invoice.totalAmount),
+          amountPaid: toAccountingNumber(invoice.amountPaid),
+          remainingAmount: toAccountingNumber(invoice.remainingAmount),
+          paymentPromiseDate: invoice.paymentPromiseDate
+            ? formatIsoDate(invoice.paymentPromiseDate)
+            : null,
           notes: invoice.notes,
           paidAt: invoice.paidAt?.toISOString() ?? null,
           razorpayPaymentLinkUrl: invoice.razorpayPaymentLinkUrl ?? null,
@@ -62,7 +65,7 @@ export async function getPublicInvoice(token: string) {
             unitPrice: li.unitPrice,
             taxRate: li.taxRate,
             discount: li.discount,
-            amount: li.amount,
+            amount: toAccountingNumber(li.amount),
           })),
           customer: invoice.customer
             ? {
@@ -76,7 +79,7 @@ export async function getPublicInvoice(token: string) {
           },
           proofs: invoice.proofs.map((p) => ({
             id: p.id,
-            amount: p.amount,
+            amount: toAccountingNumber(p.amount),
             reviewStatus: p.reviewStatus,
             createdAt: p.createdAt.toISOString(),
           })),

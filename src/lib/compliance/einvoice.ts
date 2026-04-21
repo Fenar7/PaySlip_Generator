@@ -15,6 +15,7 @@ import type {
   Invoice,
   EInvoiceConfig,
 } from "@/generated/prisma/client";
+import { formatIsoDate, toAccountingNumber } from "@/lib/accounting/utils";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -134,7 +135,12 @@ export function buildEInvoicePayload(
     };
   });
 
-  const assVal = invoice.totalAmount - invoice.gstTotalCgst - invoice.gstTotalSgst - invoice.gstTotalIgst - invoice.gstTotalCess;
+  const invoiceTotal = toAccountingNumber(invoice.totalAmount);
+  const invoiceCgst = toAccountingNumber(invoice.gstTotalCgst);
+  const invoiceSgst = toAccountingNumber(invoice.gstTotalSgst);
+  const invoiceIgst = toAccountingNumber(invoice.gstTotalIgst);
+  const invoiceCess = toAccountingNumber(invoice.gstTotalCess);
+  const assVal = invoiceTotal - invoiceCgst - invoiceSgst - invoiceIgst - invoiceCess;
 
   return {
     Version: "1.1",
@@ -148,7 +154,7 @@ export function buildEInvoicePayload(
     DocDtls: {
       Typ: "INV",
       No: invoice.invoiceNumber,
-      Dt: invoice.invoiceDate.replace(/-/g, "/"),
+      Dt: formatIsoDate(invoice.invoiceDate).replace(/-/g, "/"),
     },
     SellerDtls: {
       Gstin: sellerGstin,
@@ -171,13 +177,13 @@ export function buildEInvoicePayload(
     },
     ValDtls: {
       AssVal: Math.round(assVal * 100) / 100,
-      CgstVal: invoice.gstTotalCgst,
-      SgstVal: invoice.gstTotalSgst,
-      IgstVal: invoice.gstTotalIgst,
-      CesVal: invoice.gstTotalCess,
+      CgstVal: invoiceCgst,
+      SgstVal: invoiceSgst,
+      IgstVal: invoiceIgst,
+      CesVal: invoiceCess,
       Discount: 0,
       OthChrg: 0,
-      TotInvVal: invoice.totalAmount,
+      TotInvVal: invoiceTotal,
     },
     ItemList: lineItems,
   };
@@ -274,7 +280,7 @@ export function validateForEInvoice(invoice: Invoice): string[] {
   if (!invoice.placeOfSupply) errors.push("Place of Supply is required");
   if (!invoice.invoiceNumber) errors.push("Invoice number is required");
   if (!invoice.invoiceDate) errors.push("Invoice date is required");
-  if (invoice.totalAmount <= 0) errors.push("Invoice total must be greater than zero");
+  if (toAccountingNumber(invoice.totalAmount) <= 0) errors.push("Invoice total must be greater than zero");
   if (invoice.status !== "ISSUED") errors.push("Invoice must be in ISSUED status for IRN generation");
   if (invoice.irnNumber) errors.push("IRN already generated for this invoice");
   return errors;

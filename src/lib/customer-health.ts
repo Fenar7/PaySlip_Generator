@@ -1,6 +1,7 @@
 import "server-only";
 
 import { db } from "@/lib/db";
+import { toAccountingNumber } from "@/lib/accounting/utils";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -90,9 +91,11 @@ export async function calculateHealthScore(
   }
 
   // 4. Outstanding amount ratio
-  const totalOutstanding = invoices.reduce((sum, inv) => sum + inv.remainingAmount, 0);
+  const totalOutstanding = invoices.reduce((sum, inv) => sum + toAccountingNumber(inv.remainingAmount), 0);
   const avgInvoiceAmount =
-    nonDraftCount > 0 ? invoices.reduce((sum, inv) => sum + inv.totalAmount, 0) / nonDraftCount : 1;
+    nonDraftCount > 0
+      ? invoices.reduce((sum, inv) => sum + toAccountingNumber(inv.totalAmount), 0) / nonDraftCount
+      : 1;
   const outstandingRatio = avgInvoiceAmount > 0 ? totalOutstanding / avgInvoiceAmount : 0;
   // Score: 0 ratio = 100, ratio of 3+ = 0
   const outstandingScore = Math.max(0, Math.min(100, 100 - (outstandingRatio / 3) * 100));

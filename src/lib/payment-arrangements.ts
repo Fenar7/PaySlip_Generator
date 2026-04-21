@@ -6,6 +6,7 @@ import { reconcileInvoicePayment } from "@/lib/invoice-reconciliation";
 import { stopDunningOnArrangement, resumeDunning } from "@/lib/dunning";
 import type { Prisma } from "@/generated/prisma/client";
 import { postInvoicePaymentTx } from "@/lib/accounting";
+import { toAccountingNumber } from "@/lib/accounting/utils";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -68,9 +69,10 @@ export async function createArrangement(
   if (invoice.arrangement) {
     throw new Error("Invoice already has a payment arrangement");
   }
-  if (totalArranged > invoice.remainingAmount + 0.01) {
+  const invoiceRemainingAmount = toAccountingNumber(invoice.remainingAmount);
+  if (totalArranged > invoiceRemainingAmount + 0.01) {
     throw new Error(
-      `Total arranged (${totalArranged}) exceeds remaining balance (${invoice.remainingAmount.toFixed(2)})`,
+      `Total arranged (${totalArranged}) exceeds remaining balance (${invoiceRemainingAmount.toFixed(2)})`,
     );
   }
 
@@ -407,7 +409,7 @@ export async function cancelArrangement(
 
     // Revert invoice status based on payment state
     const newStatus =
-      arrangement.invoice.amountPaid > 0 ? "PARTIALLY_PAID" : "OVERDUE";
+      toAccountingNumber(arrangement.invoice.amountPaid) > 0 ? "PARTIALLY_PAID" : "OVERDUE";
 
     await tx.invoice.update({
       where: { id: arrangement.invoice.id },

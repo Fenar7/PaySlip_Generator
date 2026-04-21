@@ -3,6 +3,7 @@
 import { db } from "@/lib/db";
 import { requireOrgContext } from "@/lib/auth";
 import { generateCSV } from "@/lib/csv";
+import { formatIsoDate, toAccountingNumber } from "@/lib/accounting/utils";
 
 const PAGE_SIZE = 50;
 
@@ -93,20 +94,21 @@ export async function getInvoiceReport(filters: InvoiceReportFilters) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const rows: InvoiceReportRow[] = invoices.map((inv: any) => {
     const amountPaid = (inv.payments ?? []).reduce(
-      (sum: number, p: { amount: number }) => sum + p.amount,
+      (sum: number, p: { amount: unknown }) => sum + toAccountingNumber(p.amount as number),
       0
     );
+    const totalAmount = toAccountingNumber(inv.totalAmount);
     return {
       id: inv.id,
       invoiceNumber: inv.invoiceNumber,
       customerName: inv.customer?.name ?? "—",
       customerId: inv.customerId,
       status: inv.status,
-      invoiceDate: inv.invoiceDate,
-      dueDate: inv.dueDate ?? null,
-      totalAmount: inv.totalAmount,
+      invoiceDate: formatIsoDate(inv.invoiceDate),
+      dueDate: inv.dueDate ? formatIsoDate(inv.dueDate) : null,
+      totalAmount,
       amountPaid,
-      balance: inv.totalAmount - amountPaid,
+      balance: totalAmount - amountPaid,
     };
   });
 

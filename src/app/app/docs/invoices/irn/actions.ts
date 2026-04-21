@@ -3,6 +3,7 @@
 import { db } from "@/lib/db";
 import { requireRole, requireOrgContext } from "@/lib/auth";
 import { checkFeature } from "@/lib/plans/enforcement";
+import { formatIsoDate, toAccountingNumber } from "@/lib/accounting/utils";
 import { revalidatePath } from "next/cache";
 import { generateIrn, cancelIrn } from "@/lib/irp-client";
 import { validateGstin } from "@/lib/gst/compute";
@@ -87,9 +88,15 @@ export async function generateInvoiceIrn(
     });
 
     // Build IrnGenerateRequest
+    const totalAmount = toAccountingNumber(invoice.totalAmount);
+    const totalCgst = toAccountingNumber(invoice.gstTotalCgst);
+    const totalSgst = toAccountingNumber(invoice.gstTotalSgst);
+    const totalIgst = toAccountingNumber(invoice.gstTotalIgst);
+    const totalCess = toAccountingNumber(invoice.gstTotalCess);
+
     const request: IrnGenerateRequest = {
       invoiceNumber: invoice.invoiceNumber,
-      invoiceDate: formatDateForIrp(invoice.invoiceDate),
+      invoiceDate: formatDateForIrp(formatIsoDate(invoice.invoiceDate)),
       invoiceType: "INV",
       supplierGstin: invoice.supplierGstin,
       supplierLegalName: org?.name ?? "",
@@ -101,12 +108,12 @@ export async function generateInvoiceIrn(
       buyerAddress: invoice.customer?.address ?? "",
       buyerStateCode: customerValidation.stateCode,
       buyerPincode: extractPincode(invoice.customer?.address ?? ""),
-      totalAmount: invoice.totalAmount,
-      totalTaxableAmount: invoice.totalAmount - invoice.gstTotalCgst - invoice.gstTotalSgst - invoice.gstTotalIgst - invoice.gstTotalCess,
-      totalCgst: invoice.gstTotalCgst,
-      totalSgst: invoice.gstTotalSgst,
-      totalIgst: invoice.gstTotalIgst,
-      totalCess: invoice.gstTotalCess,
+      totalAmount,
+      totalTaxableAmount: totalAmount - totalCgst - totalSgst - totalIgst - totalCess,
+      totalCgst,
+      totalSgst,
+      totalIgst,
+      totalCess,
       reverseCharge: invoice.reverseCharge,
       lineItems: invoice.lineItems.map((item, index) => ({
         slNo: index + 1,
@@ -115,13 +122,13 @@ export async function generateInvoiceIrn(
         quantity: item.quantity,
         unit: "NOS",
         unitPrice: item.unitPrice,
-        totalAmount: item.amount,
-        taxableAmount: item.amount,
+        totalAmount: toAccountingNumber(item.amount),
+        taxableAmount: toAccountingNumber(item.amount),
         gstRate: item.gstRate,
-        cgstAmount: item.cgstAmount,
-        sgstAmount: item.sgstAmount,
-        igstAmount: item.igstAmount,
-        cessAmount: item.cessAmount,
+        cgstAmount: toAccountingNumber(item.cgstAmount),
+        sgstAmount: toAccountingNumber(item.sgstAmount),
+        igstAmount: toAccountingNumber(item.igstAmount),
+        cessAmount: toAccountingNumber(item.cessAmount),
       })),
     };
 

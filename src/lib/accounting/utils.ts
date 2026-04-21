@@ -1,5 +1,14 @@
-export function roundMoney(value: number): number {
-  return Math.round((value + Number.EPSILON) * 100) / 100;
+import type { Prisma } from "@/generated/prisma/client";
+
+export type AccountingNumeric = Prisma.Decimal | number;
+
+export function toAccountingNumber(value: AccountingNumeric): number {
+  return typeof value === "number" ? value : Number(value);
+}
+
+export function roundMoney(value: AccountingNumeric): number {
+  const numericValue = toAccountingNumber(value);
+  return Math.round((numericValue + Number.EPSILON) * 100) / 100;
 }
 
 export function parseAccountingDate(value: Date | string): Date {
@@ -23,8 +32,8 @@ export function parseAccountingDate(value: Date | string): Date {
   return parsed;
 }
 
-export function formatIsoDate(date: Date): string {
-  return date.toISOString().split("T")[0];
+export function formatIsoDate(date: Date | string): string {
+  return parseAccountingDate(date).toISOString().split("T")[0];
 }
 
 export function startOfUtcMonth(date: Date): Date {

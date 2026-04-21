@@ -3,6 +3,7 @@
 import type { Prisma } from "@/generated/prisma/client";
 import { db } from "@/lib/db";
 import { requireOrgContext } from "@/lib/auth";
+import { formatIsoDate, toAccountingNumber } from "@/lib/accounting/utils";
 import {
   canDecideApprovalForDoc,
   canRequestApprovalForDoc,
@@ -269,8 +270,8 @@ async function getApprovalDocumentSummaries(
     documents.set(`invoice:${invoice.id}`, {
       number: invoice.invoiceNumber,
       entityName: invoice.customer?.name ?? null,
-      amount: invoice.totalAmount,
-      date: invoice.invoiceDate,
+      amount: toAccountingNumber(invoice.totalAmount),
+      date: formatIsoDate(invoice.invoiceDate),
     });
   }
 
@@ -298,8 +299,8 @@ async function getApprovalDocumentSummaries(
     documents.set(`vendor-bill:${bill.id}`, {
       number: bill.billNumber,
       entityName: bill.vendor?.name ?? null,
-      amount: bill.totalAmount,
-      date: bill.billDate,
+      amount: toAccountingNumber(bill.totalAmount),
+      date: formatIsoDate(bill.billDate),
     });
   }
 
@@ -307,7 +308,7 @@ async function getApprovalDocumentSummaries(
     documents.set(`payment-run:${paymentRun.id}`, {
       number: paymentRun.runNumber,
       entityName: null,
-      amount: paymentRun.totalAmount,
+      amount: toAccountingNumber(paymentRun.totalAmount),
       date: paymentRun.scheduledDate.toISOString().slice(0, 10),
     });
   }

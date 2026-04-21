@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getOrgContext } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { formatIsoDate, toAccountingNumber } from "@/lib/accounting/utils";
 import {
   batchInvoicesToTallyXML,
   invoiceToTallyXML,
@@ -55,8 +56,8 @@ export async function POST(request: Request) {
     const mapped: InvoiceWithItems[] = invoices.map((inv) => ({
       id: inv.id,
       invoiceNumber: inv.invoiceNumber,
-      invoiceDate: inv.invoiceDate,
-      totalAmount: inv.totalAmount,
+      invoiceDate: formatIsoDate(inv.invoiceDate),
+      totalAmount: toAccountingNumber(inv.totalAmount),
       notes: inv.notes,
       formData: (inv.formData ?? {}) as Record<string, unknown>,
       lineItems: inv.lineItems.map((li) => ({

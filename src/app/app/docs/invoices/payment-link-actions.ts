@@ -2,6 +2,7 @@
 
 import { db } from "@/lib/db";
 import { requireOrgContext, requireRole } from "@/lib/auth";
+import { toAccountingNumber } from "@/lib/accounting/utils";
 import { revalidatePath } from "next/cache";
 import { getOrgRazorpayClient } from "@/lib/razorpay/client";
 
@@ -51,7 +52,8 @@ export async function createPaymentLink(
     const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://app.slipwise.in";
 
     // Amount in paise (Razorpay uses smallest currency unit)
-    const amountPaise = Math.round((invoice.remainingAmount || invoice.totalAmount) * 100);
+    const payableAmount = toAccountingNumber(invoice.remainingAmount || invoice.totalAmount);
+    const amountPaise = Math.round(payableAmount * 100);
 
     // The Razorpay SDK create() has conflicting overloads — cast to any to bypass TS confusion.
     // eslint-disable-next-line @typescript-eslint/no-explicit-any

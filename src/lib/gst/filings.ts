@@ -12,6 +12,7 @@ import { Prisma } from "@/generated/prisma/client";
 import { db } from "@/lib/db";
 import { env } from "@/lib/env";
 import { generateGSTR1 } from "@/lib/gstr1-generator";
+import { formatIsoDate, toAccountingNumber } from "@/lib/accounting/utils";
 import {
   computeGstHealthIssuesFromInvoices,
   computeGstr1DataFromInvoices,
@@ -162,27 +163,27 @@ async function buildValidationSnapshot(orgId: string, periodMonth: string) {
   const reportingInvoices = invoices.map((invoice) => ({
     id: invoice.id,
     invoiceNumber: invoice.invoiceNumber,
-    invoiceDate: invoice.invoiceDate,
+    invoiceDate: formatIsoDate(invoice.invoiceDate),
     customerId: invoice.customerId,
     customerGstin: invoice.customerGstin,
     customerName: invoice.customer?.name ?? null,
     placeOfSupply: invoice.placeOfSupply,
     reverseCharge: invoice.reverseCharge,
     exportType: invoice.exportType,
-    totalAmount: invoice.totalAmount,
-    gstTotalCgst: invoice.gstTotalCgst,
-    gstTotalSgst: invoice.gstTotalSgst,
-    gstTotalIgst: invoice.gstTotalIgst,
-    gstTotalCess: invoice.gstTotalCess,
+    totalAmount: toAccountingNumber(invoice.totalAmount),
+    gstTotalCgst: toAccountingNumber(invoice.gstTotalCgst),
+    gstTotalSgst: toAccountingNumber(invoice.gstTotalSgst),
+    gstTotalIgst: toAccountingNumber(invoice.gstTotalIgst),
+    gstTotalCess: toAccountingNumber(invoice.gstTotalCess),
     lineItems: invoice.lineItems.map((lineItem) => ({
-      amount: lineItem.amount,
+      amount: toAccountingNumber(lineItem.amount),
       hsnCode: lineItem.hsnCode,
       sacCode: lineItem.sacCode,
       gstType: lineItem.gstType,
-      cgstAmount: lineItem.cgstAmount,
-      sgstAmount: lineItem.sgstAmount,
-      igstAmount: lineItem.igstAmount,
-      cessAmount: lineItem.cessAmount,
+      cgstAmount: toAccountingNumber(lineItem.cgstAmount),
+      sgstAmount: toAccountingNumber(lineItem.sgstAmount),
+      igstAmount: toAccountingNumber(lineItem.igstAmount),
+      cessAmount: toAccountingNumber(lineItem.cessAmount),
     })),
   }));
 

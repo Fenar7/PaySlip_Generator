@@ -4,7 +4,7 @@ import { db } from "@/lib/db";
 import { getAgingReport } from "@/lib/cash-flow";
 import { SYSTEM_ACCOUNT_KEYS } from "./accounts";
 import { getTrialBalance } from "./reports";
-import { parseAccountingDate, roundMoney } from "./utils";
+import { formatIsoDate, parseAccountingDate, roundMoney, toAccountingNumber } from "./utils";
 import { refreshVendorBillOverdueStates } from "./vendor-bills";
 
 interface DateRangeInput {
@@ -85,7 +85,7 @@ function sumRows(rows: StatementRow[]) {
   return roundMoney(rows.reduce((sum, row) => sum + row.amount, 0));
 }
 
-function daysPastDue(dueDate: string | null | undefined, asOfDate: string) {
+function daysPastDue(dueDate: Date | string | null | undefined, asOfDate: string) {
   if (!dueDate) {
     return 0;
   }
@@ -425,7 +425,7 @@ export async function getAccountsReceivableAging(orgId: string, input: DateRange
       where: {
         organizationId: orgId,
         archivedAt: null,
-        invoiceDate: { lte: asOfDate },
+        invoiceDate: { lte: parseAccountingDate(asOfDate) },
         status: { notIn: ["DRAFT", "PAID", "CANCELLED"] },
         remainingAmount: { gt: 0 },
       },
@@ -449,8 +449,8 @@ export async function getAccountsReceivableAging(orgId: string, input: DateRange
       id: invoice.id,
       number: invoice.invoiceNumber,
       partyName: invoice.customer?.name ?? null,
-      issueDate: invoice.invoiceDate,
-      dueDate: invoice.dueDate,
+      issueDate: formatIsoDate(invoice.invoiceDate),
+      dueDate: invoice.dueDate ? formatIsoDate(invoice.dueDate) : null,
       outstandingAmount: roundMoney(invoice.remainingAmount),
       daysOverdue: overdueDays,
       bucket: agingBucketForDays(overdueDays),
@@ -484,7 +484,7 @@ export async function getAccountsPayableAging(orgId: string, input: DateRangeInp
       where: {
         orgId,
         archivedAt: null,
-        billDate: { lte: asOfDate },
+        billDate: { lte: parseAccountingDate(asOfDate) },
         status: { notIn: ["DRAFT", "CANCELLED", "PAID"] },
         remainingAmount: { gt: 0 },
       },
@@ -507,8 +507,8 @@ export async function getAccountsPayableAging(orgId: string, input: DateRangeInp
       id: bill.id,
       number: bill.billNumber,
       partyName: bill.vendor?.name ?? null,
-      issueDate: bill.billDate,
-      dueDate: bill.dueDate,
+      issueDate: formatIsoDate(bill.billDate),
+      dueDate: bill.dueDate ? formatIsoDate(bill.dueDate) : null,
       outstandingAmount: roundMoney(bill.remainingAmount),
       daysOverdue: overdueDays,
       bucket: agingBucketForDays(overdueDays),
@@ -539,7 +539,10 @@ export async function getGstTieOut(orgId: string, input: DateRangeInput = {}) {
       where: {
         organizationId: orgId,
         archivedAt: null,
-        invoiceDate: { gte: period.startDate, lte: period.endDate },
+        invoiceDate: {
+          gte: parseAccountingDate(period.startDate),
+          lte: parseAccountingDate(period.endDate),
+        },
         status: { notIn: ["DRAFT", "CANCELLED"] },
       },
       _sum: {
@@ -553,7 +556,10 @@ export async function getGstTieOut(orgId: string, input: DateRangeInput = {}) {
       where: {
         orgId,
         archivedAt: null,
-        billDate: { gte: period.startDate, lte: period.endDate },
+        billDate: {
+          gte: parseAccountingDate(period.startDate),
+          lte: parseAccountingDate(period.endDate),
+        },
         status: { notIn: ["DRAFT", "CANCELLED"] },
       },
       _sum: {
@@ -567,16 +573,16 @@ export async function getGstTieOut(orgId: string, input: DateRangeInput = {}) {
   ]);
 
   const outputDocuments = roundMoney(
-    (invoiceAggregate._sum.gstTotalCgst ?? 0) +
-      (invoiceAggregate._sum.gstTotalSgst ?? 0) +
-      (invoiceAggregate._sum.gstTotalIgst ?? 0) +
-      (invoiceAggregate._sum.gstTotalCess ?? 0),
+    toAccountingNumber(invoiceAggregate._sum.gstTotalCgst ?? 0) +
+      toAccountingNumber(invoiceAggregate._sum.gstTotalSgst ?? 0) +
+      toAccountingNumber(invoiceAggregate._sum.gstTotalIgst ?? 0) +
+      toAccountingNumber(invoiceAggregate._sum.gstTotalCess ?? 0),
   );
   const inputDocuments = roundMoney(
-    (billAggregate._sum.gstTotalCgst ?? 0) +
-      (billAggregate._sum.gstTotalSgst ?? 0) +
-      (billAggregate._sum.gstTotalIgst ?? 0) +
-      (billAggregate._sum.gstTotalCess ?? 0),
+    toAccountingNumber(billAggregate._sum.gstTotalCgst ?? 0) +
+      toAccountingNumber(billAggregate._sum.gstTotalSgst ?? 0) +
+      toAccountingNumber(billAggregate._sum.gstTotalIgst ?? 0) +
+      toAccountingNumber(billAggregate._sum.gstTotalCess ?? 0),
   );
   const outputLedger = accountBalanceBySystemKey(
     accounts.accounts,
@@ -611,7 +617,10 @@ export async function getTdsTieOut(orgId: string, input: DateRangeInput = {}) {
       where: {
         organizationId: orgId,
         invoice: {
-          invoiceDate: { gte: period.startDate, lte: period.endDate },
+          invoiceDate: {
+            gte: parseAccountingDate(period.startDate),
+            lte: parseAccountingDate(period.endDate),
+          },
         },
       },
       _sum: {
@@ -621,7 +630,7 @@ export async function getTdsTieOut(orgId: string, input: DateRangeInput = {}) {
     loadAccountBalancesAsOf(orgId, period.endDate),
   ]);
 
-  const documentTds = roundMoney(records._sum.tdsAmount ?? 0);
+  const documentTds = roundMoney(toAccountingNumber(records._sum.tdsAmount ?? 0));
   const receivableLedger = accountBalanceBySystemKey(
     accounts.accounts,
     accounts.balanceByAccount,

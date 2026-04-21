@@ -3,7 +3,7 @@ import "server-only";
 import { db } from "@/lib/db";
 import type { GlAccountType, NormalBalance, Prisma } from "@/generated/prisma/client";
 import { ensureBooksSetup } from "./accounts";
-import { parseAccountingDate, roundMoney } from "./utils";
+import { parseAccountingDate, roundMoney, toAccountingNumber } from "./utils";
 
 interface DateRangeInput {
   startDate?: string;
@@ -63,8 +63,8 @@ export async function getTrialBalance(
 
   for (const line of postedLines) {
     const current = totalsByAccount.get(line.accountId) ?? { debit: 0, credit: 0 };
-    current.debit = roundMoney(current.debit + line.debit);
-    current.credit = roundMoney(current.credit + line.credit);
+    current.debit = roundMoney(current.debit + toAccountingNumber(line.debit));
+    current.credit = roundMoney(current.credit + toAccountingNumber(line.credit));
     totalsByAccount.set(line.accountId, current);
   }
 
@@ -155,8 +155,8 @@ export async function getGeneralLedger(
   return lines.map((line) => {
     const movement = computeSignedBalance(
       line.account.normalBalance,
-      line.debit,
-      line.credit,
+      toAccountingNumber(line.debit),
+      toAccountingNumber(line.credit),
     );
     const nextRunningBalance = roundMoney(
       (runningBalanceByAccount.get(line.accountId) ?? 0) + movement,
@@ -177,8 +177,8 @@ export async function getGeneralLedger(
       sourceRef: line.journalEntry.sourceRef,
       memo: line.journalEntry.memo,
       description: line.description,
-      debit: line.debit,
-      credit: line.credit,
+      debit: roundMoney(toAccountingNumber(line.debit)),
+      credit: roundMoney(toAccountingNumber(line.credit)),
       movement,
       runningBalance: nextRunningBalance,
     };

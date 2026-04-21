@@ -77,6 +77,7 @@ import {
   updateCloseTaskStatus,
   updateVendorBill,
 } from "@/lib/accounting";
+import { formatIsoDate, roundMoney } from "@/lib/accounting/utils";
 import { checkFeature, checkLimit, getOrgPlan } from "@/lib/plans";
 import {
   approveRequest,
@@ -343,8 +344,8 @@ function formatCsvDate(value: Date | string | null | undefined): string {
   return Number.isNaN(date.getTime()) ? String(value) : date.toISOString().slice(0, 10);
 }
 
-function formatCsvNumber(value: number): string {
-  return value.toFixed(2);
+function formatCsvNumber(value: number | Prisma.Decimal): string {
+  return roundMoney(value).toFixed(2);
 }
 
 async function createBooksReportSnapshot(input: {
@@ -473,8 +474,8 @@ async function loadBooksJournalRegisterData(
     sourceRef: journal.sourceRef,
     status: journal.status,
     memo: journal.memo,
-    totalDebit: journal.totalDebit,
-    totalCredit: journal.totalCredit,
+    totalDebit: roundMoney(journal.totalDebit),
+    totalCredit: roundMoney(journal.totalCredit),
     periodLabel: journal.fiscalPeriod.label,
     lineCount: journal.lines.length,
     attachmentCount: attachmentCounts.get(journal.id) ?? 0,
@@ -696,10 +697,14 @@ async function loadBooksJournalDetail(
     sourceRef: journal.sourceRef,
     status: journal.status,
     memo: journal.memo,
-    totalDebit: journal.totalDebit,
-    totalCredit: journal.totalCredit,
+    totalDebit: roundMoney(journal.totalDebit),
+    totalCredit: roundMoney(journal.totalCredit),
     period: journal.fiscalPeriod,
-    lines: journal.lines,
+    lines: journal.lines.map((line) => ({
+      ...line,
+      debit: roundMoney(line.debit),
+      credit: roundMoney(line.credit),
+    })),
     attachments,
   };
 }
@@ -962,7 +967,7 @@ export async function getBooksOverview(): Promise<
           source: journal.source,
           sourceRef: journal.sourceRef,
           status: journal.status,
-          totalDebit: journal.totalDebit,
+          totalDebit: roundMoney(journal.totalDebit),
           lineCount: journal.lines.length,
         })),
         periods,
@@ -2267,8 +2272,8 @@ export async function getBooksPaymentRunOptions(): Promise<
         bills: bills.map((bill) => ({
           id: bill.id,
           billNumber: bill.billNumber,
-          dueDate: bill.dueDate,
-          remainingAmount: bill.remainingAmount,
+          dueDate: bill.dueDate ? formatIsoDate(bill.dueDate) : null,
+          remainingAmount: roundMoney(bill.remainingAmount),
           vendorName: bill.vendor?.name ?? null,
           status: bill.status,
         })),
@@ -3668,8 +3673,11 @@ export async function getCashPositionAction(): Promise<CashPositionResult> {
       name: ba.name,
       bankName: ba.bankName,
       currency: ba.currency,
-      runningBalance: ba.transactions[0]?.runningBalance ?? null,
-      openingBalance: ba.openingBalance,
+      runningBalance:
+        ba.transactions[0]?.runningBalance != null
+          ? roundMoney(ba.transactions[0].runningBalance)
+          : null,
+      openingBalance: roundMoney(ba.openingBalance),
       lastTxnDate: ba.transactions[0]?.txnDate ?? null,
     }));
 
@@ -3683,22 +3691,22 @@ export async function getCashPositionAction(): Promise<CashPositionResult> {
 
     return {
       success: true,
-      data: {
-        accounts,
-        totalBankBalance,
-        thisMonthCredits: creditRow?._sum.amount ?? 0,
-        thisMonthDebits: debitRow?._sum.amount ?? 0,
-        unreconciledCreditAmount: unreconciledCredits._sum.amount ?? 0,
-        invoicesDueIn7Days: {
-          count: due7._count.id,
-          totalAmount: due7._sum.totalAmount ?? 0,
+        data: {
+          accounts,
+          totalBankBalance,
+          thisMonthCredits: roundMoney(creditRow?._sum.amount ?? 0),
+          thisMonthDebits: roundMoney(debitRow?._sum.amount ?? 0),
+          unreconciledCreditAmount: roundMoney(unreconciledCredits._sum.amount ?? 0),
+          invoicesDueIn7Days: {
+            count: due7._count.id,
+            totalAmount: roundMoney(due7._sum.totalAmount ?? 0),
+          },
+          invoicesDueIn30Days: {
+            count: due30._count.id,
+            totalAmount: roundMoney(due30._sum.totalAmount ?? 0),
+          },
         },
-        invoicesDueIn30Days: {
-          count: due30._count.id,
-          totalAmount: due30._sum.totalAmount ?? 0,
-        },
-      },
-    };
+      };
   } catch (error) {
     return {
       success: false,

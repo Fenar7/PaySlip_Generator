@@ -3,6 +3,7 @@
 import { db } from "@/lib/db";
 import { requireOrgContext, requireRole } from "@/lib/auth";
 import { Gstr2bImportStatus, Gstr2bMatchStatus } from "@/generated/prisma/client";
+import { formatIsoDate, toAccountingNumber } from "@/lib/accounting/utils";
 import {
   runGstr2bReconciliation,
   parseGstr2bJson,
@@ -119,11 +120,11 @@ export async function runGstr2bReconcile(
     id: b.id,
     vendorGstin: b.vendor?.gstin ?? null,
     billNumber: b.billNumber,
-    billDate: b.billDate,
-    taxableAmount: b.subtotalAmount,
-    cgst: b.gstTotalCgst,
-    sgst: b.gstTotalSgst,
-    igst: b.gstTotalIgst,
+    billDate: formatIsoDate(b.billDate),
+    taxableAmount: toAccountingNumber(b.subtotalAmount),
+    cgst: toAccountingNumber(b.gstTotalCgst),
+    sgst: toAccountingNumber(b.gstTotalSgst),
+    igst: toAccountingNumber(b.gstTotalIgst),
   }));
 
   const entryInputs: Gstr2bEntryInput[] = imp.entries.map((e) => ({

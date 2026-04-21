@@ -21,6 +21,7 @@ import {
   type MarginData,
   type WorkingCapitalData,
 } from "./kpi";
+import { formatIsoDate, toAccountingNumber } from "@/lib/accounting/utils";
 
 export interface ExecutiveSnapshot {
   kpis: KpiResult[];
@@ -135,7 +136,7 @@ async function getBankBalanceAt(orgId: string, asOf: Date): Promise<number> {
   );
 
   return balances.reduce(
-    (sum, balance) => sum + (balance?.runningBalance ?? 0),
+    (sum, balance) => sum + toAccountingNumber(balance?.runningBalance ?? 0),
     0
   );
 }
@@ -165,14 +166,18 @@ async function queryRecurringRevenue(
   ]);
 
   const currentMrr = round2(
-    rules.reduce((sum, rule) => sum + (rule.baseInvoice?.totalAmount ?? 0), 0)
+    rules.reduce((sum, rule) => sum + toAccountingNumber(rule.baseInvoice?.totalAmount ?? 0), 0)
   );
   const activeCount = rules.length;
   const avgRecurringAmount = activeCount > 0 ? round2(currentMrr / activeCount) : 0;
   const buckets = buildMonthBuckets(sparklineMonths);
 
   for (const invoice of generatedInvoices) {
-    addBucketAmount(buckets, invoice.invoiceDate.slice(0, 7), invoice.totalAmount ?? 0);
+    addBucketAmount(
+      buckets,
+      formatIsoDate(invoice.invoiceDate).slice(0, 7),
+      toAccountingNumber(invoice.totalAmount ?? 0),
+    );
   }
 
   const monthlyMrr = sparklineMonths.map((bucket) => round2(buckets.get(bucket) ?? 0));
@@ -253,14 +258,16 @@ async function queryExpenses(
   ]);
 
   const currentOutflow =
-    (currentBills._sum.amount ?? 0) + Number(currentPayroll._sum.totalNetPay ?? 0);
+    toAccountingNumber(currentBills._sum.amount ?? 0) +
+    Number(currentPayroll._sum.totalNetPay ?? 0);
   const previousOutflow =
-    (prevBills._sum.amount ?? 0) + Number(prevPayroll._sum.totalNetPay ?? 0);
+    toAccountingNumber(prevBills._sum.amount ?? 0) +
+    Number(prevPayroll._sum.totalNetPay ?? 0);
   const buckets = buildMonthBuckets(sparklineMonths);
 
   for (const payment of monthlyBillPayments) {
     if (payment.paidAt) {
-      addBucketAmount(buckets, monthKey(payment.paidAt), payment.amount ?? 0);
+      addBucketAmount(buckets, monthKey(payment.paidAt), toAccountingNumber(payment.amount ?? 0));
     }
   }
 
@@ -321,10 +328,10 @@ async function queryReceivables(
 
   const days = daysInRange(periodStart, periodEnd);
   const prevDays = daysInRange(prevStart, prevEnd);
-  const totalRevenue = revenue._sum.totalAmount ?? 0;
-  const previousRevenue = prevRevenue._sum.totalAmount ?? 0;
-  const totalReceivable = receivable._sum.remainingAmount ?? 0;
-  const previousReceivable = prevReceivable._sum.remainingAmount ?? 0;
+  const totalRevenue = toAccountingNumber(revenue._sum.totalAmount ?? 0);
+  const previousRevenue = toAccountingNumber(prevRevenue._sum.totalAmount ?? 0);
+  const totalReceivable = toAccountingNumber(receivable._sum.remainingAmount ?? 0);
+  const previousReceivable = toAccountingNumber(prevReceivable._sum.remainingAmount ?? 0);
   const previousDso =
     previousRevenue > 0 ? (previousReceivable / previousRevenue) * prevDays : 0;
   const currentDso =
@@ -383,10 +390,10 @@ async function queryPayables(
 
   const days = daysInRange(periodStart, periodEnd);
   const prevDays = daysInRange(prevStart, prevEnd);
-  const totalPayable = payable._sum.remainingAmount ?? 0;
-  const totalCost = cost._sum.amount ?? 0;
-  const previousPayable = prevPayable._sum.remainingAmount ?? 0;
-  const previousCost = prevCost._sum.amount ?? 0;
+  const totalPayable = toAccountingNumber(payable._sum.remainingAmount ?? 0);
+  const totalCost = toAccountingNumber(cost._sum.amount ?? 0);
+  const previousPayable = toAccountingNumber(prevPayable._sum.remainingAmount ?? 0);
+  const previousCost = toAccountingNumber(prevCost._sum.amount ?? 0);
   const previousDpo =
     previousCost > 0 ? (previousPayable / previousCost) * prevDays : 0;
   const currentDpo =
@@ -466,10 +473,10 @@ async function queryCollections(
     }),
   ]);
 
-  const totalCollected = collected._sum.amount ?? 0;
-  const totalInvoiced = invoiced._sum.totalAmount ?? 0;
-  const previousCollected = prevCollected._sum.amount ?? 0;
-  const previousInvoiced = prevInvoiced._sum.totalAmount ?? 0;
+  const totalCollected = toAccountingNumber(collected._sum.amount ?? 0);
+  const totalInvoiced = toAccountingNumber(invoiced._sum.totalAmount ?? 0);
+  const previousCollected = toAccountingNumber(prevCollected._sum.amount ?? 0);
+  const previousInvoiced = toAccountingNumber(prevInvoiced._sum.totalAmount ?? 0);
   const previousRate =
     previousInvoiced > 0 ? (previousCollected / previousInvoiced) * 100 : 0;
   const collectionsByMonth = buildMonthBuckets(sparklineMonths);
@@ -480,7 +487,7 @@ async function queryCollections(
       addBucketAmount(
         collectionsByMonth,
         monthKey(payment.paidAt),
-        payment.amount ?? 0
+        toAccountingNumber(payment.amount ?? 0),
       );
     }
   }
@@ -490,7 +497,7 @@ async function queryCollections(
       addBucketAmount(
         invoicesByMonth,
         monthKey(invoice.issuedAt),
-        invoice.totalAmount ?? 0
+        toAccountingNumber(invoice.totalAmount ?? 0),
       );
     }
   }
@@ -565,10 +572,10 @@ async function queryMargins(
       }),
     ]);
 
-  const totalRevenue = revenue._sum.totalAmount ?? 0;
-  const totalDirectCosts = costs._sum.amount ?? 0;
-  const previousRevenue = prevRevenue._sum.totalAmount ?? 0;
-  const previousCosts = prevCosts._sum.amount ?? 0;
+  const totalRevenue = toAccountingNumber(revenue._sum.totalAmount ?? 0);
+  const totalDirectCosts = toAccountingNumber(costs._sum.amount ?? 0);
+  const previousRevenue = toAccountingNumber(prevRevenue._sum.totalAmount ?? 0);
+  const previousCosts = toAccountingNumber(prevCosts._sum.amount ?? 0);
   const previousMargin =
     previousRevenue > 0
       ? ((previousRevenue - previousCosts) / previousRevenue) * 100
@@ -581,14 +588,14 @@ async function queryMargins(
       addBucketAmount(
         revenueByMonth,
         monthKey(invoice.issuedAt),
-        invoice.totalAmount ?? 0
+        toAccountingNumber(invoice.totalAmount ?? 0),
       );
     }
   }
 
   for (const payment of monthlyCosts) {
     if (payment.paidAt) {
-      addBucketAmount(costByMonth, monthKey(payment.paidAt), payment.amount ?? 0);
+        addBucketAmount(costByMonth, monthKey(payment.paidAt), toAccountingNumber(payment.amount ?? 0));
     }
   }
 

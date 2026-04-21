@@ -2,6 +2,7 @@ import { redirect, notFound } from "next/navigation";
 import Link from "next/link";
 import { getPortalSession } from "@/lib/portal-auth";
 import { db } from "@/lib/db";
+import { formatIsoDate, toAccountingNumber } from "@/lib/accounting/utils";
 import { PortalPayButton } from "./pay-button";
 
 const STATUS_COLORS: Record<string, string> = {
@@ -70,9 +71,28 @@ export default async function PortalInvoiceDetailPage({
     },
   });
 
-  const isPaid = invoice.status === "PAID";
+  const invoiceView = {
+    ...invoice,
+    invoiceDate: formatIsoDate(invoice.invoiceDate),
+    dueDate: invoice.dueDate ? formatIsoDate(invoice.dueDate) : null,
+    totalAmount: toAccountingNumber(invoice.totalAmount),
+    amountPaid: toAccountingNumber(invoice.amountPaid),
+    remainingAmount: toAccountingNumber(invoice.remainingAmount),
+    lineItems: invoice.lineItems.map((item) => ({
+      ...item,
+      unitPrice: toAccountingNumber(item.unitPrice),
+      amount: toAccountingNumber(item.amount),
+      taxRate: toAccountingNumber(item.taxRate),
+    })),
+    payments: invoice.payments.map((payment) => ({
+      ...payment,
+      amount: toAccountingNumber(payment.amount),
+    })),
+  };
+
+  const isPaid = invoiceView.status === "PAID";
   const showPayButton =
-    !isPaid && invoice.status !== "CANCELLED" && invoice.remainingAmount > 0;
+    !isPaid && invoiceView.status !== "CANCELLED" && invoiceView.remainingAmount > 0;
 
   const rawFormData = invoice.formData as Record<string, unknown> | null;
   const branding = (rawFormData?.branding ?? null) as {
@@ -99,17 +119,17 @@ export default async function PortalInvoiceDetailPage({
         <div className="px-6 py-6 sm:px-8">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
             <div>
-              <h1 className="text-2xl font-bold text-slate-900">
-                Invoice #{invoice.invoiceNumber}
-              </h1>
-              <p className="mt-1 text-sm text-slate-500">
-                {invoice.organization.name}
-              </p>
-            </div>
-            <div className="flex items-center gap-3">
-              <span className={`inline-flex items-center rounded-full px-3 py-1 text-sm font-medium ${STATUS_COLORS[invoice.status] || "bg-slate-100 text-slate-700"}`}>
-                {invoice.status.replace(/_/g, " ")}
-              </span>
+                <h1 className="text-2xl font-bold text-slate-900">
+                 Invoice #{invoiceView.invoiceNumber}
+               </h1>
+               <p className="mt-1 text-sm text-slate-500">
+                 {invoiceView.organization.name}
+               </p>
+             </div>
+             <div className="flex items-center gap-3">
+               <span className={`inline-flex items-center rounded-full px-3 py-1 text-sm font-medium ${STATUS_COLORS[invoiceView.status] || "bg-slate-100 text-slate-700"}`}>
+                 {invoiceView.status.replace(/_/g, " ")}
+               </span>
               {showPayButton && (
                 <PortalPayButton orgSlug={orgSlug} invoiceId={id} />
               )}
@@ -120,22 +140,22 @@ export default async function PortalInvoiceDetailPage({
           <div className="mt-6 grid grid-cols-2 gap-6 border-t border-slate-100 pt-6 sm:grid-cols-4">
             <div>
               <p className="text-xs font-medium uppercase tracking-wider text-slate-400">Date</p>
-              <p className="mt-1 text-sm font-medium text-slate-900">{invoice.invoiceDate}</p>
+              <p className="mt-1 text-sm font-medium text-slate-900">{invoiceView.invoiceDate}</p>
             </div>
-            {invoice.dueDate && (
+            {invoiceView.dueDate && (
               <div>
                 <p className="text-xs font-medium uppercase tracking-wider text-slate-400">Due Date</p>
-                <p className="mt-1 text-sm font-medium text-slate-900">{invoice.dueDate}</p>
+                <p className="mt-1 text-sm font-medium text-slate-900">{invoiceView.dueDate}</p>
               </div>
             )}
             <div>
               <p className="text-xs font-medium uppercase tracking-wider text-slate-400">Total</p>
-              <p className="mt-1 text-sm font-bold text-slate-900">{formatCurrency(invoice.totalAmount)}</p>
+              <p className="mt-1 text-sm font-bold text-slate-900">{formatCurrency(invoiceView.totalAmount)}</p>
             </div>
-            {invoice.remainingAmount > 0 && (
+            {invoiceView.remainingAmount > 0 && (
               <div>
                 <p className="text-xs font-medium uppercase tracking-wider text-slate-400">Remaining</p>
-                <p className="mt-1 text-sm font-bold text-orange-600">{formatCurrency(invoice.remainingAmount)}</p>
+                <p className="mt-1 text-sm font-bold text-orange-600">{formatCurrency(invoiceView.remainingAmount)}</p>
               </div>
             )}
           </div>
@@ -155,7 +175,7 @@ export default async function PortalInvoiceDetailPage({
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-50">
-                {invoice.lineItems.map((item) => (
+                {invoiceView.lineItems.map((item) => (
                   <tr key={item.id}>
                     <td className="px-6 py-3 text-slate-900 sm:px-8">{item.description}</td>
                     <td className="px-4 py-3 text-right text-slate-600">{item.quantity}</td>
@@ -175,19 +195,19 @@ export default async function PortalInvoiceDetailPage({
                 <div className="flex justify-between border-t border-slate-200 pt-2">
                   <span className="font-semibold text-slate-900">Total</span>
                   <span className="font-bold" style={{ color: accentColor }}>
-                    {formatCurrency(invoice.totalAmount)}
+                    {formatCurrency(invoiceView.totalAmount)}
                   </span>
                 </div>
-                {invoice.amountPaid > 0 && (
+                {invoiceView.amountPaid > 0 && (
                   <div className="flex justify-between text-sm">
                     <span className="text-slate-500">Paid</span>
-                    <span className="font-medium text-green-700">{formatCurrency(invoice.amountPaid)}</span>
+                    <span className="font-medium text-green-700">{formatCurrency(invoiceView.amountPaid)}</span>
                   </div>
                 )}
-                {invoice.remainingAmount > 0 && (
+                {invoiceView.remainingAmount > 0 && (
                   <div className="flex justify-between text-sm">
                     <span className="text-slate-500">Remaining</span>
-                    <span className="font-medium text-orange-700">{formatCurrency(invoice.remainingAmount)}</span>
+                    <span className="font-medium text-orange-700">{formatCurrency(invoiceView.remainingAmount)}</span>
                   </div>
                 )}
               </div>
@@ -204,7 +224,7 @@ export default async function PortalInvoiceDetailPage({
           </h2>
         </div>
 
-        {invoice.payments.length === 0 ? (
+        {invoiceView.payments.length === 0 ? (
           <div className="px-6 py-10 text-center sm:px-8">
             <p className="text-sm text-slate-500">No payments recorded yet</p>
           </div>
@@ -220,7 +240,7 @@ export default async function PortalInvoiceDetailPage({
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-50">
-                {invoice.payments.map((payment) => (
+                {invoiceView.payments.map((payment) => (
                   <tr key={payment.id}>
                     <td className="px-6 py-3 text-slate-600 sm:px-8">
                       {new Date(payment.paidAt).toLocaleDateString("en-IN")}

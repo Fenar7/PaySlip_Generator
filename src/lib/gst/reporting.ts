@@ -2,6 +2,7 @@ import "server-only";
 
 import type { InvoiceStatus } from "@/generated/prisma/client";
 import { db } from "@/lib/db";
+import { formatIsoDate, toAccountingNumber } from "@/lib/accounting/utils";
 
 export interface Gstr1B2bInvoice {
   invoiceNumber: string;
@@ -170,14 +171,26 @@ export function computeGstr1DataFromInvoices(
 
   for (const inv of invoices) {
     const gstin = inv.customerGstin ?? inv.customer?.gstin ?? null;
-    const taxable = computeTaxable(inv);
+    const invoiceDateIso = formatIsoDate(inv.invoiceDate);
+    const invoiceTotal = toAccountingNumber(inv.totalAmount);
+    const invoiceCgst = toAccountingNumber(inv.gstTotalCgst);
+    const invoiceSgst = toAccountingNumber(inv.gstTotalSgst);
+    const invoiceIgst = toAccountingNumber(inv.gstTotalIgst);
+    const invoiceCess = toAccountingNumber(inv.gstTotalCess);
+    const taxable = computeTaxable({
+      totalAmount: invoiceTotal,
+      gstTotalCgst: invoiceCgst,
+      gstTotalSgst: invoiceSgst,
+      gstTotalIgst: invoiceIgst,
+      gstTotalCess: invoiceCess,
+    });
 
     totalTaxable += taxable;
-    totalCgst += inv.gstTotalCgst;
-    totalSgst += inv.gstTotalSgst;
-    totalIgst += inv.gstTotalIgst;
-    totalCess += inv.gstTotalCess;
-    totalAmount += inv.totalAmount;
+    totalCgst += invoiceCgst;
+    totalSgst += invoiceSgst;
+    totalIgst += invoiceIgst;
+    totalCess += invoiceCess;
+    totalAmount += invoiceTotal;
 
     if (gstin) {
       if (!b2bMap.has(gstin)) {
@@ -188,18 +201,18 @@ export function computeGstr1DataFromInvoices(
         });
       }
 
-      b2bMap.get(gstin)?.invoices.push({
-        invoiceNumber: inv.invoiceNumber,
-        invoiceDate: inv.invoiceDate,
-        totalAmount: inv.totalAmount,
-        taxableAmount: taxable,
-        cgst: inv.gstTotalCgst,
-        sgst: inv.gstTotalSgst,
-        igst: inv.gstTotalIgst,
-        cess: inv.gstTotalCess,
-        placeOfSupply: inv.placeOfSupply ?? "",
-        reverseCharge: inv.reverseCharge,
-        invoiceType: inferInvoiceType(inv),
+        b2bMap.get(gstin)?.invoices.push({
+          invoiceNumber: inv.invoiceNumber,
+          invoiceDate: invoiceDateIso,
+          totalAmount: invoiceTotal,
+          taxableAmount: taxable,
+          cgst: invoiceCgst,
+          sgst: invoiceSgst,
+          igst: invoiceIgst,
+          cess: invoiceCess,
+          placeOfSupply: inv.placeOfSupply ?? "",
+          reverseCharge: inv.reverseCharge,
+          invoiceType: inferInvoiceType(inv),
       });
       continue;
     }
@@ -210,12 +223,12 @@ export function computeGstr1DataFromInvoices(
 
     b2c.push({
       invoiceNumber: inv.invoiceNumber,
-      invoiceDate: inv.invoiceDate,
-      totalAmount: inv.totalAmount,
+      invoiceDate: invoiceDateIso,
+      totalAmount: invoiceTotal,
       taxableAmount: taxable,
-      cgst: inv.gstTotalCgst,
-      sgst: inv.gstTotalSgst,
-      igst: inv.gstTotalIgst,
+      cgst: invoiceCgst,
+      sgst: invoiceSgst,
+      igst: invoiceIgst,
       placeOfSupply: inv.placeOfSupply ?? "",
     });
   }
@@ -251,28 +264,39 @@ export function computeGstr3bSummaryFromInvoices(
 
   for (const inv of invoices) {
     const gstin = inv.customerGstin ?? inv.customer?.gstin ?? null;
-    const taxable = computeTaxable(inv);
+    const invoiceTotal = toAccountingNumber(inv.totalAmount);
+    const invoiceIgst = toAccountingNumber(inv.gstTotalIgst);
+    const invoiceCgst = toAccountingNumber(inv.gstTotalCgst);
+    const invoiceSgst = toAccountingNumber(inv.gstTotalSgst);
+    const invoiceCess = toAccountingNumber(inv.gstTotalCess);
+    const taxable = computeTaxable({
+      totalAmount: invoiceTotal,
+      gstTotalCgst: invoiceCgst,
+      gstTotalSgst: invoiceSgst,
+      gstTotalIgst: invoiceIgst,
+      gstTotalCess: invoiceCess,
+    });
     const hasExemptLines = inv.lineItems.some((li) => li.gstType === "EXEMPT");
 
     if (hasExemptLines) {
       nilRatedExempt.taxableValue += inv.lineItems
         .filter((li) => li.gstType === "EXEMPT")
-        .reduce((sum, li) => sum + li.amount, 0);
+        .reduce((sum, li) => sum + toAccountingNumber(li.amount), 0);
     }
 
     const bucket = gstin ? b2b : b2c;
     bucket.taxableValue += taxable;
-    bucket.igst += inv.gstTotalIgst;
-    bucket.cgst += inv.gstTotalCgst;
-    bucket.sgst += inv.gstTotalSgst;
-    bucket.cess += inv.gstTotalCess;
+    bucket.igst += invoiceIgst;
+    bucket.cgst += invoiceCgst;
+    bucket.sgst += invoiceSgst;
+    bucket.cess += invoiceCess;
 
     if (inv.reverseCharge) {
       reverseCharge.taxableValue += taxable;
-      reverseCharge.igst += inv.gstTotalIgst;
-      reverseCharge.cgst += inv.gstTotalCgst;
-      reverseCharge.sgst += inv.gstTotalSgst;
-      reverseCharge.cess += inv.gstTotalCess;
+      reverseCharge.igst += invoiceIgst;
+      reverseCharge.cgst += invoiceCgst;
+      reverseCharge.sgst += invoiceSgst;
+      reverseCharge.cess += invoiceCess;
     }
   }
 
@@ -317,17 +341,21 @@ export function computeGstHealthIssuesFromInvoices(
       });
     }
 
-    const lineItemCgst = inv.lineItems.reduce((sum, li) => sum + li.cgstAmount, 0);
-    const lineItemSgst = inv.lineItems.reduce((sum, li) => sum + li.sgstAmount, 0);
-    const lineItemIgst = inv.lineItems.reduce((sum, li) => sum + li.igstAmount, 0);
-    const lineItemCess = inv.lineItems.reduce((sum, li) => sum + li.cessAmount, 0);
+    const lineItemCgst = inv.lineItems.reduce((sum, li) => sum + toAccountingNumber(li.cgstAmount), 0);
+    const lineItemSgst = inv.lineItems.reduce((sum, li) => sum + toAccountingNumber(li.sgstAmount), 0);
+    const lineItemIgst = inv.lineItems.reduce((sum, li) => sum + toAccountingNumber(li.igstAmount), 0);
+    const lineItemCess = inv.lineItems.reduce((sum, li) => sum + toAccountingNumber(li.cessAmount), 0);
+    const invoiceCgst = toAccountingNumber(inv.gstTotalCgst);
+    const invoiceSgst = toAccountingNumber(inv.gstTotalSgst);
+    const invoiceIgst = toAccountingNumber(inv.gstTotalIgst);
+    const invoiceCess = toAccountingNumber(inv.gstTotalCess);
     const tolerance = 0.01;
 
     if (
-      Math.abs(lineItemCgst - inv.gstTotalCgst) > tolerance ||
-      Math.abs(lineItemSgst - inv.gstTotalSgst) > tolerance ||
-      Math.abs(lineItemIgst - inv.gstTotalIgst) > tolerance ||
-      Math.abs(lineItemCess - inv.gstTotalCess) > tolerance
+      Math.abs(lineItemCgst - invoiceCgst) > tolerance ||
+      Math.abs(lineItemSgst - invoiceSgst) > tolerance ||
+      Math.abs(lineItemIgst - invoiceIgst) > tolerance ||
+      Math.abs(lineItemCess - invoiceCess) > tolerance
     ) {
       issues.push({
         invoiceId: inv.id,

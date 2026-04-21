@@ -1,6 +1,7 @@
 "use server";
 import { db } from "@/lib/db";
 import { requireOrgContext, requireRole } from "@/lib/auth";
+import { toAccountingNumber } from "@/lib/accounting/utils";
 import { confirmMatch } from "@/lib/razorpay/unmatched-payment-matcher";
 import type { UnmatchedPayment, Invoice } from "@/generated/prisma/client";
 import { logAudit } from "@/lib/audit";
@@ -10,7 +11,13 @@ type ActionResult<T> =
   | { success: false; error: string };
 
 export type UnmatchedPaymentWithInvoice = UnmatchedPayment & {
-  suggestedInvoice: Pick<Invoice, "id" | "invoiceNumber" | "totalAmount" | "remainingAmount" | "status"> | null;
+  suggestedInvoice: {
+    id: string;
+    invoiceNumber: string;
+    totalAmount: number;
+    remainingAmount: number;
+    status: Invoice["status"];
+  } | null;
 };
 
 /**
@@ -31,7 +38,7 @@ export async function listUnmatchedPayments(): Promise<
     payments.map(async (p) => {
       let suggestedInvoice: UnmatchedPaymentWithInvoice["suggestedInvoice"] = null;
       if (p.matchedInvoiceId) {
-        suggestedInvoice = await db.invoice.findFirst({
+        const invoice = await db.invoice.findFirst({
           where: { id: p.matchedInvoiceId, organizationId: orgId },
           select: {
             id: true,
@@ -41,6 +48,13 @@ export async function listUnmatchedPayments(): Promise<
             status: true,
           },
         });
+        suggestedInvoice = invoice
+          ? {
+              ...invoice,
+              totalAmount: toAccountingNumber(invoice.totalAmount),
+              remainingAmount: toAccountingNumber(invoice.remainingAmount),
+            }
+          : null;
       }
       return { ...p, suggestedInvoice };
     })
@@ -74,7 +88,14 @@ export async function manuallyReconcilePayment(
   }
 
   try {
-    await confirmMatch(payment, invoice, "MANUALLY_MATCHED");
+    await confirmMatch(
+      payment,
+      {
+        ...invoice,
+        remainingAmount: toAccountingNumber(invoice.remainingAmount),
+      },
+      "MANUALLY_MATCHED"
+    );
   } catch (err) {
     const message = err instanceof Error ? err.message : "Unknown error";
     return { success: false, error: `Reconciliation failed: ${message}` };
@@ -133,7 +154,16 @@ export async function markPaymentAsOther(
  */
 export async function getOpenInvoicesForCustomer(
   customerId: string
-): Promise<ActionResult<Pick<Invoice, "id" | "invoiceNumber" | "remainingAmount" | "status">[]>> {
+): Promise<
+  ActionResult<
+    Array<{
+      id: string;
+      invoiceNumber: string;
+      remainingAmount: number;
+      status: Invoice["status"];
+    }>
+  >
+> {
   const { orgId } = await requireOrgContext();
 
   const customer = await db.customer.findFirst({
@@ -152,5 +182,11 @@ export async function getOpenInvoicesForCustomer(
     orderBy: { createdAt: "desc" },
   });
 
-  return { success: true, data: invoices };
+  return {
+    success: true,
+    data: invoices.map((invoice) => ({
+      ...invoice,
+      remainingAmount: toAccountingNumber(invoice.remainingAmount),
+    })),
+  };
 }

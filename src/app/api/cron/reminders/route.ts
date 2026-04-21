@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { validateCronSecret } from "@/lib/cron";
 import { sendEmail } from "@/lib/email";
 import { reminderEmailHtml } from "@/lib/email-templates/reminder-email";
+import { formatIsoDate, toAccountingNumber } from "@/lib/accounting/utils";
 
 export const dynamic = "force-dynamic";
 
@@ -64,7 +65,8 @@ export async function GET(request: Request) {
       const email = inv.customer?.email;
       if (!email) continue;
 
-      const daysUntilDue = inv.dueDate === target1Str ? 1 : 3;
+      const dueDateIso = inv.dueDate ? formatIsoDate(inv.dueDate) : null;
+      const daysUntilDue = dueDateIso === target1Str ? 1 : 3;
       const token = inv.publicTokens[0]?.token;
       const viewUrl = token
         ? `${process.env.NEXT_PUBLIC_APP_URL || "https://app.slipwise.app"}/invoice/${token}`
@@ -77,8 +79,8 @@ export async function GET(request: Request) {
           html: reminderEmailHtml({
             invoiceNumber: inv.invoiceNumber,
             customerName: inv.customer?.name || "",
-            totalAmount: formatCurrency(inv.totalAmount),
-            dueDate: inv.dueDate!,
+            totalAmount: formatCurrency(toAccountingNumber(inv.totalAmount)),
+            dueDate: dueDateIso ?? target3Str,
             daysUntilDue,
             viewUrl,
           }),

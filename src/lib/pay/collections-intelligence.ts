@@ -5,6 +5,7 @@
  */
 import { db } from "@/lib/db";
 import { InvoiceStatus } from "@/generated/prisma/client";
+import { toAccountingNumber } from "@/lib/accounting/utils";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -112,7 +113,9 @@ export async function getAgingBuckets(orgId: string): Promise<AgingReport> {
   };
 
   for (const inv of unpaid) {
-    const amount = inv.remainingAmount > 0 ? inv.remainingAmount : inv.totalAmount;
+    const remainingAmount = toAccountingNumber(inv.remainingAmount);
+    const totalAmount = toAccountingNumber(inv.totalAmount);
+    const amount = remainingAmount > 0 ? remainingAmount : totalAmount;
     if (!inv.dueDate) {
       // No due date — treat as current
       accum.current.count++;
@@ -229,7 +232,7 @@ export async function getAtRiskCustomers(orgId: string): Promise<AtRiskCustomer[
     if (!row.customerId) continue;
     ensureEntry(row.customerId);
     signalMap.get(row.customerId)!.add("critical_overdue");
-    outstandingMap.set(row.customerId, row._sum.remainingAmount ?? 0);
+    outstandingMap.set(row.customerId, toAccountingNumber(row._sum.remainingAmount ?? 0));
   }
 
   // Late-payer signal: avg days from issuedAt to PAID state event > 15

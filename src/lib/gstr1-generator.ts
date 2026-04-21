@@ -1,6 +1,7 @@
 import "server-only";
 
 import { db } from "@/lib/db";
+import { formatIsoDate, toAccountingNumber } from "@/lib/accounting/utils";
 
 export interface GSTR1Report {
   gstin: string;
@@ -128,16 +129,17 @@ export async function generateGSTR1(
       extractStateCode(customerGstin) ??
       extractStateCode(invoice.placeOfSupply) ??
       orgStateCode;
+    const invoiceTotal = toAccountingNumber(invoice.totalAmount);
+    const invoiceCgst = toAccountingNumber(invoice.gstTotalCgst);
+    const invoiceSgst = toAccountingNumber(invoice.gstTotalSgst);
+    const invoiceIgst = toAccountingNumber(invoice.gstTotalIgst);
+    const invoiceCess = toAccountingNumber(invoice.gstTotalCess);
 
     const isB2B = !!customerGstin;
-    const isLarge = invoice.totalAmount >= 250000;
+    const isLarge = invoiceTotal >= 250000;
 
     const invoiceLevelTaxable = round(
-      invoice.totalAmount -
-        invoice.gstTotalCgst -
-        invoice.gstTotalSgst -
-        invoice.gstTotalIgst -
-        invoice.gstTotalCess,
+      invoiceTotal - invoiceCgst - invoiceSgst - invoiceIgst - invoiceCess,
     );
 
     const items = invoice.lineItems.length > 0
@@ -147,20 +149,17 @@ export async function generateGSTR1(
             gstRate:
               invoiceLevelTaxable > 0
                 ? round(
-                    ((invoice.gstTotalCgst +
-                      invoice.gstTotalSgst +
-                      invoice.gstTotalIgst +
-                      invoice.gstTotalCess) /
+                    ((invoiceCgst + invoiceSgst + invoiceIgst + invoiceCess) /
                       invoiceLevelTaxable) *
                       100,
                   )
                 : 0,
             amount: invoiceLevelTaxable,
-            cgstAmount: invoice.gstTotalCgst,
-            sgstAmount: invoice.gstTotalSgst,
-            igstAmount: invoice.gstTotalIgst,
-            cessAmount: invoice.gstTotalCess,
-            gstType: invoice.gstTotalIgst > 0 ? "INTERSTATE" : "INTRASTATE",
+            cgstAmount: invoiceCgst,
+            sgstAmount: invoiceSgst,
+            igstAmount: invoiceIgst,
+            cessAmount: invoiceCess,
+            gstType: invoiceIgst > 0 ? "INTERSTATE" : "INTRASTATE",
           },
         ];
 
@@ -219,7 +218,7 @@ export async function generateGSTR1(
       entry.inv.push({
         inum: invoice.invoiceNumber,
         idt: invoiceDateFormatted,
-        val: round(invoice.totalAmount),
+        val: round(invoiceTotal),
         pos: customerState,
         rchrg: "N",
         itms: invoiceItems,
@@ -232,7 +231,7 @@ export async function generateGSTR1(
       entry.inv.push({
         inum: invoice.invoiceNumber,
         idt: invoiceDateFormatted,
-        val: round(invoice.totalAmount),
+        val: round(invoiceTotal),
         itms: invoiceItems.map((item) => ({
           num: item.num,
           itm_det: {
@@ -287,7 +286,7 @@ export async function generateGSTR1(
       totalSgst: round(totalSgst),
       totalIgst: round(totalIgst),
       totalCess: round(
-        invoices.reduce((sum, invoice) => sum + invoice.gstTotalCess, 0),
+        invoices.reduce((sum, invoice) => sum + toAccountingNumber(invoice.gstTotalCess), 0),
       ),
       totalValue: round(totalValue),
     },
@@ -301,13 +300,12 @@ function extractStateCode(value: string | null | undefined): string | null {
   return match ? match[1] : null;
 }
 
-function formatDateDDMMYYYY(dateStr: string): string {
-  // Input: "YYYY-MM-DD" → Output: "DD-MM-YYYY"
-  const parts = dateStr.split("-");
+function formatDateDDMMYYYY(dateStr: Date | string): string {
+  const parts = formatIsoDate(dateStr).split("-");
   if (parts.length === 3) {
     return `${parts[2]}-${parts[1]}-${parts[0]}`;
   }
-  return dateStr;
+  return formatIsoDate(dateStr);
 }
 
 function round(n: number): number {

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { validateCronSecret } from "@/lib/cron";
 import { db } from "@/lib/db";
 import { InvoiceStatus } from "@/generated/prisma/client";
+import { toAccountingNumber } from "@/lib/accounting/utils";
 
 export const dynamic = "force-dynamic";
 
@@ -62,9 +63,9 @@ export async function GET(request: Request) {
             totalInvoices: invoices.length,
             b2bCount: invoices.filter((i) => i.customerGstin).length,
             b2cCount: invoices.filter((i) => !i.customerGstin).length,
-            totalCgst: invoices.reduce((sum, i) => sum + (i.gstTotalCgst ?? 0), 0),
-            totalSgst: invoices.reduce((sum, i) => sum + (i.gstTotalSgst ?? 0), 0),
-            totalIgst: invoices.reduce((sum, i) => sum + (i.gstTotalIgst ?? 0), 0),
+            totalCgst: invoices.reduce((sum, i) => sum + toAccountingNumber(i.gstTotalCgst ?? 0), 0),
+            totalSgst: invoices.reduce((sum, i) => sum + toAccountingNumber(i.gstTotalSgst ?? 0), 0),
+            totalIgst: invoices.reduce((sum, i) => sum + toAccountingNumber(i.gstTotalIgst ?? 0), 0),
           };
 
           processedCount++;

@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
 import { db } from "@/lib/db";
+import { formatIsoDate, toAccountingNumber } from "@/lib/accounting/utils";
 import {
   authenticateApiRequest,
   requireScope,
@@ -57,7 +58,7 @@ export async function GET(request: NextRequest) {
     }
 
     const sumBucket = (items: typeof unpaidInvoices) =>
-      items.reduce((sum, inv) => sum + inv.totalAmount, 0);
+      items.reduce((sum, inv) => sum + toAccountingNumber(inv.totalAmount), 0);
 
     const resp = apiResponse({
       totalOutstanding: sumBucket(unpaidInvoices),
@@ -70,7 +71,12 @@ export async function GET(request: NextRequest) {
         "61-90_days": { count: buckets.days_61_90.length, amount: sumBucket(buckets.days_61_90) },
         "90+_days": { count: buckets.days_90_plus.length, amount: sumBucket(buckets.days_90_plus) },
       },
-      invoices: unpaidInvoices,
+      invoices: unpaidInvoices.map((invoice) => ({
+        ...invoice,
+        invoiceDate: formatIsoDate(invoice.invoiceDate),
+        dueDate: invoice.dueDate ? formatIsoDate(invoice.dueDate) : null,
+        totalAmount: toAccountingNumber(invoice.totalAmount),
+      })),
     });
     logApiRequest(auth.orgId, auth.apiKeyId, "GET", "/api/v1/reports/outstanding", 200, Date.now() - start, getClientIp(request));
     return resp;

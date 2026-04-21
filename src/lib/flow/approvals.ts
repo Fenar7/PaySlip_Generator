@@ -1,5 +1,6 @@
 import { db } from "@/lib/db";
 import { notifyOrgAdmins, notifyUsers } from "@/lib/notifications";
+import { toAccountingNumber } from "@/lib/accounting/utils";
 
 export interface CreateApprovalParams {
   docType: string;
@@ -259,35 +260,35 @@ export async function getApprovalDocumentAmount(
         where: { id: docId, organizationId: orgId },
         select: { totalAmount: true },
       });
-      return invoice?.totalAmount;
+      return invoice ? toAccountingNumber(invoice.totalAmount) : undefined;
     }
     case "voucher": {
       const voucher = await db.voucher.findFirst({
         where: { id: docId, organizationId: orgId },
         select: { totalAmount: true },
       });
-      return voucher?.totalAmount;
+      return voucher ? toAccountingNumber(voucher.totalAmount) : undefined;
     }
     case "salary-slip": {
       const salarySlip = await db.salarySlip.findFirst({
         where: { id: docId, organizationId: orgId },
         select: { netPay: true },
       });
-      return salarySlip?.netPay;
+      return salarySlip ? toAccountingNumber(salarySlip.netPay) : undefined;
     }
     case "vendor-bill": {
       const vendorBill = await db.vendorBill.findFirst({
         where: { id: docId, orgId },
         select: { totalAmount: true },
       });
-      return vendorBill?.totalAmount;
+      return vendorBill ? toAccountingNumber(vendorBill.totalAmount) : undefined;
     }
     case "payment-run": {
       const paymentRun = await db.paymentRun.findFirst({
         where: { id: docId, orgId },
         select: { totalAmount: true },
       });
-      return paymentRun?.totalAmount;
+      return paymentRun ? toAccountingNumber(paymentRun.totalAmount) : undefined;
     }
     default:
       return undefined;

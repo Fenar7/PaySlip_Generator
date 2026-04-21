@@ -4,7 +4,7 @@ import { db } from "@/lib/db";
 import type { JournalSource, JournalEntryStatus, Prisma } from "@/generated/prisma/client";
 import { ensureBooksSetupTx } from "./accounts";
 import { assertPostingAllowedTx } from "./periods";
-import { cleanText, parseAccountingDate, roundMoney } from "./utils";
+import { cleanText, parseAccountingDate, roundMoney, toAccountingNumber } from "./utils";
 
 type TxClient = Prisma.TransactionClient;
 
@@ -261,8 +261,8 @@ export async function postJournalEntryTx(
   const { totalDebit, totalCredit } = validateJournalLines(
     journal.lines.map((line) => ({
       accountId: line.accountId,
-      debit: line.debit,
-      credit: line.credit,
+      debit: toAccountingNumber(line.debit),
+      credit: toAccountingNumber(line.credit),
       description: line.description,
       entityType: line.entityType,
       entityId: line.entityId,
@@ -389,8 +389,8 @@ export async function reverseJournalEntryTx(
     reversalOfId: journal.id,
     lines: journal.lines.map((line) => ({
       accountId: line.accountId,
-      debit: line.credit,
-      credit: line.debit,
+      debit: toAccountingNumber(line.credit),
+      credit: toAccountingNumber(line.debit),
       description: line.description,
       entityType: line.entityType,
       entityId: line.entityId,

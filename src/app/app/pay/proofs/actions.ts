@@ -2,6 +2,7 @@
 
 import { db } from "@/lib/db";
 import { requireOrgContext } from "@/lib/auth";
+import { toAccountingNumber } from "@/lib/accounting/utils";
 import { revalidatePath } from "next/cache";
 import { reconcileInvoicePayment } from "@/lib/invoice-reconciliation";
 import { postInvoicePaymentTx } from "@/lib/accounting";
@@ -63,15 +64,15 @@ export async function listProofs(params?: {
 
     return {
       success: true,
-      data: {
-        proofs: proofs.map((p) => ({
-          id: p.id,
-          invoiceNumber: p.invoice.invoiceNumber,
-          customerName: p.invoice.customer?.name || "—",
-          amount: p.amount,
-          paymentDate: p.paymentDate,
-          paymentMethod: p.paymentMethod,
-          reviewStatus: p.reviewStatus,
+        data: {
+          proofs: proofs.map((p) => ({
+            id: p.id,
+            invoiceNumber: p.invoice.invoiceNumber,
+            customerName: p.invoice.customer?.name || "—",
+            amount: toAccountingNumber(p.amount),
+            paymentDate: p.paymentDate,
+            paymentMethod: p.paymentMethod,
+            reviewStatus: p.reviewStatus,
           createdAt: p.createdAt.toISOString(),
           fileName: p.fileName,
         })),
@@ -136,12 +137,14 @@ export async function getProofDetail(proofId: string): Promise<
 
     // Effective remaining: for legacy invoices where remainingAmount hasn't been
     // reconciled yet, fall back to totalAmount - amountPaid.
-    const effectiveRemaining = proof.invoice.remainingAmount > 0
-      ? proof.invoice.remainingAmount
-      : Math.max(proof.invoice.totalAmount - proof.invoice.amountPaid, 0);
+    const remainingAmount = toAccountingNumber(proof.invoice.remainingAmount);
+    const totalAmount = toAccountingNumber(proof.invoice.totalAmount);
+    const amountPaid = toAccountingNumber(proof.invoice.amountPaid);
+    const proofAmount = toAccountingNumber(proof.amount);
+    const effectiveRemaining = remainingAmount > 0 ? remainingAmount : Math.max(totalAmount - amountPaid, 0);
 
     const resultingStatus: "PAID" | "PARTIALLY_PAID" =
-      proof.amount >= effectiveRemaining ? "PAID" : "PARTIALLY_PAID";
+      proofAmount >= effectiveRemaining ? "PAID" : "PARTIALLY_PAID";
 
     return {
       success: true,
@@ -149,7 +152,7 @@ export async function getProofDetail(proofId: string): Promise<
         id: proof.id,
         fileUrl: proof.fileUrl,
         fileName: proof.fileName,
-        amount: proof.amount,
+        amount: proofAmount,
         paymentDate: proof.paymentDate,
         paymentMethod: proof.paymentMethod,
         plannedNextPaymentDate: proof.plannedNextPaymentDate ?? null,
@@ -160,9 +163,9 @@ export async function getProofDetail(proofId: string): Promise<
         invoice: {
           id: proof.invoice.id,
           invoiceNumber: proof.invoice.invoiceNumber,
-          totalAmount: proof.invoice.totalAmount,
-          amountPaid: proof.invoice.amountPaid,
-          remainingAmount: proof.invoice.remainingAmount,
+          totalAmount,
+          amountPaid,
+          remainingAmount,
           status: proof.invoice.status,
           customerName: proof.invoice.customer?.name || "—",
         },

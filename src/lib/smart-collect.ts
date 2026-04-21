@@ -4,6 +4,7 @@ import { createVirtualAccount, getRazorpay } from "@/lib/razorpay";
 import { postInvoicePaymentTx } from "@/lib/accounting";
 import { fromMinorUnits, toMinorUnits } from "@/lib/money";
 import { logAudit } from "@/lib/audit";
+import { toAccountingNumber } from "@/lib/accounting/utils";
 
 type ActionResult<T> =
   | { success: true; data: T }
@@ -114,7 +115,7 @@ export async function handleVirtualAccountCredited(
   });
 
   const invoiceRemainingPaise = matchingInvoice
-    ? toMinorUnits(matchingInvoice.remainingAmount)
+    ? toMinorUnits(toAccountingNumber(matchingInvoice.remainingAmount))
     : 0;
 
   if (matchingInvoice && invoiceRemainingPaise === amountPaise) {
@@ -230,7 +231,7 @@ export async function matchUnmatchedPayment(
       invoicePaymentId: invoicePayment.id,
     });
 
-    const invoiceRemainingPaise = toMinorUnits(invoice.remainingAmount);
+    const invoiceRemainingPaise = toMinorUnits(toAccountingNumber(invoice.remainingAmount));
     const paymentAmountPaise = Number(payment.amountPaise);
     const newRemainingPaise = Math.max(0, invoiceRemainingPaise - paymentAmountPaise);
     const isFullyPaid = newRemainingPaise === 0;
