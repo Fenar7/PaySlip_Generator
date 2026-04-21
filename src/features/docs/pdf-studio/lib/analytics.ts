@@ -24,6 +24,7 @@ export type PdfStudioFailureReason =
   | "unsupported-file-type"
   | "page-limit-exceeded"
   | "pdf-read-failed"
+  | "pdf-runtime-failed"
   | "processing-failed"
   | "render-failed"
   | "validation-failed"

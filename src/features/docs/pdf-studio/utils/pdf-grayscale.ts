@@ -4,6 +4,7 @@ import { PDFDocument } from "pdf-lib";
 import { validatePdfStudioPageCount } from "@/features/docs/pdf-studio/lib/ingestion";
 import {
   destroyPdfJsDocument,
+  normalizePdfJsError,
   openPdfJsDocument,
 } from "@/features/docs/pdf-studio/utils/pdfjs-client";
 
@@ -78,10 +79,10 @@ export async function convertPdfToGrayscale(
     }
 
     return { ok: true, data: await output.save() };
-  } catch {
+  } catch (error) {
     return {
       ok: false,
-      error: "Grayscale conversion failed. Try a smaller PDF or split the file first.",
+      error: normalizePdfJsError(error).message,
     };
   } finally {
     if (loadingTask) {

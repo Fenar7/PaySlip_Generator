@@ -2,6 +2,7 @@ import { validatePdfStudioPageCount } from "@/features/docs/pdf-studio/lib/inges
 import {
   destroyPdfJsDocument,
   getPdfJsClient,
+  normalizePdfJsError,
   openPdfJsDocument,
 } from "@/features/docs/pdf-studio/utils/pdfjs-client";
 
@@ -151,7 +152,7 @@ export async function extractImagesFromPdf(
   } catch (error) {
     return {
       ok: false,
-      error: error instanceof Error ? error.message : "Unknown extraction error",
+      error: normalizePdfJsError(error).message,
     };
   } finally {
     if (loadingTask) {

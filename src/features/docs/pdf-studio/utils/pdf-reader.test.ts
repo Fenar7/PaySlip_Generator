@@ -75,4 +75,38 @@ describe("pdf reader", () => {
     expect(result).toEqual({ ok: true, pageCount: 2 });
     expect(destroyPdfJsDocument).toHaveBeenCalledTimes(1);
   });
+
+  it("surfaces runtime bootstrap failures separately from invalid PDFs", async () => {
+    openPdfJsDocument.mockRejectedValue({
+      code: "pdf-runtime-failed",
+      message:
+        "PDF processing could not start in the browser. Please retry or contact support if this persists.",
+    });
+
+    const file = new File(["pdf"], "sample.pdf", { type: "application/pdf" });
+    const result = await readPdfPages(file, { toolId: "split" });
+
+    expect(result).toEqual({
+      ok: false,
+      error:
+        "PDF processing could not start in the browser. Please retry or contact support if this persists.",
+      reason: "pdf-runtime-failed",
+    });
+  });
+
+  it("surfaces password-protected PDFs distinctly", async () => {
+    openPdfJsDocument.mockRejectedValue({
+      code: "password-protected",
+      message: "This PDF is password-protected. Unlock it first, then retry.",
+    });
+
+    const file = new File(["pdf"], "locked.pdf", { type: "application/pdf" });
+    const result = await getPdfPageCount(file);
+
+    expect(result).toEqual({
+      ok: false,
+      error: "This PDF is password-protected. Unlock it first, then retry.",
+      reason: "password-protected",
+    });
+  });
 });

@@ -1,6 +1,7 @@
 import { validatePdfStudioPageCount } from "@/features/docs/pdf-studio/lib/ingestion";
 import {
   destroyPdfJsDocument,
+  normalizePdfJsError,
   openPdfJsDocument,
 } from "@/features/docs/pdf-studio/utils/pdfjs-client";
 
@@ -106,8 +107,7 @@ export async function renderPdfPagesToImages(
 
     return { ok: true, data: pages };
   } catch (err) {
-    const msg = err instanceof Error ? err.message : "Unknown error";
-    return { ok: false, error: `Failed to render PDF: ${msg}` };
+    return { ok: false, error: normalizePdfJsError(err).message };
   } finally {
     if (loadingTask) {
       await destroyPdfJsDocument(loadingTask, pdf);

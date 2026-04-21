@@ -9,6 +9,7 @@ import { validatePdfStudioFiles } from "@/features/docs/pdf-studio/lib/ingestion
 import { buildPdfStudioOutputName } from "@/features/docs/pdf-studio/lib/output";
 import {
   destroyPdfJsDocument,
+  normalizePdfJsError,
   openPdfJsDocument,
 } from "@/features/docs/pdf-studio/utils/pdfjs-client";
 import { downloadPdfBytes } from "@/features/docs/pdf-studio/utils/zip-builder";
@@ -273,9 +274,9 @@ export function ProtectUnlockWorkspaceWithOptions(props?: {
           fileCount: 1,
           totalBytes: f.size,
         });
-      } catch {
-        const message =
-          "Unable to read this PDF. Please verify the file is valid and try again.";
+      } catch (error) {
+        const failure = normalizePdfJsError(error);
+        const message = failure.message;
         setUnlock((prev) => ({
           ...prev,
           status: "error",
@@ -284,7 +285,7 @@ export function ProtectUnlockWorkspaceWithOptions(props?: {
         analytics.trackFail({
           action: "unlock",
           stage: "upload",
-          reason: "pdf-read-failed",
+          reason: failure.code,
         });
       }
     },

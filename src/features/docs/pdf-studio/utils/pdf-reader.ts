@@ -5,6 +5,7 @@ import type { PdfStudioToolId } from "@/features/docs/pdf-studio/types";
 import {
   destroyPdfJsDocument,
   openPdfJsDocument,
+  type PdfJsFailure,
   type PdfJsDocumentProxy,
   type PdfJsLoadingTask,
 } from "@/features/docs/pdf-studio/utils/pdfjs-client";
@@ -18,7 +19,11 @@ export interface PdfPageItem {
   sourcePdfName: string;
 }
 
-export type PdfReadFailureReason = "page-limit-exceeded" | "pdf-read-failed";
+export type PdfReadFailureReason =
+  | "page-limit-exceeded"
+  | "pdf-read-failed"
+  | "pdf-runtime-failed"
+  | "password-protected";
 
 export type PdfReadResult =
   | { ok: true; data: PdfPageItem[] }
@@ -49,6 +54,31 @@ function dataUrlPayloadToBytes(dataUrl: string) {
   return Math.floor((payload.length * 3) / 4) - padding;
 }
 
+function isPdfJsFailure(error: unknown): error is PdfJsFailure {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    "code" in error &&
+    "message" in error
+  );
+}
+
+function toPdfReadFailure(error: unknown) {
+  if (isPdfJsFailure(error)) {
+    return {
+      ok: false as const,
+      error: error.message,
+      reason: error.code,
+    };
+  }
+
+  return {
+    ok: false as const,
+    error: "This PDF appears malformed or unsupported.",
+    reason: "pdf-read-failed" as const,
+  };
+}
+
 export async function getPdfPageCount(file: File): Promise<PdfPageCountResult> {
   let loadingTask: PdfJsLoadingTask | null = null;
   let pdf: PdfJsDocumentProxy | null = null;
@@ -60,12 +90,8 @@ export async function getPdfPageCount(file: File): Promise<PdfPageCountResult> {
     pdf = opened.pdf;
 
     return { ok: true, pageCount: pdf.numPages };
-  } catch {
-    return {
-      ok: false,
-      error: "Unable to inspect this PDF. Please verify the file is valid and try again.",
-      reason: "pdf-read-failed",
-    };
+  } catch (error) {
+    return toPdfReadFailure(error);
   } finally {
     if (loadingTask) {
       await destroyPdfJsDocument(loadingTask, pdf);
@@ -124,11 +150,9 @@ export async function readPdfPages(
         const context = canvas.getContext("2d");
         if (!context) {
           canvas.remove();
-          return {
-            ok: false,
-            error: "Unable to read this PDF. Please verify the file and try again.",
-            reason: "pdf-read-failed",
-          };
+          return toPdfReadFailure(
+            new Error("Canvas context unavailable while rendering the PDF."),
+          );
         }
 
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -154,12 +178,8 @@ export async function readPdfPages(
     }
 
     return { ok: true, data: pages };
-  } catch {
-    return {
-      ok: false,
-      error: "Unable to read this PDF. Please verify the file is valid and try again.",
-      reason: "pdf-read-failed",
-    };
+  } catch (error) {
+    return toPdfReadFailure(error);
   } finally {
     if (loadingTask) {
       await destroyPdfJsDocument(loadingTask, pdf);

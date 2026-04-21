@@ -16,6 +16,7 @@ import {
 } from "@/features/docs/pdf-studio/utils/header-footer-writer";
 import {
   destroyPdfJsDocument,
+  normalizePdfJsError,
   openPdfJsDocument,
 } from "@/features/docs/pdf-studio/utils/pdfjs-client";
 import { downloadPdfBytes } from "@/features/docs/pdf-studio/utils/zip-builder";
@@ -133,11 +134,12 @@ export function HeaderFooterWorkspace() {
           pageCount: pdf.numPages,
           totalBytes: f.size,
         });
-      } catch {
-        setError("Unable to read this PDF. Please verify the file is valid and try again.");
+      } catch (error) {
+        const failure = normalizePdfJsError(error);
+        setError(failure.message);
         analytics.trackFail({
           stage: "upload",
-          reason: "pdf-read-failed",
+          reason: failure.code,
         });
       } finally {
         if (loadingTask) {
