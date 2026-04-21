@@ -91,4 +91,64 @@ describe("pdf studio output helpers", () => {
       }),
     ).toBe("final-client-closing-binder-signed.pdf");
   });
+
+  it("builds deterministic Phase 32 export names across browser and processing tools", () => {
+    expect(
+      buildPdfStudioOutputName({
+        toolId: "watermark",
+        baseName: "Draft Contract",
+        extension: "pdf",
+      }),
+    ).toBe("Draft-Contract.pdf");
+
+    expect(
+      buildPdfStudioOutputName({
+        toolId: "grayscale",
+        baseName: "Client Deck",
+        variant: "batch-02",
+        extension: "pdf",
+      }),
+    ).toBe("Client-Deck-batch-02.pdf");
+
+    expect(
+      buildPdfStudioOutputName({
+        toolId: "pdf-to-image",
+        baseName: "Board Packet",
+        variant: "page-01-png",
+        extension: "png",
+      }),
+    ).toBe("Board-Packet-page-01-png.png");
+
+    expect(
+      buildPdfStudioOutputName({
+        toolId: "pdf-to-text",
+        baseName: "Signed Scan",
+        extension: "txt",
+      }),
+    ).toBe("Signed-Scan.txt");
+
+    expect(
+      buildPdfStudioOutputName({
+        toolId: "pdf-to-word",
+        baseName: "Matter File",
+        extension: "docx",
+      }),
+    ).toBe("Matter-File.docx");
+
+    expect(
+      buildPdfStudioOutputName({
+        toolId: "word-to-pdf",
+        baseName: "Engagement Letter",
+        extension: "pdf",
+      }),
+    ).toBe("Engagement-Letter.pdf");
+
+    expect(
+      buildPdfStudioOutputName({
+        toolId: "html-to-pdf",
+        baseName: "Invoice Portal",
+        extension: "pdf",
+      }),
+    ).toBe("Invoice-Portal.pdf");
+  });
 });

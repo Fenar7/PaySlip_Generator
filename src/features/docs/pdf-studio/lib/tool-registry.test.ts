@@ -63,6 +63,65 @@ describe("pdf studio tool registry", () => {
     );
   });
 
+  it("registers the Phase 32 security and conversion tools with honest exposure", () => {
+    expect(getPdfStudioTool("watermark")).toMatchObject({
+      workspacePath: "/app/docs/pdf-studio/watermark",
+      publicPath: "/pdf-studio/watermark",
+      executionMode: "browser",
+    });
+    expect(getPdfStudioTool("jpg-to-pdf")).toMatchObject({
+      workspacePath: "/app/docs/pdf-studio/jpg-to-pdf",
+      publicPath: "/pdf-studio/jpg-to-pdf",
+      executionMode: "browser",
+    });
+    expect(getPdfStudioTool("pdf-to-text")).toMatchObject({
+      workspacePath: "/app/docs/pdf-studio/pdf-to-text",
+      publicPath: "/pdf-studio/pdf-to-text",
+      executionMode: "browser",
+      outputLabel: "TXT",
+    });
+    expect(getPdfStudioTool("unlock")).toMatchObject({
+      workspacePath: "/app/docs/pdf-studio/unlock",
+      availability: {
+        workspace: "available",
+        public: "workspace-only",
+      },
+      outputLabel: "Image-only PDF",
+    });
+    expect(getPdfStudioTool("grayscale")).toMatchObject({
+      workspacePath: "/app/docs/pdf-studio/grayscale",
+      availability: {
+        workspace: "available",
+        public: "workspace-only",
+      },
+      outputLabel: "PDF / ZIP",
+    });
+    expect(getPdfStudioTool("pdf-to-word")).toMatchObject({
+      workspacePath: "/app/docs/pdf-studio/pdf-to-word",
+      executionMode: "processing",
+      availability: {
+        workspace: "available",
+        public: "workspace-only",
+      },
+    });
+    expect(getPdfStudioTool("word-to-pdf")).toMatchObject({
+      workspacePath: "/app/docs/pdf-studio/word-to-pdf",
+      executionMode: "processing",
+      availability: {
+        workspace: "available",
+        public: "workspace-only",
+      },
+    });
+    expect(getPdfStudioTool("html-to-pdf")).toMatchObject({
+      workspacePath: "/app/docs/pdf-studio/html-to-pdf",
+      executionMode: "processing",
+      availability: {
+        workspace: "available",
+        public: "workspace-only",
+      },
+    });
+  });
+
   it("keeps workspace and public hub categories aligned", () => {
     const workspaceCatalog = listPdfStudioToolsByCategory("workspace").map(
       (category) => ({
@@ -126,6 +185,30 @@ describe("pdf studio tool registry", () => {
     expect(publicCatalog.flatMap((category) => category.tools)).not.toContain(
       "n-up",
     );
+    expect(publicCatalog.flatMap((category) => category.tools)).not.toContain(
+      "unlock",
+    );
+    expect(publicCatalog.flatMap((category) => category.tools)).not.toContain(
+      "grayscale",
+    );
+    expect(publicCatalog.flatMap((category) => category.tools)).not.toContain(
+      "pdf-to-word",
+    );
+    expect(publicCatalog.flatMap((category) => category.tools)).not.toContain(
+      "pdf-to-excel",
+    );
+    expect(publicCatalog.flatMap((category) => category.tools)).not.toContain(
+      "pdf-to-ppt",
+    );
+    expect(publicCatalog.flatMap((category) => category.tools)).not.toContain(
+      "word-to-pdf",
+    );
+    expect(publicCatalog.flatMap((category) => category.tools)).not.toContain(
+      "html-to-pdf",
+    );
+    expect(publicCatalog.flatMap((category) => category.tools)).toContain("watermark");
+    expect(publicCatalog.flatMap((category) => category.tools)).toContain("jpg-to-pdf");
+    expect(publicCatalog.flatMap((category) => category.tools)).toContain("pdf-to-text");
     expect(publicCatalog.flatMap((category) => category.tools)).toContain("rotate");
   });
 });

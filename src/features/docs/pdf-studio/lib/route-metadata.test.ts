@@ -41,4 +41,21 @@ describe("pdf studio route metadata", () => {
     expect(metadata.robots).toEqual({ index: false, follow: false });
     expect(metadata.title).toBe("Flatten PDF | PDF Studio");
   });
+
+  it("uses public canonicals and browser execution copy for new Phase 32 public tools", () => {
+    const metadata = buildPdfStudioToolMetadata("watermark", "public");
+
+    expect(metadata.alternates?.canonical).toBe("/pdf-studio/watermark");
+    expect(metadata.title).toBe("Add Watermark | PDF Studio");
+    expect(metadata.description).toContain("Runs entirely in your browser");
+  });
+
+  it("keeps server-backed Phase 32 tools workspace-only and non-indexable", () => {
+    const metadata = buildPdfStudioToolMetadata("pdf-to-word", "workspace");
+
+    expect(metadata.alternates?.canonical).toBe("/app/docs/pdf-studio/pdf-to-word");
+    expect(metadata.title).toBe("PDF to Word | PDF Studio");
+    expect(metadata.description).toContain("Uses secure server-side processing");
+    expect(metadata.robots).toEqual({ index: false, follow: false });
+  });
 });

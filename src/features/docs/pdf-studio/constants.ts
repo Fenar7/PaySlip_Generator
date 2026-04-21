@@ -1,4 +1,8 @@
-import type { PageSettings } from "@/features/docs/pdf-studio/types";
+import type {
+  PageSettings,
+  PasswordPermissionPreset,
+  WatermarkPresetId,
+} from "@/features/docs/pdf-studio/types";
 
 export const PDF_STUDIO_MAX_IMAGES = 30;
 
@@ -178,3 +182,90 @@ export const PASSWORD_PERMISSIONS_OPTIONS = [
     description: 'Users can modify the PDF document (add annotations, fill forms, etc.)'
   },
 ] as const;
+
+export const PASSWORD_PERMISSION_PRESETS: Record<
+  PasswordPermissionPreset,
+  {
+    label: string;
+    description: string;
+    permissions: PageSettings["password"]["permissions"];
+  }
+> = {
+  balanced: {
+    label: "Balanced",
+    description: "Allow printing and copying, but block document editing.",
+    permissions: {
+      printing: true,
+      copying: true,
+      modifying: false,
+    },
+  },
+  "view-only": {
+    label: "View only",
+    description: "Open the PDF without allowing printing, copying, or editing.",
+    permissions: {
+      printing: false,
+      copying: false,
+      modifying: false,
+    },
+  },
+  restricted: {
+    label: "Restricted print",
+    description: "Allow printing only. Copying and editing stay blocked.",
+    permissions: {
+      printing: true,
+      copying: false,
+      modifying: false,
+    },
+  },
+};
+
+export const WATERMARK_TEXT_PRESETS: Record<
+  WatermarkPresetId,
+  {
+    id: WatermarkPresetId;
+    label: string;
+    text: string;
+    color: string;
+    opacity: number;
+    rotation: number;
+    fontSize: number;
+  }
+> = {
+  draft: {
+    id: "draft",
+    label: "Draft",
+    text: "DRAFT",
+    color: "#7c3aed",
+    opacity: 22,
+    rotation: 315,
+    fontSize: 36,
+  },
+  confidential: {
+    id: "confidential",
+    label: "Confidential",
+    text: "CONFIDENTIAL",
+    color: "#b91c1c",
+    opacity: 20,
+    rotation: 315,
+    fontSize: 34,
+  },
+  paid: {
+    id: "paid",
+    label: "Paid",
+    text: "PAID",
+    color: "#166534",
+    opacity: 22,
+    rotation: 330,
+    fontSize: 38,
+  },
+  copy: {
+    id: "copy",
+    label: "Copy",
+    text: "COPY",
+    color: "#1d4ed8",
+    opacity: 18,
+    rotation: 315,
+    fontSize: 36,
+  },
+};
