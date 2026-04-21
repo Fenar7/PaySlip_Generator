@@ -2,7 +2,6 @@ import { NextResponse } from "next/server";
 import { createSupabaseServer } from "@/lib/supabase/server";
 import { db } from "@/lib/db";
 import {
-  createRazorpayCustomer,
   createRazorpaySubscription,
   getRazorpay,
 } from "@/lib/razorpay";
@@ -12,6 +11,7 @@ import {
   resolveBillingOrgId,
 } from "@/lib/billing";
 import { PLANS, type PlanId, type BillingInterval } from "@/lib/plans/config";
+import { normalizeIndianPhone } from "@/lib/sms";
 
 export const dynamic = "force-dynamic";
 
@@ -31,18 +31,24 @@ export async function POST(request: Request) {
     );
   }
 
-  const body = await request.json();
+  let body: Record<string, unknown>;
+  try {
+    body = await request.json();
+  } catch {
+    return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+  }
+
   const {
     orgId: requestedOrgId,
     planId,
     billingInterval,
     phone,
-  }: {
+  } = body as {
     orgId?: string;
     planId: PlanId;
     billingInterval: BillingInterval;
     phone?: string;
-  } = body;
+  };
 
   if (!planId || !billingInterval) {
     return NextResponse.json(
@@ -64,6 +70,18 @@ export async function POST(request: Request) {
   }
 
   const orgId = orgResult.orgId;
+  const normalizedPhone =
+    typeof phone === "string" && phone.trim()
+      ? (normalizeIndianPhone(phone) ?? undefined)
+      : undefined;
+  const notifyPhone = normalizedPhone ? `+${normalizedPhone}` : undefined;
+
+  if (phone && !normalizedPhone) {
+    return NextResponse.json(
+      { error: "Enter a valid billing phone number" },
+      { status: 400 },
+    );
+  }
 
   if (planId === "free") {
     return NextResponse.json(
@@ -118,26 +136,12 @@ export async function POST(request: Request) {
       );
     }
 
-    let customerId = sub?.razorpayCustomerId;
-
-    if (!customerId) {
-      const customer = await createRazorpayCustomer({
-        name: billingCustomer.data.name,
-        email: billingCustomer.data.email,
-        contact: phone,
-      });
-      if (!customer) {
-        return NextResponse.json(
-          { error: "Failed to create customer" },
-          { status: 500 },
-        );
-      }
-      customerId = customer.id;
-    }
-
     const rpSub = await createRazorpaySubscription({
       planId: razorpayPlanId,
-      customerId,
+      notifyInfo: {
+        email: billingCustomer.data.email,
+        phone: notifyPhone,
+      },
     });
     if (!rpSub) {
       return NextResponse.json(
@@ -153,7 +157,6 @@ export async function POST(request: Request) {
       await db.subscription.update({
         where: { orgId },
         data: {
-          razorpayCustomerId: customerId,
           razorpaySubId,
           razorpayPlanId,
           billingInterval,
@@ -164,7 +167,6 @@ export async function POST(request: Request) {
       await db.subscription.create({
         data: {
           orgId,
-          razorpayCustomerId: customerId,
           razorpaySubId,
           razorpayPlanId,
           planId: "free",

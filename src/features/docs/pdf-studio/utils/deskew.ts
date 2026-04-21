@@ -9,6 +9,12 @@ const MAX_ANGLE = 15;
 const EDGE_THRESHOLD_RATIO = 0.3;
 const PERCEPTIBLE_ANGLE = 0.5;
 
+export type SkewDetectionResult = {
+  angle: number;
+  requiresManualReview: boolean;
+  reason: string | null;
+};
+
 /**
  * Detect the dominant skew angle of a scanned document image.
  * Uses edge detection + Hough-style line projection on canvas.
@@ -153,6 +159,34 @@ export function detectSkewAngle(canvas: HTMLCanvasElement): number {
   if (Math.abs(bestAngle) < PERCEPTIBLE_ANGLE) return 0;
 
   return bestAngle;
+}
+
+export function analyzeSkew(canvas: HTMLCanvasElement): SkewDetectionResult {
+  const angle = detectSkewAngle(canvas);
+
+  if (angle === 0) {
+    return {
+      angle,
+      requiresManualReview: true,
+      reason:
+        "Auto-detection did not find a reliable skew angle. Leave the page unchanged or set a manual correction.",
+    };
+  }
+
+  if (Math.abs(angle) > 10) {
+    return {
+      angle,
+      requiresManualReview: true,
+      reason:
+        "A large skew correction was detected. Review the preview before exporting.",
+    };
+  }
+
+  return {
+    angle,
+    requiresManualReview: false,
+    reason: null,
+  };
 }
 
 /**

@@ -117,27 +117,61 @@ export async function createRazorpayCustomer(params: {
   }) as Promise<{ id: string }>;
 }
 
+export async function updateRazorpayCustomer(params: {
+  customerId: string;
+  name: string;
+  email: string;
+  contact?: string;
+}): Promise<{ id: string } | null> {
+  const rp = getRazorpay();
+  if (!rp) return null;
+
+  const customers = rp.customers as Razorpay["customers"] & {
+    edit(
+      customerId: string,
+      payload: { name: string; email: string; contact?: string },
+    ): Promise<{ id: string }>;
+  };
+
+  return customers.edit(params.customerId, {
+    name: params.name,
+    email: params.email,
+    contact: params.contact,
+  });
+}
+
 export async function createRazorpaySubscription(params: {
   planId: string;
-  customerId: string;
   totalCount?: number;
   quantity?: number;
+  notifyInfo?: {
+    phone?: string;
+    email?: string;
+  };
 }): Promise<Subscriptions.RazorpaySubscription | null> {
   const rp = getRazorpay();
   if (!rp) return null;
 
-  // Razorpay REST API accepts customer_id but SDK types omit it
   const body = {
     plan_id: params.planId,
     total_count: params.totalCount ?? 60,
     quantity: params.quantity ?? 1,
     customer_notify: 1 as const,
-  };
+    ...(params.notifyInfo?.email || params.notifyInfo?.phone
+      ? {
+          notify_info: {
+            ...(params.notifyInfo.phone
+              ? { notify_phone: params.notifyInfo.phone }
+              : {}),
+            ...(params.notifyInfo.email
+              ? { notify_email: params.notifyInfo.email }
+              : {}),
+          },
+        }
+      : {}),
+  } as Parameters<Razorpay["subscriptions"]["create"]>[0];
 
-  return rp.subscriptions.create({
-    ...body,
-    notes: { customer_id: params.customerId },
-  });
+  return rp.subscriptions.create(body);
 }
 
 export async function cancelRazorpaySubscription(

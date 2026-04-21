@@ -43,6 +43,12 @@ export async function POST(request: Request) {
             razorpaySubId,
             status: "active",
             ...(internalPlanId ? { planId: internalPlanId } : {}),
+            ...(subscription.customer_id
+              ? { razorpayCustomerId: subscription.customer_id }
+              : {}),
+            ...(subscription.plan_id
+              ? { razorpayPlanId: subscription.plan_id }
+              : {}),
             currentPeriodStart: subscription.current_start
               ? new Date(subscription.current_start * 1000)
               : undefined,
@@ -68,6 +74,12 @@ export async function POST(request: Request) {
             razorpaySubId,
             status: "active",
             ...(internalPlanId ? { planId: internalPlanId } : {}),
+            ...(subscription.customer_id
+              ? { razorpayCustomerId: subscription.customer_id }
+              : {}),
+            ...(subscription.plan_id
+              ? { razorpayPlanId: subscription.plan_id }
+              : {}),
             currentPeriodStart: subscription.current_start
               ? new Date(subscription.current_start * 1000)
               : undefined,
@@ -92,6 +104,12 @@ export async function POST(request: Request) {
           const updated = await updateSubscriptionFromWebhook({
             razorpaySubId,
             status: "pending",
+            ...(subscription.customer_id
+              ? { razorpayCustomerId: subscription.customer_id }
+              : {}),
+            ...(subscription.plan_id
+              ? { razorpayPlanId: subscription.plan_id }
+              : {}),
           });
           await logAudit({
             orgId: updated.orgId,

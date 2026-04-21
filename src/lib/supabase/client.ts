@@ -99,6 +99,7 @@ export function createSupabaseBrowser(_options: { rememberSession?: boolean } = 
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
+      isSingleton: false,
       cookies: {
         getAll() {
           return Object.entries(parse(document.cookie)).map(([name, value]) => ({

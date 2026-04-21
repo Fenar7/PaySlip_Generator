@@ -37,6 +37,11 @@ export type PdfStudioFailureReason =
   | "payload-too-large"
   | "encryption-failed"
   | "no-embedded-images"
+  | "no-text-detected"
+  | "ocr-unavailable"
+  | "confidence-low"
+  | "weak-detection"
+  | "no-recoverable-pages"
   | "image-only-output"
   | "unknown";
 

@@ -8,27 +8,38 @@
 import type { CheckoutParams, CheckoutResult } from "./types";
 import { createHmac, timingSafeEqual } from "crypto";
 
-const RAZORPAY_KEY_ID = process.env.RAZORPAY_KEY_ID ?? "";
-const RAZORPAY_KEY_SECRET = process.env.RAZORPAY_KEY_SECRET ?? "";
+function getRazorpayCredentials(): { keyId: string; keySecret: string } | null {
+  const keyId = process.env.RAZORPAY_KEY_ID;
+  const keySecret = process.env.RAZORPAY_KEY_SECRET;
+  if (!keyId || !keySecret) return null;
+  return { keyId, keySecret };
+}
 
-const RAZORPAY_PLAN_IDS: Record<string, Record<string, string>> = {
-  starter: {
-    monthly: process.env.RAZORPAY_PLAN_STARTER_MONTHLY ?? "",
-    yearly: process.env.RAZORPAY_PLAN_STARTER_YEARLY ?? "",
-  },
-  pro: {
-    monthly: process.env.RAZORPAY_PLAN_PRO_MONTHLY ?? "",
-    yearly: process.env.RAZORPAY_PLAN_PRO_YEARLY ?? "",
-  },
-  enterprise: {
-    monthly: process.env.RAZORPAY_PLAN_ENTERPRISE_MONTHLY ?? "",
-    yearly: process.env.RAZORPAY_PLAN_ENTERPRISE_YEARLY ?? "",
-  },
-};
+function getRazorpayPlanIds(): Record<string, Record<string, string>> {
+  return {
+    starter: {
+      monthly: process.env.RAZORPAY_PLAN_STARTER_MONTHLY ?? "",
+      yearly: process.env.RAZORPAY_PLAN_STARTER_YEARLY ?? "",
+    },
+    pro: {
+      monthly: process.env.RAZORPAY_PLAN_PRO_MONTHLY ?? "",
+      yearly: process.env.RAZORPAY_PLAN_PRO_YEARLY ?? "",
+    },
+    enterprise: {
+      monthly: process.env.RAZORPAY_PLAN_ENTERPRISE_MONTHLY ?? "",
+      yearly: process.env.RAZORPAY_PLAN_ENTERPRISE_YEARLY ?? "",
+    },
+  };
+}
 
 async function razorpayRequest<T>(path: string, method: string, body?: Record<string, unknown>): Promise<T> {
+  const creds = getRazorpayCredentials();
+  if (!creds) {
+    throw new Error("Razorpay API keys not configured");
+  }
+
   const url = `https://api.razorpay.com/v1${path}`;
-  const auth = Buffer.from(`${RAZORPAY_KEY_ID}:${RAZORPAY_KEY_SECRET}`).toString("base64");
+  const auth = Buffer.from(`${creds.keyId}:${creds.keySecret}`).toString("base64");
 
   const response = await fetch(url, {
     method,
@@ -47,7 +58,8 @@ async function razorpayRequest<T>(path: string, method: string, body?: Record<st
 }
 
 export async function createRazorpayCheckout(params: CheckoutParams): Promise<CheckoutResult> {
-  const planId = RAZORPAY_PLAN_IDS[params.planId]?.[params.billingInterval];
+  const planIds = getRazorpayPlanIds();
+  const planId = planIds[params.planId]?.[params.billingInterval];
   if (!planId) {
     throw new Error(`No Razorpay plan configured for ${params.planId}/${params.billingInterval}`);
   }

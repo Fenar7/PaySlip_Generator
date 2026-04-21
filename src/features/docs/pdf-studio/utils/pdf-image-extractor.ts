@@ -1,18 +1,4 @@
 import { validatePdfStudioPageCount } from "@/features/docs/pdf-studio/lib/ingestion";
-import {
-  destroyPdfJsDocument,
-  getPdfJsClient,
-  normalizePdfJsError,
-  openPdfJsDocument,
-} from "@/features/docs/pdf-studio/utils/pdfjs-client";
-
-/**
- * Extract raster images embedded in a PDF file using pdfjs-dist.
- *
- * This works by iterating over each page's operator list and collecting
- * `paintImageXObject` / `paintXObject` calls, then rendering each found
- * image-object to a canvas and exporting it as PNG.
- */
 
 export interface ExtractedPdfImage {
   pageIndex: number;
@@ -21,6 +7,7 @@ export interface ExtractedPdfImage {
   height: number;
   dataUrl: string;
   blob: Blob;
+  source: "embedded" | "page-render";
 }
 
 const PDF_IMAGE_EXTRACT_MAX_IMAGES = 60;
@@ -28,38 +15,33 @@ const PDF_IMAGE_EXTRACT_MAX_IMAGES = 60;
 export async function extractImagesFromPdf(
   pdfBytes: Uint8Array,
   onProgress?: (current: number, total: number) => void,
-): Promise<{ ok: true; images: ExtractedPdfImage[] } | { ok: false; error: string }> {
-  let loadingTask: Awaited<ReturnType<typeof openPdfJsDocument>>["loadingTask"] | null =
-    null;
-  let pdf: Awaited<ReturnType<typeof openPdfJsDocument>>["pdf"] | null = null;
-
+): Promise<
+  | { ok: true; images: ExtractedPdfImage[]; fallbackUsed: boolean }
+  | { ok: false; error: string }
+> {
   try {
-    const pdfjsLib = await getPdfJsClient();
-    const opened = await openPdfJsDocument(pdfBytes);
-    loadingTask = opened.loadingTask;
-    pdf = opened.pdf;
-    const totalPages = pdf.numPages;
-    const pageValidation = validatePdfStudioPageCount(
-      "extract-images",
-      totalPages,
-    );
+    const pdfjsLib = await import("pdfjs-dist");
+    pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
+      "pdfjs-dist/build/pdf.worker.min.mjs",
+      import.meta.url,
+    ).toString();
+
+    const pdf = await pdfjsLib.getDocument({ data: pdfBytes }).promise;
+    const pageValidation = validatePdfStudioPageCount("extract-images", pdf.numPages);
     if (!pageValidation.ok) {
-      return {
-        ok: false,
-        error: pageValidation.error,
-      };
+      await pdf.destroy();
+      return { ok: false, error: pageValidation.error };
     }
 
     const results: ExtractedPdfImage[] = [];
+    const pageRenderFallbacks: ExtractedPdfImage[] = [];
 
-    for (let pageNum = 1; pageNum <= totalPages; pageNum++) {
-      onProgress?.(pageNum, totalPages);
+    for (let pageNum = 1; pageNum <= pdf.numPages; pageNum += 1) {
+      onProgress?.(pageNum, pdf.numPages);
       const page = await pdf.getPage(pageNum);
-
-      // Render the page at 2× scale to get a high-quality raster we can crop.
-      const scale = 2;
-      const viewport = page.getViewport({ scale });
+      const viewport = page.getViewport({ scale: 2 });
       const canvas = document.createElement("canvas");
+
       try {
         canvas.width = viewport.width;
         canvas.height = viewport.height;
@@ -69,75 +51,108 @@ export async function extractImagesFromPdf(
           continue;
         }
 
-        await page.render({ canvas, viewport }).promise;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        await page.render({ canvasContext: ctx, viewport } as any).promise;
 
         const opList = await page.getOperatorList();
         const imgNames = new Set<string>();
 
-        for (let i = 0; i < opList.fnArray.length; i++) {
+        for (let index = 0; index < opList.fnArray.length; index += 1) {
           const OPS = pdfjsLib.OPS;
           if (
-            opList.fnArray[i] === OPS.paintImageXObject ||
-            opList.fnArray[i] === OPS.paintXObject
+            opList.fnArray[index] === OPS.paintImageXObject ||
+            opList.fnArray[index] === OPS.paintXObject
           ) {
-            const args = opList.argsArray[i] as string[];
-            if (args?.[0]) imgNames.add(args[0] as string);
+            const args = opList.argsArray[index] as string[];
+            if (args?.[0]) {
+              imgNames.add(args[0] as string);
+            }
           }
         }
 
         let imageIndex = 0;
         for (const name of imgNames) {
           if (results.length >= PDF_IMAGE_EXTRACT_MAX_IMAGES) {
+            await pdf.destroy();
             return {
               ok: false,
               error: `This PDF contains too many embedded images to extract safely in the browser (max ${PDF_IMAGE_EXTRACT_MAX_IMAGES}).`,
             };
           }
 
-          const objs = (page as unknown as { objs: { get: (name: string) => { width?: number; height?: number; data?: Uint8ClampedArray } | null } }).objs;
+          const objs = (
+            page as unknown as {
+              objs: {
+                get: (
+                  name: string,
+                ) => { width?: number; height?: number; data?: Uint8ClampedArray } | null;
+              };
+            }
+          ).objs;
           const imgObj = objs?.get(name);
 
-          if (!imgObj || !imgObj.width || !imgObj.height) continue;
+          if (!imgObj || !imgObj.width || !imgObj.height || !imgObj.data) {
+            continue;
+          }
 
-          const w = imgObj.width;
-          const h = imgObj.height;
-          const imgCanvas = document.createElement("canvas");
+          const imageCanvas = document.createElement("canvas");
 
           try {
-            imgCanvas.width = w;
-            imgCanvas.height = h;
-            const imgCtx = imgCanvas.getContext("2d");
-            if (!imgCtx) continue;
-
-            if (imgObj.data) {
-              const rawData =
-                imgObj.data instanceof Uint8ClampedArray
-                  ? imgObj.data
-                  : new Uint8ClampedArray(imgObj.data as ArrayBuffer);
-              const imageData = new ImageData(rawData as unknown as Uint8ClampedArray<ArrayBuffer>, w, h);
-              imgCtx.putImageData(imageData, 0, 0);
+            imageCanvas.width = imgObj.width;
+            imageCanvas.height = imgObj.height;
+            const imageCtx = imageCanvas.getContext("2d");
+            if (!imageCtx) {
+              continue;
             }
 
-            const dataUrl = imgCanvas.toDataURL("image/png");
+            const imageData = new ImageData(
+              imgObj.data instanceof Uint8ClampedArray
+                ? imgObj.data
+                : new Uint8ClampedArray(imgObj.data as ArrayBuffer),
+              imgObj.width,
+              imgObj.height,
+            );
+            imageCtx.putImageData(imageData, 0, 0);
+            const dataUrl = imageCanvas.toDataURL("image/png");
             const blob = await new Promise<Blob | null>((resolve) => {
-              imgCanvas.toBlob((value) => resolve(value), "image/png");
+              imageCanvas.toBlob((value) => resolve(value), "image/png");
             });
-
-            if (!blob) continue;
+            if (!blob) {
+              continue;
+            }
 
             results.push({
               pageIndex: pageNum - 1,
               imageIndex,
-              width: w,
-              height: h,
+              width: imgObj.width,
+              height: imgObj.height,
               dataUrl,
               blob,
+              source: "embedded",
             });
-            imageIndex++;
+            imageIndex += 1;
           } finally {
-            imgCanvas.width = 0;
-            imgCanvas.height = 0;
-            imgCanvas.remove();
+            imageCanvas.width = 0;
+            imageCanvas.height = 0;
+            imageCanvas.remove();
+          }
+        }
+
+        if (imgNames.size === 0) {
+          const dataUrl = canvas.toDataURL("image/png");
+          const blob = await new Promise<Blob | null>((resolve) => {
+            canvas.toBlob((value) => resolve(value), "image/png");
+          });
+          if (blob) {
+            pageRenderFallbacks.push({
+              pageIndex: pageNum - 1,
+              imageIndex: 0,
+              width: viewport.width,
+              height: viewport.height,
+              dataUrl,
+              blob,
+              source: "page-render",
+            });
           }
         }
       } finally {
@@ -148,15 +163,21 @@ export async function extractImagesFromPdf(
       }
     }
 
-    return { ok: true, images: results };
+    await pdf.destroy();
+
+    if (results.length > 0) {
+      return { ok: true, images: results, fallbackUsed: false };
+    }
+
+    return {
+      ok: true,
+      images: pageRenderFallbacks,
+      fallbackUsed: pageRenderFallbacks.length > 0,
+    };
   } catch (error) {
     return {
       ok: false,
-      error: normalizePdfJsError(error).message,
+      error: error instanceof Error ? error.message : "Unknown extraction error",
     };
-  } finally {
-    if (loadingTask) {
-      await destroyPdfJsDocument(loadingTask, pdf);
-    }
   }
 }

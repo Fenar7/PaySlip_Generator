@@ -109,14 +109,14 @@ export function LoginForm() {
          }
        }
 
-       console.log("[login] signed in successfully");
-       router.push(destination);
-       router.refresh();
-     } catch (err) {
-       console.error("[login] unexpected error:", err);
-       setError("Something went wrong. Please try again.");
-     } finally {
-       setLoading(false);
+        console.log("[login] signed in successfully");
+        window.location.assign(destination);
+        return;
+      } catch (err) {
+        console.error("[login] unexpected error:", err);
+        setError("Something went wrong. Please try again.");
+      } finally {
+        setLoading(false);
     }
   }
 

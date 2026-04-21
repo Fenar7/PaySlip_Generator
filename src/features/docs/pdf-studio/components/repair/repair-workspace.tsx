@@ -7,32 +7,19 @@ import { usePdfStudioAnalytics } from "@/features/docs/pdf-studio/lib/analytics"
 import { validatePdfStudioFiles } from "@/features/docs/pdf-studio/lib/ingestion";
 import { buildPdfStudioOutputName } from "@/features/docs/pdf-studio/lib/output";
 import {
-  destroyPdfJsDocument,
-  openPdfJsDocument,
-} from "@/features/docs/pdf-studio/utils/pdfjs-client";
-import { downloadPdfBytes } from "@/features/docs/pdf-studio/utils/zip-builder";
+  buildRepairLog,
+  repairPdfDocument,
+  type PdfRepairResult,
+  type RepairStatus,
+} from "@/features/docs/pdf-studio/utils/pdf-repair";
+import { downloadBlob, downloadPdfBytes } from "@/features/docs/pdf-studio/utils/zip-builder";
 
-type RepairStatus = "idle" | "analyzing" | "repaired" | "partial" | "failed";
+type RepairWorkspaceState =
+  | { status: "idle" }
+  | { status: "analyzing"; filename: string; originalSize: number }
+  | PdfRepairResult;
 
-type RepairResult = {
-  status: RepairStatus;
-  message: string;
-  originalSize: number;
-  repairedSize: number;
-  pageCount: number;
-  repairedBytes: Uint8Array | null;
-  filename: string;
-};
-
-const INITIAL_RESULT: RepairResult = {
-  status: "idle",
-  message: "",
-  originalSize: 0,
-  repairedSize: 0,
-  pageCount: 0,
-  repairedBytes: null,
-  filename: "",
-};
+const INITIAL_STATE: RepairWorkspaceState = { status: "idle" };
 
 function formatBytes(bytes: number): string {
   if (bytes === 0) return "0 B";
@@ -45,19 +32,8 @@ function formatBytes(bytes: number): string {
 function StatusIcon({ status }: { status: RepairStatus }) {
   if (status === "analyzing") {
     return (
-      <svg
-        className="h-6 w-6 animate-spin text-blue-500"
-        fill="none"
-        viewBox="0 0 24 24"
-      >
-        <circle
-          className="opacity-25"
-          cx="12"
-          cy="12"
-          r="10"
-          stroke="currentColor"
-          strokeWidth="4"
-        />
+      <svg className="h-6 w-6 animate-spin text-blue-500" fill="none" viewBox="0 0 24 24">
+        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
         <path
           className="opacity-75"
           fill="currentColor"
@@ -66,276 +42,212 @@ function StatusIcon({ status }: { status: RepairStatus }) {
       </svg>
     );
   }
+
   if (status === "repaired") {
     return (
-      <svg
-        className="h-6 w-6 text-emerald-500"
-        fill="none"
-        viewBox="0 0 24 24"
-        stroke="currentColor"
-        strokeWidth="2"
-      >
-        <path
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
-        />
+      <svg className="h-6 w-6 text-emerald-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+        <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
       </svg>
     );
   }
+
   if (status === "partial") {
     return (
-      <svg
-        className="h-6 w-6 text-amber-500"
-        fill="none"
-        viewBox="0 0 24 24"
-        stroke="currentColor"
-        strokeWidth="2"
-      >
-        <path
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4.5c-.77-.833-2.694-.833-3.464 0L3.34 16.5c-.77.833.192 2.5 1.732 2.5z"
-        />
+      <svg className="h-6 w-6 text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+        <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4.5c-.77-.833-2.694-.833-3.464 0L3.34 16.5c-.77.833.192 2.5 1.732 2.5z" />
       </svg>
     );
   }
+
   if (status === "failed") {
     return (
-      <svg
-        className="h-6 w-6 text-red-500"
-        fill="none"
-        viewBox="0 0 24 24"
-        stroke="currentColor"
-        strokeWidth="2"
-      >
-        <path
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z"
-        />
+      <svg className="h-6 w-6 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+        <path strokeLinecap="round" strokeLinejoin="round" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />
       </svg>
     );
   }
+
   return null;
 }
 
 export function RepairWorkspace() {
   const analytics = usePdfStudioAnalytics("repair");
-  const [result, setResult] = useState<RepairResult>(INITIAL_RESULT);
+  const [result, setResult] = useState<RepairWorkspaceState>(INITIAL_STATE);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const handleFile = useCallback(async (file: File) => {
-    const fileValidation = validatePdfStudioFiles("repair", [file]);
-    if (!fileValidation.ok) {
-      setResult({
-        ...INITIAL_RESULT,
-        status: "failed",
-        message: fileValidation.error,
+  const handleFile = useCallback(
+    async (file: File) => {
+      const fileValidation = validatePdfStudioFiles("repair", [file]);
+      if (!fileValidation.ok) {
+        setResult({
+          status: "failed",
+          message: fileValidation.error,
+          originalSize: file.size,
+          repairedSize: 0,
+          pageCount: 0,
+          repairedBytes: null,
+          filename: file.name.replace(/\.pdf$/iu, "") + "-repaired",
+          analysis: {
+            byteLength: file.size,
+            hasPdfHeader: false,
+            hasEofMarker: false,
+            hasXrefTable: false,
+            hasTrailer: false,
+            hasStartXref: false,
+            truncationSuspected: true,
+            warnings: [fileValidation.error],
+          },
+          method: "failed",
+          log: fileValidation.error,
+        });
+        analytics.trackFail({ stage: "upload", reason: fileValidation.reason });
+        return;
+      }
+
+      analytics.trackUpload({
+        fileCount: 1,
+        totalBytes: file.size,
       });
-      analytics.trackFail({ stage: "upload", reason: fileValidation.reason });
+      analytics.trackStart({ totalBytes: file.size });
+      setResult({
+        status: "analyzing",
+        filename: file.name.replace(/\.pdf$/iu, "") + "-repaired",
+        originalSize: file.size,
+      });
+
+      try {
+        const bytes = new Uint8Array(await file.arrayBuffer());
+        const repaired = await repairPdfDocument(file, bytes);
+        setResult(repaired);
+
+        if (repaired.status === "failed") {
+          analytics.trackFail({
+            stage: "process",
+            reason:
+              repaired.pageCount === 0 ? "no-recoverable-pages" : "processing-failed",
+          });
+          return;
+        }
+
+        analytics.trackSuccess({
+          status: repaired.status,
+          pageCount: repaired.pageCount,
+          method: repaired.method,
+        });
+      } catch {
+        setResult({
+          status: "failed",
+          message:
+            "An unexpected error occurred while analyzing the PDF. Please try again with a different file.",
+          originalSize: file.size,
+          repairedSize: 0,
+          pageCount: 0,
+          repairedBytes: null,
+          filename: file.name.replace(/\.pdf$/iu, "") + "-repaired",
+          analysis: {
+            byteLength: file.size,
+            hasPdfHeader: false,
+            hasEofMarker: false,
+            hasXrefTable: false,
+            hasTrailer: false,
+            hasStartXref: false,
+            truncationSuspected: true,
+            warnings: ["Unexpected repair error."],
+          },
+          method: "failed",
+          log: "Unexpected repair error.",
+        });
+        analytics.trackFail({
+          stage: "process",
+          reason: "processing-failed",
+        });
+      }
+    },
+    [analytics],
+  );
+
+  const handleDownloadPdf = useCallback(() => {
+    if (
+      result.status === "idle" ||
+      result.status === "analyzing" ||
+      !result.repairedBytes
+    ) {
       return;
     }
 
-    analytics.trackUpload({
-      fileCount: 1,
-      totalBytes: file.size,
-    });
-    analytics.trackStart({ totalBytes: file.size });
-    setResult({
-      ...INITIAL_RESULT,
-      status: "analyzing",
-      message: "Analyzing PDF structure…",
-      originalSize: file.size,
-      filename: file.name.replace(/\.pdf$/i, "") + "-repaired.pdf",
-    });
-
-    try {
-      const bytes = new Uint8Array(await file.arrayBuffer());
-
-      // Attempt 1: Load and re-save with pdf-lib (lenient mode)
-      try {
-        const { PDFDocument } = await import("pdf-lib");
-        const pdfDoc = await PDFDocument.load(bytes, {
-          throwOnInvalidObject: false,
-        });
-        const savedBytes = await pdfDoc.save();
-        const repairedBytes = new Uint8Array(savedBytes);
-
-        setResult({
-          status: "repaired",
-          message:
-            "PDF repaired successfully. Internal structure has been cleaned and re-built.",
-          originalSize: file.size,
-          repairedSize: repairedBytes.length,
-          pageCount: pdfDoc.getPageCount(),
-          repairedBytes,
-          filename: file.name.replace(/\.pdf$/i, "") + "-repaired.pdf",
-        });
-        analytics.trackSuccess({
-          status: "repaired",
-          pageCount: pdfDoc.getPageCount(),
-        });
-        return;
-      } catch {
-        // pdf-lib failed — try pdfjs-dist fallback
-      }
-
-      // Attempt 2: Try pdfjs-dist for partial recovery
-      let loadingTask: Awaited<ReturnType<typeof openPdfJsDocument>>["loadingTask"] | null =
-        null;
-      let pdfDoc: Awaited<ReturnType<typeof openPdfJsDocument>>["pdf"] | null = null;
-      try {
-        const opened = await openPdfJsDocument(bytes.slice());
-        loadingTask = opened.loadingTask;
-        pdfDoc = opened.pdf;
-        const pageCount = pdfDoc.numPages;
-
-        // Re-export pages via pdf-lib
-        const { PDFDocument } = await import("pdf-lib");
-        const newDoc = await PDFDocument.create();
-
-        for (let i = 1; i <= pageCount; i++) {
-          const page = await pdfDoc.getPage(i);
-          const viewport = page.getViewport({ scale: 1 });
-
-          const canvas = document.createElement("canvas");
-          canvas.width = viewport.width;
-          canvas.height = viewport.height;
-          const ctx = canvas.getContext("2d")!;
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          await page.render({ canvasContext: ctx, viewport } as any).promise;
-
-          const pngDataUrl = canvas.toDataURL("image/png");
-          const pngBase64 = pngDataUrl.split(",")[1];
-          const pngBytes = Uint8Array.from(atob(pngBase64), (c) =>
-            c.charCodeAt(0),
-          );
-          const pngImage = await newDoc.embedPng(pngBytes);
-          const newPage = newDoc.addPage([viewport.width, viewport.height]);
-          newPage.drawImage(pngImage, {
-            x: 0,
-            y: 0,
-            width: viewport.width,
-            height: viewport.height,
-          });
-        }
-
-        const savedBytes = await newDoc.save();
-        const repairedBytes = new Uint8Array(savedBytes);
-
-        setResult({
-          status: "partial",
-          message: `Partial recovery: ${pageCount} page${pageCount !== 1 ? "s" : ""} extracted as images. Some text, links, or form data may be lost.`,
-          originalSize: file.size,
-          repairedSize: repairedBytes.length,
-          pageCount,
-          repairedBytes,
-          filename: file.name.replace(/\.pdf$/i, "") + "-repaired.pdf",
-        });
-        analytics.trackSuccess({
-          status: "partial",
-          pageCount,
-        });
-        return;
-      } catch {
-        // Both methods failed
-      } finally {
-        if (loadingTask) {
-          await destroyPdfJsDocument(loadingTask, pdfDoc);
-        }
-      }
-
-      setResult({
-        status: "failed",
-        message:
-          "This PDF is too damaged to repair. Consider using desktop tools like Adobe Acrobat or QPDF.",
-        originalSize: file.size,
-        repairedSize: 0,
-        pageCount: 0,
-        repairedBytes: null,
-        filename: "",
-      });
-      analytics.trackFail({
-        stage: "process",
-        reason: "processing-failed",
-      });
-    } catch {
-      setResult({
-        status: "failed",
-        message:
-          "An unexpected error occurred while analyzing the PDF. Please try again with a different file.",
-        originalSize: file.size,
-        repairedSize: 0,
-        pageCount: 0,
-        repairedBytes: null,
-        filename: "",
-      });
-      analytics.trackFail({
-        stage: "process",
-        reason: "processing-failed",
-      });
-    }
-  }, [analytics]);
-
-  const handleDownload = useCallback(() => {
-    if (!result.repairedBytes) return;
     downloadPdfBytes(
       result.repairedBytes,
       buildPdfStudioOutputName({
         toolId: "repair",
-        baseName: result.filename.replace(/\.pdf$/i, ""),
+        baseName: result.filename,
         extension: "pdf",
       }),
     );
   }, [result]);
 
+  const handleDownloadLog = useCallback(() => {
+    if (result.status === "idle" || result.status === "analyzing") {
+      return;
+    }
+
+    downloadBlob(
+      new Blob([buildRepairLog(result)], { type: "text/plain;charset=utf-8" }),
+      buildPdfStudioOutputName({
+        toolId: "repair",
+        baseName: result.filename,
+        variant: "log",
+        extension: "txt",
+      }),
+    );
+  }, [result]);
+
   const handleReset = useCallback(() => {
-    setResult(INITIAL_RESULT);
+    setResult(INITIAL_STATE);
     if (inputRef.current) inputRef.current.value = "";
   }, []);
 
   const handleInputChange = useCallback(
-    (e: React.ChangeEvent<HTMLInputElement>) => {
-      const file = e.target.files?.[0];
-      if (file) handleFile(file);
+    (event: React.ChangeEvent<HTMLInputElement>) => {
+      const file = event.target.files?.[0];
+      if (file) void handleFile(file);
       if (inputRef.current) inputRef.current.value = "";
     },
     [handleFile],
   );
 
   const handleDrop = useCallback(
-    (e: React.DragEvent) => {
-      e.preventDefault();
-      const file = e.dataTransfer.files[0];
-      if (file && file.type === "application/pdf") handleFile(file);
+    (event: React.DragEvent) => {
+      event.preventDefault();
+      const file = event.dataTransfer.files[0];
+      if (file && file.type === "application/pdf") {
+        void handleFile(file);
+      }
     },
     [handleFile],
   );
 
   return (
-    <div className="mx-auto max-w-2xl px-4 py-8 sm:px-6">
+    <div className="mx-auto max-w-4xl px-4 py-8 sm:px-6">
       <div className="pdf-studio-tool-header mb-8">
-        <h1 className="text-xl font-bold tracking-tight text-[#1a1a1a]">
+        <h1 className="text-xl font-bold tracking-tight text-[#1a1a1a] sm:text-2xl">
           Repair PDF
         </h1>
         <p className="mt-1 text-sm text-[#666]">
-          Fix corrupted or damaged PDFs by rebuilding their internal structure.
+          Analyze damaged PDFs, attempt a safe repair, and download a repair log
+          that explains whether the output is repaired, partial, or failed.
         </p>
       </div>
 
       {result.status === "idle" && (
         <div
-          onDragOver={(e) => e.preventDefault()}
+          onDragOver={(event) => event.preventDefault()}
           onDrop={handleDrop}
           className="flex flex-col items-center justify-center rounded-xl border-2 border-dashed border-[#e5e5e5] bg-white px-6 py-16 text-center shadow-sm"
         >
           <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-xl bg-gray-50 text-2xl shadow-sm">
             🔧
           </div>
-          <p className="text-sm font-medium text-[#1a1a1a]">
-            Drop your PDF here
-          </p>
+          <p className="text-sm font-medium text-[#1a1a1a]">Drop your PDF here</p>
           <p className="mt-1 text-xs text-[#666]">PDF • Max 50MB</p>
           <Button
             variant="secondary"
@@ -356,7 +268,7 @@ export function RepairWorkspace() {
       )}
 
       {result.status !== "idle" && (
-        <div className="rounded-xl border border-[#e5e5e5] bg-white p-6 shadow-sm">
+        <div className="space-y-6 rounded-xl border border-[#e5e5e5] bg-white p-6 shadow-sm">
           <div className="flex items-start gap-3">
             <StatusIcon status={result.status} />
             <div className="min-w-0 flex-1">
@@ -374,47 +286,82 @@ export function RepairWorkspace() {
                 {result.status === "partial" && "Partial Recovery"}
                 {result.status === "failed" && "Repair Failed"}
               </p>
-              <p className="mt-1 text-sm text-[#666]">{result.message}</p>
+              <p className="mt-1 text-sm text-[#666]">
+                {result.status === "analyzing"
+                  ? "Inspecting the PDF structure and attempting safe recovery…"
+                  : result.message}
+              </p>
             </div>
           </div>
 
-          {(result.status === "repaired" || result.status === "partial") && (
-            <div className="mt-4 rounded-lg bg-gray-50 p-3">
-              <div className="grid grid-cols-3 gap-4 text-center text-xs">
-                <div>
-                  <p className="font-medium text-[#1a1a1a]">
-                    {formatBytes(result.originalSize)}
-                  </p>
-                  <p className="text-[#666]">Original</p>
-                </div>
-                <div>
-                  <p className="font-medium text-[#1a1a1a]">
-                    {formatBytes(result.repairedSize)}
-                  </p>
-                  <p className="text-[#666]">Repaired</p>
-                </div>
-                <div>
-                  <p className="font-medium text-[#1a1a1a]">
-                    {result.pageCount}
-                  </p>
-                  <p className="text-[#666]">
-                    Page{result.pageCount !== 1 ? "s" : ""}
-                  </p>
+          {result.status !== "analyzing" ? (
+            <>
+              <div className="rounded-lg bg-gray-50 p-4">
+                <div className="grid gap-4 text-xs sm:grid-cols-3">
+                  <div>
+                    <p className="font-medium text-[#1a1a1a]">
+                      {formatBytes(result.originalSize)}
+                    </p>
+                    <p className="text-[#666]">Original size</p>
+                  </div>
+                  <div>
+                    <p className="font-medium text-[#1a1a1a]">
+                      {formatBytes(result.repairedSize)}
+                    </p>
+                    <p className="text-[#666]">Recovered size</p>
+                  </div>
+                  <div>
+                    <p className="font-medium text-[#1a1a1a]">{result.pageCount}</p>
+                    <p className="text-[#666]">Recovered pages</p>
+                  </div>
                 </div>
               </div>
-            </div>
-          )}
 
-          <div className="mt-4 flex items-center gap-2">
-            {result.repairedBytes && (
-              <Button size="sm" onClick={handleDownload}>
-                Download Repaired PDF
-              </Button>
-            )}
-            <Button variant="secondary" size="sm" onClick={handleReset}>
-              {result.status === "failed" ? "Try Another File" : "Reset"}
-            </Button>
-          </div>
+              <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)]">
+                <div className="rounded-xl border border-[#e5e5e5] bg-[#fafafa] p-4">
+                  <h2 className="text-sm font-semibold text-[#1a1a1a]">
+                    Damage analysis
+                  </h2>
+                  <div className="mt-3 grid gap-2 text-sm text-[#444]">
+                    <p>Header marker: {result.analysis.hasPdfHeader ? "present" : "missing"}</p>
+                    <p>EOF marker: {result.analysis.hasEofMarker ? "present" : "missing"}</p>
+                    <p>xref marker: {result.analysis.hasXrefTable ? "present" : "missing"}</p>
+                    <p>Trailer marker: {result.analysis.hasTrailer ? "present" : "missing"}</p>
+                    <p>startxref marker: {result.analysis.hasStartXref ? "present" : "missing"}</p>
+                    <p>
+                      Truncation suspected:{" "}
+                      {result.analysis.truncationSuspected ? "yes" : "no"}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="rounded-xl border border-[#e5e5e5] bg-[#fafafa] p-4">
+                  <h2 className="text-sm font-semibold text-[#1a1a1a]">
+                    Repair notes
+                  </h2>
+                  <ul className="mt-3 space-y-2 text-sm text-[#444]">
+                    {result.analysis.warnings.map((warning) => (
+                      <li key={warning}>• {warning}</li>
+                    ))}
+                  </ul>
+                </div>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2">
+                {result.repairedBytes ? (
+                  <Button size="sm" onClick={handleDownloadPdf}>
+                    Download {result.status === "partial" ? "Recovered PDF" : "Repaired PDF"}
+                  </Button>
+                ) : null}
+                <Button variant="secondary" size="sm" onClick={handleDownloadLog}>
+                  Download Repair Log
+                </Button>
+                <Button variant="secondary" size="sm" onClick={handleReset}>
+                  {result.status === "failed" ? "Try Another File" : "Reset"}
+                </Button>
+              </div>
+            </>
+          ) : null}
         </div>
       )}
     </div>

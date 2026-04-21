@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   PLANS,
@@ -14,13 +14,91 @@ interface UpgradePageClientProps {
   currentPlanId: PlanId;
   hasManagedSubscription: boolean;
   subscriptionStatus: string | null;
+  razorpayKeyId: string | null;
+  userEmail: string | null;
+  userName: string | null;
+}
+
+type RazorpayCheckoutOptions = {
+  key: string;
+  subscription_id: string;
+  name: string;
+  description: string;
+  prefill?: {
+    name?: string;
+    email?: string;
+    contact?: string;
+  };
+  notes?: Record<string, string>;
+  theme?: {
+    color?: string;
+  };
+  modal?: {
+    ondismiss?: () => void;
+    confirm_close?: boolean;
+  };
+  handler?: (response: {
+    razorpay_payment_id: string;
+    razorpay_subscription_id: string;
+    razorpay_signature: string;
+  }) => void;
+};
+
+declare global {
+  interface Window {
+    Razorpay?: new (options: RazorpayCheckoutOptions) => {
+      open: () => void;
+    };
+  }
+}
+
+function normalizeCheckoutContact(phone: string): string | undefined {
+  const digits = phone.replace(/\D/g, "");
+
+  if (digits.length === 10) return `+91${digits}`;
+  if (digits.length === 12 && digits.startsWith("91")) return `+${digits}`;
+  if (phone.startsWith("+") && digits.length >= 10) return phone;
+
+  return undefined;
+}
+
+async function loadRazorpayCheckoutScript(): Promise<boolean> {
+  if (typeof window === "undefined") return false;
+  if (window.Razorpay) return true;
+
+  await new Promise<void>((resolve, reject) => {
+    const existingScript = document.querySelector<HTMLScriptElement>(
+      'script[src="https://checkout.razorpay.com/v1/checkout.js"]',
+    );
+    if (existingScript) {
+      existingScript.addEventListener("load", () => resolve(), { once: true });
+      existingScript.addEventListener(
+        "error",
+        () => reject(new Error("Razorpay SDK failed to load")),
+        { once: true },
+      );
+      return;
+    }
+
+    const script = document.createElement("script");
+    script.src = "https://checkout.razorpay.com/v1/checkout.js";
+    script.async = true;
+    script.onload = () => resolve();
+    script.onerror = () => reject(new Error("Razorpay SDK failed to load"));
+    document.body.appendChild(script);
+  });
+
+  return Boolean(window.Razorpay);
 }
 
 export function UpgradePageClient({
   orgId,
   currentPlanId,
   hasManagedSubscription,
-  subscriptionStatus,
+  subscriptionStatus: initialStatus,
+  razorpayKeyId,
+  userEmail,
+  userName,
 }: UpgradePageClientProps) {
   const router = useRouter();
 
@@ -28,16 +106,121 @@ export function UpgradePageClient({
     useState<BillingInterval>("monthly");
   const [loading, setLoading] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [subscriptionStatus, setSubscriptionStatus] = useState(initialStatus);
 
-  const handleUpgrade = async (planId: PlanId) => {
-    if (
-      planId === "free" ||
-      planId === currentPlanId ||
-      subscriptionStatus === "pending"
-    ) {
+  // Phone collection dialog state
+  const [showPhoneDialog, setShowPhoneDialog] = useState(false);
+  const [phone, setPhone] = useState("");
+  const [selectedPlan, setSelectedPlan] = useState<PlanId | null>(null);
+
+  // Cancel-pending state
+  const [cancellingPending, setCancellingPending] = useState(false);
+  const [refreshingStatus, setRefreshingStatus] = useState(false);
+
+  // Auto-sync stale pending subscriptions on mount
+  const syncSubscription = useCallback(async () => {
+    if (subscriptionStatus !== "pending") return;
+    try {
+      const res = await fetch("/api/billing/razorpay/sync", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ orgId }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.changed && data.localStatus !== "pending") {
+          setSubscriptionStatus(data.localStatus);
+          router.refresh();
+        }
+      }
+    } catch {
+      // Silent — sync is best-effort
+    }
+  }, [orgId, subscriptionStatus, router]);
+
+  useEffect(() => {
+    syncSubscription();
+  }, [syncSubscription]);
+
+  const handleCancelPending = async () => {
+    setCancellingPending(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/billing/razorpay/cancel-pending", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ orgId }),
+      });
+      if (res.ok) {
+        setSubscriptionStatus(null);
+        router.refresh();
+      } else {
+        const data = await res.json().catch(() => null);
+        setError(data?.error ?? "Could not cancel the pending checkout.");
+      }
+    } catch {
+      setError("Could not cancel the pending checkout. Please try again.");
+    } finally {
+      setCancellingPending(false);
+    }
+  };
+
+  const handleRefreshStatus = async () => {
+    setRefreshingStatus(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/billing/razorpay/sync", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ orgId }),
+      });
+      const data = await res.json().catch(() => null);
+      if (!res.ok) {
+        setError(data?.error ?? "Could not refresh the subscription status.");
+        return;
+      }
+
+      if (typeof data?.localStatus === "string") {
+        setSubscriptionStatus(data.localStatus);
+      }
+
+      router.refresh();
+    } catch {
+      setError("Could not refresh the subscription status. Please try again.");
+    } finally {
+      setRefreshingStatus(false);
+    }
+  };
+
+  const initiateUpgrade = (planId: PlanId) => {
+    if (planId === "free" || planId === currentPlanId) return;
+
+    const isPlanChange = currentPlanId !== "free" && hasManagedSubscription;
+    if (isPlanChange) {
+      // Plan changes don't need new checkout — go straight
+      handleUpgrade(planId, undefined);
+    } else {
+      // New subscription — collect phone first
+      setSelectedPlan(planId);
+      setShowPhoneDialog(true);
+    }
+  };
+
+  const handlePhoneSubmit = () => {
+    if (!selectedPlan) return;
+    const trimmedPhone = phone.trim();
+
+    if (!trimmedPhone) {
+      setError("Enter your billing phone number before continuing.");
       return;
     }
 
+    setError(null);
+    setShowPhoneDialog(false);
+    handleUpgrade(selectedPlan, trimmedPhone);
+  };
+
+  const handleUpgrade = async (planId: PlanId, phoneNumber: string | undefined) => {
     setLoading(planId);
     setError(null);
 
@@ -52,7 +235,9 @@ export function UpgradePageClient({
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             orgId,
-            ...(isPlanChange ? { newPlanId: planId, immediate: false } : { planId }),
+            ...(isPlanChange
+              ? { newPlanId: planId, immediate: false }
+              : { planId, phone: phoneNumber }),
             billingInterval,
           }),
         },
@@ -64,8 +249,53 @@ export function UpgradePageClient({
         return;
       }
 
-      if (data.shortUrl) {
-        window.location.href = data.shortUrl;
+      if (data.subscriptionId) {
+        if (!razorpayKeyId) {
+          setError("Razorpay checkout is not configured.");
+          return;
+        }
+
+        const checkoutReady = await loadRazorpayCheckoutScript();
+        if (!checkoutReady || !window.Razorpay) {
+          setError("Could not load Razorpay checkout.");
+          return;
+        }
+
+        const nextPlan = PLANS.find((plan) => plan.id === planId);
+        const checkout = new window.Razorpay({
+          key: razorpayKeyId,
+          subscription_id: data.subscriptionId,
+          name: "Slipwise One",
+          description: `${nextPlan?.name ?? planId} subscription`,
+          prefill: {
+            name: contactName,
+            email: userEmail ?? undefined,
+            contact: phoneNumber ? normalizeCheckoutContact(phoneNumber) : undefined,
+          },
+          notes: {
+            orgId,
+            planId,
+            billingInterval,
+          },
+          theme: {
+            color: "#4f46e5",
+          },
+          modal: {
+            confirm_close: true,
+            ondismiss: () => {
+              setLoading(null);
+              router.refresh();
+            },
+          },
+          handler: () => {
+            router.push(
+              `/app/billing/success?plan=${encodeURIComponent(nextPlan?.name ?? planId)}&mode=checkout`,
+            );
+            router.refresh();
+          },
+        });
+
+        checkout.open();
         return;
       }
 
@@ -76,13 +306,16 @@ export function UpgradePageClient({
         }`,
       );
       router.refresh();
-    } catch (actionError) {
-      console.error("Error updating subscription:", actionError);
+    } catch {
       setError("Could not update the subscription. Please try again.");
     } finally {
       setLoading(null);
     }
   };
+
+  const isPending = subscriptionStatus === "pending";
+  const canCancelPending = isPending && currentPlanId === "free";
+  const contactName = userName ?? userEmail?.split("@")[0] ?? "Billing contact";
 
   return (
     <div className="mx-auto max-w-6xl p-6">
@@ -92,12 +325,35 @@ export function UpgradePageClient({
           Scale your business with the right plan. All plans include a 14-day
           free trial.
         </p>
-        {subscriptionStatus === "pending" ? (
-          <p className="mt-4 rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-            Your checkout is still pending provider confirmation. Wait for
-            activation before starting another plan change.
-          </p>
+
+        {isPending ? (
+          <div className="mx-auto mt-4 max-w-xl rounded-md border border-amber-200 bg-amber-50 px-4 py-3">
+            <p className="text-sm text-amber-800">
+              {canCancelPending
+                ? "You have a pending checkout that may not have been completed. Refresh the status first, or cancel it to start over."
+                : "Razorpay is still confirming your subscription state. Refresh the status before making another plan change."}
+            </p>
+            <div className="mt-2 flex flex-wrap justify-center gap-2">
+              <button
+                onClick={handleRefreshStatus}
+                disabled={refreshingStatus || cancellingPending}
+                className="rounded-md border border-blue-300 bg-white px-3 py-1.5 text-sm font-medium text-blue-700 hover:bg-blue-50 disabled:opacity-60"
+              >
+                {refreshingStatus ? "Refreshing..." : "Refresh Status"}
+              </button>
+              {canCancelPending ? (
+                <button
+                  onClick={handleCancelPending}
+                  disabled={cancellingPending || refreshingStatus}
+                  className="rounded-md border border-red-300 bg-white px-3 py-1.5 text-sm font-medium text-red-700 hover:bg-red-50 disabled:opacity-60"
+                >
+                  {cancellingPending ? "Cancelling..." : "Cancel Pending Checkout"}
+                </button>
+              ) : null}
+            </div>
+          </div>
         ) : null}
+
         {error ? (
           <p className="mt-4 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
             {error}
@@ -203,12 +459,12 @@ export function UpgradePageClient({
               </ul>
 
               <button
-                onClick={() => handleUpgrade(plan.id)}
+                onClick={() => initiateUpgrade(plan.id)}
                 disabled={
                   isCurrent ||
                   plan.id === "free" ||
                   loading === plan.id ||
-                  subscriptionStatus === "pending"
+                  isPending
                 }
                 className={`mt-6 w-full rounded-md px-4 py-2.5 text-sm font-medium transition-colors ${
                   isCurrent
@@ -224,13 +480,13 @@ export function UpgradePageClient({
                   ? "Processing..."
                   : isCurrent
                     ? "Current Plan"
-                    : subscriptionStatus === "pending"
+                    : isPending
                       ? "Pending Activation"
-                    : plan.id === "free"
-                      ? "Free"
-                      : isDowngrade
-                        ? "Downgrade"
-                        : "Upgrade"}
+                      : plan.id === "free"
+                        ? "Free"
+                        : isDowngrade
+                          ? "Downgrade"
+                          : "Upgrade"}
               </button>
             </div>
           );
@@ -245,6 +501,87 @@ export function UpgradePageClient({
           ← Back to Billing
         </button>
       </div>
+
+      {/* Phone collection dialog */}
+      {showPhoneDialog ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <div className="mx-4 w-full max-w-md rounded-lg bg-white p-6 shadow-xl">
+            <h2 className="text-lg font-semibold text-gray-900">
+              Billing Contact Details
+            </h2>
+            <p className="mt-1 text-sm text-gray-500">
+              Enter your billing phone number before we send you to Razorpay.
+            </p>
+
+            <div className="mt-4 space-y-3">
+              <div>
+                <label className="block text-sm font-medium text-gray-700">
+                  Email
+                </label>
+                <input
+                  type="email"
+                  value={userEmail ?? ""}
+                  disabled
+                  className="mt-1 w-full rounded-md border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-500"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700">
+                  Name
+                </label>
+                <input
+                  type="text"
+                  value={contactName}
+                  disabled
+                  className="mt-1 w-full rounded-md border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-500"
+                />
+              </div>
+              <div>
+                <label
+                  htmlFor="billing-phone"
+                  className="block text-sm font-medium text-gray-700"
+                >
+                  Phone Number
+                </label>
+                <input
+                  id="billing-phone"
+                  type="tel"
+                  placeholder="+91 98765 43210"
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                  className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 focus:outline-none"
+                  autoFocus
+                />
+                <p className="mt-1 text-xs text-gray-400">
+                  Required for billing notifications. Razorpay may still ask you
+                  to confirm contact details on the hosted page.
+                </p>
+                {error ? (
+                  <p className="mt-2 text-xs text-red-600">{error}</p>
+                ) : null}
+              </div>
+            </div>
+
+            <div className="mt-6 flex gap-3">
+              <button
+                onClick={handlePhoneSubmit}
+                className="flex-1 rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700"
+              >
+                Continue to Payment
+              </button>
+              <button
+                onClick={() => {
+                  setShowPhoneDialog(false);
+                  setSelectedPlan(null);
+                }}
+                className="rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

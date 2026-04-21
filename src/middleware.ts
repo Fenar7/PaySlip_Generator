@@ -64,6 +64,7 @@ function buildCsp(): string {
     "https://*.supabase.co",
     "wss://*.supabase.co",
     "https://api.stripe.com",
+    "https://api.razorpay.com",
     "https://*.amazonaws.com",
     // Allow the configured Supabase origin (handles local or custom-domain deployments)
     supabaseHost,
@@ -71,14 +72,24 @@ function buildCsp(): string {
     ...(isDev ? ["http://127.0.0.1:*", "ws://127.0.0.1:*", "http://localhost:*", "ws://localhost:*"] : []),
   ].filter(Boolean).join(" ");
 
+  const scriptSrc = [
+    "'self'",
+    "'unsafe-inline'",
+    // Next.js dev runtime relies on eval-based source maps / React refresh.
+    ...(isDev ? ["'unsafe-eval'"] : []),
+    "https://js.stripe.com",
+    "https://checkout.razorpay.com",
+    "https://api.razorpay.com",
+  ].join(" ");
+
   const directives = [
     "default-src 'self'",
-    `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ""} https://js.stripe.com https://checkout.razorpay.com`,
+    `script-src ${scriptSrc}`,
     "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
     "img-src 'self' data: blob: https: http:",
     "font-src 'self' https://fonts.gstatic.com data:",
     `connect-src ${connectSrc}`,
-    "frame-src https://js.stripe.com https://checkout.razorpay.com",
+    "frame-src https://js.stripe.com https://checkout.razorpay.com https://api.razorpay.com",
     // Allow same-origin web workers (PDF.js uses a webpack-emitted worker chunk
     // served from /_next/static/…). blob: allows inline workers if ever needed.
     "worker-src 'self' blob:",
@@ -247,5 +258,5 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico).*)"],
+  matcher: ["/((?!_next/|favicon.ico).*)"],
 };

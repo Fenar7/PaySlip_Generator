@@ -27,7 +27,7 @@ describe("Security Headers", () => {
       expect(csp).not.toContain("'unsafe-eval'");
     });
 
-    it("should allow unsafe-eval in development script-src for Next dev runtime", () => {
+    it("should allow unsafe-eval in development script-src for Next runtime hydration", () => {
       const csp = buildTestCsp({ isDev: true });
       expect(csp).toContain("'unsafe-eval'");
     });
@@ -35,11 +35,6 @@ describe("Security Headers", () => {
     it("should disallow framing (frame-ancestors none)", () => {
       const csp = buildTestCsp();
       expect(csp).toContain("frame-ancestors 'none'");
-    });
-
-    it("should allow same-origin workers and blob: workers for PDF.js", () => {
-      const csp = buildTestCsp();
-      expect(csp).toContain("worker-src 'self' blob:");
     });
 
     it("should restrict object-src to none", () => {
@@ -55,6 +50,11 @@ describe("Security Headers", () => {
     it("should restrict form-action to self", () => {
       const csp = buildTestCsp();
       expect(csp).toContain("form-action 'self'");
+    });
+
+    it("should allow same-origin and blob web workers for PDF.js", () => {
+      const csp = buildTestCsp();
+      expect(csp).toContain("worker-src 'self' blob:");
     });
 
     it("should allow Supabase connections", () => {
@@ -132,16 +132,24 @@ const SECURITY_HEADERS: Record<string, string> = {
   "Strict-Transport-Security": "max-age=63072000; includeSubDomains; preload",
 };
 
-function buildTestCsp(options?: { isDev?: boolean }): string {
-  const isDev = options?.isDev === true;
+function buildTestCsp(options: { isDev?: boolean } = {}): string {
+  const scriptSrc = [
+    "'self'",
+    "'unsafe-inline'",
+    ...(options.isDev ? ["'unsafe-eval'"] : []),
+    "https://js.stripe.com",
+    "https://checkout.razorpay.com",
+    "https://api.razorpay.com",
+  ].join(" ");
+
   const directives = [
     "default-src 'self'",
-    `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ""} https://js.stripe.com https://checkout.razorpay.com`,
+    `script-src ${scriptSrc}`,
     "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
     "img-src 'self' data: blob: https: http:",
     "font-src 'self' https://fonts.gstatic.com data:",
-    "connect-src 'self' https://*.supabase.co https://api.stripe.com https://*.amazonaws.com wss://*.supabase.co",
-    "frame-src https://js.stripe.com https://checkout.razorpay.com",
+    "connect-src 'self' https://*.supabase.co https://api.stripe.com https://api.razorpay.com https://*.amazonaws.com wss://*.supabase.co",
+    "frame-src https://js.stripe.com https://checkout.razorpay.com https://api.razorpay.com",
     "worker-src 'self' blob:",
     "frame-ancestors 'none'",
     "base-uri 'self'",
