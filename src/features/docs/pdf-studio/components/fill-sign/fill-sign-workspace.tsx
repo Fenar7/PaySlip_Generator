@@ -27,6 +27,11 @@ import {
   type TextAnnotation,
   type SignatureAnnotation,
 } from "@/features/docs/pdf-studio/utils/annotation-writer";
+import {
+  destroyPdfJsDocument,
+  normalizePdfJsError,
+  openPdfJsDocument,
+} from "@/features/docs/pdf-studio/utils/pdfjs-client";
 import { downloadPdfBytes } from "@/features/docs/pdf-studio/utils/zip-builder";
 
 // ── Types ──────────────────────────────────────────────────────────────
@@ -131,19 +136,18 @@ export function FillSignWorkspace() {
       setTextAnnotations([]);
       setSignatureAnnotations([]);
       setCurrentPage(0);
+      let loadingTask: Awaited<ReturnType<typeof openPdfJsDocument>>["loadingTask"] | null =
+        null;
+      let pdf: Awaited<ReturnType<typeof openPdfJsDocument>>["pdf"] | null = null;
 
       try {
         const arrayBuffer = await f.arrayBuffer();
         const bytes = new Uint8Array(arrayBuffer);
         setPdfBytes(bytes);
 
-        const pdfjsLib = await import("pdfjs-dist");
-        pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
-          "pdfjs-dist/build/pdf.worker.min.mjs",
-          import.meta.url,
-        ).toString();
-
-        const pdf = await pdfjsLib.getDocument({ data: bytes }).promise;
+        const opened = await openPdfJsDocument(bytes);
+        loadingTask = opened.loadingTask;
+        pdf = opened.pdf;
         const pageValidation = validatePdfStudioPageCount(
           "fill-sign",
           pdf.numPages,
@@ -152,7 +156,6 @@ export function FillSignWorkspace() {
           setError(pageValidation.error);
           setLoading(false);
           analytics.trackFail({ stage: "upload", reason: pageValidation.reason });
-          await pdf.destroy();
           return;
         }
 
@@ -183,21 +186,23 @@ export function FillSignWorkspace() {
           }
         }
 
-        await pdf.destroy();
-
         setPages(previews);
         analytics.trackUpload({
           fileCount: 1,
           pageCount: previews.length,
           totalBytes: f.size,
         });
-      } catch (err) {
-        setError("Unable to read this PDF. Please verify the file is valid and try again.");
+      } catch (error) {
+        const failure = normalizePdfJsError(error);
+        setError(failure.message);
         analytics.trackFail({
           stage: "upload",
-          reason: "pdf-read-failed",
+          reason: failure.code,
         });
       } finally {
+        if (loadingTask) {
+          await destroyPdfJsDocument(loadingTask, pdf);
+        }
         setLoading(false);
       }
     },
@@ -372,7 +377,7 @@ export function FillSignWorkspace() {
         textAnnotations: textAnnotations.length,
         signatureAnnotations: signatureAnnotations.length,
       });
-    } catch (err) {
+    } catch {
       setError("Could not generate the signed PDF. Please try again.");
       analytics.trackFail({
         stage: "generate",

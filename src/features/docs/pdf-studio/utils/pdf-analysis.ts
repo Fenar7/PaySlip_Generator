@@ -1,5 +1,11 @@
 "use client";
 
+import {
+  destroyPdfJsDocument,
+  openPdfJsDocument,
+  type PdfJsDocumentProxy,
+} from "@/features/docs/pdf-studio/utils/pdfjs-client";
+
 export type PdfBookmarkBoundary = {
   title: string;
   pageNumber: number;
@@ -41,16 +47,11 @@ export type PdfTextPageSummary = {
   keyword: string | null;
 };
 
-type PdfJsModule = Awaited<typeof import("pdfjs-dist")>;
-type PdfLoadingTask = ReturnType<PdfJsModule["getDocument"]>;
-type PdfDocumentProxy = Awaited<PdfLoadingTask["promise"]>;
 type PdfOutlineItem = {
   title?: string | null;
   dest?: string | readonly unknown[] | null;
   items?: PdfOutlineItem[];
 };
-
-let cachedPdfJsModulePromise: Promise<PdfJsModule> | null = null;
 
 function isDestinationRef(value: unknown): value is { num: number; gen: number } {
   return (
@@ -63,48 +64,13 @@ function isDestinationRef(value: unknown): value is { num: number; gen: number }
   );
 }
 
-async function getPdfJs() {
-  if (!cachedPdfJsModulePromise) {
-    cachedPdfJsModulePromise = import("pdfjs-dist").then((pdfjsLib) => {
-      pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
-        "pdfjs-dist/build/pdf.worker.min.mjs",
-        import.meta.url,
-      ).toString();
-      return pdfjsLib;
-    });
-  }
-
-  return cachedPdfJsModulePromise;
-}
-
 async function openPdfDocument(pdfBytes: Uint8Array) {
-  const pdfjsLib = await getPdfJs();
-  const loadingTask = pdfjsLib.getDocument({ data: pdfBytes });
-  const pdfDocument = await loadingTask.promise;
-  return { loadingTask, pdfDocument };
-}
-
-async function destroyPdfDocument(
-  loadingTask: PdfLoadingTask,
-  pdfDocument: PdfDocumentProxy | null,
-) {
-  if (pdfDocument) {
-    try {
-      pdfDocument.cleanup();
-    } catch {
-      // Ignore cleanup failures from partially-loaded or already-destroyed docs.
-    }
-  }
-
-  try {
-    await loadingTask.destroy();
-  } catch {
-    // Ignore destroy failures; callers only need best-effort cleanup.
-  }
+  const { loadingTask, pdf } = await openPdfJsDocument(pdfBytes);
+  return { loadingTask, pdfDocument: pdf };
 }
 
 async function resolveDestinationPageNumber(
-  pdfDocument: PdfDocumentProxy,
+  pdfDocument: PdfJsDocumentProxy,
   destination: PdfOutlineItem["dest"],
 ) {
   let resolvedDestination = destination;
@@ -129,7 +95,7 @@ async function resolveDestinationPageNumber(
 }
 
 async function flattenBookmarks(
-  pdfDocument: PdfDocumentProxy,
+  pdfDocument: PdfJsDocumentProxy,
   outline: PdfOutlineItem[],
   level = 0,
 ): Promise<PdfBookmarkBoundary[]> {
@@ -287,7 +253,7 @@ export function detectSeparatorCandidates(
   });
 }
 
-async function getNormalizedPageText(pdfDocument: PdfDocumentProxy, pageNumber: number) {
+async function getNormalizedPageText(pdfDocument: PdfJsDocumentProxy, pageNumber: number) {
   const page = await pdfDocument.getPage(pageNumber);
 
   try {
@@ -368,6 +334,6 @@ export async function analyzePdfForSplit(
       averagePageBytes,
     };
   } finally {
-    await destroyPdfDocument(loadingTask, pdfDocument);
+    await destroyPdfJsDocument(loadingTask, pdfDocument);
   }
 }

@@ -52,6 +52,11 @@ describe("Security Headers", () => {
       expect(csp).toContain("form-action 'self'");
     });
 
+    it("should allow same-origin and blob web workers for PDF.js", () => {
+      const csp = buildTestCsp();
+      expect(csp).toContain("worker-src 'self' blob:");
+    });
+
     it("should allow Supabase connections", () => {
       const csp = buildTestCsp();
       expect(csp).toContain("https://*.supabase.co");
@@ -145,6 +150,7 @@ function buildTestCsp(options: { isDev?: boolean } = {}): string {
     "font-src 'self' https://fonts.gstatic.com data:",
     "connect-src 'self' https://*.supabase.co https://api.stripe.com https://api.razorpay.com https://*.amazonaws.com wss://*.supabase.co",
     "frame-src https://js.stripe.com https://checkout.razorpay.com https://api.razorpay.com",
+    "worker-src 'self' blob:",
     "frame-ancestors 'none'",
     "base-uri 'self'",
     "form-action 'self'",

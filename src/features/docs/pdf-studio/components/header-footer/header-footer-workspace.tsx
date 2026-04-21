@@ -14,6 +14,11 @@ import {
   type HeaderFooterConfig,
   type HeaderFooterSettings,
 } from "@/features/docs/pdf-studio/utils/header-footer-writer";
+import {
+  destroyPdfJsDocument,
+  normalizePdfJsError,
+  openPdfJsDocument,
+} from "@/features/docs/pdf-studio/utils/pdfjs-client";
 import { downloadPdfBytes } from "@/features/docs/pdf-studio/utils/zip-builder";
 import type { PdfStampScope } from "@/features/docs/pdf-studio/types";
 
@@ -87,19 +92,18 @@ export function HeaderFooterWorkspace() {
       setError(null);
       setFile(f);
       setSuccess(false);
+      let loadingTask: Awaited<ReturnType<typeof openPdfJsDocument>>["loadingTask"] | null =
+        null;
+      let pdf: Awaited<ReturnType<typeof openPdfJsDocument>>["pdf"] | null = null;
 
       try {
         const arrayBuffer = await f.arrayBuffer();
         const bytes = new Uint8Array(arrayBuffer);
         setPdfBytes(bytes);
 
-        const pdfjsLib = await import("pdfjs-dist");
-        pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
-          "pdfjs-dist/build/pdf.worker.min.mjs",
-          import.meta.url,
-        ).toString();
-
-        const pdf = await pdfjsLib.getDocument({ data: bytes }).promise;
+        const opened = await openPdfJsDocument(bytes);
+        loadingTask = opened.loadingTask;
+        pdf = opened.pdf;
         const pageValidation = validatePdfStudioPageCount(
           "header-footer",
           pdf.numPages,
@@ -107,7 +111,6 @@ export function HeaderFooterWorkspace() {
         if (!pageValidation.ok) {
           setError(pageValidation.error);
           analytics.trackFail({ stage: "upload", reason: pageValidation.reason });
-          await pdf.destroy();
           setLoading(false);
           return;
         }
@@ -131,14 +134,17 @@ export function HeaderFooterWorkspace() {
           pageCount: pdf.numPages,
           totalBytes: f.size,
         });
-        await pdf.destroy();
-      } catch (err) {
-        setError("Unable to read this PDF. Please verify the file is valid and try again.");
+      } catch (error) {
+        const failure = normalizePdfJsError(error);
+        setError(failure.message);
         analytics.trackFail({
           stage: "upload",
-          reason: "pdf-read-failed",
+          reason: failure.code,
         });
       } finally {
+        if (loadingTask) {
+          await destroyPdfJsDocument(loadingTask, pdf);
+        }
         setLoading(false);
       }
     },
@@ -182,7 +188,7 @@ export function HeaderFooterWorkspace() {
       );
       setSuccess(true);
       analytics.trackSuccess({ hasContent });
-    } catch (err) {
+    } catch {
       setError("Could not generate the updated PDF. Please try again.");
       analytics.trackFail({
         stage: "generate",

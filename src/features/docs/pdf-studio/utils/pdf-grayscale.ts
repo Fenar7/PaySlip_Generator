@@ -2,22 +2,26 @@
 
 import { PDFDocument } from "pdf-lib";
 import { validatePdfStudioPageCount } from "@/features/docs/pdf-studio/lib/ingestion";
+import {
+  destroyPdfJsDocument,
+  normalizePdfJsError,
+  openPdfJsDocument,
+} from "@/features/docs/pdf-studio/utils/pdfjs-client";
 
 export async function convertPdfToGrayscale(
   pdfBytes: Uint8Array,
   onProgress?: (current: number, total: number) => void,
 ): Promise<{ ok: true; data: Uint8Array } | { ok: false; error: string }> {
-  try {
-    const pdfjsLib = await import("pdfjs-dist");
-    pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
-      "pdfjs-dist/build/pdf.worker.min.mjs",
-      import.meta.url,
-    ).toString();
+  let loadingTask: Awaited<ReturnType<typeof openPdfJsDocument>>["loadingTask"] | null =
+    null;
+  let source: Awaited<ReturnType<typeof openPdfJsDocument>>["pdf"] | null = null;
 
-    const source = await pdfjsLib.getDocument({ data: pdfBytes }).promise;
+  try {
+    const opened = await openPdfJsDocument(pdfBytes);
+    loadingTask = opened.loadingTask;
+    source = opened.pdf;
     const pageValidation = validatePdfStudioPageCount("grayscale", source.numPages);
     if (!pageValidation.ok) {
-      await source.destroy();
       return { ok: false, error: pageValidation.error };
     }
 
@@ -34,7 +38,6 @@ export async function convertPdfToGrayscale(
         canvas.height = viewport.height;
         const context = canvas.getContext("2d", { willReadFrequently: true });
         if (!context) {
-          await source.destroy();
           return { ok: false, error: "Could not create a rendering canvas for grayscale conversion." };
         }
 
@@ -55,7 +58,6 @@ export async function convertPdfToGrayscale(
         const dataUrl = canvas.toDataURL("image/png");
         const base64 = dataUrl.split(",")[1];
         if (!base64) {
-          await source.destroy();
           return { ok: false, error: "Could not encode a grayscale page image." };
         }
 
@@ -76,12 +78,15 @@ export async function convertPdfToGrayscale(
       }
     }
 
-    await source.destroy();
     return { ok: true, data: await output.save() };
   } catch (error) {
     return {
       ok: false,
-      error: "Grayscale conversion failed. Try a smaller PDF or split the file first.",
+      error: normalizePdfJsError(error).message,
     };
+  } finally {
+    if (loadingTask) {
+      await destroyPdfJsDocument(loadingTask, source);
+    }
   }
 }

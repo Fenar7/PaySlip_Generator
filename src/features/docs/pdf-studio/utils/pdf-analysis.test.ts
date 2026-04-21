@@ -1,17 +1,30 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const loadingTaskDestroy = vi.fn();
-const pdfCleanup = vi.fn();
-const pageCleanup = vi.fn();
-const getOutline = vi.fn();
-const getPageIndex = vi.fn();
-const getDestination = vi.fn();
-const getPage = vi.fn();
-const getDocument = vi.fn();
+const {
+  loadingTaskDestroy,
+  pdfCleanup,
+  pageCleanup,
+  getOutline,
+  getPageIndex,
+  getDestination,
+  getPage,
+  openPdfJsDocument,
+  destroyPdfJsDocument,
+} = vi.hoisted(() => ({
+  loadingTaskDestroy: vi.fn(),
+  pdfCleanup: vi.fn(),
+  pageCleanup: vi.fn(),
+  getOutline: vi.fn(),
+  getPageIndex: vi.fn(),
+  getDestination: vi.fn(),
+  getPage: vi.fn(),
+  openPdfJsDocument: vi.fn(),
+  destroyPdfJsDocument: vi.fn(),
+}));
 
-vi.mock("pdfjs-dist", () => ({
-  GlobalWorkerOptions: { workerSrc: "" },
-  getDocument,
+vi.mock("@/features/docs/pdf-studio/utils/pdfjs-client", () => ({
+  openPdfJsDocument,
+  destroyPdfJsDocument,
 }));
 
 import {
@@ -30,7 +43,8 @@ describe("pdf analysis", () => {
     getPageIndex.mockReset();
     getDestination.mockReset();
     getPage.mockReset();
-    getDocument.mockReset();
+    openPdfJsDocument.mockReset();
+    destroyPdfJsDocument.mockReset();
 
     getOutline.mockResolvedValue([]);
     getDestination.mockResolvedValue(null);
@@ -52,17 +66,17 @@ describe("pdf analysis", () => {
         cleanup: pageCleanup,
       }),
     );
-    getDocument.mockImplementation(() => ({
-      promise: Promise.resolve({
+    openPdfJsDocument.mockResolvedValue({
+      loadingTask: { destroy: loadingTaskDestroy },
+      pdf: {
         numPages: 3,
         cleanup: pdfCleanup,
         getOutline,
         getDestination,
         getPageIndex,
         getPage,
-      }),
-      destroy: loadingTaskDestroy,
-    }));
+      },
+    });
   });
 
   it("weights size estimates using preview complexity instead of a flat average", () => {
@@ -98,7 +112,6 @@ describe("pdf analysis", () => {
     ]);
     expect(progress).toHaveBeenCalledWith({ processedPages: 3, totalPages: 3 });
     expect(pageCleanup).toHaveBeenCalledTimes(3);
-    expect(pdfCleanup).toHaveBeenCalledTimes(1);
-    expect(loadingTaskDestroy).toHaveBeenCalledTimes(1);
+    expect(destroyPdfJsDocument).toHaveBeenCalledTimes(1);
   });
 });
