@@ -7,8 +7,9 @@ export function PdfToPptWorkspace() {
     <ServerConversionWorkspace
       toolId="pdf-to-ppt"
       title="PDF to PPT"
-      description="Queue a PPTX export with one slide per source page and clear messaging that the output is content-first rather than pixel-perfect."
+      description="Queue a PPTX export that maps each PDF page into positioned, editable text boxes on its own slide."
       targetFormat="pptx"
+      notice="These conversions run on a queued server worker. Text placement is preserved slide-by-slide, but images, charts, and advanced page graphics still need cleanup in PowerPoint."
     />
   );
 }

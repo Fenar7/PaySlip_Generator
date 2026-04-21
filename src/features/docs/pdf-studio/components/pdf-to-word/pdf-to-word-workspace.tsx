@@ -7,8 +7,9 @@ export function PdfToWordWorkspace() {
     <ServerConversionWorkspace
       toolId="pdf-to-word"
       title="PDF to Word"
-      description="Queue a DOCX conversion when you need editable text and can accept layout simplification in exchange for a reliable server-side export."
+      description="Queue a DOCX conversion that rebuilds page headings, paragraphs, indentation, and detected tables for text-led PDFs."
       targetFormat="docx"
+      notice="These conversions run on a queued server worker. PDF to Word preserves reading order and detected tables, but complex artwork, forms, or scan-heavy pages still need review after export."
     />
   );
 }

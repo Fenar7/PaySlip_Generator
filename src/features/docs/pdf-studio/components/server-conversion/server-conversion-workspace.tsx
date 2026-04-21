@@ -20,11 +20,10 @@ export function ServerConversionWorkspace(props: {
   title: string;
   description: string;
   targetFormat: "docx" | "xlsx" | "pptx" | "pdf";
-  allowUrl?: boolean;
+  notice: string;
 }) {
   const analytics = usePdfStudioAnalytics(props.toolId);
   const [file, setFile] = useState<File | null>(null);
-  const [urlValue, setUrlValue] = useState("");
   const [job, setJob] = useState<ConversionStatusResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -57,8 +56,8 @@ export function ServerConversionWorkspace(props: {
   }, [analytics, job, props.targetFormat]);
 
   async function handleStart() {
-    if (!file && !(props.allowUrl && urlValue.trim())) {
-      setError("Upload a supported file or provide a URL before starting the conversion.");
+    if (!file) {
+      setError("Upload a supported file before starting the conversion.");
       return;
     }
 
@@ -73,9 +72,6 @@ export function ServerConversionWorkspace(props: {
       }
       formData.append("toolId", props.toolId);
       formData.append("targetFormat", props.targetFormat);
-      if (props.allowUrl && urlValue.trim()) {
-        formData.append("sourceUrl", urlValue.trim());
-      }
 
       const response = await fetch("/api/pdf-studio/conversions", {
         method: "POST",
@@ -119,20 +115,6 @@ export function ServerConversionWorkspace(props: {
           />
         </label>
 
-        {props.allowUrl ? (
-          <label className="space-y-1 text-sm text-[#1a1a1a]">
-            <span className="text-xs font-semibold uppercase tracking-wide text-[#666]">
-              Or use a public URL
-            </span>
-            <input
-              className="w-full rounded-xl border border-[#e5e5e5] px-3 py-2"
-              placeholder="https://example.com/printable.html"
-              value={urlValue}
-              onChange={(event) => setUrlValue(event.target.value)}
-            />
-          </label>
-        ) : null}
-
         {file ? (
           <div className="rounded-xl bg-[#f5f5f5] px-4 py-3 text-sm text-[#1a1a1a]">
             {file.name}
@@ -140,7 +122,7 @@ export function ServerConversionWorkspace(props: {
         ) : null}
 
         <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-          These conversions run on a queued server worker. Layout fidelity can shift, especially for multi-column PDFs, scanned inputs, or custom fonts. Password-protected PDFs are rejected with an actionable error instead of a partial export.
+          {props.notice}
         </div>
 
         {error ? (
@@ -169,6 +151,11 @@ export function ServerConversionWorkspace(props: {
                 Keep this tab open while the queue runs. If the job retries, the same job ID will continue polling.
               </p>
             )}
+            {job.downloadUrl ? (
+              <p className="mt-2 text-xs text-[#666]">
+                Download links stay available for 24 hours after the conversion finishes.
+              </p>
+            ) : null}
           </div>
         ) : null}
       </div>

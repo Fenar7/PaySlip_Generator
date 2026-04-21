@@ -9,6 +9,7 @@ import {
   markPdfStudioConversionFailed,
   type PdfStudioConversionPayload,
 } from "@/features/docs/pdf-studio/lib/conversion-jobs";
+import { toPdfStudioConversionError } from "@/features/docs/pdf-studio/lib/conversion-errors";
 import { runServerConversion } from "@/features/docs/pdf-studio/lib/server-converters";
 
 export async function processPdfStudioConversionJob(jobId: string, orgId?: string) {
@@ -47,13 +48,12 @@ export async function processPdfStudioConversionJob(jobId: string, orgId?: strin
 
     return { processed: true as const, success: true as const };
   } catch (error) {
+    const conversionError = toPdfStudioConversionError(error);
     await markPdfStudioConversionFailed({
       jobId,
-      code: "conversion_failed",
-      message:
-        error instanceof Error
-          ? error.message
-          : "Conversion failed. Check the file type and retry.",
+      code: conversionError.code,
+      message: conversionError.message,
+      retryable: conversionError.retryable,
     });
     return { processed: true as const, success: false as const };
   }
@@ -77,7 +77,7 @@ export async function processPendingPdfStudioConversionJobs(limit = 5) {
   }
 
   return {
-    processed: jobs.length,
+    processed: succeeded + failed,
     succeeded,
     failed,
   };

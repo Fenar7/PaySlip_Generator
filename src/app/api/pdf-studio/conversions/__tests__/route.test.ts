@@ -5,12 +5,36 @@ vi.mock("@/lib/auth", () => ({
   getOrgContext: vi.fn(),
 }));
 
+vi.mock("@/lib/plans/enforcement", () => ({
+  checkFeature: vi.fn(),
+}));
+
+vi.mock("@/lib/rate-limit", () => ({
+  RATE_LIMITS: {
+    export: { maxRequests: 10, window: "60 s" },
+  },
+  rateLimitByOrg: vi.fn(),
+}));
+
 vi.mock("@/features/docs/pdf-studio/lib/conversion-jobs", () => ({
+  countActivePdfStudioConversionJobs: vi.fn(),
   createPdfStudioConversionJob: vi.fn(),
 }));
 
+vi.mock("@/features/docs/pdf-studio/lib/server-conversion-policy", () => ({
+  PDF_STUDIO_CONVERSION_ACTIVE_JOB_LIMIT: 3,
+  validatePdfStudioConversionRequest: vi.fn(),
+}));
+
 import { getOrgContext } from "@/lib/auth";
-import { createPdfStudioConversionJob } from "@/features/docs/pdf-studio/lib/conversion-jobs";
+import { checkFeature } from "@/lib/plans/enforcement";
+import { rateLimitByOrg } from "@/lib/rate-limit";
+import {
+  countActivePdfStudioConversionJobs,
+  createPdfStudioConversionJob,
+} from "@/features/docs/pdf-studio/lib/conversion-jobs";
+import { PdfStudioConversionError } from "@/features/docs/pdf-studio/lib/conversion-errors";
+import { validatePdfStudioConversionRequest } from "@/features/docs/pdf-studio/lib/server-conversion-policy";
 import { POST } from "../route";
 
 function makeRequest(
@@ -41,6 +65,21 @@ describe("POST /api/pdf-studio/conversions", () => {
       userId: "user-1",
       role: "ADMIN",
     } as never);
+    vi.mocked(checkFeature).mockResolvedValue(true);
+    vi.mocked(rateLimitByOrg).mockResolvedValue({
+      success: true,
+      remaining: 9,
+    });
+    vi.mocked(countActivePdfStudioConversionJobs).mockResolvedValue(0);
+    vi.mocked(validatePdfStudioConversionRequest).mockResolvedValue({
+      sourceFile: undefined,
+      sourceBytes: undefined,
+      options: {
+        pageSize: "A4",
+        margin: "10mm",
+        preferPrintCss: true,
+      },
+    });
     vi.mocked(createPdfStudioConversionJob).mockResolvedValue("job-1");
   });
 
@@ -51,11 +90,61 @@ describe("POST /api/pdf-studio/conversions", () => {
       makeRequest({
         toolId: "html-to-pdf",
         targetFormat: "pdf",
-        sourceUrl: "https://example.com/report",
       }),
     );
 
     expect(response.status).toBe(401);
+    expect(createPdfStudioConversionJob).not.toHaveBeenCalled();
+  });
+
+  it("blocks workspaces without PDF Studio entitlements", async () => {
+    vi.mocked(checkFeature).mockResolvedValue(false);
+
+    const response = await POST(
+      makeRequest({
+        toolId: "html-to-pdf",
+        targetFormat: "pdf",
+      }),
+    );
+    const body = await response.json();
+
+    expect(response.status).toBe(403);
+    expect(body.error).toContain("PDF Studio conversions require a plan");
+    expect(createPdfStudioConversionJob).not.toHaveBeenCalled();
+  });
+
+  it("rate-limits expensive conversion requests", async () => {
+    vi.mocked(rateLimitByOrg).mockResolvedValue({
+      success: false,
+      remaining: 0,
+      retryAfter: 120,
+    });
+
+    const response = await POST(
+      makeRequest({
+        toolId: "pdf-to-word",
+        targetFormat: "docx",
+      }),
+    );
+
+    expect(response.status).toBe(429);
+    expect(response.headers.get("Retry-After")).toBe("120");
+    expect(createPdfStudioConversionJob).not.toHaveBeenCalled();
+  });
+
+  it("caps each org at a small number of active queued conversions", async () => {
+    vi.mocked(countActivePdfStudioConversionJobs).mockResolvedValue(3);
+
+    const response = await POST(
+      makeRequest({
+        toolId: "pdf-to-word",
+        targetFormat: "docx",
+      }),
+    );
+    const body = await response.json();
+
+    expect(response.status).toBe(429);
+    expect(body.error).toContain("Wait for one of your existing PDF Studio conversions");
     expect(createPdfStudioConversionJob).not.toHaveBeenCalled();
   });
 
@@ -64,7 +153,6 @@ describe("POST /api/pdf-studio/conversions", () => {
       makeRequest({
         toolId: "protect",
         targetFormat: "pdf",
-        sourceUrl: "https://example.com/report",
       }),
     );
     const body = await response.json();
@@ -74,29 +162,50 @@ describe("POST /api/pdf-studio/conversions", () => {
     expect(createPdfStudioConversionJob).not.toHaveBeenCalled();
   });
 
-  it("requires either a file upload or source URL", async () => {
+  it("returns actionable validation errors before storage upload", async () => {
+    vi.mocked(validatePdfStudioConversionRequest).mockRejectedValue(
+      new PdfStudioConversionError({
+        code: "html_remote_disabled",
+        message: "Remote URL rendering is disabled for HTML to PDF.",
+        status: 422,
+      }),
+    );
+
     const response = await POST(
       makeRequest({
         toolId: "html-to-pdf",
         targetFormat: "pdf",
+        sourceUrl: "https://example.com/report",
       }),
     );
     const body = await response.json();
 
-    expect(response.status).toBe(400);
-    expect(body.error).toBe(
-      "Upload a source file or provide a public URL before starting the conversion.",
-    );
+    expect(response.status).toBe(422);
+    expect(body.code).toBe("html_remote_disabled");
+    expect(body.error).toBe("Remote URL rendering is disabled for HTML to PDF.");
     expect(createPdfStudioConversionJob).not.toHaveBeenCalled();
   });
 
-  it("creates a queued HTML-to-PDF job with normalized options and kicks processing", async () => {
+  it("creates a queued conversion job with normalized validated inputs and kicks processing", async () => {
+    const sourceFile = new File(["<html><body>Hello</body></html>"], "report.html", {
+      type: "text/html",
+    });
+    vi.mocked(validatePdfStudioConversionRequest).mockResolvedValue({
+      sourceFile,
+      sourceBytes: new Uint8Array(Buffer.from("<html><body>Hello</body></html>")),
+      options: {
+        pageSize: "A4",
+        margin: "10mm",
+        preferPrintCss: true,
+      },
+    });
+
     const response = await POST(
       makeRequest(
         {
           toolId: "html-to-pdf",
           targetFormat: "pdf",
-          sourceUrl: "https://example.com/printable",
+          file: sourceFile,
           pageSize: "A4",
           margin: "10mm",
           preferPrintCss: "true",
@@ -111,13 +220,24 @@ describe("POST /api/pdf-studio/conversions", () => {
       jobId: "job-1",
       status: "pending",
     });
-    expect(createPdfStudioConversionJob).toHaveBeenCalledWith({
+    const validateCall = vi.mocked(validatePdfStudioConversionRequest).mock.calls[0]?.[0];
+    expect(validateCall).toMatchObject({
+      toolId: "html-to-pdf",
+      targetFormat: "pdf",
+      sourceUrl: undefined,
+      options: {
+        pageSize: "A4",
+        margin: "10mm",
+        preferPrintCss: true,
+      },
+    });
+    expect(validateCall?.sourceFile?.type).toBe("text/html");
+    expect(vi.mocked(createPdfStudioConversionJob).mock.calls[0]?.[0]).toMatchObject({
       orgId: "org-1",
       userId: "user-1",
       toolId: "html-to-pdf",
       targetFormat: "pdf",
-      sourceFile: undefined,
-      sourceUrl: "https://example.com/printable",
+      sourceBytes: new Uint8Array(Buffer.from("<html><body>Hello</body></html>")),
       options: {
         pageSize: "A4",
         margin: "10mm",
@@ -132,38 +252,6 @@ describe("POST /api/pdf-studio/conversions", () => {
           cookie: "sb=token",
         },
       },
-    );
-  });
-
-  it("accepts uploaded files for word-to-pdf jobs", async () => {
-    const sourceFile = new File(["doc"], "offer.docx", {
-      type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-    });
-
-    const response = await POST(
-      makeRequest({
-        toolId: "word-to-pdf",
-        targetFormat: "pdf",
-        file: sourceFile,
-      }),
-    );
-
-    expect(response.status).toBe(202);
-    expect(createPdfStudioConversionJob).toHaveBeenCalledTimes(1);
-    const call = vi.mocked(createPdfStudioConversionJob).mock.calls[0][0];
-    expect(call.orgId).toBe("org-1");
-    expect(call.userId).toBe("user-1");
-    expect(call.toolId).toBe("word-to-pdf");
-    expect(call.targetFormat).toBe("pdf");
-    expect(call.sourceUrl).toBeUndefined();
-    expect(call.options).toEqual({
-      pageSize: undefined,
-      margin: undefined,
-      preferPrintCss: false,
-    });
-    expect(call.sourceFile).toBeDefined();
-    expect(call.sourceFile?.type).toBe(
-      "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
     );
   });
 });

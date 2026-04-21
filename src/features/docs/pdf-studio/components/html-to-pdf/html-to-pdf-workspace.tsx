@@ -7,9 +7,9 @@ export function HtmlToPdfWorkspace() {
     <ServerConversionWorkspace
       toolId="html-to-pdf"
       title="HTML to PDF"
-      description="Upload an HTML file or provide a public URL, then queue a PDF export with server-side print rendering, page size, margin, and print CSS support."
+      description="Upload a self-contained HTML file, then queue a PDF export with server-side print rendering, page size, margin, and print CSS support."
       targetFormat="pdf"
-      allowUrl
+      notice="HTML to PDF only accepts self-contained HTML uploads. Remote URL fetching is disabled, and external or relative assets are blocked instead of rendering a misleading partial PDF."
     />
   );
 }

@@ -17,6 +17,10 @@ const IMAGE_MIME_TYPES = new Set([
 const OFFICE_EXTENSIONS = [".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx"];
 const HTML_EXTENSIONS = [".html", ".htm"];
 const IMAGE_EXTENSIONS = [".jpg", ".jpeg", ".png", ".webp", ".heic", ".heif"];
+const DOCX_EXTENSIONS = [".docx"];
+const DOCX_MIME_TYPES = [
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+];
 
 function getLowercaseExtension(filename: string) {
   const ext = filename.slice(filename.lastIndexOf(".")).toLowerCase();
@@ -60,6 +64,10 @@ export function classifyPdfStudioFile(
 }
 
 export function buildPdfStudioAcceptString(toolId: PdfStudioToolId) {
+  if (toolId === "word-to-pdf") {
+    return [...DOCX_EXTENSIONS, ...DOCX_MIME_TYPES].join(",");
+  }
+
   const tool = getPdfStudioTool(toolId);
   const accepts = new Set<string>();
 
@@ -103,10 +111,18 @@ function formatAcceptedInputClasses(classes: PdfStudioFileClass[]) {
   return labels.join(", ");
 }
 
+function getAcceptedInputLabel(toolId: PdfStudioToolId, classes: PdfStudioFileClass[]) {
+  if (toolId === "word-to-pdf") {
+    return "DOCX";
+  }
+
+  return formatAcceptedInputClasses(classes);
+}
+
 export function buildPdfStudioUploadSummary(toolId: PdfStudioToolId) {
   const tool = getPdfStudioTool(toolId);
   const parts = [
-    formatAcceptedInputClasses(tool.inputTypes),
+    getAcceptedInputLabel(toolId, tool.inputTypes),
     tool.limits.maxFiles === 1
       ? "1 file"
       : `up to ${tool.limits.maxFiles} files`,

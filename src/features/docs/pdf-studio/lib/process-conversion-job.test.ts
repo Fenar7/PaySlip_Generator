@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { PdfStudioConversionError } from "@/features/docs/pdf-studio/lib/conversion-errors";
 
 vi.mock("@/lib/db", () => ({
   db: {
@@ -72,17 +73,17 @@ describe("pdf studio conversion job processor", () => {
       jobId: "job-1",
       code: "conversion_failed",
       message: "The queued conversion job is missing its conversion target.",
+      retryable: true,
     });
   });
 
-  it("completes a claimed conversion and falls back to the source URL hostname for naming", async () => {
+  it("completes a claimed conversion and falls back to the generic document name when no source file exists", async () => {
     vi.mocked(claimPdfStudioConversionJob).mockResolvedValue(true);
     vi.mocked(db.jobLog.findUniqueOrThrow).mockResolvedValue({
       id: "job-1",
       payload: {
         toolId: "html-to-pdf",
         targetFormat: "pdf",
-        sourceUrl: "https://docs.example.com/report",
         options: {
           pageSize: "A4",
           margin: "12mm",
@@ -101,7 +102,7 @@ describe("pdf studio conversion job processor", () => {
     expect(runServerConversion).toHaveBeenCalledWith({
       toolId: "html-to-pdf",
       sourceStorageKey: undefined,
-      sourceUrl: "https://docs.example.com/report",
+      sourceUrl: undefined,
       options: {
         pageSize: "A4",
         margin: "12mm",
@@ -112,9 +113,40 @@ describe("pdf studio conversion job processor", () => {
       jobId: "job-1",
       toolId: "html-to-pdf",
       targetFormat: "pdf",
-      sourceFileName: "docs.example.com",
+      sourceFileName: "document",
       outputBytes: new Uint8Array([1, 2, 3]),
       mimeType: "application/pdf",
+    });
+  });
+
+  it("marks permanent validation failures without retrying", async () => {
+    vi.mocked(claimPdfStudioConversionJob).mockResolvedValue(true);
+    vi.mocked(db.jobLog.findUniqueOrThrow).mockResolvedValue({
+      id: "job-1",
+      payload: {
+        toolId: "word-to-pdf",
+        targetFormat: "pdf",
+        sourceStorageKey: "org/job-1/source.docx",
+        sourceFileName: "broken.docx",
+      },
+    } as never);
+    vi.mocked(runServerConversion).mockRejectedValue(
+      new PdfStudioConversionError({
+        code: "malformed_docx",
+        message: "The DOCX file could not be rendered.",
+        retryable: false,
+        status: 422,
+      }),
+    );
+
+    const result = await processPdfStudioConversionJob("job-1");
+
+    expect(result).toEqual({ processed: true, success: false });
+    expect(markPdfStudioConversionFailed).toHaveBeenCalledWith({
+      jobId: "job-1",
+      code: "malformed_docx",
+      message: "The DOCX file could not be rendered.",
+      retryable: false,
     });
   });
 
@@ -149,7 +181,14 @@ describe("pdf studio conversion job processor", () => {
         mimeType:
           "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
       })
-      .mockRejectedValueOnce(new Error("Password-protected PDFs must be unlocked before export."));
+      .mockRejectedValueOnce(
+        new PdfStudioConversionError({
+          code: "password_protected",
+          message: "Password-protected PDFs must be unlocked before export.",
+          retryable: false,
+          status: 422,
+        }),
+      );
 
     const result = await processPendingPdfStudioConversionJobs(5);
 
@@ -161,8 +200,9 @@ describe("pdf studio conversion job processor", () => {
     expect(markPdfStudioConversionComplete).toHaveBeenCalledTimes(1);
     expect(markPdfStudioConversionFailed).toHaveBeenCalledWith({
       jobId: "job-failure",
-      code: "conversion_failed",
+      code: "password_protected",
       message: "Password-protected PDFs must be unlocked before export.",
+      retryable: false,
     });
   });
 });
