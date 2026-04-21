@@ -169,6 +169,7 @@ export async function uploadPaymentProof(
     }
 
     const invoice = tokenRecord.invoice;
+    const remainingAmount = toAccountingNumber(invoice.remainingAmount);
 
     if (invoice.status === "CANCELLED" || invoice.status === "DISPUTED") {
       return { success: false, error: `Cannot upload proof for a ${invoice.status.toLowerCase()} invoice` };
@@ -178,14 +179,14 @@ export async function uploadPaymentProof(
       return { success: false, error: "Amount must be greater than zero" };
     }
 
-    if (data.amount > invoice.remainingAmount + 0.01) {
+    if (data.amount > remainingAmount + 0.01) {
       return {
         success: false,
-        error: `Amount exceeds remaining balance of ${invoice.remainingAmount.toFixed(2)}`,
+        error: `Amount exceeds remaining balance of ${remainingAmount.toFixed(2)}`,
       };
     }
 
-    const isPartial = data.amount < invoice.remainingAmount - 0.01;
+    const isPartial = data.amount < remainingAmount - 0.01;
 
     if (isPartial) {
       if (!data.plannedNextPaymentDate) {
