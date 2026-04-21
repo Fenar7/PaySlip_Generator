@@ -20,11 +20,13 @@ export function ExtractImagesWorkspace() {
   const [progress, setProgress] = useState({ current: 0, total: 0 });
   const [error, setError] = useState<string | null>(null);
   const [downloading, setDownloading] = useState(false);
+  const [fallbackUsed, setFallbackUsed] = useState(false);
 
   const handleFile = useCallback(async (files: File[]) => {
     const file = files[0];
     if (!file) return;
     setImages([]);
+    setFallbackUsed(false);
     setError(null);
     setLoading(true);
     setProgress({ current: 0, total: 0 });
@@ -59,9 +61,11 @@ export function ExtractImagesWorkspace() {
     }
 
     setImages(result.images);
+    setFallbackUsed(result.fallbackUsed);
     analytics.trackSuccess({
       action: "extract-images",
       imageCount: result.images.length,
+      fallbackUsed: result.fallbackUsed,
     });
   }, [analytics]);
 
@@ -70,7 +74,10 @@ export function ExtractImagesWorkspace() {
     anchor.href = img.dataUrl;
     anchor.download = buildPdfStudioOutputName({
       toolId: "extract-images",
-      baseName: `page${img.pageIndex + 1}-image${img.imageIndex + 1}`,
+      baseName:
+        img.source === "page-render"
+          ? `page${img.pageIndex + 1}-scan-render`
+          : `page${img.pageIndex + 1}-image${img.imageIndex + 1}`,
       extension: "png",
     });
     anchor.click();
@@ -86,7 +93,10 @@ export function ExtractImagesWorkspace() {
     const items: BatchZipItem[] = images.map((img) => ({
       filename: buildPdfStudioOutputName({
         toolId: "extract-images",
-        baseName: `page${img.pageIndex + 1}-image${img.imageIndex + 1}`,
+        baseName:
+          img.source === "page-render"
+            ? `page${img.pageIndex + 1}-scan-render`
+            : `page${img.pageIndex + 1}-image${img.imageIndex + 1}`,
         extension: "png",
       }),
       dataUrl: img.dataUrl,
@@ -150,6 +160,12 @@ export function ExtractImagesWorkspace() {
         </p>
       )}
 
+      {fallbackUsed && !error && (
+        <p className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+          No embedded images were found in this PDF, so PDF Studio exported rendered scanned pages instead.
+        </p>
+      )}
+
       {images.length > 0 && (
         <div className="space-y-4">
           <div className="flex items-center justify-between">
@@ -180,13 +196,13 @@ export function ExtractImagesWorkspace() {
                   <p className="truncate text-xs font-medium text-[#444]">
                     Page {img.pageIndex + 1} · #{img.imageIndex + 1}
                   </p>
-                  <p className="text-[10px] text-[#888]">
-                    {img.width}×{img.height}
-                  </p>
-                  <Badge variant="default" className="mt-1 text-[10px]">
-                    PNG
-                  </Badge>
-                </div>
+                   <p className="text-[10px] text-[#888]">
+                     {img.width}×{img.height}
+                   </p>
+                   <Badge variant="default" className="mt-1 text-[10px]">
+                     {img.source === "page-render" ? "Scanned page" : "PNG"}
+                   </Badge>
+                 </div>
                 <div className="border-t border-[#f0f0f0] p-2">
                   <Button
                     size="sm"

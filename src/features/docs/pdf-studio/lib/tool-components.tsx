@@ -4,6 +4,7 @@ import { BatesWorkspace } from "@/features/docs/pdf-studio/components/bates/bate
 import { BookmarksWorkspace } from "@/features/docs/pdf-studio/components/bookmarks/bookmarks-workspace";
 import { CreateFormsWorkspace } from "@/features/docs/pdf-studio/components/create-forms/create-forms-workspace";
 import { DeletePagesWorkspace } from "@/features/docs/pdf-studio/components/delete-pages/delete-pages-workspace";
+import { DeskewWorkspace } from "@/features/docs/pdf-studio/components/deskew/deskew-workspace";
 import { EditorWorkspace } from "@/features/docs/pdf-studio/components/editor/editor-workspace";
 import { ExtractPagesWorkspace } from "@/features/docs/pdf-studio/components/extract-pages/extract-pages-workspace";
 import { ExtractImagesWorkspace } from "@/features/docs/pdf-studio/components/extract-images/extract-images-workspace";
@@ -45,6 +46,7 @@ const TOOL_COMPONENTS: Record<PdfStudioToolId, ComponentType> = {
   split: SplitWorkspace,
   "extract-pages": ExtractPagesWorkspace,
   "delete-pages": DeletePagesWorkspace,
+  deskew: DeskewWorkspace,
   organize: OrganizeWorkspace,
   rotate: RotatePagesWorkspace,
   "resize-pages": ResizePagesWorkspace,

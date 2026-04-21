@@ -553,6 +553,27 @@ export const PDF_STUDIO_TOOL_REGISTRY: Record<
     defaultOutputBase: "ocr-document",
     keywords: ["ocr pdf", "scan to text", "searchable pdf", "image to text"],
   },
+  deskew: {
+    id: "deskew",
+    title: "Deskew Scan",
+    description:
+      "Detect skewed scanned pages, preview cleanup before export, and download a corrected PDF or PNG with manual fallback when detection is weak.",
+    icon: "📐",
+    category: "edit-enhance",
+    workspacePath: "/app/docs/pdf-studio/deskew",
+    publicPath: "/pdf-studio/deskew",
+    availability: PUBLIC_AND_WORKSPACE,
+    executionMode: "browser",
+    inputTypes: ["pdf", "image"],
+    outputLabel: "PDF / PNG",
+    limits: {
+      maxFiles: 1,
+      maxSizeMb: 40,
+      maxPages: 30,
+    },
+    defaultOutputBase: "deskewed-document",
+    keywords: ["deskew pdf", "straighten scan", "scan cleanup", "deskew image"],
+  },
   "pdf-to-image": {
     id: "pdf-to-image",
     title: "PDF to Image",

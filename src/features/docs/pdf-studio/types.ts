@@ -29,6 +29,7 @@ export type PdfStudioToolId =
   | "header-footer"
   | "repair"
   | "ocr"
+  | "deskew"
   | "pdf-to-image"
   | "extract-images"
   | "pdf-to-text"

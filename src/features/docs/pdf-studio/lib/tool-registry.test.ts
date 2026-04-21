@@ -86,6 +86,12 @@ describe("pdf studio tool registry", () => {
       executionMode: "browser",
       outputLabel: "Searchable PDF / TXT",
     });
+    expect(getPdfStudioTool("deskew")).toMatchObject({
+      workspacePath: "/app/docs/pdf-studio/deskew",
+      publicPath: "/pdf-studio/deskew",
+      executionMode: "browser",
+      outputLabel: "PDF / PNG",
+    });
     expect(getPdfStudioTool("unlock")).toMatchObject({
       workspacePath: "/app/docs/pdf-studio/unlock",
       availability: {
@@ -216,6 +222,7 @@ describe("pdf studio tool registry", () => {
     expect(publicCatalog.flatMap((category) => category.tools)).toContain("jpg-to-pdf");
     expect(publicCatalog.flatMap((category) => category.tools)).toContain("pdf-to-text");
     expect(publicCatalog.flatMap((category) => category.tools)).toContain("ocr");
+    expect(publicCatalog.flatMap((category) => category.tools)).toContain("deskew");
     expect(publicCatalog.flatMap((category) => category.tools)).toContain("rotate");
   });
 });
