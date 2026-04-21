@@ -9,6 +9,7 @@ vi.mock("@/lib/db", () => ({
 }));
 
 vi.mock("@/lib/supabase/server", () => ({
+  createSupabaseAdmin: vi.fn(),
   createSupabaseServer: vi.fn(),
 }));
 

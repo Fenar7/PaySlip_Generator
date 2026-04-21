@@ -3,13 +3,21 @@
 import { useCallback, useRef, useState, type DragEvent } from "react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui";
+import {
+  buildPdfStudioAcceptString,
+  buildPdfStudioUploadSummary,
+  validatePdfStudioFiles,
+} from "@/features/docs/pdf-studio/lib/ingestion";
+import type { PdfStudioToolId } from "@/features/docs/pdf-studio/types";
 
 interface PdfUploadZoneProps {
   onFiles: (files: File[]) => void;
+  toolId?: PdfStudioToolId;
   accept?: string;
   multiple?: boolean;
   maxFiles?: number;
   maxSizeMb?: number;
+  currentFileCount?: number;
   label?: string;
   sublabel?: string;
   disabled?: boolean;
@@ -19,10 +27,12 @@ interface PdfUploadZoneProps {
 
 export function PdfUploadZone({
   onFiles,
+  toolId,
   accept = ".pdf",
   multiple = false,
   maxFiles = 10,
   maxSizeMb = 100,
+  currentFileCount = 0,
   label = "Drop your PDF here",
   sublabel,
   disabled = false,
@@ -34,6 +44,9 @@ export function PdfUploadZone({
   const inputRef = useRef<HTMLInputElement>(null);
 
   const displayError = externalError ?? error;
+  const resolvedAccept = toolId ? buildPdfStudioAcceptString(toolId) : accept;
+  const resolvedSublabel =
+    sublabel ?? (toolId ? buildPdfStudioUploadSummary(toolId) : undefined);
 
   const validateAndEmit = useCallback(
     (fileList: FileList | File[]) => {
@@ -42,8 +55,20 @@ export function PdfUploadZone({
 
       if (files.length === 0) return;
 
-      if (!multiple && files.length > 1) {
+      if (!multiple && toolId == null && files.length > 1) {
         setError("Please upload only one file");
+        return;
+      }
+
+      if (toolId) {
+        const result = validatePdfStudioFiles(toolId, fileList, {
+          currentFileCount,
+        });
+        if (!result.ok) {
+          setError(result.error);
+          return;
+        }
+        onFiles(result.files);
         return;
       }
 
@@ -62,7 +87,7 @@ export function PdfUploadZone({
         return;
       }
 
-      const acceptExts = accept
+      const acceptExts = resolvedAccept
         .split(",")
         .map((s) => s.trim().toLowerCase());
       const invalid = files.find((f) => {
@@ -79,7 +104,15 @@ export function PdfUploadZone({
 
       onFiles(files);
     },
-    [accept, maxFiles, maxSizeMb, multiple, onFiles]
+    [
+      currentFileCount,
+      maxFiles,
+      maxSizeMb,
+      multiple,
+      onFiles,
+      resolvedAccept,
+      toolId,
+    ]
   );
 
   const handleDragOver = useCallback(
@@ -137,8 +170,8 @@ export function PdfUploadZone({
           {label}
         </p>
         <p className="mt-1 text-xs text-[var(--muted-foreground)]">
-          {sublabel ??
-            `${accept.replace(/\./g, "").toUpperCase()} ${multiple ? `• Up to ${maxFiles} files` : ""} • Max ${maxSizeMb}MB each`}
+          {resolvedSublabel ??
+            `${resolvedAccept.replace(/\./g, "").toUpperCase()} ${multiple ? `• Up to ${maxFiles} files` : ""} • Max ${maxSizeMb}MB each`}
         </p>
         <Button
           variant="secondary"
@@ -152,7 +185,7 @@ export function PdfUploadZone({
         <input
           ref={inputRef}
           type="file"
-          accept={accept}
+          accept={resolvedAccept}
           multiple={multiple}
           onChange={handleInputChange}
           className="hidden"

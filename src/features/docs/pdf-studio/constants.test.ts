@@ -1,46 +1,44 @@
-import { describe, it, expect } from "vitest";
-import { PDF_STUDIO_DEFAULT_SETTINGS } from "@/features/docs/pdf-studio/constants";
+import { describe, expect, it } from "vitest";
+import {
+  PASSWORD_PERMISSION_PRESETS,
+  WATERMARK_TEXT_PRESETS,
+} from "@/features/docs/pdf-studio/constants";
 
-describe("PDF Studio Constants", () => {
-  it("should have default watermark settings", () => {
-    expect(PDF_STUDIO_DEFAULT_SETTINGS.watermark).toEqual({
-      enabled: false,
-      type: 'none',
-      text: {
-        content: 'Confidential',
-        fontSize: 24,
-        color: '#999999',
-        opacity: 50,
-      },
-      image: {
-        scale: 30,
-        opacity: 50,
-      },
-      position: 'center',
-      rotation: 0,
-      scope: 'all',
+describe("pdf studio Phase 32 constants", () => {
+  it("keeps password permission presets explicit and operator-friendly", () => {
+    expect(PASSWORD_PERMISSION_PRESETS.balanced.permissions).toEqual({
+      printing: true,
+      copying: true,
+      modifying: false,
+    });
+    expect(PASSWORD_PERMISSION_PRESETS["view-only"].permissions).toEqual({
+      printing: false,
+      copying: false,
+      modifying: false,
+    });
+    expect(PASSWORD_PERMISSION_PRESETS.restricted.permissions).toEqual({
+      printing: true,
+      copying: false,
+      modifying: false,
     });
   });
 
-  it("should have default page number settings", () => {
-    expect(PDF_STUDIO_DEFAULT_SETTINGS.pageNumbers).toEqual({
-      enabled: false,
-      position: 'bottom-center',
-      format: 'number-of-total',
-      startFrom: 1,
-      skipFirstPage: false,
+  it("ships the dedicated watermark text presets required by Phase 32", () => {
+    expect(WATERMARK_TEXT_PRESETS.draft).toMatchObject({
+      id: "draft",
+      text: "DRAFT",
     });
-  });
-
-  it("should have valid watermark text opacity range", () => {
-    const opacity = PDF_STUDIO_DEFAULT_SETTINGS.watermark.text?.opacity;
-    expect(opacity).toBeGreaterThanOrEqual(0);
-    expect(opacity).toBeLessThanOrEqual(100);
-  });
-
-  it("should have valid watermark image opacity range", () => {
-    const opacity = PDF_STUDIO_DEFAULT_SETTINGS.watermark.image?.opacity;
-    expect(opacity).toBeGreaterThanOrEqual(0);
-    expect(opacity).toBeLessThanOrEqual(100);
+    expect(WATERMARK_TEXT_PRESETS.confidential).toMatchObject({
+      id: "confidential",
+      text: "CONFIDENTIAL",
+    });
+    expect(WATERMARK_TEXT_PRESETS.paid).toMatchObject({
+      id: "paid",
+      text: "PAID",
+    });
+    expect(WATERMARK_TEXT_PRESETS.copy).toMatchObject({
+      id: "copy",
+      text: "COPY",
+    });
   });
 });

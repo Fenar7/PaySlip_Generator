@@ -3,12 +3,19 @@
 import { useCallback, useRef, useState } from "react";
 import { Button } from "@/components/ui";
 import { cn } from "@/lib/utils";
+import { usePdfStudioAnalytics } from "@/features/docs/pdf-studio/lib/analytics";
+import {
+  validatePdfStudioFiles,
+  validatePdfStudioPageCount,
+} from "@/features/docs/pdf-studio/lib/ingestion";
+import { buildPdfStudioOutputName } from "@/features/docs/pdf-studio/lib/output";
 import {
   injectHeaderFooter,
   type HeaderFooterConfig,
   type HeaderFooterSettings,
 } from "@/features/docs/pdf-studio/utils/header-footer-writer";
 import { downloadPdfBytes } from "@/features/docs/pdf-studio/utils/zip-builder";
+import type { PdfStampScope } from "@/features/docs/pdf-studio/types";
 
 // ── Defaults ───────────────────────────────────────────────────────────
 
@@ -40,6 +47,7 @@ const TOKEN_BUTTONS = [
 // ── Component ──────────────────────────────────────────────────────────
 
 export function HeaderFooterWorkspace() {
+  const analytics = usePdfStudioAnalytics("header-footer");
   const [file, setFile] = useState<File | null>(null);
   const [pdfBytes, setPdfBytes] = useState<Uint8Array | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
@@ -55,6 +63,8 @@ export function HeaderFooterWorkspace() {
   const [footer, setFooter] = useState<HeaderFooterConfig>({
     ...DEFAULT_CONFIG,
   });
+  const [scope, setScope] = useState<PdfStampScope>("all");
+  const [skipFirstPage, setSkipFirstPage] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -63,8 +73,13 @@ export function HeaderFooterWorkspace() {
   const handleFileSelect = useCallback(
     async (e: React.ChangeEvent<HTMLInputElement>) => {
       const f = e.target.files?.[0];
-      if (!f || f.type !== "application/pdf") {
-        setError("Please select a valid PDF file.");
+      if (!f) {
+        return;
+      }
+      const fileValidation = validatePdfStudioFiles("header-footer", [f]);
+      if (!fileValidation.ok) {
+        setError(fileValidation.error);
+        analytics.trackFail({ stage: "upload", reason: fileValidation.reason });
         return;
       }
 
@@ -85,6 +100,17 @@ export function HeaderFooterWorkspace() {
         ).toString();
 
         const pdf = await pdfjsLib.getDocument({ data: bytes }).promise;
+        const pageValidation = validatePdfStudioPageCount(
+          "header-footer",
+          pdf.numPages,
+        );
+        if (!pageValidation.ok) {
+          setError(pageValidation.error);
+          analytics.trackFail({ stage: "upload", reason: pageValidation.reason });
+          await pdf.destroy();
+          setLoading(false);
+          return;
+        }
         const page = await pdf.getPage(1);
         const viewport = page.getViewport({ scale: 1 });
         setPageSize({ width: viewport.width, height: viewport.height });
@@ -100,41 +126,26 @@ export function HeaderFooterWorkspace() {
 
         setPreviewUrl(canvas.toDataURL("image/jpeg", 0.85));
         canvas.remove();
+        analytics.trackUpload({
+          fileCount: 1,
+          pageCount: pdf.numPages,
+          totalBytes: f.size,
+        });
+        await pdf.destroy();
       } catch (err) {
-        const msg = err instanceof Error ? err.message : "Unknown error";
-        setError(`Failed to read PDF: ${msg}`);
+        setError("Unable to read this PDF. Please verify the file is valid and try again.");
+        analytics.trackFail({
+          stage: "upload",
+          reason: "pdf-read-failed",
+        });
       } finally {
         setLoading(false);
       }
     },
-    [],
+    [analytics],
   );
 
   // ── Generate ─────────────────────────────────────────────────────────
-
-  const handleGenerate = useCallback(async () => {
-    if (!pdfBytes || !file) return;
-    setGenerating(true);
-    setError(null);
-    setSuccess(false);
-
-    try {
-      const settings: HeaderFooterSettings = {
-        header,
-        footer,
-        filename: file.name.replace(/\.pdf$/i, ""),
-      };
-      const result = await injectHeaderFooter(pdfBytes, settings);
-      const baseName = file.name.replace(/\.pdf$/i, "");
-      downloadPdfBytes(result, `${baseName}-with-headers.pdf`);
-      setSuccess(true);
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : "Unknown error";
-      setError(`Failed to generate PDF: ${msg}`);
-    } finally {
-      setGenerating(false);
-    }
-  }, [pdfBytes, file, header, footer]);
 
   const hasContent =
     header.left ||
@@ -143,6 +154,44 @@ export function HeaderFooterWorkspace() {
     footer.left ||
     footer.center ||
     footer.right;
+
+  const handleGenerate = useCallback(async () => {
+    if (!pdfBytes || !file) return;
+    setGenerating(true);
+    setError(null);
+    setSuccess(false);
+    analytics.trackStart({ hasContent });
+
+    try {
+      const settings: HeaderFooterSettings = {
+        header,
+        footer,
+        filename: file.name.replace(/\.pdf$/i, ""),
+        scope,
+        skipFirstPage,
+      };
+      const result = await injectHeaderFooter(pdfBytes, settings);
+      const baseName = file.name.replace(/\.pdf$/i, "");
+      downloadPdfBytes(
+        result,
+        buildPdfStudioOutputName({
+          toolId: "header-footer",
+          baseName: `${baseName}-header-footer`,
+          extension: "pdf",
+        }),
+      );
+      setSuccess(true);
+      analytics.trackSuccess({ hasContent });
+    } catch (err) {
+      setError("Could not generate the updated PDF. Please try again.");
+      analytics.trackFail({
+        stage: "generate",
+        reason: "processing-failed",
+      });
+    } finally {
+      setGenerating(false);
+    }
+  }, [analytics, file, footer, hasContent, header, pdfBytes, scope, skipFirstPage]);
 
   // ── Config panel sub-component ───────────────────────────────────────
 
@@ -301,12 +350,12 @@ export function HeaderFooterWorkspace() {
   if (!file || !previewUrl) {
     return (
       <div className="mx-auto max-w-3xl px-4 py-8 sm:py-12">
-        <div className="mb-8 text-center">
+        <div className="pdf-studio-tool-header mb-8 text-center">
           <h1 className="text-2xl font-bold text-[#1a1a1a] sm:text-3xl">
             Header &amp; Footer
           </h1>
           <p className="mt-2 text-sm text-[#666]">
-            Add custom headers and footers to all PDF pages
+            Add custom headers and footers with odd/even scopes and first-page exceptions
           </p>
         </div>
 
@@ -374,6 +423,8 @@ export function HeaderFooterWorkspace() {
               setPreviewUrl(null);
               setHeader({ ...DEFAULT_CONFIG });
               setFooter({ ...DEFAULT_CONFIG });
+              setScope("all");
+              setSkipFirstPage(false);
               setError(null);
               setSuccess(false);
             }}
@@ -384,6 +435,29 @@ export function HeaderFooterWorkspace() {
 
         <div className="rounded-xl bg-[#f5f5f5] px-3 py-2 text-xs text-[#666] truncate">
           {file.name}
+        </div>
+
+        <div className="grid grid-cols-2 gap-3 rounded-xl border border-[#e5e5e5] bg-white p-4">
+          <label className="text-xs font-semibold text-[#1a1a1a]">
+            Scope
+            <select
+              value={scope}
+              onChange={(e) => setScope(e.target.value as PdfStampScope)}
+              className="mt-1 w-full rounded-xl border border-[#e5e5e5] bg-white px-3 py-2 text-sm text-[#1a1a1a] focus:border-[#999] focus:outline-none"
+            >
+              <option value="all">All pages</option>
+              <option value="odd">Odd pages</option>
+              <option value="even">Even pages</option>
+            </select>
+          </label>
+          <label className="flex items-center gap-2 self-end text-xs text-[#444]">
+            <input
+              type="checkbox"
+              checked={skipFirstPage}
+              onChange={(e) => setSkipFirstPage(e.target.checked)}
+            />
+            Skip first page
+          </label>
         </div>
 
         <ConfigPanel

@@ -4,6 +4,11 @@ import { useCallback, useState } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui";
 import { PdfUploadZone } from "@/features/docs/pdf-studio/components/shared/pdf-upload-zone";
+import { usePdfStudioAnalytics } from "@/features/docs/pdf-studio/lib/analytics";
+import {
+  buildPdfStudioOutputName,
+  getPdfStudioSourceBaseName,
+} from "@/features/docs/pdf-studio/lib/output";
 import {
   PdfPageGrid,
   type PageGridItem,
@@ -13,6 +18,7 @@ import { deletePages } from "@/features/docs/pdf-studio/utils/pdf-splitter";
 import { downloadPdfBytes } from "@/features/docs/pdf-studio/utils/zip-builder";
 
 export function DeletePagesWorkspace() {
+  const analytics = usePdfStudioAnalytics("delete-pages");
   const [pages, setPages] = useState<PageGridItem[]>([]);
   const [pdfBytes, setPdfBytes] = useState<Uint8Array | null>(null);
   const [pdfName, setPdfName] = useState("");
@@ -33,10 +39,11 @@ export function DeletePagesWorkspace() {
 
     try {
       const bytes = new Uint8Array(await file.arrayBuffer());
-      const result = await readPdfPages(file, 200);
+      const result = await readPdfPages(file, { toolId: "delete-pages" });
 
       if (!result.ok) {
         setError(result.error);
+        analytics.trackFail({ stage: "upload", reason: result.reason });
         setLoading(false);
         return;
       }
@@ -44,6 +51,9 @@ export function DeletePagesWorkspace() {
       const gridPages = result.data.map((p) => ({
         ...p,
         id: `page-${p.pageIndex}`,
+        originalPageNumber: p.pageIndex + 1,
+        sourceDocumentId: "source-document",
+        sourceLabel: getPdfStudioSourceBaseName(file.name, "document"),
       }));
 
       setPdfBytes(bytes);
@@ -51,8 +61,14 @@ export function DeletePagesWorkspace() {
       setPages(gridPages);
       setDeletedIds(new Set());
       setUndoStack([]);
+      analytics.trackUpload({
+        fileCount: 1,
+        pageCount: gridPages.length,
+        totalBytes: file.size,
+      });
     } catch {
       setError("Failed to read PDF");
+      analytics.trackFail({ stage: "upload", reason: "pdf-read-failed" });
     } finally {
       setLoading(false);
     }
@@ -90,10 +106,47 @@ export function DeletePagesWorkspace() {
     setError(null);
   }, []);
 
+  const handleSelectAll = useCallback(() => {
+    if (pages.length <= 1) {
+      return;
+    }
+
+    const allButLast = new Set(pages.slice(0, -1).map((page) => page.id));
+    setUndoStack((stack) => [...stack, deletedIds]);
+    setDeletedIds(allButLast);
+    setError(null);
+  }, [deletedIds, pages]);
+
+  const handleClearSelection = useCallback(() => {
+    setUndoStack((stack) => [...stack, deletedIds]);
+    setDeletedIds(new Set());
+    setError(null);
+  }, [deletedIds]);
+
+  const handleInvertSelection = useCallback(() => {
+    if (pages.length <= 1) {
+      return;
+    }
+
+    const nextDeletedIds = new Set(
+      pages
+        .filter((page) => !deletedIds.has(page.id))
+        .slice(0, -1)
+        .map((page) => page.id),
+    );
+    setUndoStack((stack) => [...stack, deletedIds]);
+    setDeletedIds(nextDeletedIds);
+    setError(null);
+  }, [deletedIds, pages]);
+
   const handleDownload = useCallback(async () => {
     if (!pdfBytes) return;
     setProcessing(true);
     setError(null);
+    analytics.trackStart({
+      pageCount: pages.length,
+      deletedCount: deletedIds.size,
+    });
 
     try {
       const pagesToDelete = pages
@@ -101,8 +154,19 @@ export function DeletePagesWorkspace() {
         .map((p) => p.pageIndex);
 
       if (pagesToDelete.length === 0) {
-        downloadPdfBytes(pdfBytes, `${pdfName}.pdf`);
+        downloadPdfBytes(
+          pdfBytes,
+          buildPdfStudioOutputName({
+            toolId: "delete-pages",
+            baseName: pdfName,
+            extension: "pdf",
+          }),
+        );
         setProcessing(false);
+        analytics.trackSuccess({
+          pageCount: pages.length,
+          deletedCount: 0,
+        });
         return;
       }
 
@@ -112,9 +176,21 @@ export function DeletePagesWorkspace() {
         setProcessing(false);
         return;
       }
-      downloadPdfBytes(result.data, `${pdfName}-cleaned.pdf`);
+      downloadPdfBytes(
+        result.data,
+        buildPdfStudioOutputName({
+          toolId: "delete-pages",
+          baseName: `${pdfName}-cleaned`,
+          extension: "pdf",
+        }),
+      );
+      analytics.trackSuccess({
+        pageCount: pages.length,
+        deletedCount: pagesToDelete.length,
+      });
     } catch {
       setError("Failed to process PDF");
+      analytics.trackFail({ stage: "process", reason: "processing-failed" });
     } finally {
       setProcessing(false);
     }
@@ -131,7 +207,7 @@ export function DeletePagesWorkspace() {
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-8 sm:px-6 lg:px-8">
-      <div className="mb-6">
+      <div className="pdf-studio-tool-header mb-6">
         <Link
           href="/app/docs/pdf-studio"
           className="text-xs text-[var(--muted-foreground)] transition-colors hover:text-[var(--foreground)]"
@@ -149,6 +225,7 @@ export function DeletePagesWorkspace() {
       {!pdfBytes && (
         <PdfUploadZone
           onFiles={handleFile}
+          toolId="delete-pages"
           label="Drop your PDF here"
           disabled={loading}
           error={error}
@@ -201,6 +278,30 @@ export function DeletePagesWorkspace() {
               </button>
             </div>
             <div className="flex items-center gap-2">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleSelectAll}
+                disabled={pages.length <= 1}
+              >
+                Select all removable
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleInvertSelection}
+                disabled={pages.length <= 1}
+              >
+                Invert
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleClearSelection}
+                disabled={deletedIds.size === 0}
+              >
+                Clear
+              </Button>
               <Button
                 variant="ghost"
                 size="sm"

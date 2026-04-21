@@ -4,6 +4,8 @@ import { useCallback, useState } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui";
 import { PdfUploadZone } from "@/features/docs/pdf-studio/components/shared/pdf-upload-zone";
+import { usePdfStudioAnalytics } from "@/features/docs/pdf-studio/lib/analytics";
+import { buildPdfStudioOutputName } from "@/features/docs/pdf-studio/lib/output";
 import {
   PdfPageGrid,
   type PageGridItem,
@@ -11,8 +13,10 @@ import {
 import { readPdfPages } from "@/features/docs/pdf-studio/utils/pdf-reader";
 import { downloadPdfBytes } from "@/features/docs/pdf-studio/utils/zip-builder";
 import { PDFDocument, degrees } from "pdf-lib";
+import { getPdfStudioSourceBaseName } from "@/features/docs/pdf-studio/lib/output";
 
 export function OrganizeWorkspace() {
+  const analytics = usePdfStudioAnalytics("organize");
   const [pages, setPages] = useState<PageGridItem[]>([]);
   const [pdfBytes, setPdfBytes] = useState<Uint8Array | null>(null);
   const [pdfName, setPdfName] = useState("");
@@ -29,10 +33,11 @@ export function OrganizeWorkspace() {
 
     try {
       const bytes = new Uint8Array(await file.arrayBuffer());
-      const result = await readPdfPages(file, 200);
+      const result = await readPdfPages(file, { toolId: "organize" });
 
       if (!result.ok) {
         setError(result.error);
+        analytics.trackFail({ stage: "upload", reason: result.reason });
         setLoading(false);
         return;
       }
@@ -40,14 +45,23 @@ export function OrganizeWorkspace() {
       const gridPages = result.data.map((p) => ({
         ...p,
         id: `page-${p.pageIndex}`,
+        originalPageNumber: p.pageIndex + 1,
         rotation: 0,
+        sourceDocumentId: "source-document",
+        sourceLabel: getPdfStudioSourceBaseName(file.name, "document"),
       }));
 
       setPdfBytes(bytes);
       setPdfName(file.name.replace(/\.pdf$/i, ""));
       setPages(gridPages);
+      analytics.trackUpload({
+        fileCount: 1,
+        pageCount: gridPages.length,
+        totalBytes: file.size,
+      });
     } catch {
       setError("Failed to read PDF");
+      analytics.trackFail({ stage: "upload", reason: "pdf-read-failed" });
     } finally {
       setLoading(false);
     }
@@ -78,6 +92,7 @@ export function OrganizeWorkspace() {
     if (!pdfBytes || pages.length === 0) return;
     setProcessing(true);
     setError(null);
+    analytics.trackStart({ pageCount: pages.length });
 
     try {
       const srcDoc = await PDFDocument.load(pdfBytes);
@@ -96,9 +111,18 @@ export function OrganizeWorkspace() {
       });
 
       const resultBytes = await newDoc.save();
-      downloadPdfBytes(resultBytes, `${pdfName}-organized.pdf`);
+      downloadPdfBytes(
+        resultBytes,
+        buildPdfStudioOutputName({
+          toolId: "organize",
+          baseName: `${pdfName}-organized`,
+          extension: "pdf",
+        }),
+      );
+      analytics.trackSuccess({ pageCount: pages.length });
     } catch {
       setError("Failed to organize PDF");
+      analytics.trackFail({ stage: "process", reason: "processing-failed" });
     } finally {
       setProcessing(false);
     }
@@ -113,7 +137,7 @@ export function OrganizeWorkspace() {
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-8 sm:px-6 lg:px-8">
-      <div className="mb-6">
+      <div className="pdf-studio-tool-header mb-6">
         <Link
           href="/app/docs/pdf-studio"
           className="text-xs text-[var(--muted-foreground)] transition-colors hover:text-[var(--foreground)]"
@@ -131,6 +155,7 @@ export function OrganizeWorkspace() {
       {!pdfBytes && (
         <PdfUploadZone
           onFiles={handleFile}
+          toolId="organize"
           label="Drop your PDF here"
           disabled={loading}
           error={error}

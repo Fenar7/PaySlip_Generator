@@ -1,6 +1,7 @@
 "use client";
 
 type Properties = Record<string, unknown>;
+const POSTHOG_MODULE = "posthog-js";
 
 function isPostHogConfigured(): boolean {
   return typeof window !== "undefined" && !!process.env.NEXT_PUBLIC_POSTHOG_KEY;
@@ -9,7 +10,10 @@ function isPostHogConfigured(): boolean {
 async function getPostHog() {
   if (!isPostHogConfigured()) return null;
   try {
-    const posthog = await import("posthog-js");
+    const posthog = await import(
+      /* @vite-ignore */
+      POSTHOG_MODULE
+    );
     return posthog.default;
   } catch {
     return null;

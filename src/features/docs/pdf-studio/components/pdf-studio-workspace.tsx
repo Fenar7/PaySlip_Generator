@@ -32,6 +32,8 @@ import {
   savePdfStudioSession,
 } from "@/features/docs/pdf-studio/utils/session-storage";
 import { OcrProgressPanel } from "@/features/docs/pdf-studio/components/ocr-progress-panel";
+import { usePdfStudioAnalytics } from "@/features/docs/pdf-studio/lib/analytics";
+import { buildPdfStudioOutputName } from "@/features/docs/pdf-studio/lib/output";
 import { cancelAllOcr } from "@/features/docs/pdf-studio/utils/ocr-processor";
 import { useActiveOrg } from "@/hooks/use-active-org";
 import { cn } from "@/lib/utils";
@@ -212,7 +214,13 @@ function GenerationDialog({
   );
 }
 
-export function PdfStudioWorkspace() {
+export function PdfStudioWorkspace(props?: {
+  toolId?: "create" | "jpg-to-pdf";
+  title?: string;
+  description?: string;
+}) {
+  const toolId = props?.toolId ?? "create";
+  const analytics = usePdfStudioAnalytics(toolId);
   const { activeOrg, isLoading: isOrgLoading } = useActiveOrg();
   const orgScope = activeOrg?.id ?? "anonymous";
   const [images, setImages] = useState<ImageItem[]>([]);
@@ -427,6 +435,10 @@ export function PdfStudioWorkspace() {
 
     setActionState({ status: "generating" });
     setProgress({ current: 0, total: images.length, stage: "loading" });
+    analytics.trackStart({
+      fileCount: images.length,
+      passwordProtected: settings.password.enabled,
+    });
 
     const controller = new AbortController();
     generateCancelRef.current = controller;
@@ -454,13 +466,32 @@ export function PdfStudioWorkspace() {
           },
         }));
 
-        downloadPdfBlob(encryptedBytes, settings.filename);
+        downloadPdfBlob(
+          encryptedBytes,
+          buildPdfStudioOutputName({
+            toolId,
+            baseName: settings.filename,
+            extension: "pdf",
+          }),
+        );
       } else {
         // Case A: no password — download directly
-        downloadPdfBlob(pdfBytes, settings.filename);
+        downloadPdfBlob(
+          pdfBytes,
+          buildPdfStudioOutputName({
+            toolId,
+            baseName: settings.filename,
+            extension: "pdf",
+          }),
+        );
       }
 
       setActionState({ status: "success" });
+      analytics.trackSuccess({
+        fileCount: images.length,
+        passwordProtected: settings.password.enabled,
+        output: "pdf",
+      });
     } catch (error) {
       // Cancelled by user — return to idle silently
       if (error instanceof DOMException && error.name === "AbortError") {
@@ -477,6 +508,18 @@ export function PdfStudioWorkspace() {
             : error instanceof Error
               ? error.message
               : "Unable to generate the PDF. Check the images and try again.",
+      });
+      analytics.trackFail({
+        stage: "generate",
+        reason:
+          error instanceof PdfEncryptionError
+            ? error.message === "Too many requests. Please wait a moment and try again."
+              ? "rate-limited"
+              : error.message ===
+                    "PDF is too large to encrypt. Try reducing image count or quality."
+                ? "payload-too-large"
+                : "encryption-failed"
+            : "processing-failed",
       });
     } finally {
       generateCancelRef.current = null;
@@ -675,10 +718,11 @@ export function PdfStudioWorkspace() {
                 PDF Studio
               </p>
               <h1 className="mt-3 max-w-3xl text-[2.3rem] leading-[0.98] tracking-[-0.05em] text-[var(--foreground)] md:text-[3rem]">
-                Images to PDF
+                {props?.title ?? "Images to PDF"}
               </h1>
               <p className="mt-3 max-w-3xl text-[0.98rem] leading-7 text-[var(--foreground-soft)]">
-                Upload up to {PDF_STUDIO_MAX_IMAGES} images, arrange them, configure page settings, and generate a clean downloadable PDF — entirely in your browser.
+                {props?.description ??
+                  `Upload up to ${PDF_STUDIO_MAX_IMAGES} images, arrange them, configure page settings, and generate a clean downloadable PDF — entirely in your browser.`}
               </p>
               <div className="mt-5 hidden flex-wrap gap-2 xl:flex">
                 <Link href="/" className="inline-flex items-center justify-center rounded-full border border-[var(--border-strong)] bg-white px-4 py-2.5 text-sm font-medium text-[var(--foreground)] shadow-[var(--shadow-soft)] transition-colors hover:bg-[var(--surface-soft)]">
@@ -890,6 +934,15 @@ export function PdfStudioWorkspace() {
                   images={images}
                   onChange={handleImagesChange}
                   error={uploadError}
+                  onUploadError={(message) => {
+                    setUploadError(message);
+                    if (message) {
+                      analytics.trackFail({
+                        stage: "upload",
+                        reason: "validation-failed",
+                      });
+                    }
+                  }}
                   selectedIds={selectedIds}
                   onSelectionChange={handleSelectionChange}
                   onBatchDelete={handleBatchDelete}

@@ -1,5 +1,57 @@
 export type ImageRotation = 0 | 90 | 180 | 270;
 
+export type PdfStudioToolId =
+  | "create"
+  | "jpg-to-pdf"
+  | "merge"
+  | "alternate-mix"
+  | "split"
+  | "extract-pages"
+  | "delete-pages"
+  | "organize"
+  | "rotate"
+  | "resize-pages"
+  | "editor"
+  | "fill-sign"
+  | "create-forms"
+  | "page-numbers"
+  | "bates"
+  | "metadata"
+  | "rename"
+  | "remove-annotations"
+  | "bookmarks"
+  | "flatten"
+  | "n-up"
+  | "protect"
+  | "unlock"
+  | "watermark"
+  | "grayscale"
+  | "header-footer"
+  | "repair"
+  | "ocr"
+  | "deskew"
+  | "pdf-to-image"
+  | "extract-images"
+  | "pdf-to-text"
+  | "pdf-to-word"
+  | "pdf-to-excel"
+  | "pdf-to-ppt"
+  | "word-to-pdf"
+  | "html-to-pdf";
+
+export type PdfStudioToolSurface = "workspace" | "public";
+export type PdfStudioToolCategory =
+  | "page-organization"
+  | "edit-enhance"
+  | "convert-export";
+export type PdfStudioExecutionMode = "browser" | "processing" | "hybrid";
+export type PdfStudioFileClass =
+  | "pdf"
+  | "image"
+  | "office"
+  | "html"
+  | "scanned-pdf";
+
 export type PdfMetadata = {
   title: string;
   author: string;
@@ -9,6 +61,7 @@ export type PdfMetadata = {
 
 export type PageNumberFormat = 'number' | 'page-number' | 'number-of-total' | 'page-number-of-total';
 export type PageNumberPosition = 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right' | 'bottom-center';
+export type PdfStampScope = "all" | "odd" | "even";
 
 export type PageNumberSettings = {
   enabled: boolean;
@@ -16,6 +69,7 @@ export type PageNumberSettings = {
   format: PageNumberFormat;
   startFrom: number;
   skipFirstPage: boolean;
+  scope?: PdfStampScope;
 };
 
 // Alias for backward compatibility
@@ -46,6 +100,11 @@ export type PasswordValidation = {
   score: number;
 };
 
+export type PasswordPermissionPreset =
+  | "balanced"
+  | "view-only"
+  | "restricted";
+
 export type WatermarkPosition = 
   | 'top-left' | 'top-center' | 'top-right'
   | 'center-left' | 'center' | 'center-right'
@@ -71,8 +130,85 @@ export type WatermarkSettings = {
   scope: 'all' | 'first';
 };
 
+export type WatermarkPresetId =
+  | "draft"
+  | "confidential"
+  | "paid"
+  | "copy";
+
 // Legacy type alias for backward compatibility
 export type PdfWatermarkSettings = WatermarkSettings;
+
+export type PdfEditorShapeType = "rectangle" | "ellipse" | "line";
+
+export type PdfEditorBaseObject = {
+  id: string;
+  pageIndex: number;
+  x: number;
+  y: number;
+};
+
+export type PdfEditorTextObject = PdfEditorBaseObject & {
+  type: "text" | "date" | "initials";
+  text: string;
+  fontSize: number;
+  color: string;
+  fontFamily: "helvetica" | "times";
+};
+
+export type PdfEditorShapeObject = PdfEditorBaseObject & {
+  type: "shape";
+  shapeType: PdfEditorShapeType;
+  width: number;
+  height: number;
+  strokeColor: string;
+  fillColor?: string;
+  strokeWidth: number;
+};
+
+export type PdfEditorImageObject = PdfEditorBaseObject & {
+  type: "signature" | "image";
+  dataUrl: string;
+  width: number;
+  height: number;
+};
+
+export type PdfEditorObject =
+  | PdfEditorTextObject
+  | PdfEditorShapeObject
+  | PdfEditorImageObject;
+
+export type PdfFormFieldKind = "text" | "checkbox" | "signature" | "date";
+
+export type PdfFormFieldDraft = {
+  id: string;
+  name: string;
+  label: string;
+  kind: PdfFormFieldKind;
+  pageIndex: number;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  required: boolean;
+  defaultValue?: string;
+};
+
+export type PdfBookmarkDraft = {
+  id: string;
+  title: string;
+  pageNumber: number;
+  level: number;
+};
+
+export type PdfRenameCaseStyle = "original" | "lower" | "upper" | "kebab" | "snake";
+
+export type PdfRenameRuleSettings = {
+  prefix: string;
+  suffix: string;
+  replaceSpacesWith: "-" | "_" | "none";
+  caseStyle: PdfRenameCaseStyle;
+};
 
 export type ImageCrop = {
   x: number;
@@ -91,6 +227,7 @@ export type ImageItem = {
   sizeBytes: number;
   isConverting?: boolean;
   ocrText?: string;
+  ocrConfidence?: number;
   ocrStatus?: 'pending' | 'processing' | 'complete' | 'error' | 'cancelled';
   ocrErrorMessage?: string;
 };
@@ -146,3 +283,28 @@ export type PdfStudioSession = {
   savedAt: string;
   watermarkImageCleared?: boolean; // Set when image watermark was cleared on restore
 };
+
+export type PdfTextExtractionMode = "auto" | "selectable" | "ocr";
+
+export type PdfStudioOcrMode = "fast" | "accurate";
+
+export type PdfTextExtractionResult = {
+  mode: Exclude<PdfTextExtractionMode, "auto">;
+  text: string;
+  pageCount: number;
+  usedOcr: boolean;
+};
+
+export type PdfStudioConversionJobStatus =
+  | "pending"
+  | "processing"
+  | "completed"
+  | "retry_pending"
+  | "dead_letter";
+
+export type PdfStudioConversionKind =
+  | "pdf-to-word"
+  | "pdf-to-excel"
+  | "pdf-to-ppt"
+  | "word-to-pdf"
+  | "html-to-pdf";

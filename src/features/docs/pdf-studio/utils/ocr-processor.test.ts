@@ -13,6 +13,7 @@ vi.mock("tesseract.js", () => ({
 
 import {
   processImageForOcr,
+  processImageForOcrDetailed,
   resetOcrProcessorForTests,
   terminateOcrWorker,
   getOcrServiceStatus,
@@ -37,14 +38,44 @@ describe("ocr-processor", () => {
   });
 
   it("loads the OCR worker once and trims recognized text", async () => {
-    recognizeMock.mockResolvedValue({ data: { text: "  detected text  " } });
+    recognizeMock.mockResolvedValue({
+      data: { text: "  detected text  ", confidence: 93.4 },
+    });
 
     const blob = new Blob(["hello"], { type: "image/png" });
     await expect(processImageForOcr(blob)).resolves.toBe("detected text");
     await expect(processImageForOcr(blob)).resolves.toBe("detected text");
 
     expect(createWorkerMock).toHaveBeenCalledTimes(1);
+    expect(createWorkerMock).toHaveBeenCalledWith(
+      "eng",
+      1,
+      expect.objectContaining({
+        workerPath: expect.stringContaining("worker.min.js"),
+      }),
+    );
     expect(recognizeMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("returns confidence and honors the requested language", async () => {
+    recognizeMock.mockResolvedValue({
+      data: { text: "Bonjour", confidence: 88.2 },
+    });
+
+    const blob = new Blob(["hello"], { type: "image/png" });
+    await expect(
+      processImageForOcrDetailed(blob, { language: "fra" }),
+    ).resolves.toEqual({
+      text: "Bonjour",
+      confidence: 88.2,
+      language: "fra",
+      mode: "accurate",
+    });
+    expect(createWorkerMock).toHaveBeenCalledWith(
+      "fra",
+      1,
+      expect.any(Object),
+    );
   });
 
   it("normalizes OCR initialization failures", async () => {
@@ -129,7 +160,7 @@ describe("ocr-processor", () => {
     });
 
     it("allows calls with different dedupeKeys concurrently", async () => {
-      recognizeMock.mockResolvedValue({ data: { text: "some text" } });
+    recognizeMock.mockResolvedValue({ data: { text: "some text", confidence: 91 } });
 
       const blob = new Blob(["hello"], { type: "image/png" });
       const [r1, r2] = await Promise.all([
