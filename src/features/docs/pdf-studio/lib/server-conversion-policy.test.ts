@@ -1,6 +1,9 @@
 import JSZip from "jszip";
 import { describe, expect, it } from "vitest";
-import { validatePdfStudioConversionRequest } from "@/features/docs/pdf-studio/lib/server-conversion-policy";
+import {
+  validatePdfStudioBatchConversionRequest,
+  validatePdfStudioConversionRequest,
+} from "@/features/docs/pdf-studio/lib/server-conversion-policy";
 
 async function buildDocxFile(extraEntries?: Record<string, string>) {
   const zip = new JSZip();
@@ -105,6 +108,36 @@ describe("server conversion policy", () => {
         pageSize: "Letter",
         margin: "12mm",
         preferPrintCss: true,
+      },
+      });
+  });
+
+  it("validates multi-file DOCX to PDF batches with shared normalized options", async () => {
+    const first = await buildDocxFile();
+    const second = new File([await first.arrayBuffer()], "offer-copy.docx", {
+      type: first.type,
+    });
+
+    await expect(
+      validatePdfStudioBatchConversionRequest({
+        toolId: "word-to-pdf",
+        targetFormat: "pdf",
+        sourceFiles: [first, second],
+        options: {
+          pageSize: "A4",
+          margin: "10mm",
+          preferPrintCss: false,
+        },
+      }),
+    ).resolves.toMatchObject({
+      sources: [
+        { sourceFile: first },
+        { sourceFile: second },
+      ],
+      options: {
+        pageSize: "A4",
+        margin: "10mm",
+        preferPrintCss: false,
       },
     });
   });

@@ -234,6 +234,18 @@ function assertSelfContainedHtml(sourceBytes: Uint8Array) {
 export type ValidatedPdfStudioConversionRequest = {
   sourceFile?: File;
   sourceBytes?: Uint8Array;
+  pageCount?: number;
+  options: PdfStudioConversionJsonObject;
+};
+
+export type ValidatedPdfStudioConversionSource = {
+  sourceFile: File;
+  sourceBytes: Uint8Array;
+  pageCount?: number;
+};
+
+export type ValidatedPdfStudioBatchConversionRequest = {
+  sources: ValidatedPdfStudioConversionSource[];
   options: PdfStudioConversionJsonObject;
 };
 
@@ -346,11 +358,79 @@ export async function validatePdfStudioConversionRequest(params: {
         status: 422,
       });
     }
+    return {
+      sourceFile: params.sourceFile,
+      sourceBytes,
+      pageCount,
+      options,
+    };
   }
 
   return {
     sourceFile: params.sourceFile,
     sourceBytes,
     options,
+  };
+}
+
+export async function validatePdfStudioBatchConversionRequest(params: {
+  toolId: PdfStudioServerConversionToolId;
+  targetFormat: PdfStudioServerConversionTargetFormat;
+  sourceFiles: File[];
+  options?: PdfStudioConversionJsonObject;
+}): Promise<ValidatedPdfStudioBatchConversionRequest> {
+  const tool = getPdfStudioTool(params.toolId);
+  const validatedSources: ValidatedPdfStudioConversionSource[] = [];
+  let combinedPages = 0;
+
+  for (const sourceFile of params.sourceFiles) {
+    const validated = await validatePdfStudioConversionRequest({
+      toolId: params.toolId,
+      targetFormat: params.targetFormat,
+      sourceFile,
+      options: params.options,
+    });
+
+    if (!validated.sourceFile || !validated.sourceBytes) {
+      throw new PdfStudioConversionError({
+        code: "unsupported_input",
+        message: `Upload a supported file before starting ${tool.title}.`,
+      });
+    }
+
+    validatedSources.push({
+      sourceFile: validated.sourceFile,
+      sourceBytes: validated.sourceBytes,
+      pageCount: validated.pageCount,
+    });
+
+    if (typeof validated.pageCount === "number") {
+      combinedPages += validated.pageCount;
+    }
+  }
+
+  if (combinedPages > 0 && tool.limits.maxPages && combinedPages > tool.limits.maxPages) {
+    throw new PdfStudioConversionError({
+      code: "page_limit_exceeded",
+      message: `${tool.title} supports up to ${tool.limits.maxPages} total pages per batch run. This selection contains ${combinedPages} pages.`,
+      status: 422,
+    });
+  }
+
+  return {
+    sources: validatedSources,
+    options:
+      validatedSources[0]?.sourceFile != null
+        ? {
+            pageSize:
+              typeof params.options?.pageSize === "string" ? params.options.pageSize : undefined,
+            margin:
+              typeof params.options?.margin === "string" ? params.options.margin : undefined,
+            preferPrintCss:
+              typeof params.options?.preferPrintCss === "boolean"
+                ? params.options.preferPrintCss
+                : Boolean(params.options?.preferPrintCss ?? false),
+          }
+        : {},
   };
 }

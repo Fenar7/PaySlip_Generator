@@ -12,6 +12,7 @@ import {
 } from "@/features/docs/pdf-studio/lib/conversion-errors";
 import {
   PDF_STUDIO_CONVERSION_ACTIVE_JOB_LIMIT,
+  validatePdfStudioBatchConversionRequest,
   validatePdfStudioConversionRequest,
 } from "@/features/docs/pdf-studio/lib/server-conversion-policy";
 import { checkFeature } from "@/lib/plans/enforcement";
@@ -76,6 +77,7 @@ export async function POST(request: NextRequest) {
   const targetFormat = formData.get("targetFormat");
   const sourceUrl = formData.get("sourceUrl");
   const file = formData.get("file");
+  const files = formData.getAll("files");
   const pageSize = formData.get("pageSize");
   const margin = formData.get("margin");
 
@@ -99,16 +101,76 @@ export async function POST(request: NextRequest) {
   }
 
   try {
+    const uploadedFiles = files.filter(isUploadedFile);
+    const sourceFiles =
+      uploadedFiles.length > 0
+        ? uploadedFiles
+        : isUploadedFile(file)
+          ? [file]
+          : [];
+
+    const options = {
+      pageSize: typeof pageSize === "string" && pageSize.length > 0 ? pageSize : undefined,
+      margin: typeof margin === "string" && margin.length > 0 ? margin : undefined,
+      preferPrintCss: formData.get("preferPrintCss") === "true",
+    };
+
+    const sourceUrlValue =
+      typeof sourceUrl === "string" && sourceUrl.trim().length > 0 ? sourceUrl.trim() : undefined;
+
+    if (sourceFiles.length === 0 && !sourceUrlValue) {
+      return NextResponse.json(
+        { error: "Upload a supported file before starting the conversion." },
+        { status: 400 },
+      );
+    }
+
+    if (sourceFiles.length > 1) {
+      const validatedBatch = await validatePdfStudioBatchConversionRequest({
+        toolId,
+        targetFormat,
+        sourceFiles,
+        options,
+      });
+
+      const jobId = await createPdfStudioConversionJob({
+        orgId: context.orgId,
+        userId: context.userId,
+        toolId,
+        targetFormat,
+        sourceFiles: validatedBatch.sources.map((source) => ({
+          file: source.sourceFile,
+          bytes: source.sourceBytes,
+          pageCount: source.pageCount,
+        })),
+        options: validatedBatch.options,
+      });
+
+      void fetch(new URL(`/api/pdf-studio/conversions/${jobId}/process`, request.url), {
+        method: "POST",
+        headers: {
+          cookie: request.headers.get("cookie") ?? "",
+        },
+      }).catch(() => {});
+
+      return NextResponse.json(
+        {
+          jobId,
+          status: "pending",
+          totalItems: validatedBatch.sources.length,
+          completedItems: 0,
+          failedItems: 0,
+        },
+        { status: 202 },
+      );
+    }
+
     const validated = await validatePdfStudioConversionRequest({
       toolId,
       targetFormat,
-      sourceFile: isUploadedFile(file) ? file : undefined,
-      sourceUrl: typeof sourceUrl === "string" && sourceUrl.trim().length > 0 ? sourceUrl.trim() : undefined,
-      options: {
-        pageSize: typeof pageSize === "string" && pageSize.length > 0 ? pageSize : undefined,
-        margin: typeof margin === "string" && margin.length > 0 ? margin : undefined,
-        preferPrintCss: formData.get("preferPrintCss") === "true",
-      },
+      sourceFile: sourceFiles[0],
+      sourceUrl: sourceUrlValue,
+      options,
     });
 
     const jobId = await createPdfStudioConversionJob({
@@ -132,6 +194,9 @@ export async function POST(request: NextRequest) {
       {
         jobId,
         status: "pending",
+        totalItems: 1,
+        completedItems: 0,
+        failedItems: 0,
       },
       { status: 202 },
     );

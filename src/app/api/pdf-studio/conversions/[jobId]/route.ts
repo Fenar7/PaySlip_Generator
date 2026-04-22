@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getOrgContext } from "@/lib/auth";
 import { getPdfStudioConversionJob } from "@/features/docs/pdf-studio/lib/conversion-jobs";
+import { checkFeature } from "@/lib/plans/enforcement";
 
 export async function GET(
   _request: NextRequest,
@@ -9,6 +10,12 @@ export async function GET(
   const auth = await getOrgContext();
   if (!auth) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+  if (!(await checkFeature(auth.orgId, "pdfStudioTools"))) {
+    return NextResponse.json(
+      { error: "PDF Studio conversions require a plan that includes PDF Studio tools." },
+      { status: 403 },
+    );
   }
 
   const { jobId } = await context.params;

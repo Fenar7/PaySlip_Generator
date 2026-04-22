@@ -10,6 +10,7 @@ vi.mock("@/lib/db", () => ({
 }));
 
 vi.mock("@/features/docs/pdf-studio/lib/conversion-jobs", () => ({
+  appendPdfStudioConversionOutput: vi.fn(),
   claimPdfStudioConversionJob: vi.fn(),
   claimPdfStudioConversionJobForOrg: vi.fn(),
   listRetryablePdfStudioConversionJobs: vi.fn(),
@@ -23,6 +24,7 @@ vi.mock("@/features/docs/pdf-studio/lib/server-converters", () => ({
 
 import { db } from "@/lib/db";
 import {
+  appendPdfStudioConversionOutput,
   claimPdfStudioConversionJob,
   claimPdfStudioConversionJobForOrg,
   listRetryablePdfStudioConversionJobs,
@@ -109,14 +111,16 @@ describe("pdf studio conversion job processor", () => {
         preferPrintCss: true,
       },
     });
-    expect(markPdfStudioConversionComplete).toHaveBeenCalledWith({
+    expect(appendPdfStudioConversionOutput).toHaveBeenCalledWith({
       jobId: "job-1",
       toolId: "html-to-pdf",
       targetFormat: "pdf",
+      sourceIndex: 0,
       sourceFileName: "document",
       outputBytes: new Uint8Array([1, 2, 3]),
       mimeType: "application/pdf",
     });
+    expect(markPdfStudioConversionComplete).toHaveBeenCalledWith({ jobId: "job-1" });
   });
 
   it("marks permanent validation failures without retrying", async () => {
@@ -204,5 +208,70 @@ describe("pdf studio conversion job processor", () => {
       message: "Password-protected PDFs must be unlocked before export.",
       retryable: false,
     });
+  });
+
+  it("resumes batch jobs from the first unfinished source", async () => {
+    vi.mocked(claimPdfStudioConversionJob).mockResolvedValue(true);
+    vi.mocked(db.jobLog.findUniqueOrThrow).mockResolvedValue({
+      id: "job-batch",
+      payload: {
+        toolId: "pdf-to-word",
+        targetFormat: "docx",
+        totalItems: 2,
+        sources: [
+          {
+            index: 0,
+            storageKey: "org/job-batch/sources/01.pdf",
+            fileName: "alpha.pdf",
+            mimeType: "application/pdf",
+            sizeBytes: 100,
+          },
+          {
+            index: 1,
+            storageKey: "org/job-batch/sources/02.pdf",
+            fileName: "beta.pdf",
+            mimeType: "application/pdf",
+            sizeBytes: 120,
+          },
+        ],
+        outputs: [
+          {
+            index: 0,
+            storageKey: "org/job-batch/outputs/01-alpha.docx",
+            sourceFileName: "alpha.pdf",
+            fileName: "alpha-batch-01.docx",
+            mimeType:
+              "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+          },
+        ],
+      },
+    } as never);
+    vi.mocked(runServerConversion).mockResolvedValue({
+      bytes: new Uint8Array([7, 8, 9]),
+      mimeType:
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    });
+
+    const result = await processPdfStudioConversionJob("job-batch");
+
+    expect(result).toEqual({ processed: true, success: true });
+    expect(runServerConversion).toHaveBeenCalledTimes(1);
+    expect(runServerConversion).toHaveBeenCalledWith({
+      toolId: "pdf-to-word",
+      sourceStorageKey: "org/job-batch/sources/02.pdf",
+      sourceUrl: undefined,
+      options: undefined,
+    });
+    expect(appendPdfStudioConversionOutput).toHaveBeenCalledWith({
+      jobId: "job-batch",
+      toolId: "pdf-to-word",
+      targetFormat: "docx",
+      sourceIndex: 1,
+      sourceFileName: "beta.pdf",
+      outputBytes: new Uint8Array([7, 8, 9]),
+      mimeType:
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    });
+    expect(markPdfStudioConversionComplete).toHaveBeenCalledWith({ jobId: "job-batch" });
   });
 });

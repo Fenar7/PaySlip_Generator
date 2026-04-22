@@ -23,6 +23,7 @@ vi.mock("@/features/docs/pdf-studio/lib/conversion-jobs", () => ({
 
 vi.mock("@/features/docs/pdf-studio/lib/server-conversion-policy", () => ({
   PDF_STUDIO_CONVERSION_ACTIVE_JOB_LIMIT: 3,
+  validatePdfStudioBatchConversionRequest: vi.fn(),
   validatePdfStudioConversionRequest: vi.fn(),
 }));
 
@@ -34,7 +35,10 @@ import {
   createPdfStudioConversionJob,
 } from "@/features/docs/pdf-studio/lib/conversion-jobs";
 import { PdfStudioConversionError } from "@/features/docs/pdf-studio/lib/conversion-errors";
-import { validatePdfStudioConversionRequest } from "@/features/docs/pdf-studio/lib/server-conversion-policy";
+import {
+  validatePdfStudioBatchConversionRequest,
+  validatePdfStudioConversionRequest,
+} from "@/features/docs/pdf-studio/lib/server-conversion-policy";
 import { POST } from "../route";
 
 function makeRequest(
@@ -48,6 +52,25 @@ function makeRequest(
       continue;
     }
     formData.append(key, value);
+  }
+  return new Request("http://localhost/api/pdf-studio/conversions", {
+    method: "POST",
+    headers: options?.cookie ? { cookie: options.cookie } : undefined,
+    body: formData,
+  }) as NextRequest;
+}
+
+function makeBatchRequest(
+  fields: Record<string, string>,
+  files: File[],
+  options?: { cookie?: string },
+) {
+  const formData = new FormData();
+  for (const [key, value] of Object.entries(fields)) {
+    formData.append(key, value);
+  }
+  for (const file of files) {
+    formData.append("files", file, file.name);
   }
   return new Request("http://localhost/api/pdf-studio/conversions", {
     method: "POST",
@@ -74,6 +97,14 @@ describe("POST /api/pdf-studio/conversions", () => {
     vi.mocked(validatePdfStudioConversionRequest).mockResolvedValue({
       sourceFile: undefined,
       sourceBytes: undefined,
+      options: {
+        pageSize: "A4",
+        margin: "10mm",
+        preferPrintCss: true,
+      },
+    });
+    vi.mocked(validatePdfStudioBatchConversionRequest).mockResolvedValue({
+      sources: [],
       options: {
         pageSize: "A4",
         margin: "10mm",
@@ -219,6 +250,9 @@ describe("POST /api/pdf-studio/conversions", () => {
     expect(body).toEqual({
       jobId: "job-1",
       status: "pending",
+      totalItems: 1,
+      completedItems: 0,
+      failedItems: 0,
     });
     const validateCall = vi.mocked(validatePdfStudioConversionRequest).mock.calls[0]?.[0];
     expect(validateCall).toMatchObject({
@@ -253,5 +287,90 @@ describe("POST /api/pdf-studio/conversions", () => {
         },
       },
     );
+  });
+
+  it("queues multi-file batch conversions as one tracked job", async () => {
+    const firstFile = new File(["%PDF-1.7 first"], "chapter-1.pdf", {
+      type: "application/pdf",
+    });
+    const secondFile = new File(["%PDF-1.7 second"], "chapter-2.pdf", {
+      type: "application/pdf",
+    });
+
+    vi.mocked(validatePdfStudioBatchConversionRequest).mockResolvedValue({
+      sources: [
+        {
+          sourceFile: firstFile,
+          sourceBytes: new Uint8Array(Buffer.from("%PDF-1.7 first")),
+          pageCount: 2,
+        },
+        {
+          sourceFile: secondFile,
+          sourceBytes: new Uint8Array(Buffer.from("%PDF-1.7 second")),
+          pageCount: 3,
+        },
+      ],
+      options: {
+        pageSize: "A4",
+        margin: "10mm",
+        preferPrintCss: false,
+      },
+    });
+
+    const response = await POST(
+      makeBatchRequest(
+        {
+        toolId: "pdf-to-word",
+        targetFormat: "docx",
+        },
+        [firstFile, secondFile],
+        { cookie: "sb=token" },
+      ),
+    );
+    const body = await response.json();
+
+    expect(response.status).toBe(202);
+    expect(body).toEqual({
+      jobId: "job-1",
+      status: "pending",
+      totalItems: 2,
+      completedItems: 0,
+      failedItems: 0,
+    });
+    expect(validatePdfStudioConversionRequest).not.toHaveBeenCalled();
+    const validateBatchCall = vi.mocked(validatePdfStudioBatchConversionRequest).mock.calls[0]?.[0];
+    expect(validateBatchCall).toMatchObject({
+      toolId: "pdf-to-word",
+      targetFormat: "docx",
+      options: {
+        pageSize: undefined,
+        margin: undefined,
+        preferPrintCss: false,
+      },
+    });
+    expect(validateBatchCall?.sourceFiles).toHaveLength(2);
+    expect(vi.mocked(createPdfStudioConversionJob).mock.calls[0]?.[0]).toMatchObject({
+      orgId: "org-1",
+      userId: "user-1",
+      toolId: "pdf-to-word",
+      targetFormat: "docx",
+      sourceFiles: [
+        {
+          file: firstFile,
+          bytes: new Uint8Array(Buffer.from("%PDF-1.7 first")),
+          pageCount: 2,
+        },
+        {
+          file: secondFile,
+          bytes: new Uint8Array(Buffer.from("%PDF-1.7 second")),
+          pageCount: 3,
+        },
+      ],
+      options: {
+        pageSize: "A4",
+        margin: "10mm",
+        preferPrintCss: false,
+      },
+    });
   });
 });
