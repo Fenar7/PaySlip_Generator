@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui";
 import { useActiveOrg } from "@/hooks/use-active-org";
@@ -16,7 +17,13 @@ import {
   getPdfStudioToolUpgradeCopy,
   getPdfStudioWorkspaceMinimumPlan,
 } from "@/features/docs/pdf-studio/lib/plan-gates";
+import {
+  getPdfStudioFailureHelpHref,
+  getPdfStudioFailureLabel,
+  getPdfStudioFailureRecoveryHint,
+} from "@/features/docs/pdf-studio/lib/support";
 import { getPdfStudioTool } from "@/features/docs/pdf-studio/lib/tool-registry";
+import type { PdfStudioConversionFailureCode } from "@/features/docs/pdf-studio/lib/conversion-errors";
 import type {
   PdfStudioConversionJobStatus,
   PdfStudioToolId,
@@ -37,6 +44,7 @@ type ConversionStatusResponse = {
   bundleDownloadPath?: string;
   outputs?: ConversionOutputResponse[];
   error?: string;
+  failureCode?: PdfStudioConversionFailureCode;
   attempts?: number;
   totalItems?: number;
   completedItems?: number;
@@ -56,6 +64,7 @@ type ConversionHistoryEntry = {
   failedItems: number;
   sourceLabel: string;
   error?: string;
+  failureCode?: PdfStudioConversionFailureCode;
   canRetry: boolean;
   bundleAvailable: boolean;
   nextRetryAt?: string;
@@ -389,6 +398,28 @@ export function ServerConversionWorkspace(props: {
             </p>
           </div>
 
+          <div className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-700">
+            <p className="font-medium text-gray-900">Need recovery help?</p>
+            <p className="mt-1">
+              Keep the job ID, then use the PDF Studio troubleshooting guide or
+              workspace readiness page before escalating a failed conversion.
+            </p>
+            <div className="mt-3 flex flex-wrap gap-3 text-xs font-medium">
+              <Link
+                href="/help/troubleshooting/pdf-studio-jobs"
+                className="text-blue-600 hover:underline"
+              >
+                Open troubleshooting guide
+              </Link>
+              <Link
+                href="/app/docs/pdf-studio/readiness"
+                className="text-blue-600 hover:underline"
+              >
+                Open readiness &amp; diagnostics
+              </Link>
+            </div>
+          </div>
+
           {error ? (
             <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
               {error}
@@ -436,7 +467,31 @@ export function ServerConversionWorkspace(props: {
               ) : null}
 
               {job.error ? (
-                <p className="mt-3 text-sm text-red-700">{job.error}</p>
+                <div className="mt-3 space-y-2">
+                  <p className="text-sm text-red-700">{job.error}</p>
+                  {job.failureCode ? (
+                    <p className="text-xs font-medium text-red-700">
+                      Failure code: {getPdfStudioFailureLabel(job.failureCode)}
+                    </p>
+                  ) : null}
+                  <p className="text-xs text-[#666]">
+                    {getPdfStudioFailureRecoveryHint(job.failureCode)}
+                  </p>
+                  <div className="flex flex-wrap gap-3 text-xs font-medium">
+                    <Link
+                      href={getPdfStudioFailureHelpHref(job.failureCode)}
+                      className="text-blue-600 hover:underline"
+                    >
+                      Open recovery guide
+                    </Link>
+                    <Link
+                      href="/app/docs/pdf-studio/readiness"
+                      className="text-blue-600 hover:underline"
+                    >
+                      Open readiness &amp; diagnostics
+                    </Link>
+                  </div>
+                </div>
               ) : null}
 
               {job.downloadUrl && job.outputFileName ? (
@@ -534,7 +589,23 @@ export function ServerConversionWorkspace(props: {
                   </div>
 
                   {entry.error ? (
-                    <p className="mt-2 text-xs text-red-700">{entry.error}</p>
+                    <div className="mt-2 space-y-2">
+                      <p className="text-xs text-red-700">{entry.error}</p>
+                      {entry.failureCode ? (
+                      <p className="text-[11px] font-medium text-red-700">
+                          Failure code: {getPdfStudioFailureLabel(entry.failureCode)}
+                        </p>
+                      ) : null}
+                      <p className="text-[11px] text-[#666]">
+                        {getPdfStudioFailureRecoveryHint(entry.failureCode)}
+                      </p>
+                      <Link
+                        href={getPdfStudioFailureHelpHref(entry.failureCode)}
+                        className="inline-flex text-[11px] font-medium text-blue-600 hover:underline"
+                      >
+                        Open recovery guide
+                      </Link>
+                    </div>
                   ) : null}
                   {entry.nextRetryAt ? (
                     <p className="mt-2 text-xs text-[#7a5d00]">

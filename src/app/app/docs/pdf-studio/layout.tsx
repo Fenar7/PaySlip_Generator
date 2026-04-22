@@ -15,6 +15,20 @@ export default function PdfStudioLayout({
           >
             PDF Studio
           </Link>
+          <span>/</span>
+          <Link
+            href="/app/docs/pdf-studio/readiness"
+            className="transition-colors hover:text-[var(--foreground)]"
+          >
+            Readiness
+          </Link>
+          <span>/</span>
+          <Link
+            href="/help/troubleshooting/pdf-studio-jobs"
+            className="transition-colors hover:text-[var(--foreground)]"
+          >
+            Help
+          </Link>
         </nav>
       </div>
       {children}

@@ -65,6 +65,11 @@
           "slug": "error-codes",
           "title": "Error Codes Reference",
           "file": "troubleshooting/error-codes.md"
+        },
+        {
+          "slug": "pdf-studio-jobs",
+          "title": "PDF Studio Job Recovery",
+          "file": "troubleshooting/pdf-studio-jobs.md"
         }
       ]
     }

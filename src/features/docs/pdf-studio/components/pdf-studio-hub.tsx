@@ -178,12 +178,20 @@ export function PdfStudioHub({
                 </Link>
               </>
             ) : (
-              <Link
-                href="/pdf-studio"
-                className="inline-flex items-center justify-center rounded-full border border-[var(--border-strong)] bg-white px-4 py-2.5 text-sm font-medium text-[var(--foreground)] transition-colors hover:bg-[var(--surface-soft)]"
-              >
-                Browse public hub
-              </Link>
+              <>
+                <Link
+                  href="/app/docs/pdf-studio/readiness"
+                  className="inline-flex items-center justify-center rounded-full bg-[var(--accent)] px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-[var(--accent-strong)]"
+                >
+                  Readiness &amp; diagnostics
+                </Link>
+                <Link
+                  href="/pdf-studio"
+                  className="inline-flex items-center justify-center rounded-full border border-[var(--border-strong)] bg-white px-4 py-2.5 text-sm font-medium text-[var(--foreground)] transition-colors hover:bg-[var(--surface-soft)]"
+                >
+                  Browse public hub
+                </Link>
+              </>
             )}
           </div>
         </div>
