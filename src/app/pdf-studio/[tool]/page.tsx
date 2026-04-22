@@ -5,7 +5,7 @@ import { PdfStudioPublicToolShell } from "@/features/docs/pdf-studio/components/
 import { buildPdfStudioToolMetadata } from "@/features/docs/pdf-studio/lib/route-metadata";
 import {
   getPdfStudioToolBySlug,
-  isPdfStudioToolAvailableOnSurface,
+  isPdfStudioToolInteractiveForPublic,
   listPdfStudioTools,
 } from "@/features/docs/pdf-studio/lib/tool-registry";
 import { renderPdfStudioToolWorkspace } from "@/features/docs/pdf-studio/lib/tool-components";
@@ -23,7 +23,7 @@ export function generateMetadata({
 }): Promise<Metadata> | Metadata {
   return params.then(({ tool: slug }) => {
     const tool = getPdfStudioToolBySlug(slug);
-    if (!tool || !isPdfStudioToolAvailableOnSurface(tool, "public")) {
+    if (!tool) {
       return {};
     }
 
@@ -38,11 +38,13 @@ export default async function PublicPdfStudioToolPage({
 }) {
   const { tool: slug } = await params;
   const tool = getPdfStudioToolBySlug(slug);
-  if (!tool || !isPdfStudioToolAvailableOnSurface(tool, "public")) {
+  if (!tool) {
     notFound();
   }
 
-  if (tool.id === "create") {
+  const interactive = isPdfStudioToolInteractiveForPublic(tool);
+
+  if (tool.id === "create" && interactive) {
     return (
       <div className="space-y-6">
         <div>
@@ -69,7 +71,7 @@ export default async function PublicPdfStudioToolPage({
         </Link>
       </div>
       <PdfStudioPublicToolShell tool={tool}>
-        {renderPdfStudioToolWorkspace(tool.id)}
+        {interactive ? renderPdfStudioToolWorkspace(tool.id) : null}
       </PdfStudioPublicToolShell>
     </div>
   );

@@ -2,10 +2,18 @@
 
 import Link from "next/link";
 import { Badge } from "@/components/ui";
+import { useActiveOrg } from "@/hooks/use-active-org";
+import { usePlan } from "@/hooks/use-plan";
 import { cn } from "@/lib/utils";
+import { PdfStudioCapabilityMatrix } from "@/features/docs/pdf-studio/components/pdf-studio-capability-matrix";
 import { usePdfStudioAnalytics } from "@/features/docs/pdf-studio/lib/analytics";
 import {
+  getPdfStudioRetentionLabel,
+  getPdfStudioTierLabel,
+} from "@/features/docs/pdf-studio/lib/plan-gates";
+import {
   getPdfStudioExecutionCopy,
+  getPdfStudioTierBadgeCopy,
   listPdfStudioToolsByCategory,
 } from "@/features/docs/pdf-studio/lib/tool-registry";
 import type { PdfStudioToolDefinition } from "@/features/docs/pdf-studio/lib/tool-registry";
@@ -20,6 +28,7 @@ function ToolCard({
 }) {
   const href = surface === "public" ? tool.publicPath : tool.workspacePath;
   const execution = getPdfStudioExecutionCopy(tool.executionMode);
+  const tier = getPdfStudioTierBadgeCopy(tool);
 
   return (
     <Link
@@ -47,6 +56,17 @@ function ToolCard({
               }
             >
               {execution.badge}
+            </Badge>
+            <Badge
+              variant={
+                tier.tier === "free"
+                  ? "success"
+                  : tier.tier === "pro"
+                    ? "warning"
+                    : "default"
+              }
+            >
+              {tier.label}
             </Badge>
           </div>
           <p className="mt-1 text-xs leading-relaxed text-[var(--muted-foreground)]">
@@ -93,6 +113,10 @@ export function PdfStudioHub({
 }) {
   const categories = listPdfStudioToolsByCategory(surface);
   const analytics = usePdfStudioAnalytics("hub");
+  const { activeOrg } = useActiveOrg();
+  const { plan, loading: planLoading } = usePlan(
+    surface === "workspace" ? activeOrg?.id : undefined,
+  );
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:px-8">
@@ -162,6 +186,69 @@ export function PdfStudioHub({
             )}
           </div>
         </div>
+      </div>
+
+      <div className="mt-6 grid gap-6 lg:grid-cols-[minmax(0,2fr)_minmax(320px,1fr)]">
+        <PdfStudioCapabilityMatrix />
+
+        <section className="rounded-2xl border border-[var(--border-strong)] bg-white p-5 shadow-[var(--shadow-card)]">
+          <h2 className="text-base font-semibold text-[var(--foreground)]">
+            {surface === "public" ? "Capacity and upgrade lane" : "Your PDF Studio plan"}
+          </h2>
+          <p className="mt-1 text-sm text-[var(--muted-foreground)]">
+            {surface === "public"
+              ? "Public tools stay browser-first. Slipwise workspace adds recent history, and Pro unlocks Office conversions, batch jobs, repair, and longer download retention."
+              : planLoading
+                ? "Checking your active organization plan…"
+                : plan
+                  ? `You are on ${getPdfStudioTierLabel(plan.planId === "free" ? "free" : plan.planId === "starter" ? "workspace" : "pro")} (${plan.planName}) with ${getPdfStudioRetentionLabel(plan.planId)} download retention.`
+                  : "Pick an active organization to see workspace entitlements, history retention, and upgrade paths."}
+          </p>
+
+          <ul className="mt-4 space-y-2 text-sm text-[var(--foreground-soft)]">
+            <li>Starter workspace: signed-in tools, recent job history, and 24-hour downloads.</li>
+            <li>Pro workspace: Office conversions, tracked batch mode, repair, and longer retention.</li>
+            <li>Public lane: browser-first discovery pages and free utility tools without an account.</li>
+          </ul>
+
+          <div className="mt-5 flex flex-wrap gap-3">
+            {surface === "public" ? (
+              <>
+                <Link
+                  href="/app/docs/pdf-studio"
+                  className="inline-flex items-center justify-center rounded-full bg-[var(--accent)] px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-[var(--accent-strong)]"
+                >
+                  Open workspace
+                </Link>
+                <Link
+                  href="/pricing"
+                  className="inline-flex items-center justify-center rounded-full border border-[var(--border-strong)] bg-white px-4 py-2.5 text-sm font-medium text-[var(--foreground)] transition-colors hover:bg-[var(--surface-soft)]"
+                  onClick={() =>
+                    analytics.trackUpgradeIntent({
+                      destination: "/pricing",
+                      source: "hub-matrix",
+                    })
+                  }
+                >
+                  Compare plans
+                </Link>
+              </>
+            ) : plan?.planId === "starter" ? (
+              <Link
+                href="/pricing"
+                className="inline-flex items-center justify-center rounded-full bg-[var(--accent)] px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-[var(--accent-strong)]"
+                onClick={() =>
+                  analytics.trackUpgradeIntent({
+                    destination: "/pricing",
+                    source: "workspace-plan-panel",
+                  })
+                }
+              >
+                Upgrade to Pro
+              </Link>
+            ) : null}
+          </div>
+        </section>
       </div>
 
       <div className="mt-8 space-y-8">

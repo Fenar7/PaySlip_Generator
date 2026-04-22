@@ -2,11 +2,18 @@
 
 import { useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui";
+import { useActiveOrg } from "@/hooks/use-active-org";
+import { usePlan } from "@/hooks/use-plan";
 import { PDF_STUDIO_DEFAULT_SETTINGS } from "@/features/docs/pdf-studio/constants";
+import { PdfStudioUpgradeNotice } from "@/features/docs/pdf-studio/components/pdf-studio-upgrade-notice";
 import { OcrEnhancementPanel } from "@/features/docs/pdf-studio/components/ocr-enhancement-panel";
 import { OcrProgressPanel } from "@/features/docs/pdf-studio/components/ocr-progress-panel";
 import { PdfUploadZone } from "@/features/docs/pdf-studio/components/shared/pdf-upload-zone";
 import { usePdfStudioAnalytics } from "@/features/docs/pdf-studio/lib/analytics";
+import {
+  PDF_STUDIO_STARTER_OCR_PAGE_LIMIT,
+  getPdfStudioToolUpgradeCopy,
+} from "@/features/docs/pdf-studio/lib/plan-gates";
 import {
   buildPdfStudioOutputName,
   getPdfStudioSourceBaseName,
@@ -46,6 +53,8 @@ function buildCombinedText(images: ImageItem[]) {
 
 export function OcrWorkspace() {
   const analytics = usePdfStudioAnalytics("ocr");
+  const { activeOrg } = useActiveOrg();
+  const { plan } = usePlan(activeOrg?.id);
   const [sourceFile, setSourceFile] = useState<File | null>(null);
   const [fileClass, setFileClass] = useState<PdfStudioFileClass | null>(null);
   const [images, setImages] = useState<ImageItem[]>([]);
@@ -103,6 +112,9 @@ export function OcrWorkspace() {
     [sourceFile],
   );
   const canExport = resultCards.length > 0;
+  const largeFileRequiresPro =
+    images.length > PDF_STUDIO_STARTER_OCR_PAGE_LIMIT &&
+    (!plan || (plan.planId !== "pro" && plan.planId !== "enterprise"));
 
   async function handleFiles(files: File[]) {
     const file = files[0];
@@ -138,6 +150,12 @@ export function OcrWorkspace() {
   async function handleRunOcr() {
     if (!sourceFile || images.length === 0) {
       setError("Upload a scanned PDF or image before starting OCR.");
+      return;
+    }
+    if (largeFileRequiresPro) {
+      setError(
+        `This upload has ${images.length} pages. Starter covers OCR up to ${PDF_STUDIO_STARTER_OCR_PAGE_LIMIT} pages per run. Upgrade to Pro for larger scans.`,
+      );
       return;
     }
 
@@ -339,6 +357,18 @@ export function OcrWorkspace() {
 
   return (
     <div className="mx-auto max-w-5xl space-y-6 px-4 py-8 sm:px-6">
+      {largeFileRequiresPro ? (
+        <PdfStudioUpgradeNotice
+          toolId="ocr"
+          surface={analytics.surface}
+          requiredPlan="pro"
+          title="Large OCR runs need Pro"
+          description={getPdfStudioToolUpgradeCopy("ocr")}
+          ctaLabel="Upgrade to Pro"
+          ctaHref="/pricing"
+        />
+      ) : null}
+
       <div className="pdf-studio-tool-header">
         <h1 className="text-2xl font-bold tracking-tight text-[#1a1a1a] sm:text-3xl">
           OCR PDF &amp; Images
@@ -357,7 +387,11 @@ export function OcrWorkspace() {
               onFiles={(files) => void handleFiles(files)}
               toolId="ocr"
               label="Drop a scanned PDF or image here"
-              sublabel="PDF or image • 1 file • max 40MB • up to 30 pages"
+              sublabel={`PDF or image • 1 file • max 40MB • up to ${
+                plan?.planId === "pro" || plan?.planId === "enterprise"
+                  ? 30
+                  : PDF_STUDIO_STARTER_OCR_PAGE_LIMIT
+              } pages on this lane`}
             />
 
             {sourceFile ? (
@@ -371,7 +405,7 @@ export function OcrWorkspace() {
                     {fileClass === "pdf" ? "PDF source" : "image source"}
                   </p>
                 </div>
-                <Button onClick={() => void handleRunOcr()} disabled={running}>
+                <Button onClick={() => void handleRunOcr()} disabled={running || largeFileRequiresPro}>
                   {running ? "Running OCR…" : "Start OCR"}
                 </Button>
               </div>
@@ -379,6 +413,13 @@ export function OcrWorkspace() {
 
             {statusMessage ? (
               <p className="mt-4 text-sm text-[#666]">{statusMessage}</p>
+            ) : null}
+            {!largeFileRequiresPro &&
+            images.length > 0 &&
+            images.length > PDF_STUDIO_STARTER_OCR_PAGE_LIMIT - 2 ? (
+              <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+                Starter covers OCR up to {PDF_STUDIO_STARTER_OCR_PAGE_LIMIT} pages per run. Larger scanned files move to the Pro lane.
+              </div>
             ) : null}
 
             <div className="mt-4">

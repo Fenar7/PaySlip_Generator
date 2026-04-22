@@ -7,6 +7,7 @@ vi.mock("@/lib/auth", () => ({
 
 vi.mock("@/lib/plans/enforcement", () => ({
   checkFeature: vi.fn(),
+  getOrgPlan: vi.fn(),
 }));
 
 vi.mock("@/lib/rate-limit", () => ({
@@ -28,7 +29,7 @@ vi.mock("@/features/docs/pdf-studio/lib/server-conversion-policy", () => ({
 }));
 
 import { getOrgContext } from "@/lib/auth";
-import { checkFeature } from "@/lib/plans/enforcement";
+import { checkFeature, getOrgPlan } from "@/lib/plans/enforcement";
 import { rateLimitByOrg } from "@/lib/rate-limit";
 import {
   countActivePdfStudioConversionJobs,
@@ -89,6 +90,12 @@ describe("POST /api/pdf-studio/conversions", () => {
       role: "ADMIN",
     } as never);
     vi.mocked(checkFeature).mockResolvedValue(true);
+    vi.mocked(getOrgPlan).mockResolvedValue({
+      planId: "pro",
+      status: "active",
+      limits: {},
+      trialEndsAt: null,
+    } as never);
     vi.mocked(rateLimitByOrg).mockResolvedValue({
       success: true,
       remaining: 9,
@@ -141,6 +148,28 @@ describe("POST /api/pdf-studio/conversions", () => {
 
     expect(response.status).toBe(403);
     expect(body.error).toContain("PDF Studio conversions require a plan");
+    expect(createPdfStudioConversionJob).not.toHaveBeenCalled();
+  });
+
+  it("requires Pro for office conversions and tracked batch jobs", async () => {
+    vi.mocked(getOrgPlan).mockResolvedValue({
+      planId: "starter",
+      status: "active",
+      limits: {},
+      trialEndsAt: null,
+    } as never);
+
+    const response = await POST(
+      makeRequest({
+        toolId: "html-to-pdf",
+        targetFormat: "pdf",
+      }),
+    );
+    const body = await response.json();
+
+    expect(response.status).toBe(403);
+    expect(body.code).toBe("pdf_studio_pro_required");
+    expect(body.error).toContain("require the Pro plan");
     expect(createPdfStudioConversionJob).not.toHaveBeenCalled();
   });
 

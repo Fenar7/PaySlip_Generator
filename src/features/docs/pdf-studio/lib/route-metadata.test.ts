@@ -17,7 +17,7 @@ describe("pdf studio route metadata", () => {
 
     expect(metadata.alternates?.canonical).toBe("/pdf-studio/repair");
     expect(metadata.title).toBe("Repair PDF | PDF Studio");
-    expect(metadata.description).toContain("Runs entirely in your browser");
+    expect(metadata.description).toContain("Pro access");
   });
 
   it("uses public canonicals for new Phase 30 public-ready tools", () => {
@@ -38,14 +38,14 @@ describe("pdf studio route metadata", () => {
   it("marks workspace pages as non-indexable while sharing canonical targets", () => {
     const metadata = buildPdfStudioToolMetadata("protect", "workspace");
 
-    expect(metadata.alternates?.canonical).toBe("/app/docs/pdf-studio/protect");
+    expect(metadata.alternates?.canonical).toBe("/pdf-studio/protect");
     expect(metadata.robots).toEqual({ index: false, follow: false });
   });
 
   it("keeps new Phase 31 workspace-only tools non-indexable", () => {
     const metadata = buildPdfStudioToolMetadata("flatten", "workspace");
 
-    expect(metadata.alternates?.canonical).toBe("/app/docs/pdf-studio/flatten");
+    expect(metadata.alternates?.canonical).toBe("/pdf-studio/flatten");
     expect(metadata.robots).toEqual({ index: false, follow: false });
     expect(metadata.title).toBe("Flatten PDF | PDF Studio");
   });
@@ -61,7 +61,7 @@ describe("pdf studio route metadata", () => {
   it("keeps server-backed Phase 32 tools workspace-only and non-indexable", () => {
     const metadata = buildPdfStudioToolMetadata("pdf-to-word", "workspace");
 
-    expect(metadata.alternates?.canonical).toBe("/app/docs/pdf-studio/pdf-to-word");
+    expect(metadata.alternates?.canonical).toBe("/pdf-studio/pdf-to-word");
     expect(metadata.title).toBe("PDF to Word | PDF Studio");
     expect(metadata.description).toContain("Uses secure server-side processing");
     expect(metadata.robots).toEqual({ index: false, follow: false });

@@ -1,9 +1,10 @@
 import type { Metadata } from "next";
 import {
   getPdfStudioCanonicalPath,
+  getPdfStudioTierBadgeCopy,
   getPdfStudioExecutionCopy,
   getPdfStudioTool,
-  isPdfStudioToolAvailableOnSurface,
+  isPdfStudioToolInteractiveForPublic,
 } from "@/features/docs/pdf-studio/lib/tool-registry";
 import type {
   PdfStudioToolId,
@@ -28,6 +29,11 @@ export function buildPdfStudioHubMetadata(
         description: PDF_STUDIO_HUB_DESCRIPTION,
         url: "/pdf-studio",
       },
+      twitter: {
+        card: "summary_large_image",
+        title: "PDF Studio | Slipwise",
+        description: PDF_STUDIO_HUB_DESCRIPTION,
+      },
     };
   }
 
@@ -51,10 +57,15 @@ export function buildPdfStudioToolMetadata(
 ): Metadata {
   const tool = getPdfStudioTool(toolId);
   const execution = getPdfStudioExecutionCopy(tool.executionMode);
-  const description = `${tool.description} ${execution.description}`;
+  const tier = getPdfStudioTierBadgeCopy(tool);
+  const publicInteractive = isPdfStudioToolInteractiveForPublic(tool);
+  const description =
+    surface === "public" && !publicInteractive
+      ? `${tool.description} ${tier.label} access. Open the Slipwise workspace to run this tool with the right plan and document controls.`
+      : `${tool.description} ${execution.description}`;
   const canonicalPath = getPdfStudioCanonicalPath(tool);
 
-  if (surface === "public" && isPdfStudioToolAvailableOnSurface(tool, "public")) {
+  if (surface === "public") {
     return {
       title: `${tool.title} | PDF Studio`,
       description,
@@ -65,6 +76,11 @@ export function buildPdfStudioToolMetadata(
         title: `${tool.title} | PDF Studio`,
         description,
         url: canonicalPath,
+      },
+      twitter: {
+        card: "summary_large_image",
+        title: `${tool.title} | PDF Studio`,
+        description,
       },
       keywords: tool.keywords,
     };
