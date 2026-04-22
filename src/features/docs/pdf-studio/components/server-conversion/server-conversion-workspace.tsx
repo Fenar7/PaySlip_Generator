@@ -11,7 +11,8 @@ import {
   buildPdfStudioUploadSummary,
 } from "@/features/docs/pdf-studio/lib/ingestion";
 import {
-  getPdfStudioRetentionLabel,
+  getPdfStudioHistoryEntryLimit,
+  getPdfStudioRetentionMessaging,
   getPdfStudioToolUpgradeCopy,
   getPdfStudioWorkspaceMinimumPlan,
 } from "@/features/docs/pdf-studio/lib/plan-gates";
@@ -60,6 +61,13 @@ type ConversionHistoryEntry = {
   nextRetryAt?: string;
 };
 
+type ConversionHistoryResponse = {
+  items?: ConversionHistoryEntry[];
+  meta?: {
+    historyLimit?: number;
+  };
+};
+
 function formatJobStatus(status: PdfStudioConversionJobStatus) {
   switch (status) {
     case "pending":
@@ -91,9 +99,18 @@ export function ServerConversionWorkspace(props: {
     () => getPdfStudioWorkspaceMinimumPlan(props.toolId),
     [props.toolId],
   );
+  const historyLimit = useMemo(
+    () => getPdfStudioHistoryEntryLimit(plan?.planId ?? "starter"),
+    [plan?.planId],
+  );
+  const retentionMessaging = useMemo(
+    () => getPdfStudioRetentionMessaging(plan?.planId ?? "starter"),
+    [plan?.planId],
+  );
   const [files, setFiles] = useState<File[]>([]);
   const [job, setJob] = useState<ConversionStatusResponse | null>(null);
   const [history, setHistory] = useState<ConversionHistoryEntry[]>([]);
+  const [historyWindow, setHistoryWindow] = useState(0);
   const [historyLoading, setHistoryLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -101,10 +118,17 @@ export function ServerConversionWorkspace(props: {
   const [loadingJobId, setLoadingJobId] = useState<string | null>(null);
 
   const loadHistory = useCallback(async () => {
+    if (!activeOrg?.id || historyLimit === 0) {
+      setHistory([]);
+      setHistoryWindow(0);
+      setHistoryLoading(false);
+      return;
+    }
+
     setHistoryLoading(true);
     try {
       const response = await fetch(
-        `/api/pdf-studio/conversions/history?toolId=${props.toolId}&limit=10`,
+        `/api/pdf-studio/conversions/history?toolId=${props.toolId}&limit=${historyLimit}`,
         {
           cache: "no-store",
         },
@@ -112,14 +136,15 @@ export function ServerConversionWorkspace(props: {
       if (!response.ok) {
         throw new Error("Could not load recent PDF Studio jobs.");
       }
-      const payload = (await response.json()) as { items?: ConversionHistoryEntry[] };
+      const payload = (await response.json()) as ConversionHistoryResponse;
       setHistory(payload.items ?? []);
+      setHistoryWindow(payload.meta?.historyLimit ?? historyLimit);
     } catch (historyError) {
       console.error(historyError);
     } finally {
       setHistoryLoading(false);
     }
-  }, [props.toolId]);
+  }, [activeOrg?.id, historyLimit, props.toolId]);
 
   const refreshJob = useCallback(
     async (jobId: string) => {
@@ -359,11 +384,9 @@ export function ServerConversionWorkspace(props: {
                 Batch mode queues multiple source files as one tracked job and keeps the same job ID through automatic retries.
               </p>
             ) : null}
-            {plan ? (
-              <p className="mt-2 text-xs text-amber-900/90">
-                Your current plan keeps completed downloads for {getPdfStudioRetentionLabel(plan.planId)}.
-              </p>
-            ) : null}
+            <p className="mt-2 text-xs text-amber-900/90">
+              {retentionMessaging.planNotice}
+            </p>
           </div>
 
           {error ? (
@@ -462,7 +485,7 @@ export function ServerConversionWorkspace(props: {
 
               {(job.downloadUrl || job.bundleDownloadPath) ? (
                 <p className="mt-3 text-xs text-[#666]">
-                  Download links stay available for 24 hours after the conversion finishes.
+                  {retentionMessaging.completionNotice}
                 </p>
               ) : (
                 <p className="mt-3 text-sm text-[#666]">
@@ -477,7 +500,9 @@ export function ServerConversionWorkspace(props: {
           <div>
             <h2 className="text-base font-semibold text-[#1a1a1a]">Recent jobs</h2>
             <p className="mt-1 text-sm text-[#666]">
-              Resume active jobs, review failures, and reopen completed results for this tool.
+              {historyWindow > 0
+                ? `Resume active jobs, review failures, and reopen completed results from the last ${historyWindow} tracked jobs for this tool.`
+                : "Resume active jobs, review failures, and reopen completed results for this tool."}
             </p>
           </div>
 

@@ -100,6 +100,22 @@ export function getPdfStudioHistoryEntryLimit(planId: PlanId) {
   return PDF_STUDIO_HISTORY_ENTRY_LIMITS[planId];
 }
 
+export function clampPdfStudioHistoryLimit(
+  planId: PlanId,
+  requestedLimit?: number,
+) {
+  const maxLimit = getPdfStudioHistoryEntryLimit(planId);
+  if (maxLimit <= 0) {
+    return 0;
+  }
+
+  if (!Number.isFinite(requestedLimit)) {
+    return maxLimit;
+  }
+
+  return Math.min(Math.max(Math.trunc(requestedLimit ?? maxLimit), 1), maxLimit);
+}
+
 export function getPdfStudioRetentionLabel(planId: PlanId) {
   const hours = getPdfStudioResultRetentionHours(planId);
   if (hours >= 24 && hours % 24 === 0) {
@@ -108,6 +124,16 @@ export function getPdfStudioRetentionLabel(planId: PlanId) {
   }
 
   return `${hours} hour${hours === 1 ? "" : "s"}`;
+}
+
+export function getPdfStudioRetentionMessaging(planId: PlanId) {
+  const retentionLabel = getPdfStudioRetentionLabel(planId);
+
+  return {
+    retentionLabel,
+    planNotice: `Completed downloads and batch bundles stay available for ${retentionLabel} on your current plan.`,
+    completionNotice: `Download links and batch bundles stay available for ${retentionLabel} after the conversion finishes.`,
+  };
 }
 
 export function getPdfStudioToolUpgradeCopy(toolId: PdfStudioToolId) {

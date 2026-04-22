@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
   buildPdfStudioHubMetadata,
+  buildPdfStudioHubStructuredData,
   buildPdfStudioToolMetadata,
+  buildPdfStudioToolStructuredData,
 } from "@/features/docs/pdf-studio/lib/route-metadata";
 
 describe("pdf studio route metadata", () => {
@@ -12,12 +14,34 @@ describe("pdf studio route metadata", () => {
     expect(metadata.openGraph?.url).toBe("/pdf-studio");
   });
 
+  it("builds structured data for the public hub", () => {
+    const structuredData = buildPdfStudioHubStructuredData();
+
+    expect(structuredData["@type"]).toBe("CollectionPage");
+    expect(structuredData.url).toBe("https://app.slipwise.app/pdf-studio");
+    expect(
+      structuredData.mainEntity.itemListElement.some(
+        (entry: { name?: string; url?: string }) =>
+          entry.name === "Repair PDF" &&
+          entry.url === "https://app.slipwise.app/pdf-studio/repair",
+      ),
+    ).toBe(true);
+  });
+
   it("builds canonical public metadata for tool pages", () => {
     const metadata = buildPdfStudioToolMetadata("repair", "public");
 
     expect(metadata.alternates?.canonical).toBe("/pdf-studio/repair");
     expect(metadata.title).toBe("Repair PDF | PDF Studio");
     expect(metadata.description).toContain("Pro access");
+  });
+
+  it("builds structured data for public tool landing pages", () => {
+    const structuredData = buildPdfStudioToolStructuredData("repair");
+
+    expect(structuredData["@type"]).toBe("WebPage");
+    expect(structuredData.url).toBe("https://app.slipwise.app/pdf-studio/repair");
+    expect(structuredData.description).toContain("Pro access");
   });
 
   it("uses public canonicals for new Phase 30 public-ready tools", () => {

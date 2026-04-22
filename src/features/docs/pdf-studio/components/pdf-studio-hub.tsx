@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui";
 import { useActiveOrg } from "@/hooks/use-active-org";
 import { usePlan } from "@/hooks/use-plan";
 import { cn } from "@/lib/utils";
+import { PdfStudioAnalyticsPanel } from "@/features/docs/pdf-studio/components/pdf-studio-analytics-panel";
 import { PdfStudioCapabilityMatrix } from "@/features/docs/pdf-studio/components/pdf-studio-capability-matrix";
 import { usePdfStudioAnalytics } from "@/features/docs/pdf-studio/lib/analytics";
 import {
@@ -252,6 +253,15 @@ export function PdfStudioHub({
       </div>
 
       <div className="mt-8 space-y-8">
+        {surface === "workspace" ? (
+          <PdfStudioAnalyticsPanel
+            orgId={activeOrg?.id}
+            planId={plan?.planId}
+            planName={plan?.planName}
+            planLoading={planLoading}
+          />
+        ) : null}
+
         {categories.map((category) => (
           <section key={category.id}>
             <h2 className="mb-4 text-sm font-semibold uppercase tracking-[0.15em] text-[var(--muted-foreground)]">

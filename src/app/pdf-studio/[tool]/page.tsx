@@ -2,7 +2,10 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { PdfStudioPublicToolShell } from "@/features/docs/pdf-studio/components/pdf-studio-public-tool-shell";
-import { buildPdfStudioToolMetadata } from "@/features/docs/pdf-studio/lib/route-metadata";
+import {
+  buildPdfStudioToolMetadata,
+  buildPdfStudioToolStructuredData,
+} from "@/features/docs/pdf-studio/lib/route-metadata";
 import {
   getPdfStudioToolBySlug,
   isPdfStudioToolInteractiveForPublic,
@@ -43,10 +46,15 @@ export default async function PublicPdfStudioToolPage({
   }
 
   const interactive = isPdfStudioToolInteractiveForPublic(tool);
+  const structuredData = buildPdfStudioToolStructuredData(tool.id);
 
   if (tool.id === "create" && interactive) {
     return (
       <div className="space-y-6">
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData) }}
+        />
         <div>
           <Link
             href="/pdf-studio"
@@ -62,6 +70,10 @@ export default async function PublicPdfStudioToolPage({
 
   return (
     <div className="space-y-6">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData) }}
+      />
       <div>
         <Link
           href="/pdf-studio"
