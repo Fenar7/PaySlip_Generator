@@ -178,6 +178,7 @@ export async function POST(
 
     revalidatePath(`/invoice/${token}`);
     revalidatePath("/app/pay/proofs");
+    revalidatePath("/app/docs/invoices");
 
     await notifyOrgAdmins({
       orgId: invoice.organizationId,

@@ -13,6 +13,9 @@ export type ActionResult<T> =
   | { success: true; data: T }
   | { success: false; error: string };
 
+const PROOF_NOT_FOUND_ERROR = "Proof not found";
+const PROOF_LOAD_ERROR = "Failed to load proof";
+
 export async function listProofs(params?: {
   status?: string;
   page?: number;
@@ -134,7 +137,7 @@ export async function getProofDetail(proofId: string): Promise<
     });
 
     if (!proof) {
-      return { success: false, error: "Proof not found" };
+      return { success: false, error: PROOF_NOT_FOUND_ERROR };
     }
 
     // Effective remaining: for legacy invoices where remainingAmount hasn't been
@@ -178,7 +181,7 @@ export async function getProofDetail(proofId: string): Promise<
     };
   } catch (error) {
     console.error("getProofDetail error:", error);
-    return { success: false, error: "Failed to load proof" };
+    return { success: false, error: PROOF_LOAD_ERROR };
   }
 }
 
@@ -269,6 +272,7 @@ export async function acceptProof(proofId: string): Promise<ActionResult<void>> 
 
     revalidatePath("/app/pay/proofs");
     revalidatePath("/app/pay/receivables");
+    revalidatePath("/app/docs/invoices");
     return { success: true, data: undefined };
   } catch (error) {
     console.error("acceptProof error:", error);
@@ -335,9 +339,12 @@ export async function rejectProof(
 
     revalidatePath("/app/pay/proofs");
     revalidatePath("/app/pay/receivables");
+    revalidatePath("/app/docs/invoices");
     return { success: true, data: undefined };
   } catch (error) {
     console.error("rejectProof error:", error);
     return { success: false, error: "Failed to reject proof" };
   }
 }
+
+export { PROOF_NOT_FOUND_ERROR, PROOF_LOAD_ERROR };

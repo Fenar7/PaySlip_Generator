@@ -53,7 +53,12 @@ vi.mock("next/cache", () => ({
   revalidatePath: mocks.revalidatePath,
 }));
 
-import { acceptProof, getProofDetail, rejectProof } from "../actions";
+import {
+  acceptProof,
+  getProofDetail,
+  rejectProof,
+  PROOF_LOAD_ERROR,
+} from "../actions";
 
 describe("getProofDetail", () => {
   beforeEach(() => {
@@ -153,6 +158,39 @@ describe("getProofDetail", () => {
     expect(mocks.getSignedUrlServer).not.toHaveBeenCalled();
   });
 
+  it("returns a load error when proof URL resolution fails", async () => {
+    mocks.invoiceProofFindFirst.mockResolvedValue({
+      id: "proof-1",
+      fileUrl: "proofs/org-1/inv-1/proof.png",
+      fileName: "proof.png",
+      amount: 1200,
+      paymentDate: "2026-04-21",
+      paymentMethod: "bank_transfer",
+      plannedNextPaymentDate: null,
+      reviewStatus: "PENDING",
+      reviewNote: null,
+      createdAt: new Date("2026-04-21T10:00:00.000Z"),
+      reviewedAt: null,
+      invoice: {
+        id: "inv-1",
+        invoiceNumber: "INV-001",
+        totalAmount: 5000,
+        amountPaid: 1000,
+        remainingAmount: 4000,
+        status: "ISSUED",
+        customer: { name: "Acme" },
+      },
+    });
+    mocks.getSignedUrlServer.mockRejectedValue(new Error("storage unavailable"));
+
+    const result = await getProofDetail("proof-1");
+
+    expect(result).toEqual({
+      success: false,
+      error: PROOF_LOAD_ERROR,
+    });
+  });
+
   it("notifies org admins when a proof is accepted", async () => {
     mocks.invoiceProofFindFirst.mockResolvedValue({
       id: "proof-1",
@@ -177,6 +215,7 @@ describe("getProofDetail", () => {
       link: "/app/pay/proofs/proof-1",
       excludeUserId: "user-1",
     });
+    expect(mocks.revalidatePath).toHaveBeenCalledWith("/app/docs/invoices");
   });
 
   it("notifies org admins when a proof is rejected", async () => {
@@ -203,5 +242,6 @@ describe("getProofDetail", () => {
       link: "/app/pay/proofs/proof-1",
       excludeUserId: "user-1",
     });
+    expect(mocks.revalidatePath).toHaveBeenCalledWith("/app/docs/invoices");
   });
 });

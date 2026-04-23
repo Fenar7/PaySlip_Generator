@@ -122,6 +122,7 @@ describe("public payment proof upload route", () => {
       body: "A payment proof was submitted for invoice INV-001.",
       link: "/app/pay/proofs/proof-1",
     });
+    expect(mocks.revalidatePath).toHaveBeenCalledWith("/app/docs/invoices");
   });
 
   it("reconciles stale invoice snapshots before deciding proof eligibility", async () => {
