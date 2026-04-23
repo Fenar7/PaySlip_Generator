@@ -39,6 +39,10 @@ function hasSupabaseSessionConfig() {
   );
 }
 
+function isPublicPdfStudioRoute(pathname: string) {
+  return pathname === "/pdf-studio" || pathname.startsWith("/pdf-studio/");
+}
+
 // ─── Security Headers ─────────────────────────────────────────────────────────
 
 const SECURITY_HEADERS: Record<string, string> = {
@@ -224,7 +228,7 @@ export async function middleware(request: NextRequest) {
     prefix === "/" ? pathname === "/" : pathname.startsWith(prefix)
   );
 
-  if (isPublic && !hasSupabaseSessionConfig()) {
+  if (isPublicPdfStudioRoute(pathname) && !hasSupabaseSessionConfig()) {
     return applySecurityHeaders(NextResponse.next({ request }));
   }
 

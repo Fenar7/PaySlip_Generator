@@ -32,9 +32,12 @@ describe("middleware", () => {
     });
   });
 
-  it("keeps public pdf-studio routes alive without supabase env", async () => {
+  it.each([
+    "/pdf-studio",
+    "/pdf-studio/fill-sign",
+  ])("keeps %s alive without supabase env", async (pathname) => {
     const response = await middleware(
-      new NextRequest("https://example.com/pdf-studio/fill-sign"),
+      new NextRequest(`https://example.com${pathname}`),
     );
 
     expect(updateSession).not.toHaveBeenCalled();
@@ -44,7 +47,19 @@ describe("middleware", () => {
     );
   });
 
-  it("still refreshes the session for public routes when supabase env exists", async () => {
+  it.each([
+    "/help",
+    "/auth/login",
+  ])(
+    "still refreshes the session for unrelated public route %s when supabase env is absent",
+    async (pathname) => {
+      await middleware(new NextRequest(`https://example.com${pathname}`));
+
+      expect(updateSession).toHaveBeenCalledTimes(1);
+    },
+  );
+
+  it("still refreshes the session for pdf-studio routes when supabase env exists", async () => {
     process.env.NEXT_PUBLIC_SUPABASE_URL = "https://example.supabase.co";
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = "anon-key";
 
