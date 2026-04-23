@@ -696,7 +696,30 @@ export async function listInvoices(params?: {
       skip,
       take: limit,
       orderBy: { createdAt: "desc" },
-      include: { customer: true, publicTokens: true },
+      include: {
+        customer: true,
+        publicTokens: true,
+        proofs: {
+          where: { reviewStatus: "PENDING" },
+          orderBy: { createdAt: "desc" },
+          take: 2,
+          select: {
+            id: true,
+            createdAt: true,
+          },
+        },
+        tickets: {
+          where: { status: { in: ["OPEN", "IN_PROGRESS"] } },
+          orderBy: { createdAt: "desc" },
+          take: 2,
+          select: {
+            id: true,
+            status: true,
+            category: true,
+            createdAt: true,
+          },
+        },
+      },
     }),
     db.invoice.count({ where }),
   ]);
