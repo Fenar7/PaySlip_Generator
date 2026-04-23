@@ -649,6 +649,7 @@ export const PDF_STUDIO_TOOL_REGISTRY: Record<
     outputLabel: "DOCX",
     limits: {
       ...SHARED_PDF_LIMITS,
+      maxFiles: 10,
       maxSizeMb: 25,
       maxPages: 120,
     },
@@ -670,6 +671,7 @@ export const PDF_STUDIO_TOOL_REGISTRY: Record<
     outputLabel: "XLSX",
     limits: {
       ...SHARED_PDF_LIMITS,
+      maxFiles: 10,
       maxSizeMb: 20,
       maxPages: 120,
     },
@@ -691,6 +693,7 @@ export const PDF_STUDIO_TOOL_REGISTRY: Record<
     outputLabel: "PPTX",
     limits: {
       ...SHARED_PDF_LIMITS,
+      maxFiles: 10,
       maxSizeMb: 25,
       maxPages: 120,
     },
@@ -712,6 +715,7 @@ export const PDF_STUDIO_TOOL_REGISTRY: Record<
     outputLabel: "PDF",
     limits: {
       ...SHARED_PDF_LIMITS,
+      maxFiles: 10,
       maxSizeMb: 15,
       maxPages: undefined,
     },
@@ -733,6 +737,7 @@ export const PDF_STUDIO_TOOL_REGISTRY: Record<
     outputLabel: "PDF",
     limits: {
       ...SHARED_PDF_LIMITS,
+      maxFiles: 10,
       maxSizeMb: 5,
       maxPages: undefined,
     },

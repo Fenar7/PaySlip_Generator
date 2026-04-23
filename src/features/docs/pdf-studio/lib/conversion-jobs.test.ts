@@ -13,6 +13,7 @@ vi.mock("@/lib/db", () => ({
 
 vi.mock("@/lib/storage/upload-server", () => ({
   deleteFileServer: vi.fn(),
+  downloadFileServer: vi.fn(),
   getSignedUrlServer: vi.fn(),
   uploadFileServer: vi.fn(),
 }));
@@ -82,5 +83,62 @@ describe("conversion job lifecycle", () => {
       { useAdmin: true },
     );
     expect(db.jobLog.delete).toHaveBeenCalledWith({ where: { id: "job-1" } });
+  });
+
+  it("exposes batch output details and bundle download paths for completed jobs", async () => {
+    vi.mocked(db.jobLog.findFirst).mockResolvedValue({
+      id: "job-batch",
+      status: "completed",
+      retryCount: 1,
+      errorMessage: null,
+      nextRetryAt: null,
+      payload: {
+        toolId: "pdf-to-word",
+        targetFormat: "docx",
+        totalItems: 2,
+        resultExpiresAt: new Date(Date.now() + 60_000).toISOString(),
+        outputs: [
+          {
+            index: 0,
+            sourceFileName: "alpha.pdf",
+            storageKey: "org-1/pdf-studio/conversions/job-batch/outputs/01-alpha.docx",
+            fileName: "alpha-batch-01.docx",
+            mimeType:
+              "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+          },
+          {
+            index: 1,
+            sourceFileName: "beta.pdf",
+            storageKey: "org-1/pdf-studio/conversions/job-batch/outputs/02-beta.docx",
+            fileName: "beta-batch-02.docx",
+            mimeType:
+              "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+          },
+        ],
+      },
+    } as never);
+    vi.mocked(getSignedUrlServer)
+      .mockResolvedValueOnce("https://example.com/alpha")
+      .mockResolvedValueOnce("https://example.com/beta");
+
+    const job = await getPdfStudioConversionJob("job-batch", "org-1");
+
+    expect(job).toMatchObject({
+      jobId: "job-batch",
+      status: "completed",
+      totalItems: 2,
+      completedItems: 2,
+      bundleDownloadPath: "/api/pdf-studio/conversions/job-batch/bundle",
+      outputs: [
+        {
+          outputFileName: "alpha-batch-01.docx",
+          downloadUrl: "https://example.com/alpha",
+        },
+        {
+          outputFileName: "beta-batch-02.docx",
+          downloadUrl: "https://example.com/beta",
+        },
+      ],
+    });
   });
 });

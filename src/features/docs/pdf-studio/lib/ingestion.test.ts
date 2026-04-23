@@ -68,6 +68,9 @@ describe("pdf studio ingestion helpers", () => {
     expect(buildPdfStudioUploadSummary("create")).toBe(
       "images • up to 30 files • max 50MB each",
     );
+    expect(buildPdfStudioUploadSummary("pdf-to-word")).toBe(
+      "PDF • up to 10 files • max 25MB each • up to 120 pages",
+    );
   });
 
   it("enforces exact combined-page boundaries for page-organization tools", () => {
