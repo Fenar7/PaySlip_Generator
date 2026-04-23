@@ -32,22 +32,11 @@ export interface SalarySlipInput {
 
 function normalizeSalaryComponents(
   components: SalaryComponentInput[],
+  { allowPartial = false }: { allowPartial?: boolean } = {}
 ): { components: SalaryComponentInput[]; grossPay: number; netPay: number } {
-  if (components.length === 0) {
-    throw new Error("Salary slips need at least one earning component.");
-  }
-
   const normalizedComponents = components.map((component) => {
     const label = component.label.trim();
     const amount = normalizeMoney(component.amount);
-
-    if (!label) {
-      throw new Error("Salary component labels are required.");
-    }
-
-    if (amount < 0) {
-      throw new Error("Salary component amounts cannot be negative.");
-    }
 
     return {
       ...component,
@@ -55,6 +44,46 @@ function normalizeSalaryComponents(
       amount,
     };
   });
+
+  if (allowPartial) {
+    const draftComponents = normalizedComponents.filter(
+      (component) => component.label.length > 0 && component.amount > 0
+    );
+    const grossPay = fromMinorUnits(
+      sumMinorUnits(
+        draftComponents
+          .filter((component) => component.type === "earning")
+          .map((component) => component.amount),
+      ),
+    );
+    const totalDeductions = fromMinorUnits(
+      sumMinorUnits(
+        draftComponents
+          .filter((component) => component.type === "deduction")
+          .map((component) => component.amount),
+      ),
+    );
+
+    return {
+      components: draftComponents,
+      grossPay,
+      netPay: normalizeMoney(Math.max(grossPay - totalDeductions, 0)),
+    };
+  }
+
+  if (normalizedComponents.length === 0) {
+    throw new Error("Salary slips need at least one earning component.");
+  }
+
+  for (const component of normalizedComponents) {
+    if (!component.label) {
+      throw new Error("Salary component labels are required.");
+    }
+
+    if (component.amount < 0) {
+      throw new Error("Salary component amounts cannot be negative.");
+    }
+  }
 
   const grossPay = fromMinorUnits(
     sumMinorUnits(
@@ -122,7 +151,9 @@ export async function saveSalarySlip(
     
     const slipNumber = await nextDocumentNumber(orgId, "salarySlip");
     
-    const normalizedSalary = normalizeSalaryComponents(input.components);
+    const normalizedSalary = normalizeSalaryComponents(input.components, {
+      allowPartial: status === "draft",
+    });
     
     const salarySlip = await db.$transaction(async (tx) => {
       const created = await tx.salarySlip.create({
@@ -136,14 +167,18 @@ export async function saveSalarySlip(
           formData: input.formData as Prisma.InputJsonValue,
           grossPay: normalizedSalary.grossPay,
           netPay: normalizedSalary.netPay,
-          components: {
-            create: normalizedSalary.components.map((comp, index) => ({
-              label: comp.label,
-              amount: comp.amount,
-              type: comp.type,
-              sortOrder: index,
-            })),
-          },
+          ...(normalizedSalary.components.length > 0
+            ? {
+                components: {
+                  create: normalizedSalary.components.map((comp, index) => ({
+                    label: comp.label,
+                    amount: comp.amount,
+                    type: comp.type,
+                    sortOrder: index,
+                  })),
+                },
+              }
+            : {}),
         },
       });
 
@@ -214,7 +249,9 @@ export async function updateSalarySlip(
     }
     
     const normalizedSalary = input.components
-      ? normalizeSalaryComponents(input.components)
+      ? normalizeSalaryComponents(input.components, {
+          allowPartial: existing.status === "draft",
+        })
       : null;
 
     await db.$transaction(async (tx) => {
@@ -232,15 +269,17 @@ export async function updateSalarySlip(
 
       if (normalizedSalary) {
         await tx.salaryComponent.deleteMany({ where: { salarySlipId: id } });
-        await tx.salaryComponent.createMany({
-          data: normalizedSalary.components.map((comp, index) => ({
-            salarySlipId: id,
-            label: comp.label,
-            amount: comp.amount,
-            type: comp.type,
-            sortOrder: index,
-          })),
-        });
+        if (normalizedSalary.components.length > 0) {
+          await tx.salaryComponent.createMany({
+            data: normalizedSalary.components.map((comp, index) => ({
+              salarySlipId: id,
+              label: comp.label,
+              amount: comp.amount,
+              type: comp.type,
+              sortOrder: index,
+            })),
+          });
+        }
       }
     });
     

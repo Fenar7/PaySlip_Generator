@@ -57,7 +57,7 @@ import { db } from "@/lib/db";
 import { nextDocumentNumber } from "@/lib/docs";
 import { postVoucherTx } from "@/lib/accounting";
 import { checkUsageLimit } from "@/lib/usage-metering";
-import { saveVoucher } from "../actions";
+import { saveVoucher, updateVoucher } from "../actions";
 
 const ORG_ID = "org-1";
 const USER_ID = "user-1";
@@ -94,6 +94,70 @@ describe("voucher save actions", () => {
       error: "Voucher line amounts must be greater than zero.",
     });
     expect(db.voucher.create).not.toHaveBeenCalled();
+    expect(postVoucherTx).not.toHaveBeenCalled();
+  });
+
+  it("saves draft vouchers even when the current form only has partial lines", async () => {
+    vi.mocked(nextDocumentNumber).mockResolvedValue("VCH-001");
+    vi.mocked(db.voucher.create).mockResolvedValue({
+      id: "voucher-1",
+      voucherNumber: "VCH-001",
+      totalAmount: 0,
+      type: "payment",
+    } as any);
+
+    const result = await saveVoucher(
+      {
+        voucherDate: "2026-04-23",
+        type: "payment",
+        formData: {
+          date: "2026-04-23",
+          payee: "Landlord",
+          lineItems: [{ description: "Office rent", amount: "" }],
+        },
+        lines: [{ description: "Office rent", amount: 0 }],
+      },
+      "draft",
+    );
+
+    expect(result.success).toBe(true);
+    expect(postVoucherTx).not.toHaveBeenCalled();
+    expect(vi.mocked(db.voucher.create).mock.calls[0]?.[0]).toEqual(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          totalAmount: 0,
+        }),
+      }),
+    );
+    expect(vi.mocked(db.voucher.create).mock.calls[0]?.[0]?.data.lines).toBeUndefined();
+  });
+
+  it("updates draft vouchers without recreating incomplete line items", async () => {
+    vi.mocked(db.voucher.findFirst).mockResolvedValue({
+      id: "voucher-1",
+      status: "draft",
+      accountingStatus: "PENDING",
+      totalAmount: 250,
+    } as any);
+    vi.mocked(db.voucher.update).mockResolvedValue({ id: "voucher-1" } as any);
+    vi.mocked(db.voucherLine.deleteMany).mockResolvedValue({ count: 1 } as any);
+
+    const result = await updateVoucher("voucher-1", {
+      voucherDate: "2026-04-23",
+      type: "payment",
+      formData: {
+        date: "2026-04-23",
+        payee: "Landlord",
+        lineItems: [{ description: "", amount: "" }],
+      },
+      lines: [{ description: "", amount: 0 }],
+    });
+
+    expect(result.success).toBe(true);
+    expect(db.voucherLine.deleteMany).toHaveBeenCalledWith({
+      where: { voucherId: "voucher-1" },
+    });
+    expect(db.voucherLine.createMany).not.toHaveBeenCalled();
     expect(postVoucherTx).not.toHaveBeenCalled();
   });
 
