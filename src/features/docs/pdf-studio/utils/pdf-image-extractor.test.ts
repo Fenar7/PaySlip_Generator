@@ -1,39 +1,36 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const {
-  destroyMock,
+  loadingTaskDestroyMock,
   pageCleanupMock,
   renderMock,
   getPageMock,
-  getDocumentMock,
   destroyPdfJsDocumentMock,
-  getPdfJsClientMock,
+  openPdfJsDocumentMock,
 } = vi.hoisted(() => ({
-  destroyMock: vi.fn(),
+  loadingTaskDestroyMock: vi.fn(),
   pageCleanupMock: vi.fn(),
   renderMock: vi.fn(),
   getPageMock: vi.fn(),
-  getDocumentMock: vi.fn(),
   destroyPdfJsDocumentMock: vi.fn(),
-  getPdfJsClientMock: vi.fn(),
+  openPdfJsDocumentMock: vi.fn(),
 }));
 
 vi.mock("@/features/docs/pdf-studio/utils/pdfjs-client", () => ({
-  getPdfJsClient: getPdfJsClientMock,
+  openPdfJsDocument: openPdfJsDocumentMock,
   destroyPdfJsDocument: destroyPdfJsDocumentMock,
   normalizePdfJsError: (error: unknown) => ({
     code: "pdf-read-failed",
     message: error instanceof Error ? error.message : String(error),
     cause: error,
   }),
-  PDFJS_PUBLIC_WASM_URL: "/vendor/pdfjs/wasm/",
 }));
 
 import { extractImagesFromPdf } from "@/features/docs/pdf-studio/utils/pdf-image-extractor";
 
 describe("pdf image extractor", () => {
   beforeEach(() => {
-    destroyMock.mockReset();
+    loadingTaskDestroyMock.mockReset();
     pageCleanupMock.mockReset();
     renderMock.mockResolvedValue(undefined);
     getPageMock.mockResolvedValue({
@@ -49,22 +46,24 @@ describe("pdf image extractor", () => {
       cleanup: pageCleanupMock,
       objs: { get: vi.fn() },
     });
-    getDocumentMock.mockReturnValue({
-      promise: Promise.resolve({
+    openPdfJsDocumentMock.mockResolvedValue({
+      pdfjsLib: {
+        GlobalWorkerOptions: { workerSrc: "", workerPort: null },
+        OPS: {
+          paintImageXObject: "paintImageXObject",
+          paintXObject: "paintXObject",
+        },
+        getDocument: vi.fn(),
+      },
+      loadingTask: {
+        destroy: loadingTaskDestroyMock,
+      },
+      pdf: {
         numPages: 1,
         getPage: getPageMock,
-      }),
-      destroy: destroyMock,
+      },
     });
     destroyPdfJsDocumentMock.mockResolvedValue(undefined);
-    getPdfJsClientMock.mockResolvedValue({
-      GlobalWorkerOptions: { workerSrc: "" },
-      OPS: {
-        paintImageXObject: "paintImageXObject",
-        paintXObject: "paintXObject",
-      },
-      getDocument: getDocumentMock,
-    });
 
     vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue(
       {} as CanvasRenderingContext2D,
@@ -90,11 +89,7 @@ describe("pdf image extractor", () => {
       expect(result.images).toHaveLength(1);
       expect(result.images[0].source).toBe("page-render");
     }
-    expect(getDocumentMock).toHaveBeenCalledWith(
-      expect.objectContaining({
-        wasmUrl: "/vendor/pdfjs/wasm/",
-      }),
-    );
+    expect(openPdfJsDocumentMock).toHaveBeenCalledWith(new Uint8Array([1, 2, 3]));
     expect(destroyPdfJsDocumentMock).toHaveBeenCalledTimes(1);
     expect(pageCleanupMock).toHaveBeenCalledTimes(1);
   });
