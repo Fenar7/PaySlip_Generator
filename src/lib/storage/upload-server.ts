@@ -53,6 +53,43 @@ async function getStorageClient(options?: StorageClientOptions) {
   return options?.useAdmin ? createSupabaseAdmin() : createSupabaseServer();
 }
 
+function isMissingBucketError(error: unknown): error is { message?: string; statusCode?: string | number } {
+  if (!error || typeof error !== "object") {
+    return false;
+  }
+
+  const candidate = error as { message?: string; statusCode?: string | number };
+  return candidate.message === "Bucket not found" || candidate.statusCode === "404";
+}
+
+async function ensureBucketExists(bucket: StorageBucket): Promise<void> {
+  const admin = await createSupabaseAdmin();
+  const { data: existing, error: listError } = await admin.storage.listBuckets();
+
+  if (listError) {
+    console.error("Storage list buckets error:", listError);
+    throw new Error(`Failed to verify storage bucket: ${listError.message}`);
+  }
+
+  if (existing?.some((entry) => entry.name === bucket)) {
+    return;
+  }
+
+  const { error: createError } = await admin.storage.createBucket(bucket, {
+    public: bucket === "logos",
+    fileSizeLimit: bucket === "logos" ? "2MiB" : "10MiB",
+    allowedMimeTypes:
+      bucket === "logos"
+        ? ["image/png", "image/jpeg", "image/svg+xml", "image/webp"]
+        : ["image/png", "image/jpeg", "image/pdf", "application/pdf"],
+  });
+
+  if (createError && createError.message !== "The resource already exists") {
+    console.error("Storage create bucket error:", createError);
+    throw new Error(`Failed to create storage bucket: ${createError.message}`);
+  }
+}
+
 export async function uploadFileServer(
   bucket: StorageBucket,
   path: string,
@@ -61,15 +98,23 @@ export async function uploadFileServer(
   options?: StorageClientOptions,
 ): Promise<UploadResult> {
   await assertResidencyCompatible(path, "upload");
-  const supabase = await getStorageClient(options);
+  let supabase = await getStorageClient(options);
 
-  const { data, error } = await supabase.storage
-    .from(bucket)
-    .upload(path, fileBuffer, {
+  let { data, error } = await supabase.storage.from(bucket).upload(path, fileBuffer, {
+    contentType,
+    cacheControl: "3600",
+    upsert: true,
+  });
+
+  if (isMissingBucketError(error)) {
+    await ensureBucketExists(bucket);
+    supabase = await getStorageClient({ ...options, useAdmin: true });
+    ({ data, error } = await supabase.storage.from(bucket).upload(path, fileBuffer, {
       contentType,
       cacheControl: "3600",
       upsert: true,
-    });
+    }));
+  }
 
   if (error) {
     console.error("Server upload error:", error);
