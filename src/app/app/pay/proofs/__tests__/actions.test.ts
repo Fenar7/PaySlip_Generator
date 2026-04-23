@@ -119,7 +119,12 @@ describe("getProofDetail", () => {
         fileUrl: "https://signed.example/proof.png",
       }),
     });
-    expect(mocks.getSignedUrlServer).toHaveBeenCalledWith("proofs", "proofs/org-1/inv-1/proof.png", 3600);
+    expect(mocks.getSignedUrlServer).toHaveBeenCalledWith(
+      "proofs",
+      "proofs/org-1/inv-1/proof.png",
+      3600,
+      { useAdmin: true },
+    );
   });
 
   it("keeps legacy proof URLs unchanged", async () => {
