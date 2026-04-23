@@ -7,6 +7,7 @@ const mocks = vi.hoisted(() => ({
   invoiceProofCreate: vi.fn(),
   transaction: vi.fn(),
   revalidatePath: vi.fn(),
+  reconcileInvoicePayment: vi.fn(),
 }));
 
 vi.mock("@/lib/db", () => ({
@@ -26,6 +27,10 @@ vi.mock("@/features/pay/server/payment-proof-storage", () => ({
   uploadPaymentProofFile: mocks.uploadPaymentProofFile,
 }));
 
+vi.mock("@/lib/invoice-reconciliation", () => ({
+  reconcileInvoicePayment: mocks.reconcileInvoicePayment,
+}));
+
 import { POST } from "../route";
 
 describe("public payment proof upload route", () => {
@@ -38,6 +43,7 @@ describe("public payment proof upload route", () => {
       invoice: {
         id: "inv-1",
         totalAmount: 5000,
+        amountPaid: 2000,
         remainingAmount: 3000,
         status: "ISSUED",
         organizationId: "org-1",
@@ -50,6 +56,14 @@ describe("public payment proof upload route", () => {
 
     mocks.invoicePaymentCreate.mockResolvedValue({ id: "payment-1" });
     mocks.invoiceProofCreate.mockResolvedValue({ id: "proof-1" });
+    mocks.reconcileInvoicePayment.mockResolvedValue({
+      invoiceId: "inv-1",
+      amountPaid: 2000,
+      remainingAmount: 3000,
+      derivedStatus: "PARTIALLY_PAID",
+      statusChanged: true,
+      previousStatus: "ISSUED",
+    });
     mocks.transaction.mockImplementation(async (callback: (tx: unknown) => unknown) =>
       callback({
         invoicePayment: { create: mocks.invoicePaymentCreate },
@@ -94,6 +108,84 @@ describe("public payment proof upload route", () => {
         }),
       }),
     );
+  });
+
+  it("reconciles stale invoice snapshots before deciding proof eligibility", async () => {
+    mocks.publicInvoiceTokenFindUnique.mockResolvedValue({
+      id: "token-record-1",
+      expiresAt: null,
+      invoice: {
+        id: "inv-1",
+        totalAmount: 5000,
+        amountPaid: 2000,
+        remainingAmount: 0,
+        status: "VIEWED",
+        organizationId: "org-1",
+      },
+    });
+
+    const formData = new FormData();
+    formData.set("amount", "3000");
+    formData.set("paymentDate", "2026-04-21");
+    formData.set("paymentMethod", "bank_transfer");
+    formData.set("fileName", "payment.png");
+    formData.set("file", new File(["proof"], "payment.png", { type: "image/png" }), "payment.png");
+
+    const response = await POST(
+      new Request("http://localhost/invoice/token/proof", {
+        method: "POST",
+        body: formData,
+      }),
+      { params: Promise.resolve({ token: "public-token" }) },
+    );
+
+    expect(response.status).toBe(200);
+    expect(mocks.reconcileInvoicePayment).toHaveBeenCalledWith("inv-1");
+    expect(mocks.invoicePaymentCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          amount: 3000,
+          isPartial: false,
+        }),
+      }),
+    );
+  });
+
+  it("rejects proof uploads for fully settled invoices", async () => {
+    mocks.publicInvoiceTokenFindUnique.mockResolvedValue({
+      id: "token-record-1",
+      expiresAt: null,
+      invoice: {
+        id: "inv-1",
+        totalAmount: 5000,
+        amountPaid: 5000,
+        remainingAmount: 0,
+        status: "PAID",
+        organizationId: "org-1",
+      },
+    });
+
+    const formData = new FormData();
+    formData.set("amount", "100");
+    formData.set("paymentDate", "2026-04-21");
+    formData.set("paymentMethod", "bank_transfer");
+    formData.set("fileName", "payment.png");
+    formData.set("file", new File(["proof"], "payment.png", { type: "image/png" }), "payment.png");
+
+    const response = await POST(
+      new Request("http://localhost/invoice/token/proof", {
+        method: "POST",
+        body: formData,
+      }),
+      { params: Promise.resolve({ token: "public-token" }) },
+    );
+
+    expect(response.status).toBe(409);
+    await expect(response.json()).resolves.toEqual({
+      success: false,
+      error: "This invoice no longer accepts payment proofs.",
+    });
+    expect(mocks.invoicePaymentCreate).not.toHaveBeenCalled();
   });
 
   it("rejects invalid invoice tokens", async () => {

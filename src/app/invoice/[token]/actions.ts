@@ -2,6 +2,7 @@
 
 import { db } from "@/lib/db";
 import { formatIsoDate, toAccountingNumber } from "@/lib/accounting/utils";
+import { resolvePublicInvoicePaymentProofEligibility } from "./payment-proof-eligibility";
 
 export type ActionResult<T> =
   | { success: true; data: T }
@@ -36,6 +37,13 @@ export async function getPublicInvoice(token: string) {
 
     const invoice = tokenRecord.invoice;
     const formData = invoice.formData as Record<string, unknown>;
+    const paymentProof = await resolvePublicInvoicePaymentProofEligibility({
+      id: invoice.id,
+      status: invoice.status,
+      totalAmount: toAccountingNumber(invoice.totalAmount),
+      amountPaid: toAccountingNumber(invoice.amountPaid),
+      remainingAmount: toAccountingNumber(invoice.remainingAmount),
+    });
 
     return {
       success: true as const,
@@ -45,10 +53,10 @@ export async function getPublicInvoice(token: string) {
           invoiceNumber: invoice.invoiceNumber,
           invoiceDate: formatIsoDate(invoice.invoiceDate),
           dueDate: invoice.dueDate ? formatIsoDate(invoice.dueDate) : null,
-          status: invoice.status,
-          totalAmount: toAccountingNumber(invoice.totalAmount),
-          amountPaid: toAccountingNumber(invoice.amountPaid),
-          remainingAmount: toAccountingNumber(invoice.remainingAmount),
+          status: paymentProof.status,
+          totalAmount: paymentProof.totalAmount,
+          amountPaid: paymentProof.amountPaid,
+          remainingAmount: paymentProof.remainingAmount,
           paymentPromiseDate: invoice.paymentPromiseDate
             ? formatIsoDate(invoice.paymentPromiseDate)
             : null,
@@ -83,6 +91,7 @@ export async function getPublicInvoice(token: string) {
             reviewStatus: p.reviewStatus,
             createdAt: p.createdAt.toISOString(),
           })),
+          paymentProof,
         },
         tokenId: tokenRecord.id,
       },
@@ -168,24 +177,30 @@ export async function uploadPaymentProof(
     }
 
     const invoice = tokenRecord.invoice;
-    const remainingAmount = toAccountingNumber(invoice.remainingAmount);
+    const paymentProof = await resolvePublicInvoicePaymentProofEligibility({
+      id: invoice.id,
+      status: invoice.status,
+      totalAmount: toAccountingNumber(invoice.totalAmount),
+      amountPaid: toAccountingNumber(invoice.amountPaid),
+      remainingAmount: toAccountingNumber(invoice.remainingAmount),
+    });
 
-    if (invoice.status === "CANCELLED" || invoice.status === "DISPUTED") {
-      return { success: false, error: `Cannot upload proof for a ${invoice.status.toLowerCase()} invoice` };
+    if (!paymentProof.canUpload) {
+      return { success: false, error: paymentProof.blockedReason ?? "This invoice no longer accepts payment proofs." };
     }
 
     if (data.amount <= 0) {
       return { success: false, error: "Amount must be greater than zero" };
     }
 
-    if (data.amount > remainingAmount + 0.01) {
+    if (data.amount > paymentProof.remainingAmount + 0.01) {
       return {
         success: false,
-        error: `Amount exceeds remaining balance of ${remainingAmount.toFixed(2)}`,
+        error: `Amount exceeds remaining balance of ${paymentProof.remainingAmount.toFixed(2)}`,
       };
     }
 
-    const isPartial = data.amount < remainingAmount - 0.01;
+    const isPartial = data.amount < paymentProof.remainingAmount - 0.01;
 
     if (isPartial) {
       if (!data.plannedNextPaymentDate) {
