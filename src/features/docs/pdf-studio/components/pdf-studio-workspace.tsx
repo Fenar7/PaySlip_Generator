@@ -31,6 +31,7 @@ import {
   loadPdfStudioSession,
   savePdfStudioSession,
 } from "@/features/docs/pdf-studio/utils/session-storage";
+import { usePdfStudioSurface } from "@/features/docs/pdf-studio/lib/surface";
 import { OcrProgressPanel } from "@/features/docs/pdf-studio/components/ocr-progress-panel";
 import { usePdfStudioAnalytics } from "@/features/docs/pdf-studio/lib/analytics";
 import { buildPdfStudioOutputName } from "@/features/docs/pdf-studio/lib/output";
@@ -214,15 +215,20 @@ function GenerationDialog({
   );
 }
 
-export function PdfStudioWorkspace(props?: {
+export const PUBLIC_PDF_STUDIO_SCOPE = "anonymous-browser";
+
+interface PdfStudioWorkspaceContentProps {
   toolId?: "create" | "jpg-to-pdf";
   title?: string;
   description?: string;
-}) {
-  const toolId = props?.toolId ?? "create";
+  orgScope: string;
+  isOrgLoading: boolean;
+}
+
+function PdfStudioWorkspaceContent(props: PdfStudioWorkspaceContentProps) {
+  const toolId = props.toolId ?? "create";
   const analytics = usePdfStudioAnalytics(toolId);
-  const { activeOrg, isLoading: isOrgLoading } = useActiveOrg();
-  const orgScope = activeOrg?.id ?? "anonymous";
+  const { orgScope, isOrgLoading } = props;
   const [images, setImages] = useState<ImageItem[]>([]);
   const [settings, setSettings] = useState<PageSettings>(PDF_STUDIO_DEFAULT_SETTINGS);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
@@ -718,10 +724,10 @@ export function PdfStudioWorkspace(props?: {
                 PDF Studio
               </p>
               <h1 className="mt-3 max-w-3xl text-[2.3rem] leading-[0.98] tracking-[-0.05em] text-[var(--foreground)] md:text-[3rem]">
-                {props?.title ?? "Images to PDF"}
+                {props.title ?? "Images to PDF"}
               </h1>
               <p className="mt-3 max-w-3xl text-[0.98rem] leading-7 text-[var(--foreground-soft)]">
-                {props?.description ??
+                {props.description ??
                   `Upload up to ${PDF_STUDIO_MAX_IMAGES} images, arrange them, configure page settings, and generate a clean downloadable PDF — entirely in your browser.`}
               </p>
               <div className="mt-5 hidden flex-wrap gap-2 xl:flex">
@@ -1061,5 +1067,49 @@ export function PdfStudioWorkspace(props?: {
         onRetry={handleRetry}
       />
     </main>
+  );
+}
+
+function PdfStudioWorkspacePublic(props: {
+  toolId?: "create" | "jpg-to-pdf";
+  title?: string;
+  description?: string;
+}) {
+  return (
+    <PdfStudioWorkspaceContent
+      {...props}
+      orgScope={PUBLIC_PDF_STUDIO_SCOPE}
+      isOrgLoading={false}
+    />
+  );
+}
+
+function PdfStudioWorkspaceWorkspace(props: {
+  toolId?: "create" | "jpg-to-pdf";
+  title?: string;
+  description?: string;
+}) {
+  const { activeOrg, isLoading: isOrgLoading } = useActiveOrg();
+
+  return (
+    <PdfStudioWorkspaceContent
+      {...props}
+      orgScope={activeOrg?.id ?? "anonymous"}
+      isOrgLoading={isOrgLoading}
+    />
+  );
+}
+
+export function PdfStudioWorkspace(props?: {
+  toolId?: "create" | "jpg-to-pdf";
+  title?: string;
+  description?: string;
+}) {
+  const { isPublic } = usePdfStudioSurface();
+
+  return isPublic ? (
+    <PdfStudioWorkspacePublic {...props} />
+  ) : (
+    <PdfStudioWorkspaceWorkspace {...props} />
   );
 }
