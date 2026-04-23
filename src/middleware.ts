@@ -32,6 +32,13 @@ const PUBLIC_PREFIXES = [
   "/offline",
 ];
 
+function hasSupabaseSessionConfig() {
+  return Boolean(
+    process.env.NEXT_PUBLIC_SUPABASE_URL &&
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+  );
+}
+
 // ─── Security Headers ─────────────────────────────────────────────────────────
 
 const SECURITY_HEADERS: Record<string, string> = {
@@ -216,6 +223,10 @@ export async function middleware(request: NextRequest) {
   const isPublic = PUBLIC_PREFIXES.some((prefix) =>
     prefix === "/" ? pathname === "/" : pathname.startsWith(prefix)
   );
+
+  if (isPublic && !hasSupabaseSessionConfig()) {
+    return applySecurityHeaders(NextResponse.next({ request }));
+  }
 
   // Always refresh the Supabase session (sets cookies)
   const { user, supabaseResponse } = await updateSession(request);

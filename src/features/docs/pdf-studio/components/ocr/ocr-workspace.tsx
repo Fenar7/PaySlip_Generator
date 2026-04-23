@@ -10,6 +10,7 @@ import { OcrEnhancementPanel } from "@/features/docs/pdf-studio/components/ocr-e
 import { OcrProgressPanel } from "@/features/docs/pdf-studio/components/ocr-progress-panel";
 import { PdfUploadZone } from "@/features/docs/pdf-studio/components/shared/pdf-upload-zone";
 import { usePdfStudioAnalytics } from "@/features/docs/pdf-studio/lib/analytics";
+import { usePdfStudioSurface } from "@/features/docs/pdf-studio/lib/surface";
 import {
   PDF_STUDIO_STARTER_OCR_PAGE_LIMIT,
   getPdfStudioToolUpgradeCopy,
@@ -43,6 +44,8 @@ type OcrSummary = {
   averageConfidence: number | null;
 };
 
+type OcrWorkspacePlan = ReturnType<typeof usePlan>["plan"];
+
 function buildCombinedText(images: ImageItem[]) {
   return images
     .filter((image) => image.ocrText)
@@ -51,10 +54,8 @@ function buildCombinedText(images: ImageItem[]) {
     .trim();
 }
 
-export function OcrWorkspace() {
+function OcrWorkspaceContent({ plan }: { plan?: OcrWorkspacePlan }) {
   const analytics = usePdfStudioAnalytics("ocr");
-  const { activeOrg } = useActiveOrg();
-  const { plan } = usePlan(activeOrg?.id);
   const [sourceFile, setSourceFile] = useState<File | null>(null);
   const [fileClass, setFileClass] = useState<PdfStudioFileClass | null>(null);
   const [images, setImages] = useState<ImageItem[]>([]);
@@ -544,4 +545,21 @@ export function OcrWorkspace() {
       </div>
     </div>
   );
+}
+
+function OcrWorkspacePublic() {
+  return <OcrWorkspaceContent />;
+}
+
+function OcrWorkspaceWorkspace() {
+  const { activeOrg } = useActiveOrg();
+  const { plan } = usePlan(activeOrg?.id);
+
+  return <OcrWorkspaceContent plan={plan} />;
+}
+
+export function OcrWorkspace() {
+  const { isPublic } = usePdfStudioSurface();
+
+  return isPublic ? <OcrWorkspacePublic /> : <OcrWorkspaceWorkspace />;
 }
