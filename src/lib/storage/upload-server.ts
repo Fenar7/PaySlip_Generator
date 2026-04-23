@@ -77,7 +77,7 @@ async function ensureBucketExists(bucket: StorageBucket): Promise<void> {
 
   const { error: createError } = await admin.storage.createBucket(bucket, {
     public: bucket === "logos",
-    fileSizeLimit: bucket === "logos" ? "2MiB" : "10MiB",
+    fileSizeLimit: bucket === "logos" ? "2MB" : "10MB",
     allowedMimeTypes:
       bucket === "logos"
         ? ["image/png", "image/jpeg", "image/svg+xml", "image/webp"]

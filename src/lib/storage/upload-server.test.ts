@@ -73,7 +73,7 @@ describe("uploadFileServer", () => {
     expect(mocks.listBuckets).toHaveBeenCalled();
     expect(mocks.createBucket).toHaveBeenCalledWith("proofs", {
       public: false,
-      fileSizeLimit: "10MiB",
+      fileSizeLimit: "10MB",
       allowedMimeTypes: ["image/png", "image/jpeg", "image/pdf", "application/pdf"],
     });
     expect(mocks.upload).toHaveBeenCalledTimes(2);
