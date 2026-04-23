@@ -1,10 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const getDocument = vi.fn();
-const workerOptions = { workerSrc: "" };
+const workerOptions = Object.assign(function GlobalWorkerOptions() {}, {
+  workerSrc: "",
+  workerPort: null as Worker | null,
+});
 const mockImportShape = vi.hoisted(() => ({ mode: "direct" as "direct" | "default" }));
 
-vi.mock("pdfjs-dist", () => {
+vi.mock("pdfjs-dist/build/pdf.mjs", () => {
   const runtimeModule = {
     GlobalWorkerOptions: workerOptions,
     OPS: {},
@@ -22,20 +25,18 @@ describe("pdfjs client", () => {
   beforeEach(() => {
     getDocument.mockReset();
     workerOptions.workerSrc = "";
+    workerOptions.workerPort = null;
     mockImportShape.mode = "direct";
     vi.resetModules();
   });
 
-  it("configures the webpack-resolved worker URL before opening a document", async () => {
+  it("configures the public worker URL before opening a document", async () => {
     const { getPdfJsClient } = await import("@/features/docs/pdf-studio/utils/pdfjs-client");
 
     const pdfjs = await getPdfJsClient();
 
     expect(pdfjs.getDocument).toBe(getDocument);
-    // In vitest (jsdom), import.meta.url is a file:// URL, so the resolved
-    // worker URL starts with the test environment base rather than a public path.
-    // We verify it is non-empty and contains the expected worker filename.
-    expect(workerOptions.workerSrc).toMatch(/pdf\.worker\.min\.mjs/);
+    expect(workerOptions.workerSrc).toBe("/vendor/pdfjs/pdf.worker.min.mjs");
   });
 
   it("accepts a default-wrapped pdfjs module namespace", async () => {
@@ -45,7 +46,7 @@ describe("pdfjs client", () => {
     const pdfjs = await getPdfJsClient();
 
     expect(pdfjs.getDocument).toBe(getDocument);
-    expect(workerOptions.workerSrc).toMatch(/pdf\.worker\.min\.mjs/);
+    expect(workerOptions.workerSrc).toBe("/vendor/pdfjs/pdf.worker.min.mjs");
   });
 
   it("cleans up loading tasks through the shared destroy helper", async () => {
@@ -93,10 +94,8 @@ describe("pdfjs client", () => {
   });
 
   it("falls back to a no-worker open when worker bootstrap keeps failing", async () => {
+    workerOptions.workerPort = {} as Worker;
     getDocument
-      .mockImplementationOnce(() => {
-        throw new Error("Setting up worker failed");
-      })
       .mockImplementationOnce(() => {
         throw new Error("Setting up worker failed");
       })
@@ -112,12 +111,13 @@ describe("pdfjs client", () => {
     const opened = await openPdfJsDocument(new Uint8Array([1, 2, 3]));
 
     expect(opened.pdf.numPages).toBe(1);
-    expect(getDocument).toHaveBeenCalledTimes(4);
+    expect(getDocument).toHaveBeenCalledTimes(3);
     expect(getDocument).toHaveBeenLastCalledWith(
       expect.objectContaining({
         disableWorker: true,
       }),
     );
+    expect(workerOptions.workerPort).toBeNull();
   });
 
   it("classifies defineProperty bootstrap crashes as runtime failures", async () => {

@@ -1,13 +1,12 @@
 "use client";
 
-// Import the standard pdfjs-dist entry (build/pdf.mjs). We load the module
-// dynamically so webpack code-splits it into its own chunk. The worker is
-// also resolved via new URL(…, import.meta.url) so webpack creates a
-// compatible sibling chunk — both chunks come from the same webpack
-// compilation, ensuring internal message-protocol compatibility at runtime.
+// Load the browser runtime from a public static asset. Bundling pdfjs-dist 5's
+// browser runtime through Next/webpack still crashes at module bootstrap with
+// "Object.defineProperty called on non-object", so the browser must import the
+// same-family PDF.js asset natively instead.
 import type { DocumentInitParameters } from "pdfjs-dist/types/src/display/api";
 
-type PdfJsNamespaceModule = typeof import("pdfjs-dist");
+type PdfJsNamespaceModule = typeof import("pdfjs-dist/build/pdf.mjs");
 type PdfJsRuntimeModule = {
   GlobalWorkerOptions: PdfJsNamespaceModule["GlobalWorkerOptions"];
   getDocument: PdfJsNamespaceModule["getDocument"];
@@ -16,6 +15,11 @@ type PdfJsRuntimeModule = {
 
 export type PdfJsLoadingTask = ReturnType<PdfJsRuntimeModule["getDocument"]>;
 export type PdfJsDocumentProxy = Awaited<PdfJsLoadingTask["promise"]>;
+export type OpenPdfJsDocumentResult = {
+  pdfjsLib: PdfJsRuntimeModule;
+  loadingTask: PdfJsLoadingTask;
+  pdf: PdfJsDocumentProxy;
+};
 export type PdfJsFailureCode =
   | "pdf-runtime-failed"
   | "password-protected"
@@ -29,20 +33,15 @@ export type PdfJsFailure = {
 
 let cachedPdfJsModulePromise: Promise<PdfJsRuntimeModule> | null = null;
 
+export const PDFJS_PUBLIC_MAIN_URL = "/vendor/pdfjs/pdf.min.mjs";
+
 // WASM binaries (openjpeg.wasm, qcms_bg.wasm, jbig2.wasm) are served as
 // static assets from public/vendor/pdfjs/wasm/. PDF.js fetches them lazily
 // only when a PDF uses JPEG2000, JBIG2, or QCMS color-space compression.
 export const PDFJS_PUBLIC_WASM_URL = "/vendor/pdfjs/wasm/";
 
-// Worker URL resolved by webpack at build time from the pdfjs-dist package.
-// Using new URL(…, import.meta.url) makes webpack emit the worker as a
-// separate chunk that is guaranteed to match the main module chunk.
-const PDFJS_WORKER_URL = new URL(
-  "pdfjs-dist/build/pdf.worker.min.mjs",
-  import.meta.url,
-).toString();
 const PDFJS_PUBLIC_WORKER_URL = "/vendor/pdfjs/pdf.worker.min.mjs";
-let preferredWorkerSrc = PDFJS_WORKER_URL;
+let preferredWorkerSrc = PDFJS_PUBLIC_WORKER_URL;
 
 function isPdfJsRuntimeModule(value: unknown): value is PdfJsRuntimeModule {
   if (typeof value !== "object" || value === null) {
@@ -50,10 +49,16 @@ function isPdfJsRuntimeModule(value: unknown): value is PdfJsRuntimeModule {
   }
 
   const candidate = value as Partial<PdfJsRuntimeModule>;
+  const workerOptions = candidate.GlobalWorkerOptions;
+  const hasWorkerOptionsShape =
+    (typeof workerOptions === "function" ||
+      (typeof workerOptions === "object" && workerOptions !== null)) &&
+    "workerSrc" in workerOptions &&
+    "workerPort" in workerOptions;
+
   return (
     typeof candidate.getDocument === "function" &&
-    typeof candidate.GlobalWorkerOptions === "object" &&
-    candidate.GlobalWorkerOptions !== null &&
+    hasWorkerOptionsShape &&
     typeof candidate.OPS === "object" &&
     candidate.OPS !== null
   );
@@ -117,13 +122,23 @@ function applyWorkerSrc(pdfjsLib: PdfJsRuntimeModule, workerSrc: string) {
   }
 }
 
+function clearWorkerPort(pdfjsLib: PdfJsRuntimeModule) {
+  if (pdfjsLib.GlobalWorkerOptions.workerPort) {
+    pdfjsLib.GlobalWorkerOptions.workerPort = null;
+  }
+}
+
 async function openPdfJsDocumentOnce(
   pdfjsLib: PdfJsRuntimeModule,
   data: ArrayBuffer | Uint8Array,
   options: Omit<DocumentInitParameters, "data" | "wasmUrl"> | undefined,
   workerSrc: string,
   disableWorker = false,
-) {
+  forceWorkerSrc = false,
+): Promise<OpenPdfJsDocumentResult> {
+  if (disableWorker || forceWorkerSrc) {
+    clearWorkerPort(pdfjsLib);
+  }
   applyWorkerSrc(pdfjsLib, workerSrc);
   const loadingTask = pdfjsLib.getDocument({
     data,
@@ -134,7 +149,7 @@ async function openPdfJsDocumentOnce(
 
   try {
     const pdf = await loadingTask.promise;
-    return { loadingTask, pdf };
+    return { pdfjsLib, loadingTask, pdf };
   } catch (error) {
     await destroyPdfJsDocument(loadingTask, null);
     throw error;
@@ -143,7 +158,12 @@ async function openPdfJsDocumentOnce(
 
 export async function getPdfJsClient() {
   if (!cachedPdfJsModulePromise) {
-    cachedPdfJsModulePromise = import("pdfjs-dist")
+    const importPdfJsModule =
+      process.env.NODE_ENV === "test"
+        ? () => import("pdfjs-dist/build/pdf.mjs")
+        : () => import(/* webpackIgnore: true */ PDFJS_PUBLIC_MAIN_URL);
+
+    cachedPdfJsModulePromise = importPdfJsModule()
       .then((moduleNamespace) => {
         const pdfjsLib = resolvePdfJsRuntimeModule(moduleNamespace);
         applyWorkerSrc(pdfjsLib, preferredWorkerSrc);
@@ -189,6 +209,8 @@ export async function openPdfJsDocument(
           data,
           options,
           PDFJS_PUBLIC_WORKER_URL,
+          false,
+          true,
         );
         preferredWorkerSrc = PDFJS_PUBLIC_WORKER_URL;
         return opened;
