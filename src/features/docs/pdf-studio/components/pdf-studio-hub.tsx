@@ -20,6 +20,9 @@ import {
 import type { PdfStudioToolDefinition } from "@/features/docs/pdf-studio/lib/tool-registry";
 import type { PdfStudioToolSurface } from "@/features/docs/pdf-studio/types";
 
+type PdfStudioHubCategories = ReturnType<typeof listPdfStudioToolsByCategory>;
+type PdfStudioHubPlan = ReturnType<typeof usePlan>["plan"];
+
 function ToolCard({
   surface,
   tool,
@@ -107,18 +110,21 @@ function ToolCard({
   );
 }
 
-export function PdfStudioHub({
-  surface = "workspace",
+function PdfStudioHubContent({
+  surface,
+  categories,
+  analytics,
+  activeOrgId,
+  plan,
+  planLoading = false,
 }: {
-  surface?: PdfStudioToolSurface;
+  surface: PdfStudioToolSurface;
+  categories: PdfStudioHubCategories;
+  analytics: ReturnType<typeof usePdfStudioAnalytics>;
+  activeOrgId?: string;
+  plan?: PdfStudioHubPlan;
+  planLoading?: boolean;
 }) {
-  const categories = listPdfStudioToolsByCategory(surface);
-  const analytics = usePdfStudioAnalytics("hub");
-  const { activeOrg } = useActiveOrg();
-  const { plan, loading: planLoading } = usePlan(
-    surface === "workspace" ? activeOrg?.id : undefined,
-  );
-
   return (
     <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:px-8">
       <div className="rounded-2xl border border-[var(--border-strong)] bg-white p-6 shadow-[var(--shadow-card)] sm:p-8">
@@ -263,7 +269,7 @@ export function PdfStudioHub({
       <div className="mt-8 space-y-8">
         {surface === "workspace" ? (
           <PdfStudioAnalyticsPanel
-            orgId={activeOrg?.id}
+            orgId={activeOrgId}
             planId={plan?.planId}
             planName={plan?.planName}
             planLoading={planLoading}
@@ -285,4 +291,43 @@ export function PdfStudioHub({
       </div>
     </div>
   );
+}
+
+function PdfStudioHubPublic() {
+  const categories = listPdfStudioToolsByCategory("public");
+  const analytics = usePdfStudioAnalytics("hub");
+
+  return (
+    <PdfStudioHubContent
+      surface="public"
+      categories={categories}
+      analytics={analytics}
+    />
+  );
+}
+
+function PdfStudioHubWorkspace() {
+  const categories = listPdfStudioToolsByCategory("workspace");
+  const analytics = usePdfStudioAnalytics("hub");
+  const { activeOrg } = useActiveOrg();
+  const { plan, loading: planLoading } = usePlan(activeOrg?.id);
+
+  return (
+    <PdfStudioHubContent
+      surface="workspace"
+      categories={categories}
+      analytics={analytics}
+      activeOrgId={activeOrg?.id}
+      plan={plan}
+      planLoading={planLoading}
+    />
+  );
+}
+
+export function PdfStudioHub({
+  surface = "workspace",
+}: {
+  surface?: PdfStudioToolSurface;
+}) {
+  return surface === "public" ? <PdfStudioHubPublic /> : <PdfStudioHubWorkspace />;
 }
