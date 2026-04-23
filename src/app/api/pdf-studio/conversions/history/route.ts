@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getOrgContext } from "@/lib/auth";
 import { listPdfStudioConversionHistory } from "@/features/docs/pdf-studio/lib/conversion-jobs";
-import { checkFeature } from "@/lib/plans/enforcement";
+import { buildPdfStudioAnalyticsSnapshot } from "@/features/docs/pdf-studio/lib/dashboard";
+import { clampPdfStudioHistoryLimit } from "@/features/docs/pdf-studio/lib/plan-gates";
+import { checkFeature, getOrgPlan } from "@/lib/plans/enforcement";
 
 export async function GET(request: NextRequest) {
   const auth = await getOrgContext();
@@ -18,7 +20,20 @@ export async function GET(request: NextRequest) {
   const searchParams = new URL(request.url).searchParams;
   const toolId = searchParams.get("toolId") ?? undefined;
   const limitValue = searchParams.get("limit");
-  const limit = limitValue ? Number.parseInt(limitValue, 10) : undefined;
+  const requestedLimit = limitValue ? Number.parseInt(limitValue, 10) : undefined;
+  const { planId } = await getOrgPlan(auth.orgId);
+  const limit = clampPdfStudioHistoryLimit(planId, requestedLimit);
+
+  if (limit === 0) {
+    return NextResponse.json({
+      items: [],
+      summary: buildPdfStudioAnalyticsSnapshot([]),
+      meta: {
+        historyLimit: 0,
+        planId,
+      },
+    });
+  }
 
   const items = await listPdfStudioConversionHistory({
     orgId: auth.orgId,
@@ -30,8 +45,15 @@ export async function GET(request: NextRequest) {
       toolId === "html-to-pdf"
         ? toolId
         : undefined,
-    limit: Number.isFinite(limit) ? Math.min(Math.max(limit ?? 10, 1), 25) : undefined,
+    limit,
   });
 
-  return NextResponse.json({ items });
+  return NextResponse.json({
+    items,
+    summary: buildPdfStudioAnalyticsSnapshot(items),
+    meta: {
+      historyLimit: limit,
+      planId,
+    },
+  });
 }

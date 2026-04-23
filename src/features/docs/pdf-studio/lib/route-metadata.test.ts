@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
   buildPdfStudioHubMetadata,
+  buildPdfStudioHubStructuredData,
   buildPdfStudioToolMetadata,
+  buildPdfStudioToolStructuredData,
 } from "@/features/docs/pdf-studio/lib/route-metadata";
 
 describe("pdf studio route metadata", () => {
@@ -12,12 +14,34 @@ describe("pdf studio route metadata", () => {
     expect(metadata.openGraph?.url).toBe("/pdf-studio");
   });
 
+  it("builds structured data for the public hub", () => {
+    const structuredData = buildPdfStudioHubStructuredData();
+
+    expect(structuredData["@type"]).toBe("CollectionPage");
+    expect(structuredData.url).toBe("https://app.slipwise.app/pdf-studio");
+    expect(
+      structuredData.mainEntity.itemListElement.some(
+        (entry: { name?: string; url?: string }) =>
+          entry.name === "Repair PDF" &&
+          entry.url === "https://app.slipwise.app/pdf-studio/repair",
+      ),
+    ).toBe(true);
+  });
+
   it("builds canonical public metadata for tool pages", () => {
     const metadata = buildPdfStudioToolMetadata("repair", "public");
 
     expect(metadata.alternates?.canonical).toBe("/pdf-studio/repair");
     expect(metadata.title).toBe("Repair PDF | PDF Studio");
-    expect(metadata.description).toContain("Runs entirely in your browser");
+    expect(metadata.description).toContain("Pro access");
+  });
+
+  it("builds structured data for public tool landing pages", () => {
+    const structuredData = buildPdfStudioToolStructuredData("repair");
+
+    expect(structuredData["@type"]).toBe("WebPage");
+    expect(structuredData.url).toBe("https://app.slipwise.app/pdf-studio/repair");
+    expect(structuredData.description).toContain("Pro access");
   });
 
   it("uses public canonicals for new Phase 30 public-ready tools", () => {
@@ -38,14 +62,14 @@ describe("pdf studio route metadata", () => {
   it("marks workspace pages as non-indexable while sharing canonical targets", () => {
     const metadata = buildPdfStudioToolMetadata("protect", "workspace");
 
-    expect(metadata.alternates?.canonical).toBe("/app/docs/pdf-studio/protect");
+    expect(metadata.alternates?.canonical).toBe("/pdf-studio/protect");
     expect(metadata.robots).toEqual({ index: false, follow: false });
   });
 
   it("keeps new Phase 31 workspace-only tools non-indexable", () => {
     const metadata = buildPdfStudioToolMetadata("flatten", "workspace");
 
-    expect(metadata.alternates?.canonical).toBe("/app/docs/pdf-studio/flatten");
+    expect(metadata.alternates?.canonical).toBe("/pdf-studio/flatten");
     expect(metadata.robots).toEqual({ index: false, follow: false });
     expect(metadata.title).toBe("Flatten PDF | PDF Studio");
   });
@@ -61,7 +85,7 @@ describe("pdf studio route metadata", () => {
   it("keeps server-backed Phase 32 tools workspace-only and non-indexable", () => {
     const metadata = buildPdfStudioToolMetadata("pdf-to-word", "workspace");
 
-    expect(metadata.alternates?.canonical).toBe("/app/docs/pdf-studio/pdf-to-word");
+    expect(metadata.alternates?.canonical).toBe("/pdf-studio/pdf-to-word");
     expect(metadata.title).toBe("PDF to Word | PDF Studio");
     expect(metadata.description).toContain("Uses secure server-side processing");
     expect(metadata.robots).toEqual({ index: false, follow: false });

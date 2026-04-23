@@ -7,6 +7,7 @@ vi.mock("@/lib/auth", () => ({
 
 vi.mock("@/lib/plans/enforcement", () => ({
   checkFeature: vi.fn(),
+  getOrgPlan: vi.fn(),
 }));
 
 vi.mock("@/features/docs/pdf-studio/lib/conversion-jobs", () => ({
@@ -14,7 +15,7 @@ vi.mock("@/features/docs/pdf-studio/lib/conversion-jobs", () => ({
 }));
 
 import { getOrgContext } from "@/lib/auth";
-import { checkFeature } from "@/lib/plans/enforcement";
+import { checkFeature, getOrgPlan } from "@/lib/plans/enforcement";
 import { listPdfStudioConversionHistory } from "@/features/docs/pdf-studio/lib/conversion-jobs";
 import { GET } from "../route";
 
@@ -22,6 +23,15 @@ describe("GET /api/pdf-studio/conversions/history", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.mocked(checkFeature).mockResolvedValue(true);
+    vi.mocked(getOrgPlan).mockResolvedValue({
+      planId: "starter",
+      planName: "Starter",
+      status: "active",
+      trialEndsAt: null,
+      isTrialing: false,
+      isFree: false,
+      limits: {} as never,
+    });
   });
 
   it("requires an authenticated workspace user", async () => {
@@ -65,12 +75,59 @@ describe("GET /api/pdf-studio/conversions/history", () => {
 
     expect(response.status).toBe(200);
     expect(body.items).toHaveLength(1);
+    expect(body.meta).toEqual({
+      historyLimit: 5,
+      planId: "starter",
+    });
     expect(listPdfStudioConversionHistory).toHaveBeenCalledWith({
       orgId: "org-1",
       toolId: "pdf-to-word",
       limit: 5,
     });
   });
+
+  it.each([
+    ["starter", 10],
+    ["pro", 25],
+    ["enterprise", 50],
+  ] as const)(
+    "clamps requested history to the %s plan window",
+    async (planId, expectedLimit) => {
+      vi.mocked(getOrgContext).mockResolvedValue({
+        orgId: "org-1",
+        userId: "user-1",
+        role: "ADMIN",
+      } as never);
+      vi.mocked(getOrgPlan).mockResolvedValue({
+        planId,
+        planName: planId,
+        status: "active",
+        trialEndsAt: null,
+        isTrialing: false,
+        isFree: false,
+        limits: {} as never,
+      });
+      vi.mocked(listPdfStudioConversionHistory).mockResolvedValue([] as never);
+
+      const response = await GET(
+        new Request(
+          "http://localhost/api/pdf-studio/conversions/history?toolId=pdf-to-word&limit=999",
+        ) as NextRequest,
+      );
+      const body = await response.json();
+
+      expect(response.status).toBe(200);
+      expect(body.meta).toEqual({
+        historyLimit: expectedLimit,
+        planId,
+      });
+      expect(listPdfStudioConversionHistory).toHaveBeenCalledWith({
+        orgId: "org-1",
+        toolId: "pdf-to-word",
+        limit: expectedLimit,
+      });
+    },
+  );
 
   it("requires PDF Studio tool access", async () => {
     vi.mocked(getOrgContext).mockResolvedValue({

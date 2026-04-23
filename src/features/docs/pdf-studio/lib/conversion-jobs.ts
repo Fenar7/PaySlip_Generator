@@ -3,14 +3,15 @@ import "server-only";
 import { zipSync } from "fflate";
 import { Prisma } from "@/generated/prisma/client";
 import { db } from "@/lib/db";
+import { getOrgPlan } from "@/lib/plans/enforcement";
 import {
   buildPdfStudioOutputName,
   getPdfStudioSourceBaseName,
 } from "@/features/docs/pdf-studio/lib/output";
+import { getPdfStudioResultRetentionHours } from "@/features/docs/pdf-studio/lib/plan-gates";
 import {
   PDF_STUDIO_CONVERSION_DEAD_LETTER_RETENTION_MS,
   PDF_STUDIO_CONVERSION_RECORD_RETENTION_MS,
-  PDF_STUDIO_CONVERSION_RESULT_TTL_MS,
 } from "@/features/docs/pdf-studio/lib/server-conversion-policy";
 import {
   deleteFileServer,
@@ -74,6 +75,7 @@ export type PdfStudioConversionPayload = {
   outputFileName?: string;
   outputMimeType?: string;
   resultExpiresAt?: string;
+  resultRetentionHours?: number;
   sourceDeletedAt?: string;
   outputDeletedAt?: string;
   failureCode?: string;
@@ -363,6 +365,7 @@ export async function getPdfStudioConversionJob(jobId: string, orgId: string) {
   const completedItems = outputs.length;
   const resultExpiresAt = payload.resultExpiresAt ? new Date(payload.resultExpiresAt) : null;
   const resultExpired = resultExpiresAt != null && resultExpiresAt.getTime() <= Date.now();
+  const resultRetentionHours = payload.resultRetentionHours ?? 24;
 
   let resolvedOutputs: PdfStudioConversionOutputResult[] | undefined;
   let downloadUrl: string | undefined;
@@ -406,7 +409,7 @@ export async function getPdfStudioConversionJob(jobId: string, orgId: string) {
     outputs: resolvedOutputs,
     error:
       resultExpired && record.status === "completed"
-        ? "This conversion result expired after 24 hours. Run the conversion again to generate a fresh download."
+        ? `This conversion result expired after ${resultRetentionHours} hour${resultRetentionHours === 1 ? "" : "s"}. Run the conversion again to generate a fresh download.`
         : record.errorMessage ?? undefined,
     attempts: record.retryCount,
     payload,
@@ -533,8 +536,10 @@ export async function markPdfStudioConversionComplete(params: { jobId: string })
   const outputs = getOutputManifests(payload);
   const sources = getSourceManifests(payload);
   const completedAt = new Date();
+  const orgPlan = await getOrgPlan(job.orgId);
+  const resultRetentionHours = getPdfStudioResultRetentionHours(orgPlan.planId);
   const resultExpiresAt = new Date(
-    completedAt.getTime() + PDF_STUDIO_CONVERSION_RESULT_TTL_MS,
+    completedAt.getTime() + resultRetentionHours * 60 * 60 * 1000,
   );
 
   const nextSources = await Promise.all(
@@ -576,6 +581,7 @@ export async function markPdfStudioConversionComplete(params: { jobId: string })
         outputMimeType:
           outputs.length === 1 ? outputs[0]?.mimeType : undefined,
         resultExpiresAt: resultExpiresAt.toISOString(),
+        resultRetentionHours,
         failureCode: undefined,
         failureRetryable: undefined,
         sources: nextSources.length > 0 ? nextSources : undefined,
@@ -751,7 +757,10 @@ export async function getPdfStudioConversionBundle(jobId: string, orgId: string)
   }
 
   if (payload.resultExpiresAt && new Date(payload.resultExpiresAt).getTime() <= Date.now()) {
-    throw new Error("This batch bundle expired after 24 hours. Run the batch again.");
+    const resultRetentionHours = payload.resultRetentionHours ?? 24;
+    throw new Error(
+      `This batch bundle expired after ${resultRetentionHours} hour${resultRetentionHours === 1 ? "" : "s"}. Run the batch again.`,
+    );
   }
 
   const files = await Promise.all(
@@ -780,7 +789,9 @@ export async function getPdfStudioConversionBundle(jobId: string, orgId: string)
 
 export async function cleanupExpiredPdfStudioConversionArtifacts(limit = 25) {
   const now = new Date();
-  const completedCutoff = new Date(now.getTime() - PDF_STUDIO_CONVERSION_RESULT_TTL_MS);
+  const completedCutoff = new Date(
+    now.getTime() - getPdfStudioResultRetentionHours("starter") * 60 * 60 * 1000,
+  );
   const deadLetterCutoff = new Date(now.getTime() - PDF_STUDIO_CONVERSION_DEAD_LETTER_RETENTION_MS);
   const recordRetentionCutoff = new Date(now.getTime() - PDF_STUDIO_CONVERSION_RECORD_RETENTION_MS);
 
@@ -807,6 +818,12 @@ export async function cleanupExpiredPdfStudioConversionArtifacts(limit = 25) {
 
   for (const job of candidates) {
     const payload = getPayload(job);
+    const resultExpiresAt = payload.resultExpiresAt ? new Date(payload.resultExpiresAt) : null;
+
+    if (job.status === "completed" && resultExpiresAt && resultExpiresAt.getTime() > now.getTime()) {
+      continue;
+    }
+
     const storageKeys = new Set<string>();
 
     if (payload.sourceStorageKey) {
