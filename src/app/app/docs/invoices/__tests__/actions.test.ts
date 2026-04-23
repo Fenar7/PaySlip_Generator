@@ -37,7 +37,7 @@ vi.mock("@/lib/docs", () => ({
 
 vi.mock("@/lib/prisma-errors", () => ({
   getSchemaDriftActionMessage: vi.fn(),
-  isModelMissingTableError: vi.fn().mockReturnValue(false),
+  isSchemaDriftError: vi.fn().mockReturnValue(false),
 }));
 
 vi.mock("next/cache", () => ({
@@ -59,6 +59,14 @@ vi.mock("@/lib/docs-vault", () => ({
   syncInvoiceToIndex: vi.fn().mockResolvedValue(undefined),
 }));
 
+vi.mock("@/lib/flow/workflow-engine", () => ({
+  fireWorkflowTrigger: vi.fn().mockResolvedValue(undefined),
+}));
+
+vi.mock("@/lib/usage-metering", () => ({
+  checkUsageLimit: vi.fn(),
+}));
+
 vi.mock("@/lib/inventory/stock-events", () => ({
   getOutboundUnitCostTx: vi.fn().mockResolvedValue(125),
   recordStockEventTx: vi.fn().mockResolvedValue(undefined),
@@ -69,7 +77,8 @@ import { db } from "@/lib/db";
 import { nextDocumentNumber } from "@/lib/docs";
 import { reverseJournalEntryTx } from "@/lib/accounting";
 import { recordStockEventTx } from "@/lib/inventory/stock-events";
-import { cancelInvoice, reissueInvoice } from "../actions";
+import { checkUsageLimit } from "@/lib/usage-metering";
+import { cancelInvoice, reissueInvoice, saveInvoice } from "../actions";
 
 const ORG_ID = "org-1";
 const USER_ID = "user-1";
@@ -86,6 +95,48 @@ describe("invoice accounting transitions", () => {
       orgId: ORG_ID,
       userId: USER_ID,
       role: "admin",
+    });
+    vi.mocked(checkUsageLimit).mockResolvedValue({
+      allowed: true,
+      current: 0,
+      limit: 999,
+    });
+  });
+
+  it("normalizes date-only strings before creating an invoice", async () => {
+    vi.mocked(nextDocumentNumber).mockResolvedValue("INV-001");
+    vi.mocked(db.invoice.create).mockResolvedValue({
+      id: "inv-1",
+      invoiceNumber: "INV-001",
+      status: "DRAFT",
+      customerId: null,
+      totalAmount: 1000,
+    } as any);
+
+    const result = await saveInvoice(
+      {
+        invoiceDate: "2026-04-23",
+        dueDate: "2026-05-07",
+        formData: { source: "test" },
+        lineItems: [
+          {
+            description: "Consulting",
+            quantity: 1,
+            unitPrice: 1000,
+            taxRate: 0,
+            discount: 0,
+          },
+        ],
+      },
+      "DRAFT",
+    );
+
+    expect(result.success).toBe(true);
+    expect(db.invoice.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        invoiceDate: expect.any(Date),
+        dueDate: expect.any(Date),
+      }),
     });
   });
 

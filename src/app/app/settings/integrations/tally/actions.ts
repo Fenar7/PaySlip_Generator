@@ -3,7 +3,7 @@
 import { requireOrgContext, requireRole } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { Prisma, InvoiceStatus } from "@/generated/prisma/client";
-import { formatIsoDate } from "@/lib/accounting/utils";
+import { formatIsoDate, parseAccountingDate } from "@/lib/accounting/utils";
 
 function dateToStr(d: Date): string {
   return d.toISOString().split("T")[0];
@@ -245,7 +245,9 @@ export async function confirmTallyImport(
         data: {
           organizationId: orgId,
           invoiceNumber: sv.voucherNumber,
-          invoiceDate: `${String(year)}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`,
+          invoiceDate: parseAccountingDate(
+            `${String(year)}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`,
+          ),
           totalAmount: sv.totalAmount,
           status: InvoiceStatus.ISSUED,
           formData: {

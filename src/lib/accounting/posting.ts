@@ -575,6 +575,52 @@ export async function postSalarySlipAccrualTx(
       .filter((component) => component.type === "deduction")
       .reduce((sum, component) => sum + component.amount, 0),
   );
+  const grossPay = roundMoney(salarySlip.grossPay);
+  const netPay = roundMoney(salarySlip.netPay);
+
+  if (grossPay <= 0) {
+    throw new Error("Salary slips must have gross pay greater than zero before release.");
+  }
+
+  if (netPay < 0) {
+    throw new Error("Salary slips cannot post a negative net pay.");
+  }
+
+  const journalLines = [
+    {
+      accountId: accounts[SYSTEM_ACCOUNT_KEYS.PAYROLL_EXPENSE].id,
+      debit: grossPay,
+      description: `Payroll expense ${salarySlip.slipNumber}`,
+      entityType: "salary_slip",
+      entityId: salarySlip.id,
+    },
+    ...(netPay > 0
+      ? [
+          {
+            accountId: accounts[SYSTEM_ACCOUNT_KEYS.PAYROLL_PAYABLE].id,
+            credit: netPay,
+            description: `Payroll payable ${salarySlip.slipNumber}`,
+            entityType: "salary_slip",
+            entityId: salarySlip.id,
+          },
+        ]
+      : []),
+    ...(deductionTotal > 0
+      ? [
+          {
+            accountId: accounts[SYSTEM_ACCOUNT_KEYS.TDS_PAYABLE].id,
+            credit: deductionTotal,
+            description: `Deductions for ${salarySlip.slipNumber}`,
+            entityType: "salary_slip",
+            entityId: salarySlip.id,
+          },
+        ]
+      : []),
+  ];
+
+  if (journalLines.length < 2) {
+    throw new Error("Salary slips need payable or deduction amounts before release.");
+  }
 
   const journal = await createAndPostJournalTx(tx, {
     orgId: input.orgId,
@@ -584,33 +630,7 @@ export async function postSalarySlipAccrualTx(
     entryDate: new Date(Date.UTC(salarySlip.year, salarySlip.month - 1, 1, 12, 0, 0, 0)),
     actorId: input.actorId,
     memo: `Salary accrual ${salarySlip.slipNumber}`,
-    lines: [
-      {
-        accountId: accounts[SYSTEM_ACCOUNT_KEYS.PAYROLL_EXPENSE].id,
-        debit: roundMoney(salarySlip.grossPay),
-        description: `Payroll expense ${salarySlip.slipNumber}`,
-        entityType: "salary_slip",
-        entityId: salarySlip.id,
-      },
-      {
-        accountId: accounts[SYSTEM_ACCOUNT_KEYS.PAYROLL_PAYABLE].id,
-        credit: roundMoney(salarySlip.netPay),
-        description: `Payroll payable ${salarySlip.slipNumber}`,
-        entityType: "salary_slip",
-        entityId: salarySlip.id,
-      },
-      ...(deductionTotal > 0
-        ? [
-            {
-              accountId: accounts[SYSTEM_ACCOUNT_KEYS.TDS_PAYABLE].id,
-              credit: deductionTotal,
-              description: `Deductions for ${salarySlip.slipNumber}`,
-              entityType: "salary_slip",
-              entityId: salarySlip.id,
-            },
-          ]
-        : []),
-    ],
+    lines: journalLines,
   });
 
   await tx.salarySlip.update({

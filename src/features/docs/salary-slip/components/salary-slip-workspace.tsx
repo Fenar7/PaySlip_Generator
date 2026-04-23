@@ -286,6 +286,12 @@ function SalarySlipPanel({ employees = [], presets = [], initialTemplateId }: Wo
   async function handleSaveDraft() {
     setIsSaving(true);
     try {
+      const isValid = await trigger();
+      if (!isValid) {
+        toast.error("Complete the required salary slip fields before saving.");
+        return;
+      }
+
       const input = await buildSaveInput();
       if (savedId) {
         const result = await updateSalarySlip(savedId, input);
@@ -317,6 +323,12 @@ function SalarySlipPanel({ employees = [], presets = [], initialTemplateId }: Wo
   async function handleRelease() {
     setIsSaving(true);
     try {
+      const isValid = await trigger();
+      if (!isValid) {
+        toast.error("Complete the required salary slip fields before releasing.");
+        return;
+      }
+
       const input = await buildSaveInput();
       if (savedId) {
         const updateResult = await updateSalarySlip(savedId, input);

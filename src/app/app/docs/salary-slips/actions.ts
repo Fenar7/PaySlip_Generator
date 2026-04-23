@@ -3,6 +3,7 @@
 import { db } from "@/lib/db";
 import { requireOrgContext } from "@/lib/auth";
 import { nextDocumentNumber } from "@/lib/docs";
+import { getSchemaDriftActionMessage, isSchemaDriftError } from "@/lib/prisma-errors";
 import { revalidatePath } from "next/cache";
 import type { Prisma } from "@/generated/prisma/client";
 import { postSalarySlipAccrualTx, postSalarySlipPayoutTx } from "@/lib/accounting";
@@ -32,11 +33,28 @@ export interface SalarySlipInput {
 function normalizeSalaryComponents(
   components: SalaryComponentInput[],
 ): { components: SalaryComponentInput[]; grossPay: number; netPay: number } {
-  const normalizedComponents = components.map((component) => ({
-    ...component,
-    label: component.label.trim(),
-    amount: normalizeMoney(component.amount),
-  }));
+  if (components.length === 0) {
+    throw new Error("Salary slips need at least one earning component.");
+  }
+
+  const normalizedComponents = components.map((component) => {
+    const label = component.label.trim();
+    const amount = normalizeMoney(component.amount);
+
+    if (!label) {
+      throw new Error("Salary component labels are required.");
+    }
+
+    if (amount < 0) {
+      throw new Error("Salary component amounts cannot be negative.");
+    }
+
+    return {
+      ...component,
+      label,
+      amount,
+    };
+  });
 
   const grossPay = fromMinorUnits(
     sumMinorUnits(
@@ -152,6 +170,15 @@ export async function saveSalarySlip(
     revalidatePath("/app/docs/salary-slips");
     return { success: true, data: { id: salarySlip.id, slipNumber } };
   } catch (error) {
+    if (isSchemaDriftError(error, "SalarySlip")) {
+      console.warn(
+        "saveSalarySlip failed because the local database schema is behind the Prisma schema.",
+      );
+      return {
+        success: false,
+        error: getSchemaDriftActionMessage("save the salary slip"),
+      };
+    }
     console.error("saveSalarySlip error:", error);
     return { success: false, error: error instanceof Error ? error.message : "Failed to save salary slip" };
   }
@@ -224,6 +251,15 @@ export async function updateSalarySlip(
     revalidatePath(`/app/docs/salary-slips/${id}`);
     return { success: true, data: { id } };
   } catch (error) {
+    if (isSchemaDriftError(error, "SalarySlip")) {
+      console.warn(
+        "updateSalarySlip failed because the local database schema is behind the Prisma schema.",
+      );
+      return {
+        success: false,
+        error: getSchemaDriftActionMessage("update the salary slip"),
+      };
+    }
     console.error("updateSalarySlip error:", error);
     return { success: false, error: error instanceof Error ? error.message : "Failed to update salary slip" };
   }
@@ -254,8 +290,17 @@ export async function releaseSalarySlip(id: string): Promise<ActionResult<void>>
     revalidatePath(`/app/docs/salary-slips/${id}`);
     return { success: true, data: undefined };
   } catch (error) {
+    if (isSchemaDriftError(error, "SalarySlip")) {
+      console.warn(
+        "releaseSalarySlip failed because the local database schema is behind the Prisma schema.",
+      );
+      return {
+        success: false,
+        error: getSchemaDriftActionMessage("release the salary slip"),
+      };
+    }
     console.error("releaseSalarySlip error:", error);
-    return { success: false, error: "Failed to release salary slip" };
+    return { success: false, error: error instanceof Error ? error.message : "Failed to release salary slip" };
   }
 }
 
