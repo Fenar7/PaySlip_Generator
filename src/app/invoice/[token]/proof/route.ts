@@ -3,6 +3,7 @@ import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
 import { isUploadedFile } from "@/lib/server/form-data";
 import { deleteFileServer } from "@/lib/storage/upload-server";
+import { notifyOrgAdmins } from "@/lib/notifications";
 import {
   validatePaymentProofFile,
 } from "@/features/pay/lib/payment-proof";
@@ -63,6 +64,7 @@ export async function POST(
         invoice: {
           select: {
             id: true,
+            invoiceNumber: true,
             totalAmount: true,
             amountPaid: true,
             remainingAmount: true,
@@ -176,6 +178,16 @@ export async function POST(
 
     revalidatePath(`/invoice/${token}`);
     revalidatePath("/app/pay/proofs");
+
+    await notifyOrgAdmins({
+      orgId: invoice.organizationId,
+      type: "proof_uploaded",
+      title: "New payment proof submitted",
+      body: `A payment proof was submitted for invoice ${invoice.invoiceNumber}.`,
+      link: `/app/pay/proofs/${proof.id}`,
+    }).catch((error) => {
+      console.error("public proof upload notification error:", error);
+    });
 
     return NextResponse.json({
       success: true,

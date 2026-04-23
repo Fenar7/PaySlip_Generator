@@ -7,6 +7,7 @@ import { revalidatePath } from "next/cache";
 import { reconcileInvoicePayment } from "@/lib/invoice-reconciliation";
 import { postInvoicePaymentTx } from "@/lib/accounting";
 import { resolvePaymentProofUrl } from "@/features/pay/server/payment-proof-storage";
+import { notifyOrgAdmins } from "@/lib/notifications";
 
 export type ActionResult<T> =
   | { success: true; data: T }
@@ -188,7 +189,7 @@ export async function acceptProof(proofId: string): Promise<ActionResult<void>> 
     const proof = await db.invoiceProof.findFirst({
       where: { id: proofId, invoice: { organizationId: orgId } },
       include: {
-        invoice: { select: { id: true, status: true } },
+        invoice: { select: { id: true, invoiceNumber: true, status: true } },
         invoicePayment: true,
       },
     });
@@ -255,6 +256,17 @@ export async function acceptProof(proofId: string): Promise<ActionResult<void>> 
 
     await reconcileInvoicePayment(invoiceId, userId);
 
+    await notifyOrgAdmins({
+      orgId,
+      type: "proof_accepted",
+      title: "Payment proof accepted",
+      body: `Payment proof for invoice ${proof.invoice.invoiceNumber} was accepted.`,
+      link: `/app/pay/proofs/${proofId}`,
+      excludeUserId: userId,
+    }).catch((error) => {
+      console.error("acceptProof notification error:", error);
+    });
+
     revalidatePath("/app/pay/proofs");
     revalidatePath("/app/pay/receivables");
     return { success: true, data: undefined };
@@ -274,7 +286,7 @@ export async function rejectProof(
     const proof = await db.invoiceProof.findFirst({
       where: { id: proofId, invoice: { organizationId: orgId } },
       include: {
-        invoice: { select: { id: true, status: true } },
+        invoice: { select: { id: true, invoiceNumber: true, status: true } },
         invoicePayment: { select: { id: true } },
       },
     });
@@ -309,6 +321,17 @@ export async function rejectProof(
     // Reconcile to derive the correct status (PARTIALLY_PAID, OVERDUE, etc.)
     // rather than blindly resetting to ISSUED.
     await reconcileInvoicePayment(proof.invoice.id, userId);
+
+    await notifyOrgAdmins({
+      orgId,
+      type: "proof_rejected",
+      title: "Payment proof rejected",
+      body: `Payment proof for invoice ${proof.invoice.invoiceNumber} was rejected.`,
+      link: `/app/pay/proofs/${proofId}`,
+      excludeUserId: userId,
+    }).catch((error) => {
+      console.error("rejectProof notification error:", error);
+    });
 
     revalidatePath("/app/pay/proofs");
     revalidatePath("/app/pay/receivables");

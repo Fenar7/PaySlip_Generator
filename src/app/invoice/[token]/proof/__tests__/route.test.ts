@@ -8,6 +8,7 @@ const mocks = vi.hoisted(() => ({
   transaction: vi.fn(),
   revalidatePath: vi.fn(),
   reconcileInvoicePayment: vi.fn(),
+  notifyOrgAdmins: vi.fn(),
 }));
 
 vi.mock("@/lib/db", () => ({
@@ -31,17 +32,23 @@ vi.mock("@/lib/invoice-reconciliation", () => ({
   reconcileInvoicePayment: mocks.reconcileInvoicePayment,
 }));
 
+vi.mock("@/lib/notifications", () => ({
+  notifyOrgAdmins: mocks.notifyOrgAdmins,
+}));
+
 import { POST } from "../route";
 
 describe("public payment proof upload route", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mocks.notifyOrgAdmins.mockResolvedValue(undefined);
 
     mocks.publicInvoiceTokenFindUnique.mockResolvedValue({
       id: "token-record-1",
       expiresAt: null,
       invoice: {
         id: "inv-1",
+        invoiceNumber: "INV-001",
         totalAmount: 5000,
         amountPaid: 2000,
         remainingAmount: 3000,
@@ -108,6 +115,13 @@ describe("public payment proof upload route", () => {
         }),
       }),
     );
+    expect(mocks.notifyOrgAdmins).toHaveBeenCalledWith({
+      orgId: "org-1",
+      type: "proof_uploaded",
+      title: "New payment proof submitted",
+      body: "A payment proof was submitted for invoice INV-001.",
+      link: "/app/pay/proofs/proof-1",
+    });
   });
 
   it("reconciles stale invoice snapshots before deciding proof eligibility", async () => {
@@ -116,6 +130,7 @@ describe("public payment proof upload route", () => {
       expiresAt: null,
       invoice: {
         id: "inv-1",
+        invoiceNumber: "INV-001",
         totalAmount: 5000,
         amountPaid: 2000,
         remainingAmount: 0,
@@ -157,6 +172,7 @@ describe("public payment proof upload route", () => {
       expiresAt: null,
       invoice: {
         id: "inv-1",
+        invoiceNumber: "INV-001",
         totalAmount: 5000,
         amountPaid: 5000,
         remainingAmount: 0,
