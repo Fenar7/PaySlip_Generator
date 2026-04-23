@@ -1,4 +1,5 @@
 import type { PlanId } from "@/lib/plans/config";
+import type { PdfStudioToolDefinition } from "@/features/docs/pdf-studio/lib/tool-registry";
 import type { PdfStudioConversionFailureCode } from "@/features/docs/pdf-studio/lib/conversion-errors";
 import type { PdfStudioConversionHistoryEntry } from "@/features/docs/pdf-studio/lib/conversion-jobs";
 import { PDF_STUDIO_CONVERSION_ACTIVE_JOB_LIMIT } from "@/features/docs/pdf-studio/lib/server-conversion-policy";
@@ -6,7 +7,14 @@ import {
   getPdfStudioHistoryEntryLimit,
   getPdfStudioRetentionLabel,
 } from "@/features/docs/pdf-studio/lib/plan-gates";
-import { getPdfStudioTool } from "@/features/docs/pdf-studio/lib/tool-registry";
+import {
+  getPdfStudioTool,
+  listPdfStudioTools,
+} from "@/features/docs/pdf-studio/lib/tool-registry";
+import {
+  PDF_STUDIO_JOB_SUPPORT_GUIDE,
+  PDF_STUDIO_SUPPORT_GUIDE,
+} from "@/features/docs/pdf-studio/lib/support-links";
 
 type PdfStudioReadinessStatus = "pass" | "warn" | "fail";
 
@@ -43,12 +51,58 @@ export type PdfStudioSupportDiagnostics = {
   >;
 };
 
+export type PdfStudioSupportCoverageLane = {
+  id: "browser-first" | "worker-backed";
+  label: string;
+  toolCount: number;
+  description: string;
+  diagnosticsDetail: string;
+  helpHref: string;
+  helpLabel: string;
+  examples: string[];
+};
+
+function buildLaneExamples(tools: PdfStudioToolDefinition[]) {
+  return tools.slice(0, 3).map((tool) => tool.title);
+}
+
+export function buildPdfStudioSupportCoverageLanes() {
+  const tools = listPdfStudioTools("workspace");
+  const browserFirstTools = tools.filter((tool) => tool.executionMode === "browser");
+  const workerBackedTools = tools.filter((tool) => tool.executionMode !== "browser");
+
+  return [
+    {
+      id: "browser-first",
+      label: "Browser-first utilities",
+      toolCount: browserFirstTools.length,
+      description: `${browserFirstTools.length} tools run locally in the browser and surface recovery guidance without a server job record.`,
+      diagnosticsDetail:
+        "Runtime and export failures rely on sanitized failure telemetry plus the suite support guide. These tools do not expose persistent job IDs or queue depth.",
+      helpHref: PDF_STUDIO_SUPPORT_GUIDE,
+      helpLabel: "Open suite support guide",
+      examples: buildLaneExamples(browserFirstTools),
+    },
+    {
+      id: "worker-backed",
+      label: "Worker-backed conversions",
+      toolCount: workerBackedTools.length,
+      description: `${workerBackedTools.length} tools enqueue tracked jobs with job IDs, failure codes, queue depth, and retained history.`,
+      diagnosticsDetail:
+        "Support can diagnose these tools from the readiness page and the worker job recovery guide.",
+      helpHref: PDF_STUDIO_JOB_SUPPORT_GUIDE,
+      helpLabel: "Open worker job guide",
+      examples: buildLaneExamples(workerBackedTools),
+    },
+  ] satisfies PdfStudioSupportCoverageLane[];
+}
+
 export function getPdfStudioFailureHelpHref(
   code?: PdfStudioConversionFailureCode,
 ) {
   return code
-    ? `/help/troubleshooting/pdf-studio-jobs#${code}`
-    : "/help/troubleshooting/pdf-studio-jobs";
+    ? `${PDF_STUDIO_JOB_SUPPORT_GUIDE}#${code}`
+    : PDF_STUDIO_JOB_SUPPORT_GUIDE;
 }
 
 export function getPdfStudioFailureLabel(
@@ -239,11 +293,20 @@ export function buildPdfStudioReadinessChecklist(params: {
           ? `${params.diagnostics.failedJobs} failed jobs are visible in the current history window with job IDs, failure codes, and troubleshooting links.`
           : "No failed jobs are visible in the current history window, and the troubleshooting guide is ready if one appears.",
       status: params.diagnostics.failedJobs > 0 ? "warn" : "pass",
-      actionHref: "/help/troubleshooting/pdf-studio-jobs",
+      actionHref: PDF_STUDIO_JOB_SUPPORT_GUIDE,
       actionLabel: "Open troubleshooting guide",
+    },
+    {
+      id: "browser-recovery-paths",
+      label: "Browser-first recovery paths are published",
+      description: params.featureEnabled
+        ? "Browser-first PDF Studio tools use the suite support guide and sanitized failure telemetry for runtime and export failures, even though they do not expose persistent job IDs."
+        : "Enable PDF Studio first so browser-first recovery guidance and support telemetry apply to the workspace.",
+      status: params.featureEnabled ? "pass" : "fail",
+      actionHref: PDF_STUDIO_SUPPORT_GUIDE,
+      actionLabel: "Open suite support guide",
     },
   ];
 
   return items;
 }
-

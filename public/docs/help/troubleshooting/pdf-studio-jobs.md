@@ -1,6 +1,6 @@
 # PDF Studio Job Recovery
 
-Use this guide when a worker-backed PDF Studio job fails, retries, or needs support follow-up.
+Use this guide when a worker-backed PDF Studio job fails, retries, or needs support follow-up. For browser-first tools that run locally in the tab, use the broader [PDF Studio Support & Recovery](/help/troubleshooting/pdf-studio-support) guide first.
 
 ## What to collect before escalating
 

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   buildPdfStudioReadinessChecklist,
+  buildPdfStudioSupportCoverageLanes,
   buildPdfStudioSupportDiagnostics,
   getPdfStudioFailureHelpHref,
   getPdfStudioFailureRecoveryHint,
@@ -97,6 +98,12 @@ describe("pdf studio support helpers", () => {
     expect(checklist.find((item) => item.id === "queue-headroom")).toMatchObject({
       status: "fail",
     });
+    expect(
+      checklist.find((item) => item.id === "browser-recovery-paths"),
+    ).toMatchObject({
+      status: "pass",
+      actionHref: "/help/troubleshooting/pdf-studio-support",
+    });
   });
 
   it("maps recovery links and hints for failure codes", () => {
@@ -104,5 +111,21 @@ describe("pdf studio support helpers", () => {
       "/help/troubleshooting/pdf-studio-jobs#storage_error",
     );
     expect(getPdfStudioFailureRecoveryHint("storage_error")).toContain("Retry once");
+  });
+
+  it("builds honest support coverage lanes for browser and worker tools", () => {
+    const lanes = buildPdfStudioSupportCoverageLanes();
+
+    expect(lanes).toHaveLength(2);
+    expect(lanes[0]).toMatchObject({
+      id: "browser-first",
+      helpHref: "/help/troubleshooting/pdf-studio-support",
+    });
+    expect(lanes[0].toolCount).toBeGreaterThan(0);
+    expect(lanes[1]).toMatchObject({
+      id: "worker-backed",
+      helpHref: "/help/troubleshooting/pdf-studio-jobs",
+    });
+    expect(lanes[1].toolCount).toBeGreaterThan(0);
   });
 });

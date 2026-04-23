@@ -9,9 +9,14 @@ import {
 import { getPdfStudioHistoryEntryLimit } from "@/features/docs/pdf-studio/lib/plan-gates";
 import {
   buildPdfStudioReadinessChecklist,
+  buildPdfStudioSupportCoverageLanes,
   buildPdfStudioSupportDiagnostics,
   getPdfStudioFailureLabel,
 } from "@/features/docs/pdf-studio/lib/support";
+import {
+  PDF_STUDIO_JOB_SUPPORT_GUIDE,
+  PDF_STUDIO_SUPPORT_GUIDE,
+} from "@/features/docs/pdf-studio/lib/support-links";
 
 export const metadata = {
   title: "PDF Studio Readiness – Slipwise",
@@ -69,10 +74,10 @@ export default async function PdfStudioReadinessPage() {
               Review plans
             </Link>
             <Link
-              href="/help/troubleshooting/pdf-studio-jobs"
+              href={PDF_STUDIO_SUPPORT_GUIDE}
               className="inline-flex items-center justify-center rounded-full border border-amber-300 bg-white px-4 py-2.5 text-sm font-medium text-amber-900 transition-colors hover:bg-amber-100"
             >
-              Open troubleshooting guide
+              Open support guide
             </Link>
           </div>
         </div>
@@ -97,6 +102,7 @@ export default async function PdfStudioReadinessPage() {
     planId: plan.planId,
     diagnostics,
   });
+  const supportLanes = buildPdfStudioSupportCoverageLanes();
 
   const passCount = checklist.filter((item) => item.status === "pass").length;
   const failCount = checklist.filter((item) => item.status === "fail").length;
@@ -114,17 +120,24 @@ export default async function PdfStudioReadinessPage() {
             Readiness &amp; diagnostics
           </h1>
           <p className="mt-2 max-w-3xl text-sm text-gray-600">
-            Review queue headroom, recent failures, support-ready job IDs, and the
-            recovery links your team should use before escalating a PDF Studio issue.
+            Review the suite support lanes: browser-first tools rely on telemetry
+            and recovery guidance, while worker-backed conversions add queue
+            diagnostics, job IDs, and failure-code history.
           </p>
         </div>
 
         <div className="flex flex-wrap gap-3">
           <Link
-            href="/help/troubleshooting/pdf-studio-jobs"
+            href={PDF_STUDIO_SUPPORT_GUIDE}
             className="inline-flex items-center justify-center rounded-full border border-gray-300 bg-white px-4 py-2.5 text-sm font-medium text-gray-900 transition-colors hover:bg-gray-50"
           >
-            Troubleshooting guide
+            Suite support guide
+          </Link>
+          <Link
+            href={PDF_STUDIO_JOB_SUPPORT_GUIDE}
+            className="inline-flex items-center justify-center rounded-full border border-gray-300 bg-white px-4 py-2.5 text-sm font-medium text-gray-900 transition-colors hover:bg-gray-50"
+          >
+            Worker job guide
           </Link>
           <Link
             href="/app/docs/pdf-studio"
@@ -165,7 +178,7 @@ export default async function PdfStudioReadinessPage() {
               {warnCount > 0 &&
                 `${warnCount} recommendation${warnCount > 1 ? "s" : ""}.`}
               {allPassed &&
-                "Queue headroom, recovery links, and support diagnostics are all in place."}
+                "Browser-first recovery links, telemetry coverage, and worker diagnostics are all in place."}
             </p>
           </div>
         </div>
@@ -173,17 +186,17 @@ export default async function PdfStudioReadinessPage() {
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <MetricCard
-          label="Queue depth"
+          label="Worker queue depth"
           value={`${diagnostics.queueDepth}/${diagnostics.activeJobLimit}`}
           detail="Active processing slots in use right now"
         />
         <MetricCard
-          label="Tracked jobs"
+          label="Tracked worker jobs"
           value={diagnostics.totalJobs}
           detail={`Current support window: last ${diagnostics.historyWindow} jobs`}
         />
         <MetricCard
-          label="Success rate"
+          label="Worker success rate"
           value={
             diagnostics.successRate == null ? "—" : `${diagnostics.successRate}%`
           }
@@ -194,6 +207,49 @@ export default async function PdfStudioReadinessPage() {
           value={diagnostics.failedJobs + diagnostics.retryingJobs}
           detail={`${diagnostics.failedJobs} failed, ${diagnostics.retryingJobs} retrying`}
         />
+      </div>
+
+      <div className="grid gap-4 lg:grid-cols-2">
+        {supportLanes.map((lane) => (
+          <section
+            key={lane.id}
+            className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm"
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="text-[0.72rem] font-semibold uppercase tracking-[0.24em] text-gray-500">
+                  Support lane
+                </p>
+                <h2 className="mt-2 text-lg font-semibold text-gray-900">
+                  {lane.label}
+                </h2>
+              </div>
+              <span className="rounded-full bg-gray-100 px-3 py-1 text-xs font-medium text-gray-700">
+                {lane.toolCount} tools
+              </span>
+            </div>
+            <p className="mt-3 text-sm text-gray-600">{lane.description}</p>
+            <p className="mt-2 text-sm text-gray-500">{lane.diagnosticsDetail}</p>
+            {lane.examples.length > 0 ? (
+              <p className="mt-3 text-xs text-gray-500">
+                Examples: {lane.examples.join(", ")}
+              </p>
+            ) : null}
+            <div className="mt-4 flex flex-wrap gap-3 text-xs font-medium">
+              <Link href={lane.helpHref} className="text-blue-600 hover:underline">
+                {lane.helpLabel}
+              </Link>
+              {lane.id === "worker-backed" ? (
+                <Link
+                  href="/app/docs/pdf-studio/readiness"
+                  className="text-blue-600 hover:underline"
+                >
+                  Review worker diagnostics
+                </Link>
+              ) : null}
+            </div>
+          </section>
+        ))}
       </div>
 
       <div className="space-y-3">
@@ -233,7 +289,7 @@ export default async function PdfStudioReadinessPage() {
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1.3fr)_minmax(320px,1fr)]">
         <section className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
           <h2 className="text-lg font-semibold text-gray-900">
-            Recent failures and retries
+            Worker-backed failures and retries
           </h2>
           <p className="mt-1 text-sm text-gray-500">
             Keep the job ID and failure code when you escalate a conversion issue.
@@ -309,7 +365,7 @@ export default async function PdfStudioReadinessPage() {
 
         <section className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
           <h2 className="text-lg font-semibold text-gray-900">
-            Failure code breakdown
+            Worker-backed failure code breakdown
           </h2>
           <p className="mt-1 text-sm text-gray-500">
             Use this to spot recurring failure reasons before support volume spikes.
