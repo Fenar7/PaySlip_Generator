@@ -1,13 +1,29 @@
 "use client";
 
+import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui";
+import { useActiveOrg } from "@/hooks/use-active-org";
+import { usePlan } from "@/hooks/use-plan";
+import { PdfStudioUpgradeNotice } from "@/features/docs/pdf-studio/components/pdf-studio-upgrade-notice";
 import { usePdfStudioAnalytics } from "@/features/docs/pdf-studio/lib/analytics";
 import {
   buildPdfStudioAcceptString,
   buildPdfStudioUploadSummary,
 } from "@/features/docs/pdf-studio/lib/ingestion";
+import {
+  getPdfStudioHistoryEntryLimit,
+  getPdfStudioRetentionMessaging,
+  getPdfStudioToolUpgradeCopy,
+  getPdfStudioWorkspaceMinimumPlan,
+} from "@/features/docs/pdf-studio/lib/plan-gates";
+import {
+  getPdfStudioFailureHelpHref,
+  getPdfStudioFailureLabel,
+  getPdfStudioFailureRecoveryHint,
+} from "@/features/docs/pdf-studio/lib/support";
 import { getPdfStudioTool } from "@/features/docs/pdf-studio/lib/tool-registry";
+import type { PdfStudioConversionFailureCode } from "@/features/docs/pdf-studio/lib/conversion-errors";
 import type {
   PdfStudioConversionJobStatus,
   PdfStudioToolId,
@@ -28,6 +44,7 @@ type ConversionStatusResponse = {
   bundleDownloadPath?: string;
   outputs?: ConversionOutputResponse[];
   error?: string;
+  failureCode?: PdfStudioConversionFailureCode;
   attempts?: number;
   totalItems?: number;
   completedItems?: number;
@@ -47,9 +64,17 @@ type ConversionHistoryEntry = {
   failedItems: number;
   sourceLabel: string;
   error?: string;
+  failureCode?: PdfStudioConversionFailureCode;
   canRetry: boolean;
   bundleAvailable: boolean;
   nextRetryAt?: string;
+};
+
+type ConversionHistoryResponse = {
+  items?: ConversionHistoryEntry[];
+  meta?: {
+    historyLimit?: number;
+  };
 };
 
 function formatJobStatus(status: PdfStudioConversionJobStatus) {
@@ -75,11 +100,26 @@ export function ServerConversionWorkspace(props: {
   notice: string;
 }) {
   const analytics = usePdfStudioAnalytics(props.toolId);
+  const { activeOrg } = useActiveOrg();
+  const { plan, loading: planLoading } = usePlan(activeOrg?.id);
   const tool = useMemo(() => getPdfStudioTool(props.toolId), [props.toolId]);
   const accept = useMemo(() => buildPdfStudioAcceptString(props.toolId), [props.toolId]);
+  const requiredPlan = useMemo(
+    () => getPdfStudioWorkspaceMinimumPlan(props.toolId),
+    [props.toolId],
+  );
+  const historyLimit = useMemo(
+    () => getPdfStudioHistoryEntryLimit(plan?.planId ?? "starter"),
+    [plan?.planId],
+  );
+  const retentionMessaging = useMemo(
+    () => getPdfStudioRetentionMessaging(plan?.planId ?? "starter"),
+    [plan?.planId],
+  );
   const [files, setFiles] = useState<File[]>([]);
   const [job, setJob] = useState<ConversionStatusResponse | null>(null);
   const [history, setHistory] = useState<ConversionHistoryEntry[]>([]);
+  const [historyWindow, setHistoryWindow] = useState(0);
   const [historyLoading, setHistoryLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -87,10 +127,17 @@ export function ServerConversionWorkspace(props: {
   const [loadingJobId, setLoadingJobId] = useState<string | null>(null);
 
   const loadHistory = useCallback(async () => {
+    if (!activeOrg?.id || historyLimit === 0) {
+      setHistory([]);
+      setHistoryWindow(0);
+      setHistoryLoading(false);
+      return;
+    }
+
     setHistoryLoading(true);
     try {
       const response = await fetch(
-        `/api/pdf-studio/conversions/history?toolId=${props.toolId}&limit=10`,
+        `/api/pdf-studio/conversions/history?toolId=${props.toolId}&limit=${historyLimit}`,
         {
           cache: "no-store",
         },
@@ -98,14 +145,15 @@ export function ServerConversionWorkspace(props: {
       if (!response.ok) {
         throw new Error("Could not load recent PDF Studio jobs.");
       }
-      const payload = (await response.json()) as { items?: ConversionHistoryEntry[] };
+      const payload = (await response.json()) as ConversionHistoryResponse;
       setHistory(payload.items ?? []);
+      setHistoryWindow(payload.meta?.historyLimit ?? historyLimit);
     } catch (historyError) {
       console.error(historyError);
     } finally {
       setHistoryLoading(false);
     }
-  }, [props.toolId]);
+  }, [activeOrg?.id, historyLimit, props.toolId]);
 
   const refreshJob = useCallback(
     async (jobId: string) => {
@@ -269,6 +317,12 @@ export function ServerConversionWorkspace(props: {
       : files.length === 1
         ? files[0]?.name ?? "1 file selected"
         : `${files.length} files selected`;
+  const planLocked =
+    !planLoading &&
+    requiredPlan === "pro" &&
+    plan != null &&
+    plan.planId !== "pro" &&
+    plan.planId !== "enterprise";
 
   return (
     <div className="mx-auto max-w-5xl space-y-6 px-4 py-8 sm:py-12">
@@ -278,6 +332,18 @@ export function ServerConversionWorkspace(props: {
         </h1>
         <p className="mt-2 text-sm text-[#666]">{props.description}</p>
       </div>
+
+      {planLocked ? (
+        <PdfStudioUpgradeNotice
+          toolId={props.toolId}
+          surface="workspace"
+          requiredPlan="pro"
+          title={`${props.title} needs the Pro workspace lane`}
+          description={getPdfStudioToolUpgradeCopy(props.toolId)}
+          ctaLabel="Upgrade to Pro"
+          ctaHref="/pricing"
+        />
+      ) : null}
 
       <div className="grid gap-6 lg:grid-cols-[minmax(0,2fr)_minmax(320px,1fr)]">
         <div className="space-y-4 rounded-2xl border border-[#e5e5e5] bg-white p-5 shadow-sm">
@@ -291,8 +357,9 @@ export function ServerConversionWorkspace(props: {
               className="mt-3 block w-full text-xs text-[#666]"
               type="file"
               accept={accept}
-              multiple={tool.limits.maxFiles > 1}
+              multiple={tool.limits.maxFiles > 1 && !planLocked}
               aria-label={`${props.title} source file upload`}
+              disabled={planLocked}
               onChange={(event) => {
                 const nextFiles = Array.from(event.target.files ?? []);
                 setFiles(nextFiles);
@@ -326,6 +393,31 @@ export function ServerConversionWorkspace(props: {
                 Batch mode queues multiple source files as one tracked job and keeps the same job ID through automatic retries.
               </p>
             ) : null}
+            <p className="mt-2 text-xs text-amber-900/90">
+              {retentionMessaging.planNotice}
+            </p>
+          </div>
+
+          <div className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-700">
+            <p className="font-medium text-gray-900">Need recovery help?</p>
+            <p className="mt-1">
+              Keep the job ID, then use the PDF Studio troubleshooting guide or
+              workspace readiness page before escalating a failed conversion.
+            </p>
+            <div className="mt-3 flex flex-wrap gap-3 text-xs font-medium">
+              <Link
+                href="/help/troubleshooting/pdf-studio-jobs"
+                className="text-blue-600 hover:underline"
+              >
+                Open troubleshooting guide
+              </Link>
+              <Link
+                href="/app/docs/pdf-studio/readiness"
+                className="text-blue-600 hover:underline"
+              >
+                Open readiness &amp; diagnostics
+              </Link>
+            </div>
           </div>
 
           {error ? (
@@ -335,7 +427,7 @@ export function ServerConversionWorkspace(props: {
           ) : null}
 
           <div className="flex flex-wrap gap-3">
-            <Button onClick={() => void handleStart()} disabled={submitting}>
+            <Button onClick={() => void handleStart()} disabled={submitting || planLocked}>
               {submitting
                 ? "Queuing…"
                 : files.length > 1
@@ -347,7 +439,7 @@ export function ServerConversionWorkspace(props: {
                 type="button"
                 variant="secondary"
                 onClick={() => setFiles([])}
-                disabled={submitting}
+                disabled={submitting || planLocked}
               >
                 Clear files
               </Button>
@@ -375,7 +467,31 @@ export function ServerConversionWorkspace(props: {
               ) : null}
 
               {job.error ? (
-                <p className="mt-3 text-sm text-red-700">{job.error}</p>
+                <div className="mt-3 space-y-2">
+                  <p className="text-sm text-red-700">{job.error}</p>
+                  {job.failureCode ? (
+                    <p className="text-xs font-medium text-red-700">
+                      Failure code: {getPdfStudioFailureLabel(job.failureCode)}
+                    </p>
+                  ) : null}
+                  <p className="text-xs text-[#666]">
+                    {getPdfStudioFailureRecoveryHint(job.failureCode)}
+                  </p>
+                  <div className="flex flex-wrap gap-3 text-xs font-medium">
+                    <Link
+                      href={getPdfStudioFailureHelpHref(job.failureCode)}
+                      className="text-blue-600 hover:underline"
+                    >
+                      Open recovery guide
+                    </Link>
+                    <Link
+                      href="/app/docs/pdf-studio/readiness"
+                      className="text-blue-600 hover:underline"
+                    >
+                      Open readiness &amp; diagnostics
+                    </Link>
+                  </div>
+                </div>
               ) : null}
 
               {job.downloadUrl && job.outputFileName ? (
@@ -424,7 +540,7 @@ export function ServerConversionWorkspace(props: {
 
               {(job.downloadUrl || job.bundleDownloadPath) ? (
                 <p className="mt-3 text-xs text-[#666]">
-                  Download links stay available for 24 hours after the conversion finishes.
+                  {retentionMessaging.completionNotice}
                 </p>
               ) : (
                 <p className="mt-3 text-sm text-[#666]">
@@ -439,7 +555,9 @@ export function ServerConversionWorkspace(props: {
           <div>
             <h2 className="text-base font-semibold text-[#1a1a1a]">Recent jobs</h2>
             <p className="mt-1 text-sm text-[#666]">
-              Resume active jobs, review failures, and reopen completed results for this tool.
+              {historyWindow > 0
+                ? `Resume active jobs, review failures, and reopen completed results from the last ${historyWindow} tracked jobs for this tool.`
+                : "Resume active jobs, review failures, and reopen completed results for this tool."}
             </p>
           </div>
 
@@ -471,7 +589,23 @@ export function ServerConversionWorkspace(props: {
                   </div>
 
                   {entry.error ? (
-                    <p className="mt-2 text-xs text-red-700">{entry.error}</p>
+                    <div className="mt-2 space-y-2">
+                      <p className="text-xs text-red-700">{entry.error}</p>
+                      {entry.failureCode ? (
+                      <p className="text-[11px] font-medium text-red-700">
+                          Failure code: {getPdfStudioFailureLabel(entry.failureCode)}
+                        </p>
+                      ) : null}
+                      <p className="text-[11px] text-[#666]">
+                        {getPdfStudioFailureRecoveryHint(entry.failureCode)}
+                      </p>
+                      <Link
+                        href={getPdfStudioFailureHelpHref(entry.failureCode)}
+                        className="inline-flex text-[11px] font-medium text-blue-600 hover:underline"
+                      >
+                        Open recovery guide
+                      </Link>
+                    </div>
                   ) : null}
                   {entry.nextRetryAt ? (
                     <p className="mt-2 text-xs text-[#7a5d00]">

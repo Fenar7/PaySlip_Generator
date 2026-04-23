@@ -2,7 +2,9 @@ import { describe, expect, it } from "vitest";
 import {
   getPdfStudioToolBySlug,
   getPdfStudioTool,
+  getPdfStudioTierBadgeCopy,
   isPdfStudioToolAvailableOnSurface,
+  isPdfStudioToolInteractiveForPublic,
   listPdfStudioTools,
   listPdfStudioToolsByCategory,
 } from "@/features/docs/pdf-studio/lib/tool-registry";
@@ -153,7 +155,7 @@ describe("pdf studio tool registry", () => {
     });
   });
 
-  it("keeps workspace and public hub categories aligned", () => {
+  it("keeps workspace and public hub categories aligned while exposing public discovery pages", () => {
     const workspaceCatalog = listPdfStudioToolsByCategory("workspace").map(
       (category) => ({
         label: category.label,
@@ -177,63 +179,25 @@ describe("pdf studio tool registry", () => {
         ),
       ),
     ).toBe(true);
-    expect(publicCatalog.flatMap((category) => category.tools)).not.toContain(
-      "protect",
-    );
-    expect(publicCatalog.flatMap((category) => category.tools)).not.toContain(
-      "alternate-mix",
-    );
-    expect(publicCatalog.flatMap((category) => category.tools)).not.toContain(
-      "editor",
-    );
-    expect(publicCatalog.flatMap((category) => category.tools)).not.toContain(
-      "create-forms",
-    );
-    expect(publicCatalog.flatMap((category) => category.tools)).not.toContain(
-      "page-numbers",
-    );
-    expect(publicCatalog.flatMap((category) => category.tools)).not.toContain(
-      "bates",
-    );
-    expect(publicCatalog.flatMap((category) => category.tools)).not.toContain(
-      "metadata",
-    );
-    expect(publicCatalog.flatMap((category) => category.tools)).not.toContain(
-      "rename",
-    );
-    expect(publicCatalog.flatMap((category) => category.tools)).not.toContain(
-      "remove-annotations",
-    );
-    expect(publicCatalog.flatMap((category) => category.tools)).not.toContain(
-      "bookmarks",
-    );
-    expect(publicCatalog.flatMap((category) => category.tools)).not.toContain(
-      "flatten",
-    );
-    expect(publicCatalog.flatMap((category) => category.tools)).not.toContain(
-      "n-up",
-    );
-    expect(publicCatalog.flatMap((category) => category.tools)).not.toContain(
-      "unlock",
-    );
-    expect(publicCatalog.flatMap((category) => category.tools)).not.toContain(
-      "grayscale",
-    );
-    expect(publicCatalog.flatMap((category) => category.tools)).not.toContain(
-      "pdf-to-word",
-    );
-    expect(publicCatalog.flatMap((category) => category.tools)).not.toContain(
-      "pdf-to-excel",
-    );
-    expect(publicCatalog.flatMap((category) => category.tools)).not.toContain(
-      "pdf-to-ppt",
-    );
-    expect(publicCatalog.flatMap((category) => category.tools)).not.toContain(
-      "word-to-pdf",
-    );
-    expect(publicCatalog.flatMap((category) => category.tools)).not.toContain(
-      "html-to-pdf",
-    );
+    expect(publicCatalog.flatMap((category) => category.tools)).toContain("protect");
+    expect(publicCatalog.flatMap((category) => category.tools)).toContain("alternate-mix");
+    expect(publicCatalog.flatMap((category) => category.tools)).toContain("editor");
+    expect(publicCatalog.flatMap((category) => category.tools)).toContain("create-forms");
+    expect(publicCatalog.flatMap((category) => category.tools)).toContain("page-numbers");
+    expect(publicCatalog.flatMap((category) => category.tools)).toContain("bates");
+    expect(publicCatalog.flatMap((category) => category.tools)).toContain("metadata");
+    expect(publicCatalog.flatMap((category) => category.tools)).toContain("rename");
+    expect(publicCatalog.flatMap((category) => category.tools)).toContain("remove-annotations");
+    expect(publicCatalog.flatMap((category) => category.tools)).toContain("bookmarks");
+    expect(publicCatalog.flatMap((category) => category.tools)).toContain("flatten");
+    expect(publicCatalog.flatMap((category) => category.tools)).toContain("n-up");
+    expect(publicCatalog.flatMap((category) => category.tools)).toContain("unlock");
+    expect(publicCatalog.flatMap((category) => category.tools)).toContain("grayscale");
+    expect(publicCatalog.flatMap((category) => category.tools)).toContain("pdf-to-word");
+    expect(publicCatalog.flatMap((category) => category.tools)).toContain("pdf-to-excel");
+    expect(publicCatalog.flatMap((category) => category.tools)).toContain("pdf-to-ppt");
+    expect(publicCatalog.flatMap((category) => category.tools)).toContain("word-to-pdf");
+    expect(publicCatalog.flatMap((category) => category.tools)).toContain("html-to-pdf");
     expect(publicCatalog.flatMap((category) => category.tools)).toContain("watermark");
     expect(publicCatalog.flatMap((category) => category.tools)).toContain("jpg-to-pdf");
     expect(publicCatalog.flatMap((category) => category.tools)).toContain("pdf-to-text");
@@ -243,5 +207,23 @@ describe("pdf studio tool registry", () => {
     expect(publicCatalog.flatMap((category) => category.tools)).toContain(
       "extract-pages",
     );
+  });
+
+  it("labels tiers and keeps pro tools as landing pages on the public surface", () => {
+    expect(getPdfStudioTierBadgeCopy(getPdfStudioTool("merge"))).toMatchObject({
+      tier: "free",
+      label: "Free",
+    });
+    expect(getPdfStudioTierBadgeCopy(getPdfStudioTool("protect"))).toMatchObject({
+      tier: "workspace",
+      label: "Workspace",
+    });
+    expect(getPdfStudioTierBadgeCopy(getPdfStudioTool("repair"))).toMatchObject({
+      tier: "pro",
+      label: "Pro",
+    });
+    expect(isPdfStudioToolInteractiveForPublic(getPdfStudioTool("merge"))).toBe(true);
+    expect(isPdfStudioToolInteractiveForPublic(getPdfStudioTool("protect"))).toBe(false);
+    expect(isPdfStudioToolInteractiveForPublic(getPdfStudioTool("repair"))).toBe(false);
   });
 });

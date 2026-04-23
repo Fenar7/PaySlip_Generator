@@ -2,11 +2,21 @@
 
 import Link from "next/link";
 import { Badge } from "@/components/ui";
+import { PdfStudioCapabilityMatrix } from "@/features/docs/pdf-studio/components/pdf-studio-capability-matrix";
+import { PdfStudioSupportNotice } from "@/features/docs/pdf-studio/components/pdf-studio-support-notice";
+import { PdfStudioUpgradeNotice } from "@/features/docs/pdf-studio/components/pdf-studio-upgrade-notice";
 import {
   buildPdfStudioUploadSummary,
 } from "@/features/docs/pdf-studio/lib/ingestion";
 import {
+  getPdfStudioCapabilityTier,
+  getPdfStudioToolUpgradeCopy,
+  getPdfStudioWorkspaceMinimumPlan,
+} from "@/features/docs/pdf-studio/lib/plan-gates";
+import {
   getPdfStudioExecutionCopy,
+  getPdfStudioTierBadgeCopy,
+  isPdfStudioToolInteractiveForPublic,
   type PdfStudioToolDefinition,
 } from "@/features/docs/pdf-studio/lib/tool-registry";
 import { trackPdfStudioLifecycleEvent } from "@/features/docs/pdf-studio/lib/analytics";
@@ -19,6 +29,10 @@ export function PdfStudioPublicToolShell({
   children: React.ReactNode;
 }) {
   const execution = getPdfStudioExecutionCopy(tool.executionMode);
+  const interactive = isPdfStudioToolInteractiveForPublic(tool);
+  const tier = getPdfStudioTierBadgeCopy(tool);
+  const requiredPlan = getPdfStudioWorkspaceMinimumPlan(tool.id);
+  const capabilityTier = getPdfStudioCapabilityTier(tool.id);
 
   return (
     <div className="space-y-8">
@@ -52,9 +66,22 @@ export function PdfStudioPublicToolShell({
               </Badge>
               <Badge variant="default">{tool.outputLabel}</Badge>
               <Badge variant="default">{buildPdfStudioUploadSummary(tool.id)}</Badge>
+              <Badge
+                variant={
+                  capabilityTier === "free"
+                    ? "success"
+                    : capabilityTier === "pro"
+                      ? "warning"
+                      : "default"
+                }
+              >
+                {tier.label}
+              </Badge>
             </div>
             <p className="mt-4 max-w-3xl text-sm leading-7 text-[var(--foreground-soft)]">
-              {execution.description}
+              {interactive
+                ? execution.description
+                : `${getPdfStudioToolUpgradeCopy(tool.id)} ${execution.description}`}
             </p>
           </div>
 
@@ -83,13 +110,37 @@ export function PdfStudioPublicToolShell({
           </div>
         </div>
         <p className="mt-4 text-xs text-[var(--muted-foreground)]">
-          Stay on this public page to use the tool now. The workspace version is
-          for signed-in Slipwise users who want the full docs workspace around
-          the same utility.
+          {interactive
+            ? "Stay on this public page to use the tool now. The workspace version adds signed-in history, retained downloads, and team context around the same utility."
+            : "This public page is a discovery surface for the workspace lane. Open the signed-in version to run the tool with the right plan and document controls."}
         </p>
       </section>
 
-      <section className="[&_.pdf-studio-tool-header]:hidden">{children}</section>
+      {!interactive ? (
+        <PdfStudioUpgradeNotice
+          toolId={tool.id}
+          surface="public"
+          requiredPlan={requiredPlan}
+          title={
+            requiredPlan === "pro"
+              ? `${tool.title} runs on the Pro workspace`
+              : `${tool.title} runs in the Slipwise workspace`
+          }
+          description={getPdfStudioToolUpgradeCopy(tool.id)}
+          ctaLabel={requiredPlan === "pro" ? "Compare Pro plans" : "Open workspace"}
+          ctaHref={requiredPlan === "pro" ? "/pricing" : tool.workspacePath}
+          secondaryHref={requiredPlan === "pro" ? tool.workspacePath : "/pricing"}
+          secondaryLabel={requiredPlan === "pro" ? "Open workspace route" : "Compare plans"}
+        />
+      ) : null}
+
+      <PdfStudioSupportNotice surface="public" />
+
+      <PdfStudioCapabilityMatrix />
+
+      {interactive ? (
+        <section className="[&_.pdf-studio-tool-header]:hidden">{children}</section>
+      ) : null}
     </div>
   );
 }

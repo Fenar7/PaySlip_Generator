@@ -3,9 +3,14 @@
 import { useEffect, useMemo, useRef } from "react";
 import { usePathname } from "next/navigation";
 import { trackEvent } from "@/lib/analytics";
+import { captureError } from "@/lib/sentry";
 import { getPdfStudioTool } from "@/features/docs/pdf-studio/lib/tool-registry";
+import { PDF_STUDIO_SUPPORT_GUIDE } from "@/features/docs/pdf-studio/lib/support-links";
 import { usePdfStudioSurface } from "@/features/docs/pdf-studio/lib/surface";
-import type { PdfStudioToolId } from "@/features/docs/pdf-studio/types";
+import type {
+  PdfStudioExecutionMode,
+  PdfStudioToolId,
+} from "@/features/docs/pdf-studio/types";
 
 type PdfStudioAnalyticsSubject = PdfStudioToolId | "hub";
 type PdfStudioAnalyticsEvent =
@@ -51,6 +56,17 @@ type FailureProperties = SafeAnalyticsProperties & {
   reason: PdfStudioFailureReason;
 };
 
+const SUPPORT_CAPTURE_REASONS = new Set<PdfStudioFailureReason>([
+  "pdf-read-failed",
+  "pdf-runtime-failed",
+  "processing-failed",
+  "render-failed",
+  "ocr-unavailable",
+  "encryption-failed",
+  "no-recoverable-pages",
+  "image-only-output",
+]);
+
 const BLOCKED_ANALYTICS_KEYS = new Set([
   "message",
   "error",
@@ -77,6 +93,40 @@ export function trackPdfStudioLifecycleEvent(
   properties: Record<string, unknown>,
 ) {
   void trackEvent(eventName, sanitizeAnalyticsProperties(properties));
+}
+
+export async function capturePdfStudioSupportFailure(params: {
+  subject: PdfStudioAnalyticsSubject;
+  executionMode: PdfStudioExecutionMode | null;
+  route: string;
+  surface: string;
+  failure: FailureProperties;
+}) {
+  if (
+    params.subject === "hub" ||
+    (params.executionMode !== "browser" && params.executionMode !== "hybrid") ||
+    !SUPPORT_CAPTURE_REASONS.has(params.failure.reason)
+  ) {
+    return;
+  }
+
+  const failure = sanitizeAnalyticsProperties(params.failure);
+
+  await captureError(
+    new Error(
+      `PDF Studio browser-support failure: ${params.subject} ${params.failure.stage} ${params.failure.reason}`,
+    ),
+    {
+      subject: params.subject,
+      surface: params.surface,
+      route: params.route,
+      executionMode: params.executionMode,
+      ...failure,
+      supportLane: "browser-first",
+      diagnosticsScope: "telemetry-only",
+      helpHref: PDF_STUDIO_SUPPORT_GUIDE,
+    },
+  );
 }
 
 export function usePdfStudioAnalytics(subject: PdfStudioAnalyticsSubject) {
@@ -125,9 +175,18 @@ export function usePdfStudioAnalytics(subject: PdfStudioAnalyticsSubject) {
       });
     },
     trackFail(properties: FailureProperties) {
-      trackPdfStudioLifecycleEvent("pdf_studio_fail", {
+      const failureProperties = {
         ...baseProperties,
         ...sanitizeAnalyticsProperties(properties),
+      };
+
+      trackPdfStudioLifecycleEvent("pdf_studio_fail", failureProperties);
+      void capturePdfStudioSupportFailure({
+        subject,
+        executionMode: tool?.executionMode ?? null,
+        route: pathname,
+        surface,
+        failure: properties,
       });
     },
     trackUpgradeIntent(properties?: Record<string, unknown>) {

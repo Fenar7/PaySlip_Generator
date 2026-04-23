@@ -22,7 +22,12 @@ vi.mock("@/features/docs/pdf-studio/lib/server-converters", () => ({
   runServerConversion: vi.fn(),
 }));
 
+vi.mock("@/lib/sentry", () => ({
+  captureError: vi.fn(),
+}));
+
 import { db } from "@/lib/db";
+import { captureError } from "@/lib/sentry";
 import {
   appendPdfStudioConversionOutput,
   claimPdfStudioConversionJob,
@@ -152,6 +157,15 @@ describe("pdf studio conversion job processor", () => {
       message: "The DOCX file could not be rendered.",
       retryable: false,
     });
+    expect(captureError).toHaveBeenCalledWith(
+      expect.any(PdfStudioConversionError),
+      expect.objectContaining({
+        feature: "pdf-studio",
+        operation: "process-conversion-job",
+        jobId: "job-1",
+        failureCode: "malformed_docx",
+      }),
+    );
   });
 
   it("summarizes mixed retry queue outcomes", async () => {

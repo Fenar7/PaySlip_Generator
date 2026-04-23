@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getOrgContext } from "@/lib/auth";
+import { captureError } from "@/lib/sentry";
+import { getOrgPlan } from "@/lib/plans/enforcement";
 import {
   countActivePdfStudioConversionJobs,
   createPdfStudioConversionJob,
@@ -16,6 +18,7 @@ import {
   validatePdfStudioConversionRequest,
 } from "@/features/docs/pdf-studio/lib/server-conversion-policy";
 import { checkFeature } from "@/lib/plans/enforcement";
+import { getPdfStudioWorkspaceMinimumPlan } from "@/features/docs/pdf-studio/lib/plan-gates";
 import { RATE_LIMITS, rateLimitByOrg } from "@/lib/rate-limit";
 import { isUploadedFile } from "@/lib/server/form-data";
 
@@ -88,6 +91,23 @@ export async function POST(request: NextRequest) {
     !isServerTargetFormat(targetFormat)
   ) {
     return NextResponse.json({ error: "Unsupported conversion request." }, { status: 400 });
+  }
+
+  const orgPlan = await getOrgPlan(context.orgId);
+  const requiredPlan = getPdfStudioWorkspaceMinimumPlan(toolId);
+  if (
+    requiredPlan === "pro" &&
+    orgPlan.planId !== "pro" &&
+    orgPlan.planId !== "enterprise"
+  ) {
+    return NextResponse.json(
+      {
+        error:
+          "Office conversions, tracked batch jobs, and retained processing downloads require the Pro plan.",
+        code: "pdf_studio_pro_required",
+      },
+      { status: 403 },
+    );
   }
 
   const activeJobs = await countActivePdfStudioConversionJobs(context.orgId);
@@ -201,6 +221,28 @@ export async function POST(request: NextRequest) {
       { status: 202 },
     );
   } catch (error) {
+    const sourceCount =
+      files.filter(isUploadedFile).length > 0
+        ? files.filter(isUploadedFile).length
+        : isUploadedFile(file)
+          ? 1
+          : typeof sourceUrl === "string" && sourceUrl.trim().length > 0
+            ? 1
+            : 0;
+
+    if (!isPdfStudioConversionError(error) || error.status >= 500) {
+      await captureError(error, {
+        feature: "pdf-studio",
+        operation: "queue-conversion",
+        orgId: context.orgId,
+        userId: context.userId,
+        toolId: typeof toolId === "string" ? toolId : undefined,
+        targetFormat:
+          typeof targetFormat === "string" ? targetFormat : undefined,
+        sourceCount,
+      });
+    }
+
     if (isPdfStudioConversionError(error)) {
       return NextResponse.json({ error: error.message, code: error.code }, { status: error.status });
     }

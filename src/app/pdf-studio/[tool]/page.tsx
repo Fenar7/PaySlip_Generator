@@ -2,10 +2,13 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { PdfStudioPublicToolShell } from "@/features/docs/pdf-studio/components/pdf-studio-public-tool-shell";
-import { buildPdfStudioToolMetadata } from "@/features/docs/pdf-studio/lib/route-metadata";
+import {
+  buildPdfStudioToolMetadata,
+  buildPdfStudioToolStructuredData,
+} from "@/features/docs/pdf-studio/lib/route-metadata";
 import {
   getPdfStudioToolBySlug,
-  isPdfStudioToolAvailableOnSurface,
+  isPdfStudioToolInteractiveForPublic,
   listPdfStudioTools,
 } from "@/features/docs/pdf-studio/lib/tool-registry";
 import { renderPdfStudioToolWorkspace } from "@/features/docs/pdf-studio/lib/tool-components";
@@ -23,7 +26,7 @@ export function generateMetadata({
 }): Promise<Metadata> | Metadata {
   return params.then(({ tool: slug }) => {
     const tool = getPdfStudioToolBySlug(slug);
-    if (!tool || !isPdfStudioToolAvailableOnSurface(tool, "public")) {
+    if (!tool) {
       return {};
     }
 
@@ -38,13 +41,20 @@ export default async function PublicPdfStudioToolPage({
 }) {
   const { tool: slug } = await params;
   const tool = getPdfStudioToolBySlug(slug);
-  if (!tool || !isPdfStudioToolAvailableOnSurface(tool, "public")) {
+  if (!tool) {
     notFound();
   }
 
-  if (tool.id === "create") {
+  const interactive = isPdfStudioToolInteractiveForPublic(tool);
+  const structuredData = buildPdfStudioToolStructuredData(tool.id);
+
+  if (tool.id === "create" && interactive) {
     return (
       <div className="space-y-6">
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData) }}
+        />
         <div>
           <Link
             href="/pdf-studio"
@@ -60,6 +70,10 @@ export default async function PublicPdfStudioToolPage({
 
   return (
     <div className="space-y-6">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData) }}
+      />
       <div>
         <Link
           href="/pdf-studio"
@@ -69,7 +83,7 @@ export default async function PublicPdfStudioToolPage({
         </Link>
       </div>
       <PdfStudioPublicToolShell tool={tool}>
-        {renderPdfStudioToolWorkspace(tool.id)}
+        {interactive ? renderPdfStudioToolWorkspace(tool.id) : null}
       </PdfStudioPublicToolShell>
     </div>
   );

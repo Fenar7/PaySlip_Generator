@@ -1,6 +1,7 @@
 import "server-only";
 
 import { db } from "@/lib/db";
+import { captureError } from "@/lib/sentry";
 import {
   appendPdfStudioConversionOutput,
   claimPdfStudioConversionJob,
@@ -82,6 +83,20 @@ export async function processPdfStudioConversionJob(jobId: string, orgId?: strin
       message: conversionError.message,
       retryable: conversionError.retryable,
     });
+    if (!conversionError.retryable || record.retryCount + 1 >= record.maxRetries) {
+      await captureError(error, {
+        feature: "pdf-studio",
+        operation: "process-conversion-job",
+        jobId,
+        orgId: record.orgId,
+        userId: record.userId,
+        toolId: payload.toolId,
+        targetFormat: payload.targetFormat,
+        retryCount: record.retryCount + 1,
+        maxRetries: record.maxRetries,
+        failureCode: conversionError.code,
+      });
+    }
     return { processed: true as const, success: false as const };
   }
 }

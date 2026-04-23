@@ -5,6 +5,12 @@ import type {
   PdfStudioToolId,
   PdfStudioToolSurface,
 } from "@/features/docs/pdf-studio/types";
+import {
+  getPdfStudioCapabilityTier,
+  getPdfStudioTierLabel,
+  isPdfStudioToolDiscoverableOnPublicSurface,
+  isPdfStudioToolInteractiveOnPublicSurface,
+} from "@/features/docs/pdf-studio/lib/plan-gates";
 
 export type PdfStudioToolDefinition = {
   id: PdfStudioToolId;
@@ -788,20 +794,18 @@ export function isPdfStudioToolAvailableOnSurface(
   surface: PdfStudioToolSurface,
 ) {
   return surface === "public"
-    ? tool.availability.public === "available"
+    ? isPdfStudioToolDiscoverableOnPublicSurface(tool.id)
     : tool.availability.workspace === "available";
 }
 
 export function getPdfStudioCanonicalPath(tool: PdfStudioToolDefinition) {
-  return tool.availability.public === "available"
-    ? tool.publicPath
-    : tool.workspacePath;
+  return tool.publicPath;
 }
 
 export function listPdfStudioTools(surface?: PdfStudioToolSurface) {
   const tools = PDF_STUDIO_TOOL_ORDER.map((toolId) => PDF_STUDIO_TOOL_REGISTRY[toolId]);
   if (surface === "public") {
-    return tools.filter((tool) => isPdfStudioToolAvailableOnSurface(tool, "public"));
+    return tools.filter((tool) => isPdfStudioToolDiscoverableOnPublicSurface(tool.id));
   }
   return tools;
 }
@@ -835,4 +839,22 @@ export function getPdfStudioExecutionCopy(mode: PdfStudioExecutionMode) {
           "Mixes browser-side work with secure processing for the parts that cannot run safely in-browser.",
       };
   }
+}
+
+export function getPdfStudioTierBadgeCopy(tool: PdfStudioToolDefinition) {
+  const tier = getPdfStudioCapabilityTier(tool.id);
+  return {
+    tier,
+    label: getPdfStudioTierLabel(tier),
+    description:
+      tier === "free"
+        ? "Works on the public lane."
+        : tier === "workspace"
+          ? "Needs the signed-in workspace."
+          : "Needs the Pro workspace lane.",
+  };
+}
+
+export function isPdfStudioToolInteractiveForPublic(tool: PdfStudioToolDefinition) {
+  return isPdfStudioToolInteractiveOnPublicSurface(tool.id);
 }
