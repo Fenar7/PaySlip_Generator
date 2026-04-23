@@ -4,6 +4,7 @@ import {
   PdfStudioWorkspace,
   PUBLIC_PDF_STUDIO_SCOPE,
 } from "./pdf-studio-workspace";
+import { PUBLIC_FILL_SIGN_SCOPE } from "./fill-sign/fill-sign-workspace";
 
 const { usePdfStudioSurface, useActiveOrg, loadPdfStudioSession } = vi.hoisted(
   () => ({
@@ -47,7 +48,9 @@ describe("PdfStudioWorkspace", () => {
     });
   });
 
-  it("uses an anonymous browser scope on the public surface", async () => {
+  it("uses an isolated anonymous browser scope on the public surface", async () => {
+    expect(PUBLIC_PDF_STUDIO_SCOPE).not.toBe(PUBLIC_FILL_SIGN_SCOPE);
+
     usePdfStudioSurface.mockReturnValue({
       surface: "public",
       isPublic: true,

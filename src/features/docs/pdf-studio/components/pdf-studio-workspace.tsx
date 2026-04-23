@@ -215,7 +215,7 @@ function GenerationDialog({
   );
 }
 
-export const PUBLIC_PDF_STUDIO_SCOPE = "anonymous-browser";
+export const PUBLIC_PDF_STUDIO_SCOPE = "anonymous-browser-create-jpg";
 
 interface PdfStudioWorkspaceContentProps {
   toolId?: "create" | "jpg-to-pdf";
