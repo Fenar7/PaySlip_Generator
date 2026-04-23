@@ -2,6 +2,7 @@
 
 import { db } from "@/lib/db";
 import { requireOrgContext } from "@/lib/auth";
+import { formatIsoDate, toAccountingNumber } from "@/lib/accounting/utils";
 
 export type ActionResult<T> =
   | { success: true; data: T }
@@ -64,13 +65,18 @@ export async function getReceivablesKPIs(): Promise<ActionResult<KPIData>> {
       }),
     ]);
 
+    const dueThisMonthTotal = toAccountingNumber(dueThisMonth._sum.totalAmount ?? 0);
+    const overdueTotal = toAccountingNumber(overdue._sum.totalAmount ?? 0);
+    const partiallyPaidTotal = toAccountingNumber(partiallyPaid._sum.totalAmount ?? 0);
+    const paidThisMonthTotal = toAccountingNumber(paidThisMonth._sum.totalAmount ?? 0);
+
     return {
       success: true,
       data: {
-        dueThisMonth: { count: dueThisMonth._count, total: dueThisMonth._sum.totalAmount || 0 },
-        overdue: { count: overdue._count, total: overdue._sum.totalAmount || 0 },
-        partiallyPaid: { count: partiallyPaid._count, total: partiallyPaid._sum.totalAmount || 0 },
-        paidThisMonth: { count: paidThisMonth._count, total: paidThisMonth._sum.totalAmount || 0 },
+        dueThisMonth: { count: dueThisMonth._count, total: dueThisMonthTotal },
+        overdue: { count: overdue._count, total: overdueTotal },
+        partiallyPaid: { count: partiallyPaid._count, total: partiallyPaidTotal },
+        paidThisMonth: { count: paidThisMonth._count, total: paidThisMonthTotal },
       },
     };
   } catch (error) {
@@ -146,21 +152,21 @@ export async function listReceivables(params?: {
 
     return {
       success: true,
-      data: {
-        invoices: invoices.map((inv) => ({
-          id: inv.id,
-          invoiceNumber: inv.invoiceNumber,
-          customerName: inv.customer?.name || "—",
-          totalAmount: inv.totalAmount,
-          dueDate: inv.dueDate,
-          status: inv.status,
-          publicToken: inv.publicTokens[0]?.token ?? null,
-          amountPaid: inv.amountPaid,
-          remainingAmount: inv.remainingAmount,
-          lastPaymentMethod: inv.lastPaymentMethod,
-          nextPaymentDate: inv.paymentPromiseDate ?? null,
-          paymentLinkStatus: inv.paymentLinkStatus,
-        })),
+        data: {
+          invoices: invoices.map((inv) => ({
+            id: inv.id,
+            invoiceNumber: inv.invoiceNumber,
+            customerName: inv.customer?.name || "—",
+            totalAmount: toAccountingNumber(inv.totalAmount),
+            dueDate: inv.dueDate ? formatIsoDate(inv.dueDate) : null,
+            status: inv.status,
+            publicToken: inv.publicTokens[0]?.token ?? null,
+            amountPaid: toAccountingNumber(inv.amountPaid),
+            remainingAmount: toAccountingNumber(inv.remainingAmount),
+            lastPaymentMethod: inv.lastPaymentMethod,
+            nextPaymentDate: inv.paymentPromiseDate ? formatIsoDate(inv.paymentPromiseDate) : null,
+            paymentLinkStatus: inv.paymentLinkStatus,
+          })),
         total,
         totalPages: Math.ceil(total / limit),
       },

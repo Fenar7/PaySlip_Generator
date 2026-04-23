@@ -22,6 +22,7 @@ import {
   sumMinorUnits,
   toMinorUnits,
 } from "@/lib/money";
+import { formatIsoDate, toAccountingNumber } from "@/lib/accounting/utils";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -157,12 +158,20 @@ async function syncInvoiceRecordToIndex(orgId: string, invoiceId: string): Promi
     return;
   }
 
+  let invoiceDate: string;
+  try {
+    invoiceDate = formatIsoDate(invoice.invoiceDate);
+  } catch (error) {
+    console.warn(`Skipping invoice index sync for ${invoiceId}: invalid invoice date`, error);
+    return;
+  }
+
   await syncInvoiceToIndex(orgId, {
     id: invoice.id,
     invoiceNumber: invoice.invoiceNumber,
     status: invoice.status,
-    invoiceDate: invoice.invoiceDate,
-    totalAmount: invoice.totalAmount,
+    invoiceDate,
+    totalAmount: toAccountingNumber(invoice.totalAmount),
     displayCurrency: invoice.displayCurrency,
     archivedAt: invoice.archivedAt,
     customer: invoice.customer ?? undefined,
@@ -605,13 +614,31 @@ export async function deleteInvoice(id: string): Promise<ActionResult<void>> {
 export async function getInvoice(id: string) {
   const { orgId } = await requireOrgContext();
 
-  return db.invoice.findFirst({
+  const invoice = await db.invoice.findFirst({
     where: { id, organizationId: orgId, archivedAt: null },
     include: {
       lineItems: { orderBy: { sortOrder: "asc" } },
       customer: true,
     },
   });
+
+  if (!invoice) {
+    return null;
+  }
+
+  return {
+    ...invoice,
+    invoiceDate: formatIsoDate(invoice.invoiceDate),
+    dueDate: invoice.dueDate ? formatIsoDate(invoice.dueDate) : null,
+    totalAmount: toAccountingNumber(invoice.totalAmount),
+    amountPaid: toAccountingNumber(invoice.amountPaid),
+    remainingAmount: toAccountingNumber(invoice.remainingAmount),
+    paymentPromiseDate: invoice.paymentPromiseDate ? formatIsoDate(invoice.paymentPromiseDate) : null,
+    lineItems: invoice.lineItems.map((lineItem) => ({
+      ...lineItem,
+      amount: toAccountingNumber(lineItem.amount),
+    })),
+  };
 }
 
 export async function listInvoices(params?: {
@@ -650,7 +677,17 @@ export async function listInvoices(params?: {
   ]);
 
   return {
-    invoices,
+    invoices: invoices.map((invoice) => ({
+      ...invoice,
+      invoiceDate: formatIsoDate(invoice.invoiceDate),
+      dueDate: invoice.dueDate ? formatIsoDate(invoice.dueDate) : null,
+      totalAmount: toAccountingNumber(invoice.totalAmount),
+      amountPaid: toAccountingNumber(invoice.amountPaid),
+      remainingAmount: toAccountingNumber(invoice.remainingAmount),
+      paymentPromiseDate: invoice.paymentPromiseDate
+        ? formatIsoDate(invoice.paymentPromiseDate)
+        : null,
+    })),
     total,
     page,
     totalPages: Math.ceil(total / limit),
@@ -792,7 +829,11 @@ export async function markInvoicePaid(id: string): Promise<ActionResult<void>> {
     // Backwards-compat: compute remaining from totalAmount - amountPaid so that
     // legacy records (where remainingAmount column still holds the default 0) work correctly.
     const remaining = fromMinorUnits(
-      Math.max(toMinorUnits(existing.totalAmount) - toMinorUnits(existing.amountPaid), 0),
+      Math.max(
+        toMinorUnits(toAccountingNumber(existing.totalAmount)) -
+          toMinorUnits(toAccountingNumber(existing.amountPaid)),
+        0,
+      ),
     );
 
     if (remaining <= 0) {
@@ -1117,7 +1158,13 @@ export async function cancelInvoice(
       const reversalJournalId = await reverseInvoicePostingIfNeededTx(tx, {
         orgId,
         actorId: userId,
-        invoice: existing,
+        invoice: {
+          id: existing.id,
+          invoiceNumber: existing.invoiceNumber,
+          amountPaid: toAccountingNumber(existing.amountPaid),
+          postedJournalEntryId: existing.postedJournalEntryId,
+          accountingStatus: existing.accountingStatus,
+        },
         reason,
         action: "cancel",
       });
@@ -1200,7 +1247,13 @@ export async function reissueInvoice(
       const reversalJournalId = await reverseInvoicePostingIfNeededTx(tx, {
         orgId,
         actorId: userId,
-        invoice: existing,
+        invoice: {
+          id: existing.id,
+          invoiceNumber: existing.invoiceNumber,
+          amountPaid: toAccountingNumber(existing.amountPaid),
+          postedJournalEntryId: existing.postedJournalEntryId,
+          accountingStatus: existing.accountingStatus,
+        },
         reason,
         action: "reissue",
       });
@@ -1291,10 +1344,18 @@ export async function reissueInvoice(
 
 export async function getInvoicePayments(invoiceId: string) {
   const { orgId } = await requireOrgContext();
-  return db.invoicePayment.findMany({
+  const payments = await db.invoicePayment.findMany({
     where: { invoiceId, invoice: { organizationId: orgId } },
     orderBy: { paidAt: "desc" },
   });
+
+  return payments.map((payment) => ({
+    ...payment,
+    amount: toAccountingNumber(payment.amount),
+    plannedNextPaymentDate: payment.plannedNextPaymentDate
+      ? formatIsoDate(payment.plannedNextPaymentDate)
+      : null,
+  }));
 }
 
 // ─── Timeline & Tokens ───────────────────────────────────────────────────────

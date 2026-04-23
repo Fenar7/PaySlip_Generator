@@ -1,23 +1,23 @@
 import { NextResponse } from "next/server";
-import { getOrgContext } from "@/lib/auth";
 import { getAuthUrl } from "@/lib/integrations/zoho";
 import {
   createIntegrationOAuthState,
   getIntegrationOAuthStateCookieName,
   getIntegrationOAuthStateCookieOptions,
 } from "@/lib/integrations/oauth-state";
+import { requireIntegrationAdminRoute } from "../../_auth";
 
 export async function GET() {
   try {
-    const ctx = await getOrgContext();
-    if (!ctx) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const auth = await requireIntegrationAdminRoute();
+    if (!auth.ok) {
+      return auth.response;
     }
 
     const { state, cookieValue } = createIntegrationOAuthState(
       "zoho",
-      ctx.orgId,
-      ctx.userId,
+      auth.ctx.orgId,
+      auth.ctx.userId,
     );
     const response = NextResponse.redirect(getAuthUrl(state));
     response.cookies.set(

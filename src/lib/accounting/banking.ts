@@ -20,7 +20,7 @@ import {
 } from "./accounts";
 import { getBooksBankingConfig } from "./config";
 import { createAndPostJournalTx } from "./journals";
-import { cleanText, parseAccountingDate, roundMoney } from "./utils";
+import { cleanText, parseAccountingDate, roundMoney, toAccountingNumber } from "./utils";
 
 type TxClient = Prisma.TransactionClient;
 
@@ -494,17 +494,18 @@ async function syncBankTransactionStatusTx(tx: TxClient, bankTxnId: string) {
   const confirmed = roundMoney(
     bankTxn.matches
       .filter((match) => match.status === "CONFIRMED")
-      .reduce((sum, match) => sum + match.matchedAmount, 0),
+      .reduce((sum, match) => sum + toAccountingNumber(match.matchedAmount), 0),
   );
   const suggestedCount = bankTxn.matches.filter((match) => match.status === "SUGGESTED").length;
   const { reconMatchToleranceAmount } = getBooksBankingConfig();
+  const bankTxnAmount = toAccountingNumber(bankTxn.amount);
 
   let nextStatus = bankTxn.status;
   if (bankTxn.status === "IGNORED" && confirmed === 0) {
     nextStatus = "IGNORED";
   } else if (confirmed <= 0) {
     nextStatus = suggestedCount > 0 ? "SUGGESTED" : "UNMATCHED";
-  } else if (confirmed + reconMatchToleranceAmount >= bankTxn.amount) {
+  } else if (confirmed + reconMatchToleranceAmount >= bankTxnAmount) {
     nextStatus = "MATCHED";
   } else {
     nextStatus = "PARTIALLY_MATCHED";
@@ -556,6 +557,7 @@ async function scoreInvoicePaymentCandidatesTx(
 
   const candidates: BankMatchCandidate[] = [];
   for (const payment of payments) {
+    const paymentAmount = toAccountingNumber(payment.amount);
     const alreadyMatched = await getConfirmedMatchedAmountForEntityTx(
       tx,
       "INVOICE_PAYMENT",
@@ -567,7 +569,7 @@ async function scoreInvoicePaymentCandidatesTx(
     }
 
     const score =
-      scoreAmountMatch(bankTxn.amount, payment.amount)
+      scoreAmountMatch(bankTxn.amount, paymentAmount)
       + scoreDateMatch(bankTxn.txnDate, payment.paidAt)
       + calculateTextScore(`${bankTxn.description} ${bankTxn.reference ?? ""}`, [
         payment.invoice.invoiceNumber,
@@ -580,7 +582,7 @@ async function scoreInvoicePaymentCandidatesTx(
       candidates.push({
         entityType: "INVOICE_PAYMENT",
         entityId: payment.id,
-        matchedAmount: roundMoney(payment.amount),
+        matchedAmount: roundMoney(paymentAmount),
         confidenceScore: score,
       });
     }
@@ -628,7 +630,7 @@ async function scoreVoucherCandidatesTx(
   const candidates: BankMatchCandidate[] = [];
   for (const voucher of vouchers) {
     const alreadyMatched = await getConfirmedMatchedAmountForEntityTx(tx, "VOUCHER", voucher.id);
-    const remaining = roundMoney(voucher.totalAmount - alreadyMatched);
+    const remaining = roundMoney(toAccountingNumber(voucher.totalAmount) - alreadyMatched);
     if (remaining <= 0) {
       continue;
     }
@@ -684,7 +686,7 @@ async function scoreJournalCandidatesTx(
       "JOURNAL_ENTRY",
       journal.id,
     );
-    const remaining = roundMoney(journal.totalDebit - alreadyMatched);
+    const remaining = roundMoney(toAccountingNumber(journal.totalDebit) - alreadyMatched);
     if (remaining <= 0) {
       continue;
     }
@@ -740,6 +742,7 @@ async function scoreInternalTransferCandidatesTx(
 
   const candidates: BankMatchCandidate[] = [];
   for (const counterparty of counterpartyTxns) {
+    const counterpartyAmount = toAccountingNumber(counterparty.amount);
     const matched = await getConfirmedMatchedAmountForEntityTx(
       tx,
       "INTERNAL_TRANSFER",
@@ -750,7 +753,7 @@ async function scoreInternalTransferCandidatesTx(
     }
 
     const score =
-      scoreAmountMatch(bankTxn.amount, counterparty.amount)
+      scoreAmountMatch(bankTxn.amount, counterpartyAmount)
       + scoreDateMatch(bankTxn.txnDate, counterparty.txnDate)
       + calculateTextScore(`${bankTxn.description} ${bankTxn.reference ?? ""}`, [
         counterparty.reference,
@@ -811,6 +814,11 @@ async function regenerateSuggestionsForBankTransactionTx(
     return [];
   }
 
+  const bankTxnContext = {
+    ...bankTxn,
+    amount: toAccountingNumber(bankTxn.amount),
+  };
+
   await tx.bankTransactionMatch.deleteMany({
     where: {
       bankTxnId: bankTxn.id,
@@ -820,13 +828,13 @@ async function regenerateSuggestionsForBankTransactionTx(
 
   const [invoiceCandidates, voucherCandidates, journalCandidates, transferCandidates] =
     await Promise.all([
-      scoreInvoicePaymentCandidatesTx(tx, bankTxn),
-      scoreVoucherCandidatesTx(tx, bankTxn),
-      scoreJournalCandidatesTx(tx, bankTxn),
-      scoreInternalTransferCandidatesTx(tx, bankTxn),
+      scoreInvoicePaymentCandidatesTx(tx, bankTxnContext),
+      scoreVoucherCandidatesTx(tx, bankTxnContext),
+      scoreJournalCandidatesTx(tx, bankTxnContext),
+      scoreInternalTransferCandidatesTx(tx, bankTxnContext),
     ]);
 
-  const feeCandidate = buildBankFeeCandidate(bankTxn);
+  const feeCandidate = buildBankFeeCandidate(bankTxnContext);
   const candidates = [
     ...invoiceCandidates,
     ...voucherCandidates,
@@ -901,7 +909,7 @@ async function resolveMatchEntityAvailableAmountTx(
         "INVOICE_PAYMENT",
         payment.id,
       );
-      return roundMoney(payment.amount - alreadyMatched);
+      return roundMoney(toAccountingNumber(payment.amount) - alreadyMatched);
     }
     case "VOUCHER": {
       const voucher = await tx.voucher.findUnique({
@@ -912,7 +920,7 @@ async function resolveMatchEntityAvailableAmountTx(
         throw new Error("Voucher not found.");
       }
       const alreadyMatched = await getConfirmedMatchedAmountForEntityTx(tx, "VOUCHER", match.entityId);
-      return roundMoney(voucher.totalAmount - alreadyMatched);
+      return roundMoney(toAccountingNumber(voucher.totalAmount) - alreadyMatched);
     }
     case "JOURNAL_ENTRY": {
       const journal = await tx.journalEntry.findUnique({
@@ -927,7 +935,7 @@ async function resolveMatchEntityAvailableAmountTx(
         "JOURNAL_ENTRY",
         match.entityId,
       );
-      return roundMoney(journal.totalDebit - alreadyMatched);
+      return roundMoney(toAccountingNumber(journal.totalDebit) - alreadyMatched);
     }
     case "INTERNAL_TRANSFER": {
       const bankTxn = await tx.bankTransaction.findUnique({
@@ -942,7 +950,7 @@ async function resolveMatchEntityAvailableAmountTx(
         "INTERNAL_TRANSFER",
         match.entityId,
       );
-      return roundMoney(bankTxn.amount - alreadyMatched);
+      return roundMoney(toAccountingNumber(bankTxn.amount) - alreadyMatched);
     }
     case "BANK_FEE":
       return Number.MAX_SAFE_INTEGER;
@@ -1151,6 +1159,7 @@ export async function listBankAccounts(orgId: string) {
 
   return accounts.map((account) => ({
     ...account,
+    openingBalance: roundMoney(account.openingBalance),
     importCount: account.statementImports.length,
     pendingTxnCount: account.transactions.length,
   }));
@@ -1562,7 +1571,7 @@ export async function listBankStatementImports(
 }
 
 export async function getBankStatementImportDetail(orgId: string, importId: string) {
-  return db.bankStatementImport.findFirst({
+  const detail = await db.bankStatementImport.findFirst({
     where: { id: importId, orgId },
     include: {
       bankAccount: {
@@ -1582,6 +1591,24 @@ export async function getBankStatementImportDetail(orgId: string, importId: stri
       },
     },
   });
+
+  if (!detail) {
+    return null;
+  }
+
+  return {
+    ...detail,
+    transactions: detail.transactions.map((transaction) => ({
+      ...transaction,
+      amount: roundMoney(transaction.amount),
+      runningBalance:
+        transaction.runningBalance != null ? roundMoney(transaction.runningBalance) : null,
+      matches: transaction.matches.map((match) => ({
+        ...match,
+        matchedAmount: roundMoney(match.matchedAmount),
+      })),
+    })),
+  };
 }
 
 export async function getReconciliationWorkspace(
@@ -1630,7 +1657,16 @@ export async function getReconciliationWorkspace(
 
   return {
     bankAccounts,
-    transactions,
+    transactions: transactions.map((transaction) => ({
+      ...transaction,
+      amount: roundMoney(transaction.amount),
+      runningBalance:
+        transaction.runningBalance != null ? roundMoney(transaction.runningBalance) : null,
+      matches: transaction.matches.map((match) => ({
+        ...match,
+        matchedAmount: roundMoney(match.matchedAmount),
+      })),
+    })),
     importHistory,
     manualAccounts,
   };
@@ -1669,9 +1705,11 @@ export async function confirmBankTransactionMatch(input: {
   bankTransactionId: string;
   matchId: string;
   matchedAmount?: number;
+  reason?: string;
 }) {
   return db.$transaction(async (tx) => {
     const { reconMatchToleranceAmount } = getBooksBankingConfig();
+    const trimmedReason = input.reason?.trim() || null;
     const bankTxn = await tx.bankTransaction.findFirst({
       where: { id: input.bankTransactionId, orgId: input.orgId },
       include: {
@@ -1707,12 +1745,12 @@ export async function confirmBankTransactionMatch(input: {
     }
 
     const confirmedAmount = await getConfirmedMatchedAmountForBankTxnTx(tx, bankTxn.id);
-    const remainingTxnAmount = roundMoney(bankTxn.amount - confirmedAmount);
+    const remainingTxnAmount = roundMoney(toAccountingNumber(bankTxn.amount) - confirmedAmount);
     if (remainingTxnAmount <= 0) {
       throw new Error("This bank transaction is already fully matched.");
     }
 
-    const matchedAmount = roundMoney(input.matchedAmount ?? match.matchedAmount);
+    const matchedAmount = roundMoney(input.matchedAmount ?? toAccountingNumber(match.matchedAmount));
     if (matchedAmount <= 0) {
       throw new Error("Matched amount must be greater than zero.");
     }
@@ -1858,12 +1896,13 @@ export async function confirmBankTransactionMatch(input: {
         action: "books.reconciliation.confirmed",
         entityType: "bank_transaction",
         entityId: bankTxn.id,
-        metadata: {
+        metadata: toJsonValue({
           matchId: updatedMatch.id,
           entityType: updatedMatch.entityType,
           entityId: updatedMatch.entityId,
           matchedAmount,
-        },
+          reason: trimmedReason,
+        }),
       },
     });
 
@@ -1899,6 +1938,21 @@ export async function rejectBankTransactionMatch(input: {
     const updated = await tx.bankTransactionMatch.update({
       where: { id: match.id },
       data: { status: "REJECTED" },
+    });
+
+    await tx.auditLog.create({
+      data: {
+        orgId: input.orgId,
+        actorId: input.actorId,
+        action: "books.reconciliation.rejected",
+        entityType: "bank_transaction",
+        entityId: input.bankTransactionId,
+        metadata: toJsonValue({
+          matchId: updated.id,
+          entityType: updated.entityType,
+          entityId: updated.entityId,
+        }),
+      },
     });
 
     await syncBankTransactionStatusTx(tx, input.bankTransactionId);
@@ -1939,6 +1993,16 @@ export async function ignoreBankTransaction(input: {
       data: { status: "IGNORED" },
     });
 
+    await tx.auditLog.create({
+      data: {
+        orgId: input.orgId,
+        actorId: input.actorId,
+        action: "books.reconciliation.ignored",
+        entityType: "bank_transaction",
+        entityId: bankTxn.id,
+      },
+    });
+
     return bankTxn;
   });
 }
@@ -1969,7 +2033,7 @@ export async function createAdjustingJournalFromBankTransaction(input: {
     }
 
     const confirmedAmount = await getConfirmedMatchedAmountForBankTxnTx(tx, bankTxn.id);
-    const remainingAmount = roundMoney(bankTxn.amount - confirmedAmount);
+    const remainingAmount = roundMoney(toAccountingNumber(bankTxn.amount) - confirmedAmount);
     if (remainingAmount <= 0) {
       throw new Error("This bank transaction is already fully matched.");
     }
@@ -2078,12 +2142,12 @@ export async function exportReconciliationCsv(
       txn.bankAccount.name,
       txn.txnDate.toISOString().slice(0, 10),
       txn.direction,
-      txn.amount.toFixed(2),
+      toAccountingNumber(txn.amount).toFixed(2),
       txn.reference ?? "",
       txn.description,
       txn.status,
       txn.matches
-        .map((match) => `${match.entityType}:${match.entityId} (${match.matchedAmount.toFixed(2)})`)
+        .map((match) => `${match.entityType}:${match.entityId} (${toAccountingNumber(match.matchedAmount).toFixed(2)})`)
         .join("; "),
     ]),
   );

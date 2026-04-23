@@ -3,6 +3,7 @@
 import { db } from "@/lib/db";
 import { requireRole, requireOrgContext } from "@/lib/auth";
 import { checkFeature } from "@/lib/plans/enforcement";
+import { toAccountingNumber } from "@/lib/accounting/utils";
 import { revalidatePath } from "next/cache";
 
 type ActionResult<T> = { success: true; data: T } | { success: false; error: string };
@@ -54,11 +55,11 @@ export async function generateEwayBill(
 
     // Check total GST amount > ₹50,000
     const totalGstAmount =
-      invoice.gstTotalCgst +
-      invoice.gstTotalSgst +
-      invoice.gstTotalIgst +
-      invoice.gstTotalCess;
-    const totalInvoiceValue = invoice.totalAmount + totalGstAmount;
+      toAccountingNumber(invoice.gstTotalCgst) +
+      toAccountingNumber(invoice.gstTotalSgst) +
+      toAccountingNumber(invoice.gstTotalIgst) +
+      toAccountingNumber(invoice.gstTotalCess);
+    const totalInvoiceValue = toAccountingNumber(invoice.totalAmount) + totalGstAmount;
 
     if (totalInvoiceValue <= 50000) {
       return {

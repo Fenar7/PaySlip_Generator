@@ -13,9 +13,18 @@ import type {
   VendorBillStatus,
 } from "@/generated/prisma/client";
 import { requireOrgContext, requireRole } from "@/lib/auth";
-import { canReadBooks, canWriteBooks } from "@/lib/books-permissions";
+import {
+  canApprovePaymentRun,
+  canExecuteBooksPaymentRun,
+  canReadBooks,
+  canReopenBooksPeriod,
+  canRejectPaymentRun,
+  canWriteBooks,
+} from "@/lib/books-permissions";
 import { db } from "@/lib/db";
+import { canonicalize } from "@/lib/audit/forensic";
 import { generateCSV } from "@/lib/csv";
+import { createApprovalRequest } from "@/lib/flow/approvals";
 import { isCsvUpload, isUploadedFile } from "@/lib/server/form-data";
 import { getSignedUrlServer, uploadFileServer } from "@/lib/storage/upload-server";
 import { xlsxToCsvText, isXlsxFile, detectBankFormat } from "@/lib/bank/statement-parser";
@@ -23,7 +32,6 @@ import { getEnrichedSuggestedMatches } from "@/lib/bank/reconciliation-engine";
 import {
   archiveGlAccount,
   archiveVendorBill,
-  approvePaymentRun,
   buildAuditPackage,
   completeCloseRun,
   createAdjustingJournalFromBankTransaction,
@@ -44,6 +52,7 @@ import {
   getBankStatementImportDetail,
   getCloseWorkspace,
   getCashFlowStatement,
+  getFiscalPeriodReopenImpact,
   getGstTieOut,
   getPaymentRun,
   getProfitAndLoss,
@@ -59,19 +68,23 @@ import {
   listPaymentRuns,
   listVendorBills,
   lockFiscalPeriod,
-  markCloseRunReopened,
   postJournalEntry,
   refreshReconciliationSuggestions,
   confirmBankTransactionMatch,
   rejectBankTransactionMatch,
   ignoreBankTransaction,
-  reopenFiscalPeriod,
+  resubmitPaymentRun,
   reverseJournalEntry,
   updateCloseTaskStatus,
   updateVendorBill,
 } from "@/lib/accounting";
+import { formatIsoDate, roundMoney } from "@/lib/accounting/utils";
 import { checkFeature, checkLimit, getOrgPlan } from "@/lib/plans";
-import { requestApproval } from "../flow/approvals/actions";
+import {
+  approveRequest,
+  rejectRequest,
+  requestApproval,
+} from "../flow/approvals/actions";
 
 type ActionResult<T = null> = { success: true; data: T } | { success: false; error: string };
 
@@ -332,8 +345,8 @@ function formatCsvDate(value: Date | string | null | undefined): string {
   return Number.isNaN(date.getTime()) ? String(value) : date.toISOString().slice(0, 10);
 }
 
-function formatCsvNumber(value: number): string {
-  return value.toFixed(2);
+function formatCsvNumber(value: number | Prisma.Decimal): string {
+  return roundMoney(value).toFixed(2);
 }
 
 async function createBooksReportSnapshot(input: {
@@ -462,8 +475,8 @@ async function loadBooksJournalRegisterData(
     sourceRef: journal.sourceRef,
     status: journal.status,
     memo: journal.memo,
-    totalDebit: journal.totalDebit,
-    totalCredit: journal.totalCredit,
+    totalDebit: roundMoney(journal.totalDebit),
+    totalCredit: roundMoney(journal.totalCredit),
     periodLabel: journal.fiscalPeriod.label,
     lineCount: journal.lines.length,
     attachmentCount: attachmentCounts.get(journal.id) ?? 0,
@@ -685,10 +698,14 @@ async function loadBooksJournalDetail(
     sourceRef: journal.sourceRef,
     status: journal.status,
     memo: journal.memo,
-    totalDebit: journal.totalDebit,
-    totalCredit: journal.totalCredit,
+    totalDebit: roundMoney(journal.totalDebit),
+    totalCredit: roundMoney(journal.totalCredit),
     period: journal.fiscalPeriod,
-    lines: journal.lines,
+    lines: journal.lines.map((line) => ({
+      ...line,
+      debit: roundMoney(line.debit),
+      credit: roundMoney(line.credit),
+    })),
     attachments,
   };
 }
@@ -760,6 +777,26 @@ async function requireVendorBillsWrite() {
   return context;
 }
 
+async function requirePaymentRunApprovalWrite() {
+  const context = await requireVendorBillsWrite();
+
+  if (!canApprovePaymentRun(context.role)) {
+    throw new Error("Insufficient permissions.");
+  }
+
+  return context;
+}
+
+async function requirePaymentRunExecutionWrite() {
+  const context = await requireVendorBillsWrite();
+
+  if (!canExecuteBooksPaymentRun(context.role)) {
+    throw new Error("Insufficient permissions.");
+  }
+
+  return context;
+}
+
 async function requireFinanceReportsRead() {
   const context = await requireBooksRead();
   const allowed = await checkFeature(context.orgId, "financialStatements");
@@ -791,6 +828,16 @@ async function requireCloseWorkflowWrite() {
   }
 
   if (!canWriteBooks(context.role)) {
+    throw new Error("Insufficient permissions.");
+  }
+
+  return context;
+}
+
+async function requireCloseWorkflowGovernance() {
+  const context = await requireCloseWorkflowWrite();
+
+  if (!canReopenBooksPeriod(context.role)) {
     throw new Error("Insufficient permissions.");
   }
 
@@ -931,7 +978,7 @@ export async function getBooksOverview(): Promise<
           source: journal.source,
           sourceRef: journal.sourceRef,
           status: journal.status,
-          totalDebit: journal.totalDebit,
+          totalDebit: roundMoney(journal.totalDebit),
           lineCount: journal.lines.length,
         })),
         periods,
@@ -1665,23 +1712,113 @@ export async function reopenBooksPeriod(
   reason: string,
 ): Promise<ActionResult> {
   try {
-    const { orgId, userId } = await requireBooksWrite();
-    await reopenFiscalPeriod({
-      orgId,
-      periodId,
-      actorId: userId,
-      reason,
-    });
-
-    revalidatePath("/app/books");
-
-    return { success: true, data: null };
+    return await requestBooksPeriodReopen(periodId, reason);
   } catch (error) {
     return {
       success: false,
-      error: error instanceof Error ? error.message : "Failed to reopen fiscal period.",
+      error: error instanceof Error ? error.message : "Failed to request fiscal period reopen.",
     };
   }
+}
+
+async function requestBooksPeriodReopen(
+  periodId: string,
+  reason: string,
+): Promise<ActionResult> {
+  const { orgId, userId } = await requireCloseWorkflowGovernance();
+  const trimmedReason = reason.trim();
+
+  if (!trimmedReason) {
+    return { success: false, error: "A reopen reason is required." };
+  }
+
+  const period = await db.fiscalPeriod.findFirst({
+    where: {
+      id: periodId,
+      orgId,
+    },
+    select: {
+      id: true,
+      label: true,
+      status: true,
+    },
+  });
+
+  if (!period) {
+    return { success: false, error: "Fiscal period not found." };
+  }
+
+  if (period.status === "OPEN") {
+    return { success: false, error: `Fiscal period ${period.label} is already open.` };
+  }
+
+  const pendingRequest = await db.approvalRequest.findFirst({
+    where: {
+      orgId,
+      docType: "fiscal-period-reopen",
+      docId: periodId,
+      status: {
+        in: ["PENDING", "ESCALATED"],
+      },
+    },
+    select: { id: true },
+  });
+
+  if (pendingRequest) {
+    return {
+      success: false,
+      error: "A reopen approval request is already pending for this fiscal period.",
+    };
+  }
+
+  const profile = await db.profile.findUnique({
+    where: { id: userId },
+    select: { name: true },
+  });
+  const reopenImpact = await getFiscalPeriodReopenImpact(orgId, period.id);
+
+  const approval = await createApprovalRequest({
+    docType: "fiscal-period-reopen",
+    docId: period.id,
+    orgId,
+    requestedById: userId,
+    requestedByName: profile?.name ?? "Unknown User",
+    docNumber: period.label,
+    note: trimmedReason,
+  });
+
+  await db.auditLog.create({
+    data: {
+      orgId,
+      actorId: userId,
+      action: "books.period.reopen_requested",
+      entityType: "fiscal_period",
+      entityId: period.id,
+      metadata: {
+        label: period.label,
+        reason: trimmedReason,
+        approvalRequestId: approval.id,
+        reopenImpact: compactJson({
+          journalCount: reopenImpact.journalCount,
+          postedJournalCount: reopenImpact.postedJournalCount,
+          draftJournalCount: reopenImpact.draftJournalCount,
+          affectedAccountCount: reopenImpact.affectedAccountCount,
+          earliestEntryDate: reopenImpact.earliestEntryDate ?? undefined,
+          latestEntryDate: reopenImpact.latestEntryDate ?? undefined,
+          closeCompletedAt: reopenImpact.closeCompletedAt ?? undefined,
+          sampleEntries: reopenImpact.sampleEntries as unknown as Prisma.InputJsonValue,
+          affectedAccounts: reopenImpact.affectedAccounts as unknown as Prisma.InputJsonValue,
+        }),
+      },
+    },
+  });
+
+  revalidatePath("/app/books");
+  revalidatePath("/app/books/settings");
+  revalidatePath("/app/books/close");
+  revalidatePath("/app/flow/approvals");
+
+  return { success: true, data: null };
 }
 
 export async function getBooksBankAccounts(): Promise<
@@ -1904,6 +2041,7 @@ export async function confirmBooksReconciliationMatch(input: {
   bankTransactionId: string;
   matchId: string;
   matchedAmount?: number;
+  reason?: string;
 }): Promise<ActionResult<{ id: string }>> {
   try {
     const { orgId, userId } = await requireBankingWrite();
@@ -1913,6 +2051,7 @@ export async function confirmBooksReconciliationMatch(input: {
       bankTransactionId: input.bankTransactionId,
       matchId: input.matchId,
       matchedAmount: input.matchedAmount,
+      reason: input.reason,
     });
 
     revalidateBooksBanking();
@@ -2138,8 +2277,8 @@ export async function getBooksPaymentRunOptions(): Promise<
         bills: bills.map((bill) => ({
           id: bill.id,
           billNumber: bill.billNumber,
-          dueDate: bill.dueDate,
-          remainingAmount: bill.remainingAmount,
+          dueDate: bill.dueDate ? formatIsoDate(bill.dueDate) : null,
+          remainingAmount: roundMoney(bill.remainingAmount),
           vendorName: bill.vendor?.name ?? null,
           status: bill.status,
         })),
@@ -2585,6 +2724,22 @@ export async function requestBooksPaymentRunApproval(
       return { success: false, error: "Only draft payment runs can be submitted for approval." };
     }
 
+    const pendingRequest = await db.approvalRequest.findFirst({
+      where: {
+        orgId,
+        docType: "payment-run",
+        docId: paymentRunId,
+        status: {
+          in: ["PENDING", "ESCALATED"],
+        },
+      },
+      select: { id: true },
+    });
+
+    if (pendingRequest) {
+      return { success: false, error: "This payment run already has an active approval request." };
+    }
+
     await db.paymentRun.update({
       where: { id: paymentRunId },
       data: {
@@ -2619,8 +2774,28 @@ export async function approveBooksPaymentRun(
   paymentRunId: string,
 ): Promise<ActionResult> {
   try {
-    const { orgId, userId } = await requireVendorBillsWrite();
-    await approvePaymentRun(orgId, paymentRunId, userId);
+    const { orgId } = await requirePaymentRunApprovalWrite();
+    const approval = await db.approvalRequest.findFirst({
+      where: {
+        orgId,
+        docType: "payment-run",
+        docId: paymentRunId,
+        status: {
+          in: ["PENDING", "ESCALATED"],
+        },
+      },
+      orderBy: { createdAt: "desc" },
+      select: { id: true },
+    });
+
+    if (!approval) {
+      return { success: false, error: "No active approval request was found for this payment run." };
+    }
+
+    const result = await approveRequest(approval.id);
+    if (!result.success) {
+      return result;
+    }
 
     revalidateBooksVendorBills();
     revalidatePath(`/app/books/payment-runs/${paymentRunId}`);
@@ -2641,7 +2816,7 @@ export async function executeBooksPaymentRun(input: {
   note?: string | null;
 }): Promise<ActionResult<{ id: string }>> {
   try {
-    const { orgId, userId } = await requireVendorBillsWrite();
+    const { orgId, userId } = await requirePaymentRunExecutionWrite();
     const run = await executePaymentRun({
       orgId,
       actorId: userId,
@@ -2661,6 +2836,73 @@ export async function executeBooksPaymentRun(input: {
     return {
       success: false,
       error: error instanceof Error ? error.message : "Failed to execute payment run.",
+    };
+  }
+}
+
+export async function rejectBooksPaymentRun(input: {
+  paymentRunId: string;
+  reason: string;
+}): Promise<ActionResult> {
+  try {
+    const { orgId, role } = await requirePaymentRunApprovalWrite();
+    if (!canRejectPaymentRun(role)) {
+      return { success: false, error: "Insufficient permissions." };
+    }
+
+    const approval = await db.approvalRequest.findFirst({
+      where: {
+        orgId,
+        docType: "payment-run",
+        docId: input.paymentRunId,
+        status: {
+          in: ["PENDING", "ESCALATED"],
+        },
+      },
+      orderBy: { createdAt: "desc" },
+      select: { id: true },
+    });
+
+    if (!approval) {
+      return { success: false, error: "No active approval request was found for this payment run." };
+    }
+
+    const result = await rejectRequest(approval.id, input.reason);
+    if (!result.success) {
+      return result;
+    }
+
+    revalidateBooksVendorBills();
+    revalidatePath(`/app/books/payment-runs/${input.paymentRunId}`);
+
+    return { success: true, data: null };
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Failed to reject payment run.",
+    };
+  }
+}
+
+export async function resubmitBooksPaymentRun(
+  paymentRunId: string,
+): Promise<ActionResult> {
+  try {
+    const { orgId, userId } = await requireVendorBillsWrite();
+    await resubmitPaymentRun({
+      orgId,
+      paymentRunId,
+      actorId: userId,
+    });
+
+    revalidateBooksVendorBills();
+    revalidatePath(`/app/books/payment-runs/${paymentRunId}`);
+
+    return { success: true, data: null };
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Failed to resubmit payment run.",
     };
   }
 }
@@ -2786,6 +3028,13 @@ export async function exportBooksPaymentRunPayoutCsv(
       return { success: false, error: "Payment run not found." };
     }
 
+    if (!["APPROVED", "PROCESSING", "COMPLETED"].includes(run.status)) {
+      return {
+        success: false,
+        error: "Payout exports are only available for approved, processing, or completed runs.",
+      };
+    }
+
     await createBooksReportSnapshot({
       orgId,
       userId,
@@ -2904,26 +3153,20 @@ export async function reopenBooksClosedPeriod(
   reason: string,
 ): Promise<ActionResult> {
   try {
-    const { orgId, userId } = await requireCloseWorkflowWrite();
-    await reopenFiscalPeriod({
-      orgId,
-      periodId,
-      actorId: userId,
-      reason,
-    });
-    await markCloseRunReopened({
-      orgId,
-      fiscalPeriodId: periodId,
-      actorId: userId,
-      reason,
-    });
+    const result = await requestBooksPeriodReopen(periodId, reason);
+    if (!result.success) {
+      return result;
+    }
 
     revalidateBooksReports();
-    return { success: true, data: null };
+    return result;
   } catch (error) {
     return {
       success: false,
-      error: error instanceof Error ? error.message : "Failed to reopen fiscal period.",
+      error:
+        error instanceof Error
+          ? error.message
+          : "Failed to request fiscal period reopen.",
     };
   }
 }
@@ -2934,6 +3177,7 @@ export async function exportBooksAuditPackageJson(
   try {
     const { orgId, userId } = await requireAuditPackageRead();
     const auditPackage = await buildAuditPackage(orgId, fiscalPeriodId);
+    const normalizedAuditPackage = JSON.parse(JSON.stringify(auditPackage));
 
     await createBooksReportSnapshot({
       orgId,
@@ -2945,7 +3189,7 @@ export async function exportBooksAuditPackageJson(
 
     return {
       success: true,
-      data: JSON.stringify(auditPackage, null, 2),
+      data: JSON.stringify(JSON.parse(canonicalize(normalizedAuditPackage)), null, 2),
     };
   } catch (error) {
     return {
@@ -3434,8 +3678,11 @@ export async function getCashPositionAction(): Promise<CashPositionResult> {
       name: ba.name,
       bankName: ba.bankName,
       currency: ba.currency,
-      runningBalance: ba.transactions[0]?.runningBalance ?? null,
-      openingBalance: ba.openingBalance,
+      runningBalance:
+        ba.transactions[0]?.runningBalance != null
+          ? roundMoney(ba.transactions[0].runningBalance)
+          : null,
+      openingBalance: roundMoney(ba.openingBalance),
       lastTxnDate: ba.transactions[0]?.txnDate ?? null,
     }));
 
@@ -3449,22 +3696,22 @@ export async function getCashPositionAction(): Promise<CashPositionResult> {
 
     return {
       success: true,
-      data: {
-        accounts,
-        totalBankBalance,
-        thisMonthCredits: creditRow?._sum.amount ?? 0,
-        thisMonthDebits: debitRow?._sum.amount ?? 0,
-        unreconciledCreditAmount: unreconciledCredits._sum.amount ?? 0,
-        invoicesDueIn7Days: {
-          count: due7._count.id,
-          totalAmount: due7._sum.totalAmount ?? 0,
+        data: {
+          accounts,
+          totalBankBalance,
+          thisMonthCredits: roundMoney(creditRow?._sum.amount ?? 0),
+          thisMonthDebits: roundMoney(debitRow?._sum.amount ?? 0),
+          unreconciledCreditAmount: roundMoney(unreconciledCredits._sum.amount ?? 0),
+          invoicesDueIn7Days: {
+            count: due7._count.id,
+            totalAmount: roundMoney(due7._sum.totalAmount ?? 0),
+          },
+          invoicesDueIn30Days: {
+            count: due30._count.id,
+            totalAmount: roundMoney(due30._sum.totalAmount ?? 0),
+          },
         },
-        invoicesDueIn30Days: {
-          count: due30._count.id,
-          totalAmount: due30._sum.totalAmount ?? 0,
-        },
-      },
-    };
+      };
   } catch (error) {
     return {
       success: false,

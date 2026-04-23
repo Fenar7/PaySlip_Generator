@@ -517,8 +517,8 @@ model JournalEntry {
   sourceId       String?
   sourceRef      String?
   currency       String             @default("INR")
-  totalDebit     Float              @default(0)
-  totalCredit    Float              @default(0)
+  totalDebit     Decimal            @default(0) @db.Decimal(18, 2)
+  totalCredit    Decimal            @default(0) @db.Decimal(18, 2)
   isAdjustment   Boolean            @default(false)
   isReversal     Boolean            @default(false)
   reversalOfId   String?
@@ -561,8 +561,8 @@ model JournalLine {
   bankTransactionId String?
   lineNumber        Int
   description       String?
-  debit             Float    @default(0)
-  credit            Float    @default(0)
+  debit             Decimal  @default(0) @db.Decimal(18, 2)
+  credit            Decimal  @default(0) @db.Decimal(18, 2)
   entityType        String?
   entityId          String?
   createdAt         DateTime @default(now())
@@ -591,7 +591,7 @@ model BankAccount {
   maskedAccountNo          String?
   ifscOrSwift              String?
   currency                 String          @default("INR")
-  openingBalance           Float           @default(0)
+  openingBalance           Decimal         @default(0) @db.Decimal(18, 2)
   openingBalanceDate       DateTime?
   mappingProfile           Json?
   isPrimary                Boolean         @default(false)
@@ -647,8 +647,8 @@ model BankTransaction {
   txnDate         DateTime
   valueDate       DateTime?
   direction       BankTxnDirection
-  amount          Float
-  runningBalance  Float?
+  amount          Decimal          @db.Decimal(18, 2)
+  runningBalance  Decimal?         @db.Decimal(18, 2)
   reference       String?
   description     String
   normalizedPayee String?
@@ -677,7 +677,7 @@ model BankTransactionMatch {
   bankTxnId       String
   entityType      MatchEntityType
   entityId        String
-  matchedAmount   Float
+  matchedAmount   Decimal         @db.Decimal(18, 2)
   confidenceScore Float?
   status          String          @default("SUGGESTED")
   createdByUserId String?         @db.Uuid
@@ -753,20 +753,20 @@ model VendorBill {
   vendorId         String?
   expenseAccountId String?
   billNumber       String
-  billDate         String
-  dueDate          String?
+  billDate         DateTime         @db.Date
+  dueDate          DateTime?        @db.Date
   status           VendorBillStatus @default(DRAFT)
   formData         Json
-  subtotalAmount   Float            @default(0)
-  taxAmount        Float            @default(0)
-  totalAmount      Float            @default(0)
-  amountPaid       Float            @default(0)
-  remainingAmount  Float            @default(0)
+  subtotalAmount   Decimal          @default(0) @db.Decimal(18, 2)
+  taxAmount        Decimal          @default(0) @db.Decimal(18, 2)
+  totalAmount      Decimal          @default(0) @db.Decimal(18, 2)
+  amountPaid       Decimal          @default(0) @db.Decimal(18, 2)
+  remainingAmount  Decimal          @default(0) @db.Decimal(18, 2)
   currency         String           @default("INR")
-  gstTotalCgst     Float            @default(0)
-  gstTotalSgst     Float            @default(0)
-  gstTotalIgst     Float            @default(0)
-  gstTotalCess     Float            @default(0)
+  gstTotalCgst     Decimal          @default(0) @db.Decimal(18, 2)
+  gstTotalSgst     Decimal          @default(0) @db.Decimal(18, 2)
+  gstTotalIgst     Decimal          @default(0) @db.Decimal(18, 2)
+  gstTotalCess     Decimal          @default(0) @db.Decimal(18, 2)
   notes            String?
   accountingStatus AccountingStatus @default(PENDING)
   journalEntryId   String?          @unique
@@ -815,7 +815,7 @@ model VendorBillPayment {
   vendorBillId        String
   orgId               String
   paymentRunId        String?
-  amount              Float
+  amount              Decimal                 @db.Decimal(18, 2)
   currency            String                  @default("INR")
   paidAt              DateTime                @default(now())
   method              String?
@@ -851,7 +851,7 @@ model PaymentRun {
   runNumber         String
   scheduledDate     DateTime
   status            PaymentRunStatus @default(DRAFT)
-  totalAmount       Float            @default(0)
+  totalAmount       Decimal          @default(0) @db.Decimal(18, 2)
   notes             String?
   requestedByUserId String?          @db.Uuid
   approvedAt        DateTime?
@@ -878,8 +878,8 @@ model PaymentRunItem {
   id                String               @id @default(cuid())
   paymentRunId      String
   vendorBillId      String
-  proposedAmount    Float
-  approvedAmount    Float?
+  proposedAmount    Decimal              @db.Decimal(18, 2)
+  approvedAmount    Decimal?             @db.Decimal(18, 2)
   status            PaymentRunItemStatus @default(PENDING)
   executedPaymentId String?              @unique
   createdAt         DateTime             @default(now())
@@ -1151,11 +1151,11 @@ model Invoice {
   organizationId         String
   customerId             String?
   invoiceNumber          String
-  invoiceDate            String
-  dueDate                String?
+  invoiceDate            DateTime                 @db.Date
+  dueDate                DateTime?                @db.Date
   status                 InvoiceStatus @default(DRAFT)
   formData               Json
-  totalAmount            Float         @default(0)
+  totalAmount            Decimal                  @default(0) @db.Decimal(18, 2)
   notes                  String?
   originalId             String?
   issuedAt               DateTime?
@@ -1166,8 +1166,8 @@ model Invoice {
   razorpayPaymentLinkUrl String?
   paymentLinkExpiresAt   DateTime?
   // Payment reconciliation snapshot fields (derived, maintained by reconciliation service)
-  amountPaid             Float         @default(0)
-  remainingAmount        Float         @default(0)
+  amountPaid             Decimal                  @default(0) @db.Decimal(18, 2)
+  remainingAmount        Decimal                  @default(0) @db.Decimal(18, 2)
   lastPaymentAt          DateTime?
   lastPaymentMethod      String?
   paymentPromiseDate     String?
@@ -1183,10 +1183,10 @@ model Invoice {
   placeOfSupply          String?
   reverseCharge          Boolean       @default(false)
   exportType             String?
-  gstTotalCgst           Float         @default(0)
-  gstTotalSgst           Float         @default(0)
-  gstTotalIgst           Float         @default(0)
-  gstTotalCess           Float         @default(0)
+  gstTotalCgst           Decimal                  @default(0) @db.Decimal(18, 2)
+  gstTotalSgst           Decimal                  @default(0) @db.Decimal(18, 2)
+  gstTotalIgst           Decimal                  @default(0) @db.Decimal(18, 2)
+  gstTotalCess           Decimal                  @default(0) @db.Decimal(18, 2)
   irnNumber              String?
   irnAckNumber           String?
   irnAckDate             DateTime?
@@ -1428,7 +1428,7 @@ model InvoicePayment {
   id                     String           @id @default(cuid())
   invoiceId              String
   orgId                  String
-  amount                 Float
+  amount                 Decimal          @db.Decimal(18, 2)
   currency               String           @default("INR")
   paidAt                 DateTime         @default(now())
   method                 String?

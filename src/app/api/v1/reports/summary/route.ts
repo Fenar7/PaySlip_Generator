@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
 import { db } from "@/lib/db";
+import { toAccountingNumber } from "@/lib/accounting/utils";
 import {
   authenticateApiRequest,
   requireScope,
@@ -49,7 +50,10 @@ export async function GET(request: NextRequest) {
       where: { organizationId: auth.orgId, status: "PAID", archivedAt: null },
       select: { totalAmount: true },
     });
-    const totalRevenue = paidInvoicesData.reduce((sum, inv) => sum + inv.totalAmount, 0);
+    const totalRevenue = paidInvoicesData.reduce(
+      (sum, inv) => sum + toAccountingNumber(inv.totalAmount),
+      0,
+    );
 
     const outstandingInvoices = await db.invoice.findMany({
       where: {
@@ -59,7 +63,10 @@ export async function GET(request: NextRequest) {
       },
       select: { totalAmount: true },
     });
-    const totalOutstanding = outstandingInvoices.reduce((sum, inv) => sum + inv.totalAmount, 0);
+    const totalOutstanding = outstandingInvoices.reduce(
+      (sum, inv) => sum + toAccountingNumber(inv.totalAmount),
+      0,
+    );
 
     const resp = apiResponse({
       invoices: {

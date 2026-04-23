@@ -30,7 +30,9 @@ export function PeriodActionButtons({ periodId, status }: PeriodActionButtonsPro
   }
 
   function handleReopen() {
-    const reason = prompt("Reason for reopening this period. This direct admin action is audit logged.");
+    const reason = prompt(
+      "Reason for reopening this period. This will create an approval request for an owner or admin.",
+    );
     if (!reason?.trim()) {
       return;
     }
@@ -42,6 +44,7 @@ export function PeriodActionButtons({ periodId, status }: PeriodActionButtonsPro
         return;
       }
 
+      alert("Reopen approval requested. Review and approval now happen in Flow > Approvals.");
       router.refresh();
     });
   }
@@ -62,7 +65,7 @@ export function PeriodActionButtons({ periodId, status }: PeriodActionButtonsPro
       disabled={isPending}
       className="text-xs font-medium text-blue-600 hover:underline disabled:opacity-50"
     >
-      {isPending ? "Reopening..." : "Reopen"}
+      {isPending ? "Requesting..." : "Request Reopen"}
     </button>
   );
 }

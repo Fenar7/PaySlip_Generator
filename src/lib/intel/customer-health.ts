@@ -1,6 +1,7 @@
 import "server-only";
 
 import { db } from "@/lib/db";
+import { toAccountingNumber } from "@/lib/accounting/utils";
 
 export type RiskBand = "healthy" | "at_risk" | "high_risk" | "critical";
 
@@ -126,7 +127,10 @@ export async function computeCustomerHealth(
 
   // ── Factor 3: Open overdue amount ──────────────────────────────────────────
   const overdueInvoices = invoices.filter((i) => i.status === "OVERDUE");
-  const overdueAmount = overdueInvoices.reduce((sum, i) => sum + (i.totalAmount ?? 0), 0);
+  const overdueAmount = overdueInvoices.reduce(
+    (sum, i) => sum + toAccountingNumber(i.totalAmount ?? 0),
+    0,
+  );
   const overdueCount = overdueInvoices.length;
   const overduePenalty = Math.min(25, overdueCount * 5);
   score -= overduePenalty;
@@ -348,7 +352,7 @@ export async function getCollectionQueue(orgId: string, limit = 50): Promise<Col
     entries.push({
       customerId: group.customerId,
       customerName: customerMap.get(group.customerId) ?? "Unknown",
-      overdueAmount: group._sum.totalAmount ?? 0,
+      overdueAmount: toAccountingNumber(group._sum.totalAmount ?? 0),
       overdueCount: group._count.id,
       oldestOverdueDays,
       healthScore: snapshot?.score ?? -1,

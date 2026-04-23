@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import { getPortalSession, logPortalAccess } from "@/lib/portal-auth";
 import { db } from "@/lib/db";
+import { formatIsoDate, toAccountingNumber } from "@/lib/accounting/utils";
 
 const INVOICE_STATUS_COLORS: Record<string, string> = {
   DRAFT: "bg-slate-100 text-slate-700",
@@ -103,7 +104,14 @@ export default async function PortalDashboardPage({
     }),
   ]);
 
-  const outstandingBalance = outstandingAgg._sum.remainingAmount ?? 0;
+  const outstandingBalance = toAccountingNumber(outstandingAgg._sum.remainingAmount ?? 0);
+  const recentInvoiceRows = recentInvoices.map((invoice) => ({
+    ...invoice,
+    invoiceDate: formatIsoDate(invoice.invoiceDate),
+    dueDate: invoice.dueDate ? formatIsoDate(invoice.dueDate) : null,
+    totalAmount: toAccountingNumber(invoice.totalAmount),
+    remainingAmount: toAccountingNumber(invoice.remainingAmount),
+  }));
 
   logPortalAccess({
     orgId: session.orgId,
@@ -211,7 +219,7 @@ export default async function PortalDashboardPage({
           </Link>
         </div>
 
-        {recentInvoices.length === 0 ? (
+        {recentInvoiceRows.length === 0 ? (
           <div className="px-6 py-12 text-center">
             <svg className="mx-auto mb-3 h-10 w-10 text-slate-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m6.75 12H9.75m3 0h3m-3 0h-3m-2.25 0H9.75m0 0H6.75m11.25-12H9.75" />
@@ -230,7 +238,7 @@ export default async function PortalDashboardPage({
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-50">
-                {recentInvoices.map((inv) => (
+                {recentInvoiceRows.map((inv) => (
                   <tr key={inv.id} className="group">
                     <td className="px-6 py-3">
                       <Link

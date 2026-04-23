@@ -1,6 +1,7 @@
 import "server-only";
 
 import { db } from "@/lib/db";
+import { toAccountingNumber } from "@/lib/accounting/utils";
 import { upsertInsight } from "./insights";
 import type { IntelInsightSeverity } from "@/generated/prisma/client";
 
@@ -154,7 +155,10 @@ async function checkArOverdueSpike(orgId: string): Promise<AnomalyRuleResult> {
 
   if (overdueInvoices.length < 5) return { fired: false, ruleKey };
 
-  const totalOverdue = overdueInvoices.reduce((sum, i) => sum + (i.totalAmount ?? 0), 0);
+  const totalOverdue = overdueInvoices.reduce(
+    (sum, i) => sum + toAccountingNumber(i.totalAmount ?? 0),
+    0,
+  );
   // Flag if total overdue exceeds ₹1L (100,000 paise = ₹1,000)
   if (totalOverdue < 10_000_00) return { fired: false, ruleKey }; // 10,000 paise = ₹100
 

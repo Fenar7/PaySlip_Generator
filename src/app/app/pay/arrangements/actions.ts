@@ -10,6 +10,7 @@ import {
   listArrangements,
 } from "@/lib/payment-arrangements";
 import { revalidatePath } from "next/cache";
+import { toAccountingNumber } from "@/lib/accounting/utils";
 
 export type ActionResult<T> =
   | { success: true; data: T }
@@ -46,7 +47,7 @@ export async function listArrangementsAction(
         id: a.id,
         invoiceNumber: a.invoice.invoiceNumber,
         customerName: a.customer.name,
-        totalArranged: a.totalArranged,
+        totalArranged: toAccountingNumber(a.totalArranged),
         installmentCount: a.installmentCount,
         paidCount: a.installments.filter((i) => i.status === "PAID").length,
         status: a.status,
@@ -127,30 +128,30 @@ export async function getArrangementAction(arrangementId: string): Promise<
 
     return {
       success: true,
-      data: {
-        id: arrangement.id,
-        orgId: arrangement.orgId,
-        invoiceId: arrangement.invoice.id,
-        invoiceNumber: arrangement.invoice.invoiceNumber,
-        invoiceTotalAmount: arrangement.invoice.totalAmount,
-        invoiceRemainingAmount: arrangement.invoice.remainingAmount,
-        invoiceStatus: arrangement.invoice.status,
-        customerName: arrangement.customer.name,
-        customerEmail: arrangement.customer.email,
-        totalArranged: arrangement.totalArranged,
-        installmentCount: arrangement.installmentCount,
-        status: arrangement.status,
-        notes: arrangement.notes,
-        createdByName: arrangement.creator.name,
-        createdAt: arrangement.createdAt,
-        installments: arrangement.installments.map((i) => ({
-          id: i.id,
-          installmentNumber: i.installmentNumber,
-          dueDate: i.dueDate,
-          amount: i.amount,
-          status: i.status,
-          paidAt: i.paidAt,
-          paymentMethod: i.invoicePayment?.method ?? null,
+        data: {
+          id: arrangement.id,
+          orgId: arrangement.orgId,
+          invoiceId: arrangement.invoice.id,
+          invoiceNumber: arrangement.invoice.invoiceNumber,
+          invoiceTotalAmount: toAccountingNumber(arrangement.invoice.totalAmount),
+          invoiceRemainingAmount: toAccountingNumber(arrangement.invoice.remainingAmount),
+          invoiceStatus: arrangement.invoice.status,
+          customerName: arrangement.customer.name,
+          customerEmail: arrangement.customer.email,
+          totalArranged: toAccountingNumber(arrangement.totalArranged),
+          installmentCount: arrangement.installmentCount,
+          status: arrangement.status,
+          notes: arrangement.notes,
+          createdByName: arrangement.creator.name,
+          createdAt: arrangement.createdAt,
+          installments: arrangement.installments.map((i) => ({
+            id: i.id,
+            installmentNumber: i.installmentNumber,
+            dueDate: i.dueDate,
+            amount: toAccountingNumber(i.amount),
+            status: i.status,
+            paidAt: i.paidAt,
+            paymentMethod: i.invoicePayment?.method ?? null,
           paymentReference: i.invoicePayment?.externalReferenceId ?? null,
         })),
       },
@@ -298,8 +299,8 @@ export async function listEligibleInvoicesAction(): Promise<
         invoiceNumber: inv.invoiceNumber,
         customerName: inv.customer?.name || "—",
         customerId: inv.customerId!,
-        totalAmount: inv.totalAmount,
-        remainingAmount: inv.remainingAmount,
+        totalAmount: toAccountingNumber(inv.totalAmount),
+        remainingAmount: toAccountingNumber(inv.remainingAmount),
       })),
     };
   } catch (error) {

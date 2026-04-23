@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { db } from "@/lib/db";
 import { postInvoicePaymentTx } from "@/lib/accounting";
+import { toAccountingNumber } from "@/lib/accounting/utils";
 import { dispatchEvent } from "@/lib/webhook/deliver";
 import { validatePaymentAmount, reconcileInvoicePayment } from "@/lib/invoice-reconciliation";
 import {
@@ -44,14 +45,15 @@ export async function POST(request: NextRequest, context: RouteContext) {
       plannedNextPaymentDate?: string;
     };
 
-    const paymentAmount = body.amount ?? invoice.remainingAmount;
+    const remainingAmount = toAccountingNumber(invoice.remainingAmount);
+    const paymentAmount = body.amount ?? remainingAmount;
 
     const validation = await validatePaymentAmount(id, paymentAmount);
     if (!validation.valid) {
       throw new ApiError(ErrorCode.VALIDATION_ERROR, validation.error!, 422);
     }
 
-    const isPartial = paymentAmount < invoice.remainingAmount - 0.01;
+    const isPartial = paymentAmount < remainingAmount - 0.01;
 
     if (isPartial && body.plannedNextPaymentDate) {
       const promiseDate = new Date(body.plannedNextPaymentDate);

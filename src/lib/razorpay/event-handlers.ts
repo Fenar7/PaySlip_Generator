@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { recordUsageEvent } from "@/lib/usage-metering";
 import { tryAutoMatchUnmatchedPayment } from "@/lib/razorpay/unmatched-payment-matcher";
 import { fromMinorUnits, toMinorUnits } from "@/lib/money";
+import { toAccountingNumber } from "@/lib/accounting/utils";
 
 interface PaymentLinkPaidPayload {
   id: string;
@@ -99,8 +100,8 @@ async function handlePaymentLinkPaid(
   const method = latestPayment?.method ?? "razorpay";
   const paidAt = latestPayment ? new Date(latestPayment.created_at * 1000) : new Date();
 
-  const invoiceAmountPaidPaise = toMinorUnits(invoice.amountPaid);
-  const invoiceTotalPaise = toMinorUnits(invoice.totalAmount);
+  const invoiceAmountPaidPaise = toMinorUnits(toAccountingNumber(invoice.amountPaid));
+  const invoiceTotalPaise = toMinorUnits(toAccountingNumber(invoice.totalAmount));
   const newAmountPaidPaise = invoiceAmountPaidPaise + paidAmountPaise;
   const newRemainingPaise = Math.max(0, invoiceTotalPaise - newAmountPaidPaise);
   const isFullyPaid = newRemainingPaise === 0;

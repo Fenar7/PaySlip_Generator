@@ -6,7 +6,9 @@ import { Button } from "@/components/ui/button";
 import {
   approveBooksPaymentRun,
   executeBooksPaymentRun,
+  rejectBooksPaymentRun,
   requestBooksPaymentRunApproval,
+  resubmitBooksPaymentRun,
 } from "../actions";
 
 interface PaymentRunDetailActionsProps {
@@ -63,6 +65,25 @@ export function PaymentRunDetailActions({
     });
   }
 
+  function handleReject() {
+    const reason = prompt("Reason for rejecting this payment run");
+    if (!reason?.trim()) {
+      return;
+    }
+
+    startTransition(async () => {
+      const result = await rejectBooksPaymentRun({
+        paymentRunId,
+        reason: reason.trim(),
+      });
+      if (!result.success) {
+        alert(result.error);
+        return;
+      }
+      router.refresh();
+    });
+  }
+
   return (
     <div className="flex flex-wrap gap-3">
       {status === "DRAFT" && (
@@ -71,12 +92,41 @@ export function PaymentRunDetailActions({
         </Button>
       )}
       {status === "PENDING_APPROVAL" && (
+        <>
+          <Button
+            type="button"
+            variant="secondary"
+            onClick={() =>
+              startTransition(async () => {
+                const result = await approveBooksPaymentRun(paymentRunId);
+                if (!result.success) {
+                  alert(result.error);
+                  return;
+                }
+                router.refresh();
+              })
+            }
+            disabled={isPending}
+          >
+            {isPending ? "Approving..." : "Approve Run"}
+          </Button>
+          <Button type="button" variant="danger" onClick={handleReject} disabled={isPending}>
+            {isPending ? "Rejecting..." : "Reject Run"}
+          </Button>
+        </>
+      )}
+      {status === "APPROVED" && (
+        <Button type="button" onClick={handleExecute} disabled={isPending}>
+          {isPending ? "Executing..." : "Execute Run"}
+        </Button>
+      )}
+      {status === "REJECTED" && (
         <Button
           type="button"
           variant="secondary"
           onClick={() =>
             startTransition(async () => {
-              const result = await approveBooksPaymentRun(paymentRunId);
+              const result = await resubmitBooksPaymentRun(paymentRunId);
               if (!result.success) {
                 alert(result.error);
                 return;
@@ -86,12 +136,7 @@ export function PaymentRunDetailActions({
           }
           disabled={isPending}
         >
-          {isPending ? "Approving..." : "Approve Run"}
-        </Button>
-      )}
-      {status === "APPROVED" && (
-        <Button type="button" onClick={handleExecute} disabled={isPending}>
-          {isPending ? "Executing..." : "Execute Run"}
+          {isPending ? "Resubmitting..." : "Resubmit Run"}
         </Button>
       )}
     </div>

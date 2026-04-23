@@ -3,6 +3,7 @@
 import { db } from "@/lib/db";
 import { requireOrgContext } from "@/lib/auth";
 import { generateCSV } from "@/lib/csv";
+import { formatIsoDate, toAccountingNumber } from "@/lib/accounting/utils";
 
 const UNPAID_STATUSES = ["ISSUED", "VIEWED", "DUE", "PARTIALLY_PAID", "OVERDUE"];
 
@@ -69,10 +70,11 @@ export async function getReceivablesAging(filters: {
 
   for (const inv of invoices) {  
     const amountPaid = (inv.payments ?? []).reduce(
-      (sum: number, p: { amount: number }) => sum + p.amount,
+      (sum: number, p) => sum + toAccountingNumber(p.amount),
       0
     );
-    const balance = inv.totalAmount - amountPaid;
+    const totalAmount = toAccountingNumber(inv.totalAmount);
+    const balance = totalAmount - amountPaid;
     if (balance <= 0) continue;
 
     let daysOverdue: number | null = null;
@@ -96,9 +98,9 @@ export async function getReceivablesAging(filters: {
       id: inv.id,
       invoiceNumber: inv.invoiceNumber,
       customerName: inv.customer?.name ?? "—",
-      invoiceDate: inv.invoiceDate,
-      dueDate: inv.dueDate ?? null,
-      totalAmount: inv.totalAmount,
+      invoiceDate: formatIsoDate(inv.invoiceDate),
+      dueDate: inv.dueDate ? formatIsoDate(inv.dueDate) : null,
+      totalAmount,
       amountPaid,
       balance,
       daysOverdue,

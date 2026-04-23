@@ -1,6 +1,5 @@
 import { NextRequest } from "next/server";
 import { rejectBankTransactionMatch } from "@/lib/accounting";
-import { logAudit } from "@/lib/audit";
 import {
   BooksApiError,
   BooksApiErrorCode,
@@ -36,15 +35,6 @@ export async function POST(request: NextRequest) {
       actorId: userId,
       bankTransactionId,
       matchId,
-    });
-
-    await logAudit({
-      orgId,
-      actorId: userId,
-      action: "books.reconciliation_rejected",
-      entityType: "BankTransaction",
-      entityId: bankTransactionId,
-      metadata: { matchId },
     });
 
     return booksApiResponse({ id: match.id });
