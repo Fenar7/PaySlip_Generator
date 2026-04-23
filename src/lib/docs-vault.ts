@@ -115,6 +115,11 @@ export interface VaultRow {
   archivedAt: Date | null;
   createdAt: Date;
   updatedAt: Date;
+  operationalBadges?: Array<{
+    kind: "pending_proof" | "open_ticket";
+    label: string;
+    href: string;
+  }>;
 }
 
 export interface VaultResult {
@@ -181,8 +186,68 @@ export async function queryVault(params: VaultQueryParams = {}): Promise<VaultRe
     db.documentIndex.count({ where }),
   ]);
 
+  const typedRows = rows as VaultRow[];
+  const invoiceRows = typedRows.filter((row) => row.docType === "invoice");
+
+  if (invoiceRows.length > 0) {
+    const invoiceIds = invoiceRows.map((row) => row.documentId);
+    const invoices = await db.invoice.findMany({
+      where: {
+        organizationId: orgId,
+        id: { in: invoiceIds },
+      },
+      select: {
+        id: true,
+        proofs: {
+          where: { reviewStatus: "PENDING" },
+          orderBy: { createdAt: "desc" },
+          take: 1,
+          select: { id: true },
+        },
+        tickets: {
+          where: { status: { in: ["OPEN", "IN_PROGRESS"] } },
+          orderBy: { createdAt: "desc" },
+          take: 1,
+          select: { id: true, category: true, status: true },
+        },
+      },
+    });
+
+    const invoiceActivity = new Map(
+      invoices.map((invoice) => {
+        const operationalBadges: VaultRow["operationalBadges"] = [];
+
+        if (invoice.proofs[0]) {
+          operationalBadges.push({
+            kind: "pending_proof",
+            label: "Payment proof pending review",
+            href: `/app/pay/proofs/${invoice.proofs[0].id}`,
+          });
+        }
+
+        if (invoice.tickets[0]) {
+          operationalBadges.push({
+            kind: "open_ticket",
+            label:
+              invoice.tickets[0].status === "IN_PROGRESS"
+                ? "Customer query in progress"
+                : "Customer query open",
+            href: `/app/flow/tickets/${invoice.tickets[0].id}`,
+          });
+        }
+
+        return [invoice.id, operationalBadges];
+      }),
+    );
+
+    for (const row of typedRows) {
+      if (row.docType !== "invoice") continue;
+      row.operationalBadges = invoiceActivity.get(row.documentId) ?? [];
+    }
+  }
+
   return {
-    rows: rows as VaultRow[],
+    rows: typedRows,
     total,
     page,
     totalPages: Math.ceil(total / limit),

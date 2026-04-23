@@ -71,7 +71,7 @@ vi.mock("@/lib/docs-vault", () => ({
 }));
 
 vi.mock("@/lib/prisma-errors", () => ({
-  isModelMissingTableError: vi.fn().mockReturnValue(false),
+  isSchemaDriftError: vi.fn().mockReturnValue(false),
   getSchemaDriftActionMessage: vi.fn().mockReturnValue(""),
 }));
 

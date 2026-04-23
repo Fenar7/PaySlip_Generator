@@ -7,6 +7,8 @@ import { revalidatePath } from "next/cache";
 import { reconcileInvoicePayment } from "@/lib/invoice-reconciliation";
 import { postInvoicePaymentTx } from "@/lib/accounting";
 import { resolvePaymentProofUrl } from "@/features/pay/server/payment-proof-storage";
+import { notifyOrgAdmins } from "@/lib/notifications";
+import { PROOF_LOAD_ERROR, PROOF_NOT_FOUND_ERROR } from "./errors";
 
 export type ActionResult<T> =
   | { success: true; data: T }
@@ -133,7 +135,7 @@ export async function getProofDetail(proofId: string): Promise<
     });
 
     if (!proof) {
-      return { success: false, error: "Proof not found" };
+      return { success: false, error: PROOF_NOT_FOUND_ERROR };
     }
 
     // Effective remaining: for legacy invoices where remainingAmount hasn't been
@@ -177,7 +179,7 @@ export async function getProofDetail(proofId: string): Promise<
     };
   } catch (error) {
     console.error("getProofDetail error:", error);
-    return { success: false, error: "Failed to load proof" };
+    return { success: false, error: PROOF_LOAD_ERROR };
   }
 }
 
@@ -188,7 +190,7 @@ export async function acceptProof(proofId: string): Promise<ActionResult<void>> 
     const proof = await db.invoiceProof.findFirst({
       where: { id: proofId, invoice: { organizationId: orgId } },
       include: {
-        invoice: { select: { id: true, status: true } },
+        invoice: { select: { id: true, invoiceNumber: true, status: true } },
         invoicePayment: true,
       },
     });
@@ -255,8 +257,20 @@ export async function acceptProof(proofId: string): Promise<ActionResult<void>> 
 
     await reconcileInvoicePayment(invoiceId, userId);
 
+    await notifyOrgAdmins({
+      orgId,
+      type: "proof_accepted",
+      title: "Payment proof accepted",
+      body: `Payment proof for invoice ${proof.invoice.invoiceNumber} was accepted.`,
+      link: `/app/pay/proofs/${proofId}`,
+      excludeUserId: userId,
+    }).catch((error) => {
+      console.error("acceptProof notification error:", error);
+    });
+
     revalidatePath("/app/pay/proofs");
     revalidatePath("/app/pay/receivables");
+    revalidatePath("/app/docs/invoices");
     return { success: true, data: undefined };
   } catch (error) {
     console.error("acceptProof error:", error);
@@ -274,7 +288,7 @@ export async function rejectProof(
     const proof = await db.invoiceProof.findFirst({
       where: { id: proofId, invoice: { organizationId: orgId } },
       include: {
-        invoice: { select: { id: true, status: true } },
+        invoice: { select: { id: true, invoiceNumber: true, status: true } },
         invoicePayment: { select: { id: true } },
       },
     });
@@ -310,8 +324,20 @@ export async function rejectProof(
     // rather than blindly resetting to ISSUED.
     await reconcileInvoicePayment(proof.invoice.id, userId);
 
+    await notifyOrgAdmins({
+      orgId,
+      type: "proof_rejected",
+      title: "Payment proof rejected",
+      body: `Payment proof for invoice ${proof.invoice.invoiceNumber} was rejected.`,
+      link: `/app/pay/proofs/${proofId}`,
+      excludeUserId: userId,
+    }).catch((error) => {
+      console.error("rejectProof notification error:", error);
+    });
+
     revalidatePath("/app/pay/proofs");
     revalidatePath("/app/pay/receivables");
+    revalidatePath("/app/docs/invoices");
     return { success: true, data: undefined };
   } catch (error) {
     console.error("rejectProof error:", error);

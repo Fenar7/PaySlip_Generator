@@ -16,6 +16,9 @@ vi.mock("@/lib/db", () => ({
       findMany: vi.fn(),
       count: vi.fn(),
     },
+    invoice: {
+      findMany: vi.fn(),
+    },
   },
 }));
 
@@ -41,6 +44,9 @@ const di = db.documentIndex as unknown as {
   upsert: ReturnType<typeof vi.fn>;
   findMany: ReturnType<typeof vi.fn>;
   count: ReturnType<typeof vi.fn>;
+};
+const invoiceModel = db.invoice as unknown as {
+  findMany: ReturnType<typeof vi.fn>;
 };
 
 const ORG_ID = "org-test-1";
@@ -135,6 +141,7 @@ describe("queryVault", () => {
     });
     di.findMany.mockResolvedValue([]);
     di.count.mockResolvedValue(0);
+    invoiceModel.findMany.mockResolvedValue([]);
   });
 
   it("always scopes query to orgId — no cross-org leakage", async () => {
@@ -203,6 +210,70 @@ describe("queryVault", () => {
     di.count.mockResolvedValue(42);
     const result = await queryVault({});
     expect(result.total).toBe(42);
+  });
+
+  it("enriches invoice rows with pending proof and open ticket activity", async () => {
+    di.findMany.mockResolvedValue([
+      {
+        id: "row-1",
+        orgId: ORG_ID,
+        docType: "invoice",
+        documentId: "inv-1",
+        documentNumber: "INV-001",
+        titleOrSummary: "Invoice INV-001",
+        counterpartyLabel: "Acme",
+        status: "ISSUED",
+        primaryDate: new Date("2026-04-01"),
+        amount: 5000,
+        currency: "INR",
+        archivedAt: null,
+        createdAt: new Date("2026-04-01"),
+        updatedAt: new Date("2026-04-23"),
+      },
+    ]);
+    invoiceModel.findMany.mockResolvedValue([
+      {
+        id: "inv-1",
+        proofs: [{ id: "proof-1" }],
+        tickets: [{ id: "ticket-1", category: "BILLING_QUERY", status: "OPEN" }],
+      },
+    ]);
+
+    const result = await queryVault({});
+
+    expect(invoiceModel.findMany).toHaveBeenCalledWith({
+      where: {
+        organizationId: ORG_ID,
+        id: { in: ["inv-1"] },
+      },
+      select: {
+        id: true,
+        proofs: {
+          where: { reviewStatus: "PENDING" },
+          orderBy: { createdAt: "desc" },
+          take: 1,
+          select: { id: true },
+        },
+        tickets: {
+          where: { status: { in: ["OPEN", "IN_PROGRESS"] } },
+          orderBy: { createdAt: "desc" },
+          take: 1,
+          select: { id: true, category: true, status: true },
+        },
+      },
+    });
+    expect(result.rows[0]?.operationalBadges).toEqual([
+      {
+        kind: "pending_proof",
+        label: "Payment proof pending review",
+        href: "/app/pay/proofs/proof-1",
+      },
+      {
+        kind: "open_ticket",
+        label: "Customer query open",
+        href: "/app/flow/tickets/ticket-1",
+      },
+    ]);
   });
 });
 

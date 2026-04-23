@@ -29,6 +29,47 @@ function StatusBadge({ status }: { status: string }) {
   );
 }
 
+function formatTicketCategory(category: string) {
+  return category.toLowerCase().replaceAll("_", " ");
+}
+
+function AttentionSummary({
+  invoice,
+}: {
+  invoice: {
+    proofs?: Array<{ id: string }>;
+    tickets?: Array<{ id: string; status: string; category: string }>;
+  };
+}) {
+  const pendingProofs = invoice.proofs ?? [];
+  const activeTickets = invoice.tickets ?? [];
+
+  if (pendingProofs.length === 0 && activeTickets.length === 0) {
+    return <span className="text-sm text-slate-400">No open customer actions</span>;
+  }
+
+  return (
+    <div className="flex flex-col gap-1.5">
+      {pendingProofs.length > 0 && (
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="inline-flex items-center rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-medium text-amber-700">
+            {pendingProofs.length === 1 ? "1 payment proof awaiting review" : `${pendingProofs.length} proofs awaiting review`}
+          </span>
+        </div>
+      )}
+      {activeTickets.length > 0 && (
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="inline-flex items-center rounded-full bg-blue-100 px-2.5 py-0.5 text-xs font-medium text-blue-700">
+            {activeTickets.length === 1
+              ? `1 active query: ${formatTicketCategory(activeTickets[0].category)}`
+              : `${activeTickets.length} active customer queries`}
+          </span>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function formatCurrency(amount: number) {
   return new Intl.NumberFormat("en-IN", {
     style: "currency",
@@ -97,6 +138,7 @@ async function InvoiceTable({
             <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">Due Date</th>
             <th className="px-4 py-3 text-right text-xs font-medium uppercase tracking-wider text-slate-500">Amount</th>
             <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">Status</th>
+            <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">Customer Activity</th>
             <th className="px-4 py-3 text-right text-xs font-medium uppercase tracking-wider text-slate-500">Actions</th>
           </tr>
         </thead>
@@ -123,11 +165,16 @@ async function InvoiceTable({
               <td className="px-4 py-3">
                 <StatusBadge status={invoice.status} />
               </td>
+              <td className="px-4 py-3">
+                <AttentionSummary invoice={invoice} />
+              </td>
               <td className="px-4 py-3 text-right">
                 <InvoiceActions
                   invoiceId={invoice.id}
                   status={invoice.status}
                   token={invoice.publicTokens?.[0]?.token}
+                  pendingProofId={invoice.proofs?.[0]?.id}
+                  activeTicketId={invoice.tickets?.[0]?.id}
                 />
               </td>
             </tr>
@@ -165,15 +212,43 @@ async function InvoiceTable({
   );
 }
 
-function InvoiceActions({ invoiceId, status, token }: { invoiceId: string; status: string; token?: string }) {
+function InvoiceActions({
+  invoiceId,
+  status,
+  token,
+  pendingProofId,
+  activeTicketId,
+}: {
+  invoiceId: string;
+  status: string;
+  token?: string;
+  pendingProofId?: string;
+  activeTicketId?: string;
+}) {
   return (
-    <div className="flex items-center justify-end gap-2">
+    <div className="flex flex-wrap items-center justify-end gap-2">
       <Link
         href={`/app/docs/invoices/${invoiceId}`}
         className="text-sm text-slate-600 hover:text-slate-900"
       >
         Open
       </Link>
+      {pendingProofId && (
+        <Link
+          href={`/app/pay/proofs/${pendingProofId}`}
+          className="text-sm font-medium text-amber-700 hover:text-amber-900"
+        >
+          Review Proof
+        </Link>
+      )}
+      {activeTicketId && (
+        <Link
+          href={`/app/flow/tickets/${activeTicketId}`}
+          className="text-sm font-medium text-blue-600 hover:text-blue-800"
+        >
+          Open Ticket
+        </Link>
+      )}
       {token && <CopyInvoiceLinkButton token={token} />}
       <form action={async () => {
         "use server";

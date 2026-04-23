@@ -3,6 +3,7 @@
 import { db } from "@/lib/db";
 import { requireOrgContext } from "@/lib/auth";
 import { nextDocumentNumber } from "@/lib/docs";
+import { getSchemaDriftActionMessage, isSchemaDriftError } from "@/lib/prisma-errors";
 import { revalidatePath } from "next/cache";
 import type { Prisma } from "@/generated/prisma/client";
 import { postVoucherTx } from "@/lib/accounting";
@@ -33,15 +34,48 @@ export interface VoucherInput {
   lines: VoucherLineInput[];
 }
 
-function normalizeVoucherLines(lines: VoucherLineInput[]): { lines: VoucherLineInput[]; totalAmount: number } {
-  const normalizedLines = lines.map((line) => ({
-    ...line,
-    description: line.description.trim(),
-    amount: normalizeMoney(line.amount),
-    category: line.category?.trim() || undefined,
-    date: line.date || undefined,
-    time: line.time || undefined,
-  }));
+function normalizeVoucherLines(
+  lines: VoucherLineInput[],
+  { allowPartial = false }: { allowPartial?: boolean } = {}
+): { lines: VoucherLineInput[]; totalAmount: number } {
+  const normalizedLines = lines.map((line) => {
+    const description = line.description.trim();
+    const amount = normalizeMoney(line.amount);
+
+    return {
+      ...line,
+      description,
+      amount,
+      category: line.category?.trim() || undefined,
+      date: line.date || undefined,
+      time: line.time || undefined,
+    };
+  });
+
+  if (allowPartial) {
+    const draftLines = normalizedLines.filter(
+      (line) => line.description.length > 0 && line.amount > 0
+    );
+
+    return {
+      lines: draftLines,
+      totalAmount: fromMinorUnits(sumMinorUnits(draftLines.map((line) => line.amount))),
+    };
+  }
+
+  if (normalizedLines.length === 0) {
+    throw new Error("Vouchers need at least one line item.");
+  }
+
+  for (const line of normalizedLines) {
+    if (!line.description) {
+      throw new Error("Voucher line descriptions are required.");
+    }
+
+    if (line.amount <= 0) {
+      throw new Error("Voucher line amounts must be greater than zero.");
+    }
+  }
 
   return {
     lines: normalizedLines,
@@ -88,7 +122,9 @@ export async function saveVoucher(
     
     const voucherNumber = await nextDocumentNumber(orgId, "voucher");
     
-    const normalizedVoucher = normalizeVoucherLines(input.lines);
+    const normalizedVoucher = normalizeVoucherLines(input.lines, {
+      allowPartial: status === "draft",
+    });
     
     const voucher = await db.$transaction(async (tx) => {
       const created = await tx.voucher.create({
@@ -102,16 +138,20 @@ export async function saveVoucher(
           isMultiLine: input.isMultiLine ?? false,
           formData: input.formData as Prisma.InputJsonValue,
           totalAmount: normalizedVoucher.totalAmount,
-          lines: {
-            create: normalizedVoucher.lines.map((line, index) => ({
-              description: line.description,
-              date: line.date || null,
-              time: line.time || null,
-              amount: line.amount,
-              category: line.category || null,
-              sortOrder: index,
-            })),
-          },
+          ...(normalizedVoucher.lines.length > 0
+            ? {
+                lines: {
+                  create: normalizedVoucher.lines.map((line, index) => ({
+                    description: line.description,
+                    date: line.date || null,
+                    time: line.time || null,
+                    amount: line.amount,
+                    category: line.category || null,
+                    sortOrder: index,
+                  })),
+                },
+              }
+            : {}),
         },
       });
 
@@ -150,6 +190,15 @@ export async function saveVoucher(
     revalidatePath("/app/docs/vouchers");
     return { success: true, data: { id: voucher.id, voucherNumber } };
   } catch (error) {
+    if (isSchemaDriftError(error, "Voucher")) {
+      console.warn(
+        "saveVoucher failed because the local database schema is behind the Prisma schema.",
+      );
+      return {
+        success: false,
+        error: getSchemaDriftActionMessage("save the voucher"),
+      };
+    }
     console.error("saveVoucher error:", error);
     return { success: false, error: error instanceof Error ? error.message : "Failed to save voucher" };
   }
@@ -180,7 +229,11 @@ export async function updateVoucher(
       return { success: false, error: "Posted vouchers cannot be edited. Reverse and recreate instead." };
     }
     
-    const normalizedVoucher = input.lines ? normalizeVoucherLines(input.lines) : null;
+    const normalizedVoucher = input.lines
+      ? normalizeVoucherLines(input.lines, {
+          allowPartial: (input.status ?? existing.status) === "draft",
+        })
+      : null;
 
     await db.$transaction(async (tx) => {
       await tx.voucher.update({
@@ -198,17 +251,19 @@ export async function updateVoucher(
 
       if (normalizedVoucher) {
         await tx.voucherLine.deleteMany({ where: { voucherId: id } });
-        await tx.voucherLine.createMany({
-          data: normalizedVoucher.lines.map((line, index) => ({
-            voucherId: id,
-            description: line.description,
-            date: line.date || null,
-            time: line.time || null,
-            amount: line.amount,
-            category: line.category || null,
-            sortOrder: index,
-          })),
-        });
+        if (normalizedVoucher.lines.length > 0) {
+          await tx.voucherLine.createMany({
+            data: normalizedVoucher.lines.map((line, index) => ({
+              voucherId: id,
+              description: line.description,
+              date: line.date || null,
+              time: line.time || null,
+              amount: line.amount,
+              category: line.category || null,
+              sortOrder: index,
+            })),
+          });
+        }
       }
 
       const nextStatus = input.status ?? existing.status;
@@ -229,6 +284,15 @@ export async function updateVoucher(
     revalidatePath(`/app/docs/vouchers/${id}`);
     return { success: true, data: { id } };
   } catch (error) {
+    if (isSchemaDriftError(error, "Voucher")) {
+      console.warn(
+        "updateVoucher failed because the local database schema is behind the Prisma schema.",
+      );
+      return {
+        success: false,
+        error: getSchemaDriftActionMessage("update the voucher"),
+      };
+    }
     console.error("updateVoucher error:", error);
     return { success: false, error: error instanceof Error ? error.message : "Failed to update voucher" };
   }

@@ -11,7 +11,7 @@ export async function resolvePaymentProofUrl(fileReference: string): Promise<str
     return fileReference;
   }
 
-  return getSignedUrlServer("proofs", fileReference, 3600);
+  return getSignedUrlServer("proofs", fileReference, 3600, { useAdmin: true });
 }
 
 export async function uploadPaymentProofFile(input: {

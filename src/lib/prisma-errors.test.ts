@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { Prisma } from "@/generated/prisma/client";
 import {
   getSchemaDriftActionMessage,
+  isSchemaDriftError,
   isModelMissingTableError,
 } from "@/lib/prisma-errors";
 
@@ -28,6 +29,13 @@ describe("prisma error helpers", () => {
 
     expect(isModelMissingTableError(error, "Invoice")).toBe(false);
     expect(isModelMissingTableError(new Error("boom"), "Invoice")).toBe(false);
+  });
+
+  it("treats missing-column errors as schema drift", () => {
+    const error = makeKnownRequestError("P2022");
+
+    expect(isSchemaDriftError(error, "Invoice")).toBe(true);
+    expect(isSchemaDriftError(error)).toBe(true);
   });
 
   it("returns an actionable schema drift message", () => {

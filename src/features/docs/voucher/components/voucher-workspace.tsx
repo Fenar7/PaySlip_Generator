@@ -171,6 +171,12 @@ function VoucherPanel({
   const handleApprove = useCallback(async () => {
     setIsSaving(true);
     try {
+      const isValid = await trigger();
+      if (!isValid) {
+        toast.error("Complete the required voucher fields before approving.");
+        return;
+      }
+
       const currentValues = getValues();
       const input: VoucherInput = {
         vendorId: currentValues.vendorId,
@@ -204,7 +210,7 @@ function VoucherPanel({
     } finally {
       setIsSaving(false);
     }
-  }, [getValues, savedId]);
+  }, [getValues, savedId, trigger]);
 
   async function prepareDocument() {
     const isValid = await trigger();

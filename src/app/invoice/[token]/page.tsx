@@ -63,6 +63,7 @@ export default async function PublicInvoicePage({
   const isPaid = PAID_STATUSES.includes(invoice.status);
   const isPartiallyPaid = invoice.status === "PARTIALLY_PAID";
   const hasPendingProof = invoice.proofs.some((p) => p.reviewStatus === "PENDING");
+  const canUploadPaymentProof = invoice.paymentProof.canUpload;
 
   // Mark as viewed on first render
   await markAsViewed(token);
@@ -323,7 +324,7 @@ export default async function PublicInvoicePage({
       </div>
 
       {/* Pay Online — Razorpay Payment Link */}
-      {!isPaid && invoice.razorpayPaymentLinkUrl && (
+      {canUploadPaymentProof && invoice.razorpayPaymentLinkUrl && (
         <PublicPayButton
           paymentLinkUrl={invoice.razorpayPaymentLinkUrl}
           paymentLinkStatus={invoice.paymentLinkStatus}
@@ -333,7 +334,7 @@ export default async function PublicInvoicePage({
       )}
 
       {/* Upload Payment Proof Section */}
-      {!isPaid && (
+      {canUploadPaymentProof && (
         <div className="rounded-lg border border-slate-200 bg-white shadow-sm p-8">
           <h2 className="text-lg font-semibold text-slate-900 mb-1">Upload Payment Proof</h2>
           <p className="text-sm text-slate-500 mb-6">
