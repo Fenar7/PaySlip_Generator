@@ -3,6 +3,7 @@ import "server-only";
 import { zipSync } from "fflate";
 import { Prisma } from "@/generated/prisma/client";
 import { db } from "@/lib/db";
+import { captureError } from "@/lib/sentry";
 import { getOrgPlan } from "@/lib/plans/enforcement";
 import {
   buildPdfStudioOutputName,
@@ -19,6 +20,7 @@ import {
   getSignedUrlServer,
   uploadFileServer,
 } from "@/lib/storage/upload-server";
+import type { PdfStudioConversionFailureCode } from "@/features/docs/pdf-studio/lib/conversion-errors";
 import type { PdfStudioConversionJobStatus } from "@/features/docs/pdf-studio/types";
 
 const PDF_STUDIO_CONVERSION_JOB_NAME = "pdf-studio-conversion";
@@ -102,6 +104,7 @@ export type PdfStudioConversionJobResult = {
   bundleDownloadPath?: string;
   outputs?: PdfStudioConversionOutputResult[];
   error?: string;
+  failureCode?: PdfStudioConversionFailureCode;
   attempts: number;
   payload: PdfStudioConversionPayload;
   totalItems: number;
@@ -123,6 +126,7 @@ export type PdfStudioConversionHistoryEntry = {
   failedItems: number;
   sourceLabel: string;
   error?: string;
+  failureCode?: PdfStudioConversionFailureCode;
   canRetry: boolean;
   bundleAvailable: boolean;
   nextRetryAt?: string;
@@ -411,6 +415,7 @@ export async function getPdfStudioConversionJob(jobId: string, orgId: string) {
       resultExpired && record.status === "completed"
         ? `This conversion result expired after ${resultRetentionHours} hour${resultRetentionHours === 1 ? "" : "s"}. Run the conversion again to generate a fresh download.`
         : record.errorMessage ?? undefined,
+    failureCode: payload.failureCode as PdfStudioConversionFailureCode | undefined,
     attempts: record.retryCount,
     payload,
     totalItems,
@@ -594,7 +599,7 @@ export async function markPdfStudioConversionComplete(params: { jobId: string })
 
 export async function markPdfStudioConversionFailed(params: {
   jobId: string;
-  code: string;
+  code: PdfStudioConversionFailureCode;
   message: string;
   retryable?: boolean;
 }) {
@@ -637,6 +642,20 @@ export async function markPdfStudioConversionFailed(params: {
       } as Prisma.InputJsonValue,
       nextRetryAt: null,
     },
+  });
+
+  await captureError(new Error(params.message), {
+    feature: "pdf-studio",
+    operation: "conversion-dead-letter",
+    jobId: params.jobId,
+    orgId: job.orgId,
+    userId: job.userId,
+    toolId: payload.toolId,
+    targetFormat: payload.targetFormat,
+    failureCode: params.code,
+    retryCount: nextRetryCount,
+    maxRetries: job.maxRetries,
+    totalItems: getTotalItems(payload),
   });
 }
 
@@ -723,6 +742,7 @@ export async function listPdfStudioConversionHistory(params: {
               "document"
             : `${totalItems} files`,
         error: row.errorMessage ?? undefined,
+        failureCode: payload.failureCode as PdfStudioConversionFailureCode | undefined,
         canRetry:
           row.status === "dead_letter" &&
           payload.failureRetryable === true &&

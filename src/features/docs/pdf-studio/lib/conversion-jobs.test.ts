@@ -141,4 +141,31 @@ describe("conversion job lifecycle", () => {
       ],
     });
   });
+
+  it("includes failure codes for dead-letter jobs so support can diagnose them", async () => {
+    vi.mocked(db.jobLog.findFirst).mockResolvedValue({
+      id: "job-failed",
+      status: "dead_letter",
+      retryCount: 2,
+      errorMessage: "The PDF is malformed.",
+      nextRetryAt: null,
+      payload: {
+        toolId: "pdf-to-word",
+        targetFormat: "docx",
+        sourceFileName: "broken.pdf",
+        failureCode: "malformed_pdf",
+        failureRetryable: false,
+      },
+    } as never);
+
+    const job = await getPdfStudioConversionJob("job-failed", "org-1");
+
+    expect(job).toMatchObject({
+      jobId: "job-failed",
+      status: "dead_letter",
+      error: "The PDF is malformed.",
+      failureCode: "malformed_pdf",
+      canRetry: false,
+    });
+  });
 });

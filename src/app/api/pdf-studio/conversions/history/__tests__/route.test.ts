@@ -61,6 +61,7 @@ describe("GET /api/pdf-studio/conversions/history", () => {
         completedItems: 2,
         failedItems: 0,
         sourceLabel: "2 files",
+        failureCode: "storage_error",
         canRetry: false,
         bundleAvailable: true,
       },
@@ -75,6 +76,7 @@ describe("GET /api/pdf-studio/conversions/history", () => {
 
     expect(response.status).toBe(200);
     expect(body.items).toHaveLength(1);
+    expect(body.items[0].failureCode).toBe("storage_error");
     expect(body.meta).toEqual({
       historyLimit: 5,
       planId: "starter",

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getOrgContext } from "@/lib/auth";
+import { captureError } from "@/lib/sentry";
 import { getOrgPlan } from "@/lib/plans/enforcement";
 import {
   countActivePdfStudioConversionJobs,
@@ -220,6 +221,28 @@ export async function POST(request: NextRequest) {
       { status: 202 },
     );
   } catch (error) {
+    const sourceCount =
+      files.filter(isUploadedFile).length > 0
+        ? files.filter(isUploadedFile).length
+        : isUploadedFile(file)
+          ? 1
+          : typeof sourceUrl === "string" && sourceUrl.trim().length > 0
+            ? 1
+            : 0;
+
+    if (!isPdfStudioConversionError(error) || error.status >= 500) {
+      await captureError(error, {
+        feature: "pdf-studio",
+        operation: "queue-conversion",
+        orgId: context.orgId,
+        userId: context.userId,
+        toolId: typeof toolId === "string" ? toolId : undefined,
+        targetFormat:
+          typeof targetFormat === "string" ? targetFormat : undefined,
+        sourceCount,
+      });
+    }
+
     if (isPdfStudioConversionError(error)) {
       return NextResponse.json({ error: error.message, code: error.code }, { status: error.status });
     }

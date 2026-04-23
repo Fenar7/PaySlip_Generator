@@ -133,7 +133,7 @@ export function PdfStudioAnalyticsPanel(props: {
   }, [props.orgId, props.planLoading, requestedLimit]);
 
   const panelSubtitle = props.orgId
-    ? `Based on your last ${historyLimit} tracked worker-backed PDF Studio jobs on ${props.planName ?? "your workspace plan"}. Browser-first tools run locally and do not appear here yet.`
+    ? `Based on your last ${historyLimit} tracked worker-backed PDF Studio jobs on ${props.planName ?? "your workspace plan"}. Browser-first tools run locally and use the PDF Studio support guide plus readiness coverage instead of this job-history panel.`
     : "Choose an active organization to load tracked PDF Studio processing activity.";
 
   return (
@@ -221,4 +221,3 @@ export function PdfStudioAnalyticsPanel(props: {
     </section>
   );
 }
-

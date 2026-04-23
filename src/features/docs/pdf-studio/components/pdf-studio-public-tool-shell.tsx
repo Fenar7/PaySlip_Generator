@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { Badge } from "@/components/ui";
 import { PdfStudioCapabilityMatrix } from "@/features/docs/pdf-studio/components/pdf-studio-capability-matrix";
+import { PdfStudioSupportNotice } from "@/features/docs/pdf-studio/components/pdf-studio-support-notice";
 import { PdfStudioUpgradeNotice } from "@/features/docs/pdf-studio/components/pdf-studio-upgrade-notice";
 import {
   buildPdfStudioUploadSummary,
@@ -132,6 +133,8 @@ export function PdfStudioPublicToolShell({
           secondaryLabel={requiredPlan === "pro" ? "Open workspace route" : "Compare plans"}
         />
       ) : null}
+
+      <PdfStudioSupportNotice surface="public" />
 
       <PdfStudioCapabilityMatrix />
 
