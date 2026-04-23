@@ -57,8 +57,8 @@ import {
   acceptProof,
   getProofDetail,
   rejectProof,
-  PROOF_LOAD_ERROR,
 } from "../actions";
+import { PROOF_LOAD_ERROR } from "../errors";
 
 describe("getProofDetail", () => {
   beforeEach(() => {

@@ -8,13 +8,11 @@ import { reconcileInvoicePayment } from "@/lib/invoice-reconciliation";
 import { postInvoicePaymentTx } from "@/lib/accounting";
 import { resolvePaymentProofUrl } from "@/features/pay/server/payment-proof-storage";
 import { notifyOrgAdmins } from "@/lib/notifications";
+import { PROOF_LOAD_ERROR, PROOF_NOT_FOUND_ERROR } from "./errors";
 
 export type ActionResult<T> =
   | { success: true; data: T }
   | { success: false; error: string };
-
-const PROOF_NOT_FOUND_ERROR = "Proof not found";
-const PROOF_LOAD_ERROR = "Failed to load proof";
 
 export async function listProofs(params?: {
   status?: string;
@@ -346,5 +344,3 @@ export async function rejectProof(
     return { success: false, error: "Failed to reject proof" };
   }
 }
-
-export { PROOF_NOT_FOUND_ERROR, PROOF_LOAD_ERROR };

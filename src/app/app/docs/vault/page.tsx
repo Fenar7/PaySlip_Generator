@@ -106,9 +106,24 @@ function VaultTableRow({ row }: { row: VaultRow }) {
         {row.counterpartyLabel ?? "—"}
       </td>
       <td className="px-4 py-3 whitespace-nowrap">
-        <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${statusCls}`}>
-          {row.status.replace(/_/g, " ")}
-        </span>
+        <div className="flex flex-col gap-1.5">
+          <span className={`inline-flex w-fit items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${statusCls}`}>
+            {row.status.replace(/_/g, " ")}
+          </span>
+          {row.operationalBadges?.map((badge) => (
+            <Link
+              key={`${row.documentId}-${badge.kind}`}
+              href={badge.href}
+              className={`inline-flex w-fit items-center rounded-full px-2.5 py-0.5 text-xs font-medium hover:underline ${
+                badge.kind === "pending_proof"
+                  ? "bg-amber-100 text-amber-700"
+                  : "bg-blue-100 text-blue-700"
+              }`}
+            >
+              {badge.label}
+            </Link>
+          ))}
+        </div>
       </td>
       <td className="px-4 py-3 text-sm text-slate-600 whitespace-nowrap">
         {formatDate(row.primaryDate)}

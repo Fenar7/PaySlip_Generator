@@ -4,9 +4,8 @@ import {
   getProofDetail,
   acceptProof,
   rejectProof,
-  PROOF_LOAD_ERROR,
-  PROOF_NOT_FOUND_ERROR,
 } from "../actions";
+import { PROOF_LOAD_ERROR, PROOF_NOT_FOUND_ERROR } from "../errors";
 
 function formatCurrency(amount: number) {
   return new Intl.NumberFormat("en-IN", {
