@@ -61,6 +61,7 @@ vi.mock("@/lib/books-permissions", () => ({
   canApprovePaymentRun: vi.fn(),
   canExecuteBooksPaymentRun: vi.fn(),
   canReadBooks: vi.fn(),
+  canReopenBooksPeriod: vi.fn(),
   canRejectPaymentRun: vi.fn(),
   canWriteBooks: vi.fn(),
 }));
@@ -138,6 +139,7 @@ import {
   canApprovePaymentRun,
   canExecuteBooksPaymentRun,
   canReadBooks,
+  canReopenBooksPeriod,
   canRejectPaymentRun,
   canWriteBooks,
 } from "@/lib/books-permissions";
@@ -225,6 +227,7 @@ function mockReadAccess() {
 
 function mockWriteAccess() {
   vi.mocked(canWriteBooks).mockReturnValue(true);
+  vi.mocked(canReopenBooksPeriod).mockReturnValue(true);
   vi.mocked(canApprovePaymentRun).mockReturnValue(true);
   vi.mocked(canExecuteBooksPaymentRun).mockReturnValue(true);
   vi.mocked(canRejectPaymentRun).mockReturnValue(true);
@@ -991,11 +994,9 @@ describe("Books actions", () => {
       requestedById: USER_ID,
       requestedByName: "Admin User",
       docNumber: "FY26-MAR",
+      note: "Bank statement correction required",
     });
-    expect(db.approvalRequest.update).toHaveBeenCalledWith({
-      where: { id: "approval-period-1" },
-      data: { note: "Bank statement correction required" },
-    });
+    expect(db.approvalRequest.update).not.toHaveBeenCalled();
     expect(db.auditLog.create).toHaveBeenCalledWith({
       data: expect.objectContaining({
         action: "books.period.reopen_requested",
@@ -1007,6 +1008,28 @@ describe("Books actions", () => {
         }),
       }),
     });
+  });
+
+  it("blocks finance managers from initiating governed reopen approvals", async () => {
+    vi.mocked(requireOrgContext).mockResolvedValue({
+      orgId: ORG_ID,
+      userId: USER_ID,
+      role: "finance_manager",
+      representedId: null,
+      proxyGrantId: null,
+      proxyScope: [],
+    });
+    vi.mocked(canWriteBooks).mockReturnValue(true);
+    vi.mocked(canReopenBooksPeriod).mockReturnValue(false);
+
+    const result = await reopenBooksClosedPeriod("period-1", "Need a correction");
+
+    expect(result).toEqual({
+      success: false,
+      error: "Insufficient permissions.",
+    });
+    expect(createApprovalRequest).not.toHaveBeenCalled();
+    expect(db.auditLog.create).not.toHaveBeenCalled();
   });
 
   it("passes reconciliation reasons through the Books action", async () => {

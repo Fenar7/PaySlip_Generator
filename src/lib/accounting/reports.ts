@@ -147,7 +147,12 @@ export async function getGeneralLedger(
         },
       },
     },
-    orderBy: [{ journalEntry: { entryDate: "asc" } }, { lineNumber: "asc" }],
+    orderBy: [
+      { journalEntry: { entryDate: "asc" } },
+      { journalEntryId: "asc" },
+      { lineNumber: "asc" },
+      { id: "asc" },
+    ],
   });
 
   const runningBalanceByAccount = new Map<string, number>();

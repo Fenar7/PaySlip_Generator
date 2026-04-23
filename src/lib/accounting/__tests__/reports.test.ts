@@ -12,99 +12,84 @@ vi.mock("@/lib/db", () => ({
 }));
 
 vi.mock("../accounts", () => ({
-  ensureBooksSetup: vi.fn().mockResolvedValue(undefined),
+  ensureBooksSetup: vi.fn(),
 }));
 
 import { db } from "@/lib/db";
 import { ensureBooksSetup } from "../accounts";
-import { getTrialBalance } from "../reports";
+import { getGeneralLedger } from "../reports";
 
-describe("getTrialBalance", () => {
+describe("getGeneralLedger", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-  });
-
-  it("derives balanced totals from posted journal lines", async () => {
-    vi.mocked(db.glAccount.findMany).mockResolvedValue([
-      {
-        id: "cash",
-        code: "1100",
-        name: "Cash",
-        accountType: "ASSET",
-        normalBalance: "DEBIT",
-        isActive: true,
-      },
-      {
-        id: "revenue",
-        code: "4100",
-        name: "Service Revenue",
-        accountType: "INCOME",
-        normalBalance: "CREDIT",
-        isActive: true,
-      },
-    ] as any);
+    vi.mocked(ensureBooksSetup).mockResolvedValue(undefined);
     vi.mocked(db.journalLine.findMany).mockResolvedValue([
-      { accountId: "cash", debit: 100, credit: 0 },
-      { accountId: "revenue", debit: 0, credit: 100 },
-    ] as any);
-
-    const result = await getTrialBalance("org-1");
-
-    expect(ensureBooksSetup).toHaveBeenCalledWith("org-1");
-    expect(db.journalLine.findMany).toHaveBeenCalledWith({
-      where: {
-        orgId: "org-1",
+      {
+        id: "line-a",
+        accountId: "cash",
+        lineNumber: 1,
+        description: "Debit line",
+        debit: 10,
+        credit: 0,
+        account: {
+          id: "cash",
+          code: "1010",
+          name: "Cash",
+          normalBalance: "DEBIT",
+          accountType: "ASSET",
+        },
         journalEntry: {
-          status: "POSTED",
+          id: "entry-1",
+          entryNumber: "JE-001",
+          entryDate: new Date("2026-04-01T00:00:00Z"),
+          source: "MANUAL",
+          sourceRef: null,
+          memo: null,
         },
       },
-      select: {
-        accountId: true,
-        debit: true,
-        credit: true,
+      {
+        id: "line-b",
+        accountId: "cash",
+        lineNumber: 1,
+        description: "Credit line",
+        debit: 0,
+        credit: 3,
+        account: {
+          id: "cash",
+          code: "1010",
+          name: "Cash",
+          normalBalance: "DEBIT",
+          accountType: "ASSET",
+        },
+        journalEntry: {
+          id: "entry-2",
+          entryNumber: "JE-002",
+          entryDate: new Date("2026-04-01T00:00:00Z"),
+          source: "MANUAL",
+          sourceRef: null,
+          memo: null,
+        },
       },
-    });
-    expect(result.balanced).toBe(true);
-    expect(result.totals).toEqual({ debit: 100, credit: 100 });
-    expect(result.rows).toEqual([
-      expect.objectContaining({
-        id: "cash",
-        debitBalance: 100,
-        creditBalance: 0,
-      }),
-      expect.objectContaining({
-        id: "revenue",
-        debitBalance: 0,
-        creditBalance: 100,
-      }),
-    ]);
+    ] as never);
   });
 
-  it("surfaces contra balances on the opposite side", async () => {
-    vi.mocked(db.glAccount.findMany).mockResolvedValue([
-      {
-        id: "cash",
-        code: "1100",
-        name: "Cash",
-        accountType: "ASSET",
-        normalBalance: "DEBIT",
-        isActive: true,
-      },
-    ] as any);
-    vi.mocked(db.journalLine.findMany).mockResolvedValue([
-      { accountId: "cash", debit: 50, credit: 80 },
-    ] as any);
+  it("uses a total ordering for general-ledger lines and preserves stable balances", async () => {
+    const ledger = await getGeneralLedger("org-1", {
+      startDate: "2026-04-01",
+      endDate: "2026-04-30",
+    });
 
-    const result = await getTrialBalance("org-1");
-
-    expect(result.rows).toEqual([
+    expect(db.journalLine.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
-        id: "cash",
-        balance: -30,
-        debitBalance: 0,
-        creditBalance: 30,
+        orderBy: [
+          { journalEntry: { entryDate: "asc" } },
+          { journalEntryId: "asc" },
+          { lineNumber: "asc" },
+          { id: "asc" },
+        ],
       }),
-    ]);
-    expect(result.balanced).toBe(false);
+    );
+    expect(ledger.map((line) => line.id)).toEqual(["line-a", "line-b"]);
+    expect(ledger.map((line) => line.runningBalance)).toEqual([10, 7]);
   });
 });

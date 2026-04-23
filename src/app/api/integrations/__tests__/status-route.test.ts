@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/lib/auth", () => ({
   getOrgContext: vi.fn(),
+  hasRole: vi.fn(),
 }));
 
 vi.mock("@/lib/db", () => ({
@@ -12,7 +13,7 @@ vi.mock("@/lib/db", () => ({
   },
 }));
 
-import { getOrgContext } from "@/lib/auth";
+import { getOrgContext, hasRole } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { GET } from "../status/route";
 
@@ -24,6 +25,7 @@ describe("integration status route", () => {
       userId: "user-1",
       role: "admin",
     } as never);
+    vi.mocked(hasRole).mockReturnValue(true);
   });
 
   it("returns provider diagnostics for connected integrations and defaults for missing ones", async () => {
@@ -100,5 +102,16 @@ describe("integration status route", () => {
 
     expect(response.status).toBe(401);
     expect(body).toEqual({ error: "Unauthorized" });
+  });
+
+  it("returns 403 when the user is not an integration admin", async () => {
+    vi.mocked(hasRole).mockReturnValue(false);
+
+    const response = await GET();
+    const body = await response.json();
+
+    expect(response.status).toBe(403);
+    expect(body).toEqual({ error: "Forbidden" });
+    expect(db.orgIntegration.findMany).not.toHaveBeenCalled();
   });
 });

@@ -97,7 +97,7 @@ export function isApprovalDocType(docType: string): docType is ApprovalDocType {
 
 export function canRequestApprovalForDoc(role: string, docType: ApprovalDocType): boolean {
   if (docType === "fiscal-period-reopen") {
-    return canWriteBooks(role);
+    return canReopenBooksPeriod(role);
   }
 
   if (isFinanceApprovalDocType(docType)) {

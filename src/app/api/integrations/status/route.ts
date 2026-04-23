@@ -1,23 +1,23 @@
 import { NextResponse } from "next/server";
-import { getOrgContext } from "@/lib/auth";
 import {
   normalizeIntegrationConfig,
   type IntegrationConfig,
 } from "@/lib/integrations/secrets";
 import { db } from "@/lib/db";
+import { requireIntegrationAdminRoute } from "../_auth";
 
 const SUPPORTED_PROVIDERS = ["quickbooks", "zoho"] as const;
 
 export async function GET() {
   try {
-    const ctx = await getOrgContext();
-    if (!ctx) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const auth = await requireIntegrationAdminRoute();
+    if (!auth.ok) {
+      return auth.response;
     }
 
     const integrations = await db.orgIntegration.findMany({
       where: {
-        orgId: ctx.orgId,
+        orgId: auth.ctx.orgId,
         provider: { in: [...SUPPORTED_PROVIDERS] },
       },
       select: {

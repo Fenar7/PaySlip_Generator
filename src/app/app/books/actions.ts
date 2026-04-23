@@ -17,6 +17,7 @@ import {
   canApprovePaymentRun,
   canExecuteBooksPaymentRun,
   canReadBooks,
+  canReopenBooksPeriod,
   canRejectPaymentRun,
   canWriteBooks,
 } from "@/lib/books-permissions";
@@ -827,6 +828,16 @@ async function requireCloseWorkflowWrite() {
   }
 
   if (!canWriteBooks(context.role)) {
+    throw new Error("Insufficient permissions.");
+  }
+
+  return context;
+}
+
+async function requireCloseWorkflowGovernance() {
+  const context = await requireCloseWorkflowWrite();
+
+  if (!canReopenBooksPeriod(context.role)) {
     throw new Error("Insufficient permissions.");
   }
 
@@ -1714,7 +1725,7 @@ async function requestBooksPeriodReopen(
   periodId: string,
   reason: string,
 ): Promise<ActionResult> {
-  const { orgId, userId } = await requireCloseWorkflowWrite();
+  const { orgId, userId } = await requireCloseWorkflowGovernance();
   const trimmedReason = reason.trim();
 
   if (!trimmedReason) {
@@ -1773,13 +1784,7 @@ async function requestBooksPeriodReopen(
     requestedById: userId,
     requestedByName: profile?.name ?? "Unknown User",
     docNumber: period.label,
-  });
-
-  await db.approvalRequest.update({
-    where: { id: approval.id },
-    data: {
-      note: trimmedReason,
-    },
+    note: trimmedReason,
   });
 
   await db.auditLog.create({

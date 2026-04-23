@@ -217,6 +217,18 @@ describe("Flow approval authorization", () => {
     expect(mocks.approvalRequestCreate).not.toHaveBeenCalled();
   });
 
+  it("blocks finance managers from requesting governed fiscal period reopens", async () => {
+    mocks.fiscalPeriodFindFirst.mockResolvedValue({ id: "period-1", status: "LOCKED" });
+
+    const result = await requestApproval("fiscal-period-reopen", "period-1");
+
+    expect(result).toEqual({
+      success: false,
+      error: "Insufficient permissions.",
+    });
+    expect(mocks.createApprovalRequest).not.toHaveBeenCalled();
+  });
+
   it("filters finance approvals out of non-finance approval queues", async () => {
     vi.mocked(requireOrgContext).mockResolvedValue({
       orgId: "org-1",

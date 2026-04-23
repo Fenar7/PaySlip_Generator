@@ -10,6 +10,7 @@ export interface CreateApprovalParams {
   requestedByName: string;
   docNumber: string;
   amount?: number;
+  note?: string;
   fallbackRequestedById?: string;
 }
 
@@ -372,6 +373,7 @@ export async function createApprovalRequest(params: CreateApprovalParams) {
       requestedById,
       requestedByName: params.requestedByName,
       status: "PENDING",
+      note: params.note?.trim() || null,
       policyId: policy?.id,
       policyRuleId: firstRule?.id,
       currentRuleOrder: firstRule?.sequence ?? 1,
