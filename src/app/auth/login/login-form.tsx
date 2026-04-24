@@ -8,11 +8,6 @@ import { GoogleButton } from "@/features/auth/components/google-button";
 import { AuthDivider } from "@/features/auth/components/auth-divider";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import {
-  clearSupabaseBrowserSessionStorage,
-  createSupabaseBrowser,
-  setBrowserSessionPersistence,
-} from "@/lib/supabase/client";
 
 export function LoginForm() {
   const router = useRouter();
@@ -69,55 +64,44 @@ export function LoginForm() {
     setError("");
     setLoading(true);
     try {
-      await clearSupabaseBrowserSessionStorage();
-      setBrowserSessionPersistence(rememberMe ? "remembered" : "session");
-      const supabase = createSupabaseBrowser({ rememberSession: rememberMe });
-      const { error: signInError } = await supabase.auth.signInWithPassword({ email, password });
-       if (signInError) {
-         console.error("[login] signIn error:", signInError.message, signInError.code);
-         if (signInError.code === "email_not_confirmed") {
-           await supabase.auth.resend({ type: "signup", email });
-           router.push("/auth/verify-email?email=" + encodeURIComponent(email));
-           return;
-         }
-         setError(signInError.message ?? "Invalid email or password");
-         return;
-       }
+      const response = await fetch("/api/auth/password-login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email,
+          password,
+          callbackUrl,
+          rememberMe,
+          orgSlug: orgSlug.trim() || undefined,
+          breakGlassCode: breakGlassCode.trim() || undefined,
+        }),
+      });
 
-       if (breakGlassCode.trim()) {
-         if (!orgSlug.trim()) {
-           await supabase.auth.signOut();
-           setError("Enter your organization slug to redeem a break-glass code.");
-           return;
-         }
+      const data = (await response.json().catch(() => ({}))) as {
+        error?: string;
+        code?: string | null;
+        redirectTo?: string;
+      };
 
-         const response = await fetch("/api/auth/sso/break-glass/redeem", {
-           method: "POST",
-           headers: { "Content-Type": "application/json" },
-           body: JSON.stringify({
-             email,
-             orgSlug: orgSlug.trim(),
-             code: breakGlassCode.trim(),
-           }),
-         });
+      if (!response.ok) {
+        if (data.code === "email_not_confirmed") {
+          router.push("/auth/verify-email?email=" + encodeURIComponent(email));
+          return;
+        }
 
-         if (!response.ok) {
-           await supabase.auth.signOut();
-           const data = await response.json().catch(() => ({ error: "" }));
-           setError(data.error || "Break-glass code was rejected.");
-           return;
-         }
-       }
-
-        console.log("[login] signed in successfully");
-        router.replace(destination);
-        router.refresh();
+        setError(data.error ?? "Invalid email or password");
         return;
-      } catch (err) {
-        console.error("[login] unexpected error:", err);
-        setError("Something went wrong. Please try again.");
-      } finally {
-        setLoading(false);
+      }
+
+      console.log("[login] signed in successfully");
+      router.replace(data.redirectTo || destination);
+      router.refresh();
+      return;
+    } catch (err) {
+      console.error("[login] unexpected error:", err);
+      setError("Something went wrong. Please try again.");
+    } finally {
+      setLoading(false);
     }
   }
 
