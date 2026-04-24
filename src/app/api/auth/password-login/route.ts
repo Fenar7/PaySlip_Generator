@@ -1,6 +1,7 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextRequest, NextResponse } from "next/server";
 import { getSafeRedirectPath } from "@/lib/auth/safe-redirect";
+import { getRequestOrigin } from "@/lib/request-origin";
 import { redeemBreakGlassCode } from "@/lib/sso";
 import { setSsoSessionCookie } from "@/lib/sso-session";
 import {
@@ -34,7 +35,7 @@ function buildLoginRedirectUrl(
     ssoError?: string;
   },
 ) {
-  const url = new URL("/auth/login", request.url);
+  const url = new URL("/auth/login", getRequestOrigin(request));
   if (params.error) {
     url.searchParams.set("error", params.error);
   }
@@ -85,6 +86,7 @@ function clearSupabaseAuthCookies(response: NextResponse, request: NextRequest) 
 
 export async function POST(request: NextRequest) {
   try {
+    const requestOrigin = getRequestOrigin(request);
     const body = await readRequestBody(request);
     const email = body.email?.trim();
     const password = body.password;
@@ -96,8 +98,10 @@ export async function POST(request: NextRequest) {
     const orgSlug = body.orgSlug?.trim();
     const breakGlassCode = body.breakGlassCode?.trim();
 
+    const isJson = isJsonRequest(request);
+
     if (!email || !password) {
-      if (!isJsonRequest(request)) {
+      if (!isJson) {
         // 303 ensures the browser follows with GET (Post/Redirect/Get pattern).
         return NextResponse.redirect(
           buildLoginRedirectUrl(request, {
@@ -117,7 +121,7 @@ export async function POST(request: NextRequest) {
     }
 
     if (breakGlassCode && !orgSlug) {
-      if (!isJsonRequest(request)) {
+      if (!isJson) {
         return NextResponse.redirect(
           buildLoginRedirectUrl(request, {
             error: "Enter your organization slug to redeem a break-glass code.",
@@ -134,8 +138,14 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const response = NextResponse.json({ success: true, redirectTo });
-    clearSupabaseAuthCookies(response, request);
+    // Build the success response upfront so Supabase can write cookies directly
+    // to it via the setAll callback. This avoids copying Set-Cookie headers
+    // between response objects (which can drop entries in some environments).
+    const finalResponse = isJson
+      ? NextResponse.json({ success: true, redirectTo })
+      : NextResponse.redirect(new URL(redirectTo, requestOrigin), { status: 303 });
+
+    clearSupabaseAuthCookies(finalResponse, request);
 
     const supabase = createServerClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -147,7 +157,7 @@ export async function POST(request: NextRequest) {
           },
           setAll(cookiesToSet) {
             cookiesToSet.forEach(({ name, value, options }) => {
-              response.cookies.set(
+              finalResponse.cookies.set(
                 name,
                 value,
                 value === ""
@@ -169,9 +179,9 @@ export async function POST(request: NextRequest) {
     });
 
     if (signInError) {
-      if (!isJsonRequest(request)) {
+      if (!isJson) {
         if (signInError.code === "email_not_confirmed") {
-          const verifyUrl = new URL("/auth/verify-email", request.url);
+          const verifyUrl = new URL("/auth/verify-email", requestOrigin);
           verifyUrl.searchParams.set("email", email);
           return NextResponse.redirect(verifyUrl, { status: 303 });
         }
@@ -197,7 +207,7 @@ export async function POST(request: NextRequest) {
     }
 
     const persistenceCookie = getSessionPersistenceCookie(persistenceMode);
-    response.cookies.set(
+    finalResponse.cookies.set(
       persistenceCookie.name,
       persistenceCookie.value,
       persistenceCookie.options,
@@ -210,21 +220,14 @@ export async function POST(request: NextRequest) {
         code: breakGlassCode,
       });
 
-      setSsoSessionCookie(response, {
+      setSsoSessionCookie(finalResponse, {
         orgId: result.orgId,
         userId: result.userId,
         mode: "break_glass",
       });
     }
 
-    if (!isJsonRequest(request)) {
-      return NextResponse.redirect(new URL(redirectTo, request.url), {
-        status: 303,
-        headers: response.headers,
-      });
-    }
-
-    return response;
+    return finalResponse;
   } catch (error) {
     console.error("Password login failed:", error);
 

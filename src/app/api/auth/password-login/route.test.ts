@@ -194,4 +194,31 @@ describe("POST /api/auth/password-login", () => {
     expect(response.status).toBe(303);
     expect(response.headers.get("location")).toBe("http://localhost/app/home");
   });
+
+  it("uses the forwarded LAN host for plain form redirects", async () => {
+    signInWithPasswordMock.mockResolvedValueOnce({
+      error: { message: "Invalid login credentials", code: "invalid_credentials" },
+    });
+
+    const formData = new FormData();
+    formData.set("email", "user@example.com");
+    formData.set("password", "wrong");
+
+    const response = await POST(
+      new NextRequest("http://localhost/api/auth/password-login", {
+        method: "POST",
+        headers: {
+          host: "localhost:3001",
+          "x-forwarded-host": "192.168.29.173:3001",
+          "x-forwarded-proto": "http",
+        },
+        body: formData,
+      }),
+    );
+
+    expect(response.status).toBe(303);
+    expect(response.headers.get("location")).toBe(
+      "http://192.168.29.173:3001/auth/login?error=Invalid+login+credentials&email=user%40example.com&callbackUrl=%2Fonboarding",
+    );
+  });
 });
