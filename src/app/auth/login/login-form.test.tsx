@@ -6,6 +6,7 @@ import { LoginForm } from "./login-form";
 
 const {
   routerPushMock,
+  routerReplaceMock,
   routerRefreshMock,
   signInWithPasswordMock,
   resendMock,
@@ -16,6 +17,7 @@ const {
   locationAssignMock,
 } = vi.hoisted(() => ({
   routerPushMock: vi.fn(),
+  routerReplaceMock: vi.fn(),
   routerRefreshMock: vi.fn(),
   signInWithPasswordMock: vi.fn(),
   resendMock: vi.fn(),
@@ -29,6 +31,7 @@ const {
 vi.mock("next/navigation", () => ({
   useRouter: () => ({
     push: routerPushMock,
+    replace: routerReplaceMock,
     refresh: routerRefreshMock,
   }),
   useSearchParams: () =>
@@ -60,6 +63,7 @@ describe("LoginForm", () => {
 
   beforeEach(() => {
     routerPushMock.mockReset();
+    routerReplaceMock.mockReset();
     routerRefreshMock.mockReset();
     signInWithPasswordMock.mockReset();
     resendMock.mockReset();
@@ -87,7 +91,7 @@ describe("LoginForm", () => {
     });
   });
 
-  it("hard redirects after a successful password sign-in", async () => {
+  it("navigates with the app router after a successful password sign-in", async () => {
     render(<LoginForm />);
 
     fireEvent.change(getEmailInput(), {
@@ -105,11 +109,12 @@ describe("LoginForm", () => {
         email: "user@example.com",
         password: "secret123",
       });
-      expect(locationAssignMock).toHaveBeenCalledWith("/onboarding");
+      expect(routerReplaceMock).toHaveBeenCalledWith("/onboarding");
+      expect(routerRefreshMock).toHaveBeenCalled();
     });
 
     expect(routerPushMock).not.toHaveBeenCalled();
-    expect(routerRefreshMock).not.toHaveBeenCalled();
+    expect(locationAssignMock).not.toHaveBeenCalled();
   });
 
   it("passes session persistence when remember me is disabled", async () => {

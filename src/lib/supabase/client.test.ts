@@ -108,17 +108,17 @@ describe("createSupabaseBrowser", () => {
     expect(document.cookie).not.toContain("Max-Age");
   });
 
-  it("disables the cached browser singleton so remember-me changes get a fresh client", async () => {
+  it("uses a shared browser singleton instead of creating competing auth clients", async () => {
     const { createSupabaseBrowser } = await import("@/lib/supabase/client");
 
     createSupabaseBrowser({ rememberSession: false });
     createSupabaseBrowser({ rememberSession: true });
 
     expect(createBrowserClientMock).toHaveBeenCalledTimes(2);
-    expect(createBrowserClientMock.mock.calls[0]?.[2]).toEqual(
+    expect(createBrowserClientMock.mock.calls[0]?.[2]).not.toEqual(
       expect.objectContaining({ isSingleton: false }),
     );
-    expect(createBrowserClientMock.mock.calls[1]?.[2]).toEqual(
+    expect(createBrowserClientMock.mock.calls[1]?.[2]).not.toEqual(
       expect.objectContaining({ isSingleton: false }),
     );
   });
