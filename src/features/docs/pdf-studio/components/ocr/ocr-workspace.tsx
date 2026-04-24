@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui";
 import { useActiveOrg } from "@/hooks/use-active-org";
 import { usePlan } from "@/hooks/use-plan";
@@ -10,7 +10,6 @@ import { OcrEnhancementPanel } from "@/features/docs/pdf-studio/components/ocr-e
 import { OcrProgressPanel } from "@/features/docs/pdf-studio/components/ocr-progress-panel";
 import { PdfUploadZone } from "@/features/docs/pdf-studio/components/shared/pdf-upload-zone";
 import { usePdfStudioAnalytics } from "@/features/docs/pdf-studio/lib/analytics";
-import { usePdfStudioSurface } from "@/features/docs/pdf-studio/lib/surface";
 import {
   PDF_STUDIO_STARTER_OCR_PAGE_LIMIT,
   getPdfStudioToolUpgradeCopy,
@@ -36,6 +35,13 @@ import {
   loadScanSourcePages,
 } from "@/features/docs/pdf-studio/utils/scan-input";
 import { downloadBlob, downloadPdfBytes } from "@/features/docs/pdf-studio/utils/zip-builder";
+import {
+  clearOcrWorkspaceSession,
+  loadOcrWorkspaceSession,
+  saveOcrWorkspaceSession,
+} from "@/features/docs/pdf-studio/utils/session-storage";
+
+type OcrScope = "all" | "remaining" | "failed";
 
 type OcrSummary = {
   completeCount: number;
@@ -43,8 +49,6 @@ type OcrSummary = {
   lowConfidenceCount: number;
   averageConfidence: number | null;
 };
-
-type OcrWorkspacePlan = ReturnType<typeof usePlan>["plan"];
 
 function buildCombinedText(images: ImageItem[]) {
   return images
@@ -54,8 +58,19 @@ function buildCombinedText(images: ImageItem[]) {
     .trim();
 }
 
-function OcrWorkspaceContent({ plan }: { plan?: OcrWorkspacePlan }) {
+function isEligibleForOcr(image: ImageItem, scope: OcrScope): boolean {
+  if (scope === "all") return true;
+  if (scope === "remaining") return image.ocrStatus !== "complete";
+  if (scope === "failed") {
+    return image.ocrStatus === "error" || image.ocrStatus === "cancelled";
+  }
+  return true;
+}
+
+export function OcrWorkspace() {
   const analytics = usePdfStudioAnalytics("ocr");
+  const { activeOrg, isLoading: isOrgLoading } = useActiveOrg();
+  const { plan } = usePlan(activeOrg?.id);
   const [sourceFile, setSourceFile] = useState<File | null>(null);
   const [fileClass, setFileClass] = useState<PdfStudioFileClass | null>(null);
   const [images, setImages] = useState<ImageItem[]>([]);
@@ -66,7 +81,13 @@ function OcrWorkspaceContent({ plan }: { plan?: OcrWorkspacePlan }) {
   const [error, setError] = useState<string | null>(null);
   const [statusMessage, setStatusMessage] = useState<string>("");
   const [isExportingPdf, setIsExportingPdf] = useState(false);
+  const [ocrScope, setOcrScope] = useState<OcrScope>("all");
+  const [sessionStatus, setSessionStatus] = useState<string | undefined>(undefined);
+  const [saveStatus, setSaveStatus] = useState<string | undefined>(undefined);
+  const [hasHydratedSession, setHasHydratedSession] = useState(false);
   const cancelRequestedRef = useRef(false);
+
+  const orgScope = activeOrg?.id || "anonymous";
 
   const summary = useMemo<OcrSummary>(() => {
     const complete = images.filter((image) => image.ocrStatus === "complete");
@@ -117,6 +138,67 @@ function OcrWorkspaceContent({ plan }: { plan?: OcrWorkspacePlan }) {
     images.length > PDF_STUDIO_STARTER_OCR_PAGE_LIMIT &&
     (!plan || (plan.planId !== "pro" && plan.planId !== "enterprise"));
 
+  // ── Session hydration ──────────────────────────────────────────────
+  useEffect(() => {
+    if (isOrgLoading) {
+      return;
+    }
+
+    const timeout = window.setTimeout(() => {
+      const session = loadOcrWorkspaceSession(orgScope);
+
+      if (session && session.images.length > 0) {
+        setImages(session.images);
+        if (session.language) setLanguage(session.language);
+        if (session.mode) setMode(session.mode);
+        if (typeof session.confidenceThreshold === "number") {
+          setConfidenceThreshold(session.confidenceThreshold);
+        }
+
+        const completeCount =
+          session.restoreCounts?.completeCount ??
+          session.images.filter((img) => img.ocrStatus === "complete" && img.ocrText).length;
+        const rerunRequiredCount = session.restoreCounts?.rerunRequiredCount ?? 0;
+
+        if (completeCount > 0 && rerunRequiredCount > 0) {
+          setSessionStatus(
+            `${completeCount} page${completeCount !== 1 ? "s" : ""} ha${completeCount === 1 ? "s" : "ve"} restored OCR text. ${rerunRequiredCount} page${rerunRequiredCount !== 1 ? "s" : ""} need${rerunRequiredCount === 1 ? "s" : ""} the source file re-uploaded before OCR can run again.`,
+          );
+        } else if (completeCount > 0) {
+          setSessionStatus(
+            `OCR text restored for all ${completeCount} page${completeCount !== 1 ? "s" : ""}. Re-upload the source file to modify results.`,
+          );
+        } else if (rerunRequiredCount > 0) {
+          setSessionStatus(
+            `${rerunRequiredCount} page${rerunRequiredCount !== 1 ? "s" : ""} still need${rerunRequiredCount === 1 ? "s" : ""} OCR. Re-upload the source file to continue.`,
+          );
+        }
+      }
+
+      setHasHydratedSession(true);
+    }, 0);
+
+    return () => {
+      window.clearTimeout(timeout);
+    };
+  }, [orgScope, isOrgLoading]);
+
+  // ── Session auto-save ──────────────────────────────────────────────
+  useEffect(() => {
+    if (!hasHydratedSession) {
+      return;
+    }
+
+    const timeout = window.setTimeout(() => {
+      const didSave = saveOcrWorkspaceSession(images, language, mode, confidenceThreshold, orgScope);
+      setSaveStatus(didSave ? "Session saved automatically." : "Could not save this session locally.");
+    }, 600);
+
+    return () => {
+      window.clearTimeout(timeout);
+    };
+  }, [hasHydratedSession, images, language, mode, confidenceThreshold, orgScope]);
+
   async function handleFiles(files: File[]) {
     const file = files[0];
     if (!file) {
@@ -135,6 +217,9 @@ function OcrWorkspaceContent({ plan }: { plan?: OcrWorkspacePlan }) {
     setFileClass(result.fileClass);
     setImages(buildImageItemsFromScanPages(result.pages));
     setError(null);
+    clearOcrWorkspaceSession(orgScope);
+    setSessionStatus(undefined);
+    setSaveStatus(undefined);
     setStatusMessage(
       result.fileClass === "pdf"
         ? `Loaded ${result.pages.length} page${result.pages.length === 1 ? "" : "s"} for OCR.`
@@ -164,19 +249,39 @@ function OcrWorkspaceContent({ plan }: { plan?: OcrWorkspacePlan }) {
     setRunning(true);
     setError(null);
     setStatusMessage("");
-    setImages((current) =>
-      current.map((image) => ({
-        ...image,
-        ocrStatus: "pending",
-        ocrText: undefined,
-        ocrConfidence: undefined,
-        ocrErrorMessage: undefined,
-      })),
+
+    // Determine which images to process based on scope
+    const eligibleIds = new Set(
+      images.filter((img) => isEligibleForOcr(img, ocrScope)).map((img) => img.id),
     );
+
+    if (eligibleIds.size === 0) {
+      setRunning(false);
+      setStatusMessage("No pages match the selected OCR scope.");
+      return;
+    }
+
+    // Only reset eligible images; preserve completed pages outside the scope
+    setImages((current) =>
+      current.map((image) =>
+        eligibleIds.has(image.id)
+          ? {
+              ...image,
+              ocrStatus: "pending",
+              ocrText: undefined,
+              ocrConfidence: undefined,
+              ocrErrorMessage: undefined,
+            }
+          : image,
+      ),
+    );
+
     analytics.trackStart({
       action: "ocr",
       inputKind: fileClass,
       pageCount: images.length,
+      eligibleCount: eligibleIds.size,
+      scope: ocrScope,
       language,
       mode,
     });
@@ -192,6 +297,10 @@ function OcrWorkspaceContent({ plan }: { plan?: OcrWorkspacePlan }) {
         }
 
         const image = snapshot[index];
+        if (!eligibleIds.has(image.id)) {
+          continue;
+        }
+
         setStatusMessage(`Running OCR on page ${index + 1} of ${snapshot.length}…`);
         setImages((current) =>
           current.map((item) =>
@@ -263,6 +372,7 @@ function OcrWorkspaceContent({ plan }: { plan?: OcrWorkspacePlan }) {
       analytics.trackSuccess({
         action: "ocr",
         pageCount: snapshot.length,
+        eligibleCount: eligibleIds.size,
         completeCount: completedCount,
         failedCount,
       });
@@ -286,6 +396,125 @@ function OcrWorkspaceContent({ plan }: { plan?: OcrWorkspacePlan }) {
           : image,
       ),
     );
+  }
+
+  function handleRetry(imageId: string) {
+    const image = images.find((img) => img.id === imageId);
+    if (!image) return;
+
+    setImages((current) =>
+      current.map((img) =>
+        img.id === imageId
+          ? {
+              ...img,
+              ocrStatus: "pending",
+              ocrText: undefined,
+              ocrConfidence: undefined,
+              ocrErrorMessage: undefined,
+            }
+          : img,
+      ),
+    );
+
+    void (async () => {
+      try {
+        const blob = dataUrlToBlob(image.previewUrl);
+        const result = await processImageForOcrDetailed(blob, {
+          dedupeKey: image.id,
+          language,
+          mode,
+        });
+        setImages((current) =>
+          current.map((img) =>
+            img.id === imageId
+              ? {
+                  ...img,
+                  ocrStatus: "complete",
+                  ocrText: result.text,
+                  ocrConfidence: result.confidence,
+                }
+              : img,
+          ),
+        );
+      } catch (ocrError) {
+        const message =
+          ocrError instanceof Error
+            ? ocrError.message
+            : "OCR failed for this page.";
+        setImages((current) =>
+          current.map((img) =>
+            img.id === imageId
+              ? { ...img, ocrStatus: "error", ocrErrorMessage: message }
+              : img,
+          ),
+        );
+      }
+    })();
+  }
+
+  function handleRetryAll() {
+    const retryable = images.filter(
+      (img) =>
+        (img.ocrStatus === "error" ||
+          img.ocrStatus === "cancelled" ||
+          (img.ocrStatus === "complete" &&
+            typeof img.ocrConfidence === "number" &&
+            img.ocrConfidence < confidenceThreshold)) &&
+        img.previewUrl,
+    );
+
+    if (retryable.length === 0) return;
+
+    setImages((current) =>
+      current.map((img) =>
+        retryable.some((r) => r.id === img.id)
+          ? {
+              ...img,
+              ocrStatus: "pending",
+              ocrText: undefined,
+              ocrConfidence: undefined,
+              ocrErrorMessage: undefined,
+            }
+          : img,
+      ),
+    );
+
+    retryable.forEach((image) => {
+      void (async () => {
+        try {
+          const blob = dataUrlToBlob(image.previewUrl);
+          const result = await processImageForOcrDetailed(blob, {
+            dedupeKey: image.id,
+            language,
+            mode,
+          });
+          setImages((current) =>
+            current.map((img) =>
+              img.id === image.id
+                ? {
+                    ...img,
+                    ocrStatus: "complete",
+                    ocrText: result.text,
+                    ocrConfidence: result.confidence,
+                  }
+                : img,
+            ),
+          );
+        } catch (ocrError) {
+          const message =
+            ocrError instanceof Error
+              ? ocrError.message
+              : "OCR failed for this page.";
+          setImages((current) =>
+            current.map((img) =>
+              img.id === image.id
+                ? { ...img, ocrStatus: "error", ocrErrorMessage: message }
+                : img,
+            ),
+          );
+        }
+      })();
+    });
   }
 
   async function handleDownloadText() {
@@ -354,7 +583,14 @@ function OcrWorkspaceContent({ plan }: { plan?: OcrWorkspacePlan }) {
   }
 
   const lowConfidenceState =
-    summary.lowConfidenceCount > 0 ? "border-amber-200 bg-amber-50 text-amber-800" : "border-emerald-200 bg-emerald-50 text-emerald-800";
+    summary.lowConfidenceCount > 0
+      ? "border-amber-200 bg-amber-50 text-amber-800"
+      : "border-emerald-200 bg-emerald-50 text-emerald-800";
+
+  const pageLimitLabel =
+    plan?.planId === "pro" || plan?.planId === "enterprise"
+      ? "no page limit"
+      : `up to ${PDF_STUDIO_STARTER_OCR_PAGE_LIMIT} pages`;
 
   return (
     <div className="mx-auto max-w-5xl space-y-6 px-4 py-8 sm:px-6">
@@ -388,32 +624,59 @@ function OcrWorkspaceContent({ plan }: { plan?: OcrWorkspacePlan }) {
               onFiles={(files) => void handleFiles(files)}
               toolId="ocr"
               label="Drop a scanned PDF or image here"
-              sublabel={`PDF or image • 1 file • max 40MB • up to ${
-                plan?.planId === "pro" || plan?.planId === "enterprise"
-                  ? 30
-                  : PDF_STUDIO_STARTER_OCR_PAGE_LIMIT
-              } pages on this lane`}
+              sublabel={`PDF or image • 1 file • max 40MB • ${pageLimitLabel} on this lane`}
             />
 
             {sourceFile ? (
-              <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[#efefef] bg-[#fafafa] px-4 py-3">
-                <div>
-                  <p className="text-sm font-medium text-[#1a1a1a]">
-                    {sourceFile.name}
-                  </p>
-                  <p className="text-xs text-[#666]">
-                    {images.length} page{images.length === 1 ? "" : "s"} •{" "}
-                    {fileClass === "pdf" ? "PDF source" : "image source"}
-                  </p>
+              <div className="mt-4 space-y-3">
+                <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[#efefef] bg-[#fafafa] px-4 py-3">
+                  <div>
+                    <p className="text-sm font-medium text-[#1a1a1a]">
+                      {sourceFile.name}
+                    </p>
+                    <p className="text-xs text-[#666]">
+                      {images.length} page{images.length === 1 ? "" : "s"} •{" "}
+                      {fileClass === "pdf" ? "PDF source" : "image source"}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <select
+                      className="rounded-lg border border-[#e5e5e5] bg-white px-3 py-2 text-sm"
+                      value={ocrScope}
+                      onChange={(e) => setOcrScope(e.target.value as OcrScope)}
+                      disabled={running}
+                      aria-label="OCR run scope"
+                    >
+                      <option value="all">Run on all pages</option>
+                      <option value="remaining">Run on remaining / failed</option>
+                      <option value="failed">Run on failed only</option>
+                    </select>
+                    <Button
+                      onClick={() => void handleRunOcr()}
+                      disabled={running || largeFileRequiresPro}
+                    >
+                      {running ? "Running OCR…" : "Start OCR"}
+                    </Button>
+                  </div>
                 </div>
-                <Button onClick={() => void handleRunOcr()} disabled={running || largeFileRequiresPro}>
-                  {running ? "Running OCR…" : "Start OCR"}
-                </Button>
+                {ocrScope !== "all" && (
+                  <p className="text-xs text-[#666]">
+                    {ocrScope === "remaining"
+                      ? "Already-completed pages will be skipped."
+                      : "Only failed or cancelled pages will be processed."}
+                  </p>
+                )}
               </div>
             ) : null}
 
             {statusMessage ? (
               <p className="mt-4 text-sm text-[#666]">{statusMessage}</p>
+            ) : null}
+            {sessionStatus ? (
+              <p className="mt-4 rounded-xl border border-[#e5e5e5] bg-[#fafafa] px-4 py-3 text-sm text-[#666]">{sessionStatus}</p>
+            ) : null}
+            {saveStatus ? (
+              <p className="mt-4 text-xs text-[#777]">{saveStatus}</p>
             ) : null}
             {!largeFileRequiresPro &&
             images.length > 0 &&
@@ -427,6 +690,10 @@ function OcrWorkspaceContent({ plan }: { plan?: OcrWorkspacePlan }) {
               <OcrProgressPanel
                 images={images}
                 isOcrUnavailable={getOcrServiceStatus() === "unavailable"}
+                language={language}
+                lowConfidenceThreshold={confidenceThreshold}
+                onRetry={handleRetry}
+                onRetryAll={handleRetryAll}
                 onCancelOcr={() => void handleCancel()}
               />
             </div>
@@ -501,7 +768,9 @@ function OcrWorkspaceContent({ plan }: { plan?: OcrWorkspacePlan }) {
                     onClick={() => void handleDownloadSearchablePdf()}
                     disabled={isExportingPdf}
                   >
-                    {isExportingPdf ? "Generating PDF…" : "Download rasterized searchable copy"}
+                    {isExportingPdf
+                      ? "Generating PDF…"
+                      : "Download rasterized searchable copy"}
                   </Button>
                 </div>
               </div>
@@ -545,21 +814,4 @@ function OcrWorkspaceContent({ plan }: { plan?: OcrWorkspacePlan }) {
       </div>
     </div>
   );
-}
-
-function OcrWorkspacePublic() {
-  return <OcrWorkspaceContent />;
-}
-
-function OcrWorkspaceWorkspace() {
-  const { activeOrg } = useActiveOrg();
-  const { plan } = usePlan(activeOrg?.id);
-
-  return <OcrWorkspaceContent plan={plan} />;
-}
-
-export function OcrWorkspace() {
-  const { isPublic } = usePdfStudioSurface();
-
-  return isPublic ? <OcrWorkspacePublic /> : <OcrWorkspaceWorkspace />;
 }
