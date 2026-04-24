@@ -83,6 +83,7 @@ export function OcrWorkspace() {
   const [isExportingPdf, setIsExportingPdf] = useState(false);
   const [ocrScope, setOcrScope] = useState<OcrScope>("all");
   const [sessionStatus, setSessionStatus] = useState<string | undefined>(undefined);
+  const [saveStatus, setSaveStatus] = useState<string | undefined>(undefined);
   const [hasHydratedSession, setHasHydratedSession] = useState(false);
   const cancelRequestedRef = useRef(false);
 
@@ -154,16 +155,22 @@ export function OcrWorkspace() {
           setConfidenceThreshold(session.confidenceThreshold);
         }
 
-        const completeCount = session.images.filter((img) => img.ocrStatus === "complete" && img.ocrText).length;
-        const droppedCount = session.images.length - completeCount;
+        const completeCount =
+          session.restoreCounts?.completeCount ??
+          session.images.filter((img) => img.ocrStatus === "complete" && img.ocrText).length;
+        const rerunRequiredCount = session.restoreCounts?.rerunRequiredCount ?? 0;
 
-        if (droppedCount > 0) {
+        if (completeCount > 0 && rerunRequiredCount > 0) {
           setSessionStatus(
-            `${completeCount} page${completeCount !== 1 ? "s" : ""} ha${completeCount === 1 ? "s" : "ve"} restored OCR text. ${droppedCount} page${droppedCount !== 1 ? "s" : ""} need${droppedCount === 1 ? "s" : ""} OCR rerun. Re-upload the source file to rerun OCR.`,
+            `${completeCount} page${completeCount !== 1 ? "s" : ""} ha${completeCount === 1 ? "s" : "ve"} restored OCR text. ${rerunRequiredCount} page${rerunRequiredCount !== 1 ? "s" : ""} need${rerunRequiredCount === 1 ? "s" : ""} the source file re-uploaded before OCR can run again.`,
           );
-        } else {
+        } else if (completeCount > 0) {
           setSessionStatus(
             `OCR text restored for all ${completeCount} page${completeCount !== 1 ? "s" : ""}. Re-upload the source file to modify results.`,
+          );
+        } else if (rerunRequiredCount > 0) {
+          setSessionStatus(
+            `${rerunRequiredCount} page${rerunRequiredCount !== 1 ? "s" : ""} still need${rerunRequiredCount === 1 ? "s" : ""} OCR. Re-upload the source file to continue.`,
           );
         }
       }
@@ -184,7 +191,7 @@ export function OcrWorkspace() {
 
     const timeout = window.setTimeout(() => {
       const didSave = saveOcrWorkspaceSession(images, language, mode, confidenceThreshold, orgScope);
-      setSessionStatus(didSave ? "Session saved automatically." : "Could not save this session locally.");
+      setSaveStatus(didSave ? "Session saved automatically." : "Could not save this session locally.");
     }, 600);
 
     return () => {
@@ -211,6 +218,8 @@ export function OcrWorkspace() {
     setImages(buildImageItemsFromScanPages(result.pages));
     setError(null);
     clearOcrWorkspaceSession(orgScope);
+    setSessionStatus(undefined);
+    setSaveStatus(undefined);
     setStatusMessage(
       result.fileClass === "pdf"
         ? `Loaded ${result.pages.length} page${result.pages.length === 1 ? "" : "s"} for OCR.`
@@ -665,6 +674,9 @@ export function OcrWorkspace() {
             ) : null}
             {sessionStatus ? (
               <p className="mt-4 rounded-xl border border-[#e5e5e5] bg-[#fafafa] px-4 py-3 text-sm text-[#666]">{sessionStatus}</p>
+            ) : null}
+            {saveStatus ? (
+              <p className="mt-4 text-xs text-[#777]">{saveStatus}</p>
             ) : null}
             {!largeFileRequiresPro &&
             images.length > 0 &&

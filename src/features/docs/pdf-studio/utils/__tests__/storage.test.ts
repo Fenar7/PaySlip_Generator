@@ -242,9 +242,53 @@ describe("pdf studio storage scoping", () => {
     expect(restored!.language).toBe("fra");
     expect(restored!.mode).toBe("fast");
     expect(restored!.confidenceThreshold).toBe(80);
+    expect(restored!.restoreCounts).toEqual({
+      completeCount: 1,
+      rerunRequiredCount: 0,
+    });
 
     clearOcrWorkspaceSession("org-a");
     expect(loadOcrWorkspaceSession("org-a")).toBeNull();
+  });
+
+  it("tracks OCR workspace rerun-required counts only for attempted OCR pages", () => {
+    const images = [
+      {
+        id: "complete",
+        previewUrl: "data:image/png;base64,a",
+        rotation: 0 as const,
+        name: "complete.png",
+        sizeBytes: 100,
+        ocrStatus: "complete" as const,
+        ocrText: "done",
+        ocrConfidence: 92,
+      },
+      {
+        id: "failed",
+        previewUrl: "data:image/png;base64,b",
+        rotation: 0 as const,
+        name: "failed.png",
+        sizeBytes: 80,
+        ocrStatus: "error" as const,
+        ocrErrorMessage: "OCR failed",
+      },
+      {
+        id: "untouched",
+        previewUrl: "data:image/png;base64,c",
+        rotation: 0 as const,
+        name: "untouched.png",
+        sizeBytes: 70,
+      },
+    ];
+
+    expect(saveOcrWorkspaceSession(images as any, "eng", "accurate", 70, "org-rerun")).toBe(true);
+
+    const restored = loadOcrWorkspaceSession("org-rerun");
+    expect(restored).not.toBeNull();
+    expect(restored!.restoreCounts).toEqual({
+      completeCount: 1,
+      rerunRequiredCount: 1,
+    });
   });
 
   it("keeps OCR workspace sessions isolated per scope", () => {

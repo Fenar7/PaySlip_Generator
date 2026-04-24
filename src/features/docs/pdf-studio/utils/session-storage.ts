@@ -270,7 +270,11 @@ export function loadPdfStudioSession(scope?: string): (PdfStudioSession & { _ocr
       return null;
     }
 
-    const rawParsed = JSON.parse(raw) as Partial<PdfStudioSession> & { _hadImageWatermark?: boolean; _ocrCompleteCount?: number; _ocrDroppedCount?: number };
+    const rawParsed = JSON.parse(raw) as Partial<PdfStudioSession> & {
+      _hadImageWatermark?: boolean;
+      _ocrCompleteCount?: number;
+      _ocrDroppedCount?: number;
+    };
 
     return {
       images: sanitizeImages(rawParsed.images),
@@ -363,6 +367,11 @@ export function clearPdfStudioSession(scope?: string): void {
 
 export const PDF_STUDIO_OCR_SESSION_STORAGE_KEY = "pdf-studio-ocr-session-v1";
 
+type OcrWorkspaceRestoreCounts = {
+  completeCount: number;
+  rerunRequiredCount: number;
+};
+
 function scopedOcrSessionStorageKey(scope?: string): string {
   const normalizedScope = scope?.trim().replace(/[^a-zA-Z0-9_-]/g, "_") || "anonymous";
   return `${PDF_STUDIO_OCR_SESSION_STORAGE_KEY}:${normalizedScope}`;
@@ -373,6 +382,7 @@ export type OcrWorkspaceSession = {
   language?: string;
   mode?: "fast" | "accurate";
   confidenceThreshold?: number;
+  restoreCounts?: OcrWorkspaceRestoreCounts;
   savedAt: string;
 };
 
@@ -407,6 +417,16 @@ export function loadOcrWorkspaceSession(scope?: string): OcrWorkspaceSession | n
         typeof parsed.confidenceThreshold === "number"
           ? Math.max(0, Math.min(100, parsed.confidenceThreshold))
           : undefined,
+      restoreCounts:
+        parsed.restoreCounts &&
+        typeof parsed.restoreCounts === "object" &&
+        typeof parsed.restoreCounts.completeCount === "number" &&
+        typeof parsed.restoreCounts.rerunRequiredCount === "number"
+          ? {
+              completeCount: Math.max(0, Math.round(parsed.restoreCounts.completeCount)),
+              rerunRequiredCount: Math.max(0, Math.round(parsed.restoreCounts.rerunRequiredCount)),
+            }
+          : undefined,
       savedAt: typeof parsed.savedAt === "string" ? parsed.savedAt : new Date().toISOString(),
     };
   } catch {
@@ -440,6 +460,12 @@ export function saveOcrWorkspaceSession(
     language,
     mode,
     confidenceThreshold,
+    restoreCounts: {
+      completeCount: images.filter((img) => img.ocrStatus === "complete" && !!img.ocrText).length,
+      rerunRequiredCount: images.filter(
+        (img) => img.ocrStatus === "error" || img.ocrStatus === "cancelled",
+      ).length,
+    },
     savedAt: new Date().toISOString(),
   };
 

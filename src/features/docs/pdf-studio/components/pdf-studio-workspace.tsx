@@ -579,7 +579,7 @@ export function PdfStudioWorkspace(props?: {
         if (completeCount > 0 || droppedCount > 0) {
           if (droppedCount > 0) {
             parts.push(
-              `${completeCount} page${completeCount !== 1 ? "s" : ""} ha${completeCount === 1 ? "s" : "ve"} restored OCR text. ${droppedCount} page${droppedCount !== 1 ? "s" : ""} need${droppedCount === 1 ? "s" : ""} OCR rerun.`,
+              `${completeCount} page${completeCount !== 1 ? "s" : ""} ha${completeCount === 1 ? "s" : "ve"} restored OCR text. ${droppedCount} page${droppedCount !== 1 ? "s" : ""} need${droppedCount === 1 ? "s" : ""} re-upload before OCR can run again.`,
             );
           } else {
             parts.push(

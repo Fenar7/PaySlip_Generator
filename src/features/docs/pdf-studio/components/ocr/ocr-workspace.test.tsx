@@ -1,5 +1,5 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
-import { render, screen, waitFor, fireEvent } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { render, screen, waitFor, fireEvent, act } from "@testing-library/react";
 import { OcrWorkspace } from "@/features/docs/pdf-studio/components/ocr/ocr-workspace";
 
 // --- Mocks ---
@@ -48,12 +48,15 @@ vi.mock("@/features/docs/pdf-studio/utils/zip-builder", () => ({
 
 vi.mock("@/features/docs/pdf-studio/utils/session-storage", () => ({
   loadOcrWorkspaceSession: vi.fn(),
-  saveOcrWorkspaceSession: vi.fn(),
+  saveOcrWorkspaceSession: vi.fn(() => true),
   clearOcrWorkspaceSession: vi.fn(),
 }));
 
 import { processImageForOcrDetailed } from "@/features/docs/pdf-studio/utils/ocr-processor";
-import { loadOcrWorkspaceSession, clearOcrWorkspaceSession } from "@/features/docs/pdf-studio/utils/session-storage";
+import {
+  loadOcrWorkspaceSession,
+  clearOcrWorkspaceSession,
+} from "@/features/docs/pdf-studio/utils/session-storage";
 import { loadScanSourcePages, buildImageItemsFromScanPages, dataUrlToBlob } from "@/features/docs/pdf-studio/utils/scan-input";
 
 function getFileInput(container: HTMLElement): HTMLInputElement {
@@ -64,6 +67,10 @@ describe("OcrWorkspace", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockPlanId = "starter";
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
   it("renders the upload zone and OCR settings panel", () => {
@@ -286,6 +293,10 @@ describe("OcrWorkspace", () => {
         { id: "a", previewUrl: "data:image/png;base64,a", rotation: 0, name: "page1.png", sizeBytes: 1024, ocrStatus: "complete", ocrText: "hello", ocrConfidence: 85 },
         { id: "b", previewUrl: "data:image/png;base64,b", rotation: 0, name: "page2.png", sizeBytes: 1024 },
       ],
+      restoreCounts: {
+        completeCount: 1,
+        rerunRequiredCount: 1,
+      },
       language: "fra",
       mode: "fast",
       confidenceThreshold: 80,
@@ -295,7 +306,7 @@ describe("OcrWorkspace", () => {
     render(<OcrWorkspace />);
 
     await waitFor(() => {
-      expect(screen.getByText(/1 page has restored OCR text\. 1 page needs OCR rerun/i)).toBeInTheDocument();
+      expect(screen.getByText(/1 page has restored OCR text\. 1 page needs the source file re-uploaded before OCR can run again/i)).toBeInTheDocument();
     });
   });
 
@@ -314,11 +325,58 @@ describe("OcrWorkspace", () => {
     });
   });
 
+  it("does not claim untouched uploaded pages need rerun after restore", async () => {
+    vi.mocked(loadOcrWorkspaceSession).mockReturnValue({
+      images: [
+        { id: "a", previewUrl: "data:image/png;base64,a", rotation: 0, name: "page1.png", sizeBytes: 1024, ocrStatus: "complete", ocrText: "hello", ocrConfidence: 85 },
+        { id: "b", previewUrl: "data:image/png;base64,b", rotation: 0, name: "page2.png", sizeBytes: 1024 },
+      ],
+      restoreCounts: {
+        completeCount: 1,
+        rerunRequiredCount: 0,
+      },
+      savedAt: new Date().toISOString(),
+    });
+
+    render(<OcrWorkspace />);
+
+    await waitFor(() => {
+      expect(screen.getByText(/OCR text restored for all 1 page/i)).toBeInTheDocument();
+    });
+    expect(screen.queryByText(/need.*re-uploaded/i)).not.toBeInTheDocument();
+  });
+
+  it("keeps restore messaging visible instead of replacing it with autosave copy", async () => {
+    vi.useFakeTimers();
+    vi.mocked(loadOcrWorkspaceSession).mockReturnValue({
+      images: [
+        { id: "a", previewUrl: "data:image/png;base64,a", rotation: 0, name: "page1.png", sizeBytes: 1024, ocrStatus: "complete", ocrText: "hello", ocrConfidence: 85 },
+      ],
+      restoreCounts: {
+        completeCount: 1,
+        rerunRequiredCount: 0,
+      },
+      savedAt: new Date().toISOString(),
+    });
+
+    render(<OcrWorkspace />);
+
+    await act(async () => {
+      await vi.runAllTimersAsync();
+    });
+
+    expect(screen.getByText(/OCR text restored for all 1 page/i)).toBeInTheDocument();
+  });
+
   it("clears session on new file upload", async () => {
     vi.mocked(loadOcrWorkspaceSession).mockReturnValue({
       images: [
         { id: "a", previewUrl: "data:image/png;base64,a", rotation: 0, name: "page1.png", sizeBytes: 1024, ocrStatus: "complete", ocrText: "hello", ocrConfidence: 85 },
       ],
+      restoreCounts: {
+        completeCount: 1,
+        rerunRequiredCount: 0,
+      },
       savedAt: new Date().toISOString(),
     });
 

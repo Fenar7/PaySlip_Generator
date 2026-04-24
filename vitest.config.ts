@@ -17,13 +17,6 @@ export default defineConfig({
       "dist/**",
     ],
     testTimeout: 30000,
-    poolMatchGlobs: [
-      // Isolate tests with conflicting module mocks to prevent cross-test leakage
-      ["**/src/features/docs/pdf-studio/**/*.test.tsx", "forks"],
-    ],
-    forks: {
-      singleFork: true,
-    },
   },
   resolve: {
     alias: {
