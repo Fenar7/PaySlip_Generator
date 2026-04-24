@@ -110,7 +110,8 @@ export function LoginForm() {
        }
 
         console.log("[login] signed in successfully");
-        window.location.assign(destination);
+        router.replace(destination);
+        router.refresh();
         return;
       } catch (err) {
         console.error("[login] unexpected error:", err);
