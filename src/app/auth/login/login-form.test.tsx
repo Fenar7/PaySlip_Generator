@@ -10,14 +10,12 @@ const {
   routerRefreshMock,
   locationAssignMock,
   fetchMock,
-  searchParamsMock,
 } = vi.hoisted(() => ({
   routerPushMock: vi.fn(),
   routerReplaceMock: vi.fn(),
   routerRefreshMock: vi.fn(),
   locationAssignMock: vi.fn(),
   fetchMock: vi.fn(),
-  searchParamsMock: vi.fn(() => new URLSearchParams()),
 }));
 
 vi.mock("next/navigation", () => ({
@@ -26,7 +24,6 @@ vi.mock("next/navigation", () => ({
     replace: routerReplaceMock,
     refresh: routerRefreshMock,
   }),
-  useSearchParams: () => searchParamsMock(),
 }));
 
 describe("LoginForm", () => {
@@ -50,8 +47,6 @@ describe("LoginForm", () => {
     routerPushMock.mockReset();
     routerReplaceMock.mockReset();
     routerRefreshMock.mockReset();
-    searchParamsMock.mockReset();
-    searchParamsMock.mockReturnValue(new URLSearchParams());
     fetchMock.mockReset();
     fetchMock.mockResolvedValue({
       ok: true,
@@ -134,11 +129,12 @@ describe("LoginForm", () => {
   });
 
   it("renders server-returned login errors and preserves the submitted email", async () => {
-    searchParamsMock.mockReturnValue(
-      new URLSearchParams("error=Invalid%20email%20or%20password&email=user%40example.com"),
+    render(
+      <LoginForm
+        initialError="Invalid email or password"
+        initialEmail="user@example.com"
+      />,
     );
-
-    render(<LoginForm />);
 
     expect(screen.getByDisplayValue("user@example.com")).toBeInTheDocument();
     expect(screen.getByText("Invalid email or password")).toBeInTheDocument();

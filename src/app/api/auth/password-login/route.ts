@@ -98,6 +98,7 @@ export async function POST(request: NextRequest) {
 
     if (!email || !password) {
       if (!isJsonRequest(request)) {
+        // 303 ensures the browser follows with GET (Post/Redirect/Get pattern).
         return NextResponse.redirect(
           buildLoginRedirectUrl(request, {
             error: "Email and password are required.",
@@ -105,6 +106,7 @@ export async function POST(request: NextRequest) {
             orgSlug,
             callbackUrl: redirectTo,
           }),
+          { status: 303 },
         );
       }
 
@@ -122,6 +124,7 @@ export async function POST(request: NextRequest) {
             email,
             callbackUrl: redirectTo,
           }),
+          { status: 303 },
         );
       }
 
@@ -170,7 +173,7 @@ export async function POST(request: NextRequest) {
         if (signInError.code === "email_not_confirmed") {
           const verifyUrl = new URL("/auth/verify-email", request.url);
           verifyUrl.searchParams.set("email", email);
-          return NextResponse.redirect(verifyUrl);
+          return NextResponse.redirect(verifyUrl, { status: 303 });
         }
 
         return NextResponse.redirect(
@@ -180,6 +183,7 @@ export async function POST(request: NextRequest) {
             orgSlug,
             callbackUrl: redirectTo,
           }),
+          { status: 303 },
         );
       }
 
@@ -215,6 +219,7 @@ export async function POST(request: NextRequest) {
 
     if (!isJsonRequest(request)) {
       return NextResponse.redirect(new URL(redirectTo, request.url), {
+        status: 303,
         headers: response.headers,
       });
     }
@@ -228,6 +233,7 @@ export async function POST(request: NextRequest) {
         buildLoginRedirectUrl(request, {
           error: "Could not reach login service. Please try again.",
         }),
+        { status: 303 },
       );
     }
 
