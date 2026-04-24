@@ -1,11 +1,13 @@
 "use client";
 
+import { PDF_STUDIO_OCR_LOW_CONFIDENCE_THRESHOLD } from "@/features/docs/pdf-studio/constants";
 import type { ImageItem } from "@/features/docs/pdf-studio/types";
 import { useMemo } from "react";
 
 type OcrProgressPanelProps = {
   images: ImageItem[];
   isOcrUnavailable?: boolean;
+  lowConfidenceThreshold?: number;
   onRetry?: (imageId: string) => void;
   onRetryAll?: () => void;
   onCancelOcr?: () => void;
@@ -20,8 +22,25 @@ function LoadingSpinner() {
   );
 }
 
-export function OcrProgressPanel({ images, isOcrUnavailable, onRetry, onRetryAll, onCancelOcr }: OcrProgressPanelProps) {
-  const { pending, processing, complete, error, cancelled, errorImages, cancelledImages } = useMemo(() => {
+export function OcrProgressPanel({
+  images,
+  isOcrUnavailable,
+  lowConfidenceThreshold = PDF_STUDIO_OCR_LOW_CONFIDENCE_THRESHOLD,
+  onRetry,
+  onRetryAll,
+  onCancelOcr,
+}: OcrProgressPanelProps) {
+  const {
+    pending,
+    processing,
+    complete,
+    error,
+    cancelled,
+    errorImages,
+    cancelledImages,
+    lowConfidence,
+    lowConfidenceImages,
+  } = useMemo(() => {
     const counts = {
       pending: 0,
       processing: 0,
@@ -30,11 +49,22 @@ export function OcrProgressPanel({ images, isOcrUnavailable, onRetry, onRetryAll
       cancelled: 0,
       errorImages: [] as ImageItem[],
       cancelledImages: [] as ImageItem[],
+      lowConfidence: 0,
+      lowConfidenceImages: [] as ImageItem[],
     };
     images.forEach((item) => {
       if (item.ocrStatus === "pending") counts.pending++;
       else if (item.ocrStatus === "processing") counts.processing++;
-      else if (item.ocrStatus === "complete") counts.complete++;
+      else if (item.ocrStatus === "complete") {
+        counts.complete++;
+        if (
+          typeof item.ocrConfidence === "number" &&
+          item.ocrConfidence < lowConfidenceThreshold
+        ) {
+          counts.lowConfidence++;
+          counts.lowConfidenceImages.push(item);
+        }
+      }
       else if (item.ocrStatus === "error") {
         counts.error++;
         counts.errorImages.push(item);
@@ -44,7 +74,7 @@ export function OcrProgressPanel({ images, isOcrUnavailable, onRetry, onRetryAll
       }
     });
     return counts;
-  }, [images]);
+  }, [images, lowConfidenceThreshold]);
 
   const total = images.length;
   const inProgress = pending + processing;
@@ -63,7 +93,7 @@ export function OcrProgressPanel({ images, isOcrUnavailable, onRetry, onRetryAll
     );
   }
 
-  if (total === 0 || (inProgress === 0 && retryableCount === 0)) {
+  if (total === 0 || (inProgress === 0 && retryableCount === 0 && lowConfidence === 0)) {
     return null;
   }
 
@@ -90,6 +120,9 @@ export function OcrProgressPanel({ images, isOcrUnavailable, onRetry, onRetryAll
             )}
             {complete > 0 && (
               <span className="text-emerald-600">{complete} Complete</span>
+            )}
+            {lowConfidence > 0 && (
+              <span className="text-amber-700">{lowConfidence} Low confidence</span>
             )}
           </div>
         </div>
@@ -139,6 +172,43 @@ export function OcrProgressPanel({ images, isOcrUnavailable, onRetry, onRetryAll
                     type="button"
                     onClick={() => onRetry(img.id)}
                     className="shrink-0 rounded-md bg-red-100 px-2 py-0.5 text-[0.72rem] font-medium text-red-700 hover:bg-red-200 transition-colors"
+                  >
+                    Retry
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
+
+      {lowConfidence > 0 && (
+        <div className="rounded-[1.2rem] border border-amber-200 bg-amber-50/70 px-4 py-3 text-sm">
+          <div className="mb-2 flex items-center justify-between gap-2">
+            <p className="font-medium text-amber-800">
+              {lowConfidence} image{lowConfidence > 1 ? "s" : ""} completed with low OCR confidence
+            </p>
+            <span className="text-[0.72rem] text-amber-700">
+              Below {lowConfidenceThreshold}%
+            </span>
+          </div>
+          <p className="mb-2 text-[0.78rem] text-amber-700">
+            These pages stay exportable, but the searchable text may need verification.
+          </p>
+          {onRetry && (
+            <ul className="space-y-1.5">
+              {lowConfidenceImages.map((img) => (
+                <li key={img.id} className="flex items-center justify-between gap-2">
+                  <span
+                    className="truncate text-[0.78rem] text-amber-700"
+                    title={`${img.name} — ${img.ocrConfidence ?? 0}% confidence`}
+                  >
+                    {img.name} — {Math.round(img.ocrConfidence ?? 0)}% confidence
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => onRetry(img.id)}
+                    className="shrink-0 rounded-md bg-amber-100 px-2 py-0.5 text-[0.72rem] font-medium text-amber-800 hover:bg-amber-200 transition-colors"
                   >
                     Retry
                   </button>

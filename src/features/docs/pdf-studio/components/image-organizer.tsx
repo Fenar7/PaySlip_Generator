@@ -29,7 +29,7 @@ import { trackPdfStudioLifecycleEvent } from "@/features/docs/pdf-studio/lib/ana
 import { validatePdfStudioFiles } from "@/features/docs/pdf-studio/lib/ingestion";
 import { loadImageFromFile } from "@/features/docs/pdf-studio/utils/image-processor";
 import { convertHeicToJpeg } from "@/features/docs/pdf-studio/utils/heic-converter";
-import { processImageForOcr, getOcrServiceStatus } from "@/features/docs/pdf-studio/utils/ocr-processor";
+import { processImageForOcrDetailed, getOcrServiceStatus } from "@/features/docs/pdf-studio/utils/ocr-processor";
 import { cn } from "@/lib/utils";
 import type { MouseEvent } from "react";
 
@@ -52,11 +52,17 @@ export async function runOcrForImage(
   );
 
   try {
-    const ocrText = await processImageForOcr(file, imageId);
+    const result = await processImageForOcrDetailed(file, { dedupeKey: imageId });
     onChange((currentImages) =>
       currentImages.map((img) =>
         img.id === imageId
-          ? { ...img, ocrText, ocrStatus: "complete" as const, ocrErrorMessage: undefined }
+          ? {
+              ...img,
+              ocrText: result.text,
+              ocrConfidence: result.confidence,
+              ocrStatus: "complete" as const,
+              ocrErrorMessage: undefined,
+            }
           : img,
       ),
     );
@@ -65,7 +71,13 @@ export async function runOcrForImage(
     onChange((currentImages) =>
       currentImages.map((img) =>
         img.id === imageId
-          ? { ...img, ocrStatus: "error" as const, ocrErrorMessage: message, ocrText: undefined }
+          ? {
+              ...img,
+              ocrStatus: "error" as const,
+              ocrErrorMessage: message,
+              ocrText: undefined,
+              ocrConfidence: undefined,
+            }
           : img,
       ),
     );
@@ -90,6 +102,22 @@ type ImageOrganizerProps = {
   onUploadError?: (message?: string) => void;
   onOcrUnavailable?: () => void;
 };
+
+function invalidateEditedImageOcr(image: ImageItem): ImageItem {
+  if (!image.ocrStatus) {
+    return image;
+  }
+
+  return {
+    ...image,
+    ocrText: undefined,
+    ocrConfidence: undefined,
+    ocrErrorMessage: image.file
+      ? undefined
+      : "OCR must be rerun after editing this image. Re-upload the source file to continue.",
+    ocrStatus: image.file ? "pending" : "error",
+  };
+}
 
 function UploadIcon() {
   return (
@@ -252,38 +280,48 @@ export function ImageOrganizer({
 
   const handleRotateLeft = useCallback(
     (id: string) => {
+      const target = images.find((img) => img.id === id);
+      if (!target) return;
+
       onChange(
         images.map((img) =>
           img.id === id
-            ? {
+            ? invalidateEditedImageOcr({
                 ...img,
                 rotation: (((img.rotation - 90) % 360 + 360) % 360) as ImageRotation,
-                // Rotation invalidates OCR geometry — clear prior output
-                ...(img.ocrStatus ? { ocrText: undefined, ocrConfidence: undefined, ocrStatus: "pending" as const, ocrErrorMessage: undefined } : {}),
-              }
+              })
             : img,
         ),
       );
+
+      if (target.file) {
+        void runOcrForImage(id, target.file, onChange, onOcrUnavailable);
+      }
     },
-    [images, onChange],
+    [images, onChange, onOcrUnavailable],
   );
 
   const handleRotateRight = useCallback(
     (id: string) => {
+      const target = images.find((img) => img.id === id);
+      if (!target) return;
+
       onChange(
         images.map((img) =>
           img.id === id
-            ? {
+            ? invalidateEditedImageOcr({
                 ...img,
                 rotation: ((img.rotation + 90) % 360) as ImageRotation,
-                // Rotation invalidates OCR geometry — clear prior output
-                ...(img.ocrStatus ? { ocrText: undefined, ocrConfidence: undefined, ocrStatus: "pending" as const, ocrErrorMessage: undefined } : {}),
-              }
+              })
             : img,
         ),
       );
+
+      if (target.file) {
+        void runOcrForImage(id, target.file, onChange, onOcrUnavailable);
+      }
     },
-    [images, onChange],
+    [images, onChange, onOcrUnavailable],
   );
 
   const handleDelete = useCallback(
@@ -315,18 +353,21 @@ export function ImageOrganizer({
       onChange(
         images.map((img) =>
           img.id === cropTargetId
-            ? {
+            ? invalidateEditedImageOcr({
                 ...img,
                 crop,
-                // Crop changes visible text region — invalidate prior OCR
-                ...(img.ocrStatus ? { ocrText: undefined, ocrConfidence: undefined, ocrStatus: "pending" as const, ocrErrorMessage: undefined } : {}),
-              }
+              })
             : img,
         ),
       );
+
+      const target = images.find((img) => img.id === cropTargetId);
+      if (target?.file) {
+        void runOcrForImage(cropTargetId, target.file, onChange, onOcrUnavailable);
+      }
       setCropTargetId(null);
     },
-    [cropTargetId, images, onChange],
+    [cropTargetId, images, onChange, onOcrUnavailable],
   );
 
   const handleClearAll = useCallback(() => {

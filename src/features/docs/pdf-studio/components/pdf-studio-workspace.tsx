@@ -8,6 +8,7 @@ import { PdfPreview } from "@/features/docs/pdf-studio/components/pdf-preview";
 import {
   PDF_STUDIO_DEFAULT_SETTINGS,
   PDF_STUDIO_MAX_IMAGES,
+  PDF_STUDIO_OCR_LOW_CONFIDENCE_THRESHOLD,
   PDF_STUDIO_SUPPORTED_EXTENSIONS,
 } from "@/features/docs/pdf-studio/constants";
 import type {
@@ -52,6 +53,22 @@ function rotateLeft(rotation: ImageItem["rotation"]): ImageItem["rotation"] {
 
 function rotateRight(rotation: ImageItem["rotation"]): ImageItem["rotation"] {
   return ((rotation + 90) % 360) as ImageItem["rotation"];
+}
+
+function invalidateEditedImageOcr(image: ImageItem): ImageItem {
+  if (!image.ocrStatus) {
+    return image;
+  }
+
+  return {
+    ...image,
+    ocrText: undefined,
+    ocrConfidence: undefined,
+    ocrErrorMessage: image.file
+      ? undefined
+      : "OCR must be rerun after editing this image. Re-upload the source file to continue.",
+    ocrStatus: image.file ? "pending" : "error",
+  };
 }
 
 function GenerationDialog({
@@ -287,7 +304,13 @@ function PdfStudioWorkspaceContent(props: PdfStudioWorkspaceContentProps) {
       commitImages((current) =>
         current.map((img) =>
           img.id === imageId
-            ? { ...img, ocrStatus: "pending" as const, ocrErrorMessage: undefined, ocrText: undefined }
+            ? {
+                ...img,
+                ocrStatus: "pending" as const,
+                ocrErrorMessage: undefined,
+                ocrText: undefined,
+                ocrConfidence: undefined,
+              }
             : img,
         ),
       );
@@ -324,7 +347,13 @@ function PdfStudioWorkspaceContent(props: PdfStudioWorkspaceContentProps) {
       // Reset them to pending
       const updated = current.map((img) =>
         retryable.some((r) => r.id === img.id)
-          ? { ...img, ocrStatus: "pending" as const, ocrErrorMessage: undefined, ocrText: undefined }
+          ? {
+              ...img,
+              ocrStatus: "pending" as const,
+              ocrErrorMessage: undefined,
+              ocrText: undefined,
+              ocrConfidence: undefined,
+            }
           : img,
       );
 
@@ -360,38 +389,50 @@ function PdfStudioWorkspaceContent(props: PdfStudioWorkspaceContentProps) {
       return;
     }
 
+    const rerunnable = images.filter(
+      (image) => selectedIdSet.has(image.id) && Boolean(image.file) && Boolean(image.ocrStatus),
+    );
+
     commitImages((prevImages) =>
       prevImages.map((image) =>
         selectedIdSet.has(image.id)
-          ? {
+          ? invalidateEditedImageOcr({
               ...image,
               rotation: rotateLeft(image.rotation),
-              // Rotation invalidates OCR geometry — clear prior output
-              ...(image.ocrStatus ? { ocrText: undefined, ocrConfidence: undefined, ocrStatus: "pending" as const, ocrErrorMessage: undefined } : {}),
-            }
+            })
           : image,
       ),
     );
-  }, [commitImages, selectedIdSet, selectedIds.length]);
+
+    rerunnable.forEach((image) => {
+      void runOcrForImage(image.id, image.file!, commitImages, () => setIsOcrUnavailable(true));
+    });
+  }, [commitImages, images, selectedIdSet, selectedIds.length]);
 
   const handleBatchRotateRight = useCallback(() => {
     if (selectedIds.length === 0) {
       return;
     }
 
+    const rerunnable = images.filter(
+      (image) => selectedIdSet.has(image.id) && Boolean(image.file) && Boolean(image.ocrStatus),
+    );
+
     commitImages((prevImages) =>
       prevImages.map((image) =>
         selectedIdSet.has(image.id)
-          ? {
+          ? invalidateEditedImageOcr({
               ...image,
               rotation: rotateRight(image.rotation),
-              // Rotation invalidates OCR geometry — clear prior output
-              ...(image.ocrStatus ? { ocrText: undefined, ocrConfidence: undefined, ocrStatus: "pending" as const, ocrErrorMessage: undefined } : {}),
-            }
+            })
           : image,
       ),
     );
-  }, [commitImages, selectedIdSet, selectedIds.length]);
+
+    rerunnable.forEach((image) => {
+      void runOcrForImage(image.id, image.file!, commitImages, () => setIsOcrUnavailable(true));
+    });
+  }, [commitImages, images, selectedIdSet, selectedIds.length]);
 
   const handleBatchDelete = useCallback(() => {
     if (selectedIds.length === 0) {
@@ -540,7 +581,7 @@ function PdfStudioWorkspaceContent(props: PdfStudioWorkspaceContentProps) {
     } finally {
       generateCancelRef.current = null;
     }
-  }, [images, settings]);
+  }, [analytics, images, settings, toolId]);
 
   useEffect(() => {
     if (isOrgLoading) {
@@ -841,7 +882,7 @@ function PdfStudioWorkspaceContent(props: PdfStudioWorkspaceContentProps) {
           </div>
         ) : null}
 
-        {sessionStatus || images.some(img => img.ocrStatus && img.ocrStatus !== 'complete') ? (
+        {sessionStatus || images.some((img) => img.ocrStatus) ? (
           <div className="space-y-3">
             {sessionStatus ? (
               <div className="rounded-xl border border-[var(--border-soft)] bg-white px-5 py-4 text-sm text-[var(--foreground-soft)] shadow-[var(--shadow-soft)]">
@@ -851,6 +892,7 @@ function PdfStudioWorkspaceContent(props: PdfStudioWorkspaceContentProps) {
             <OcrProgressPanel
               images={images}
               isOcrUnavailable={isOcrUnavailable}
+              lowConfidenceThreshold={PDF_STUDIO_OCR_LOW_CONFIDENCE_THRESHOLD}
               onRetry={handleOcrRetry}
               onRetryAll={handleRetryAllOcr}
               onCancelOcr={handleCancelAllOcr}
