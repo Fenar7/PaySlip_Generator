@@ -1,6 +1,7 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextRequest, NextResponse } from "next/server";
 import { getSafeRedirectPath } from "@/lib/auth/safe-redirect";
+import { getRequestOrigin } from "@/lib/request-origin";
 import { redeemBreakGlassCode } from "@/lib/sso";
 import { setSsoSessionCookie } from "@/lib/sso-session";
 import {
@@ -34,7 +35,7 @@ function buildLoginRedirectUrl(
     ssoError?: string;
   },
 ) {
-  const url = new URL("/auth/login", request.url);
+  const url = new URL("/auth/login", getRequestOrigin(request));
   if (params.error) {
     url.searchParams.set("error", params.error);
   }
@@ -85,6 +86,7 @@ function clearSupabaseAuthCookies(response: NextResponse, request: NextRequest) 
 
 export async function POST(request: NextRequest) {
   try {
+    const requestOrigin = getRequestOrigin(request);
     const body = await readRequestBody(request);
     const email = body.email?.trim();
     const password = body.password;
@@ -141,7 +143,7 @@ export async function POST(request: NextRequest) {
     // between response objects (which can drop entries in some environments).
     const finalResponse = isJson
       ? NextResponse.json({ success: true, redirectTo })
-      : NextResponse.redirect(new URL(redirectTo, request.url), { status: 303 });
+      : NextResponse.redirect(new URL(redirectTo, requestOrigin), { status: 303 });
 
     clearSupabaseAuthCookies(finalResponse, request);
 
@@ -179,7 +181,7 @@ export async function POST(request: NextRequest) {
     if (signInError) {
       if (!isJson) {
         if (signInError.code === "email_not_confirmed") {
-          const verifyUrl = new URL("/auth/verify-email", request.url);
+          const verifyUrl = new URL("/auth/verify-email", requestOrigin);
           verifyUrl.searchParams.set("email", email);
           return NextResponse.redirect(verifyUrl, { status: 303 });
         }

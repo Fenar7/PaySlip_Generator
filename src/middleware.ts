@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { getRequestOrigin } from "@/lib/request-origin";
 import { updateSession } from "@/lib/supabase/middleware";
 import { rateLimitByIp } from "@/lib/rate-limit";
 import {
@@ -133,10 +134,11 @@ async function check2faChallenge(
 ): Promise<NextResponse | null> {
   if (!twoFaRequired) return null;
 
+  const requestOrigin = getRequestOrigin(request);
   const callbackUrl = request.nextUrl.pathname + request.nextUrl.search;
 
   if (opts?.enrollmentRequired) {
-    const setupUrl = new URL("/app/settings/security", request.url);
+    const setupUrl = new URL("/app/settings/security", requestOrigin);
     setupUrl.searchParams.set("setup2fa", "1");
     setupUrl.searchParams.set("callbackUrl", callbackUrl);
     return NextResponse.redirect(setupUrl);
@@ -146,7 +148,7 @@ async function check2faChallenge(
     process.env.TOTP_SESSION_SECRET ?? process.env.PORTAL_JWT_SECRET ?? "";
 
   if (!secret) {
-    const loginUrl = new URL("/auth/login", request.url);
+    const loginUrl = new URL("/auth/login", requestOrigin);
     loginUrl.searchParams.set("error", "2fa_unavailable");
     loginUrl.searchParams.set("callbackUrl", callbackUrl);
     return NextResponse.redirect(loginUrl);
@@ -161,7 +163,7 @@ async function check2faChallenge(
   }
 
   // Challenge required: redirect to /auth/2fa with the original path as callback
-  const challengeUrl = new URL("/auth/2fa", request.url);
+  const challengeUrl = new URL("/auth/2fa", requestOrigin);
   challengeUrl.searchParams.set("callbackUrl", callbackUrl);
   return NextResponse.redirect(challengeUrl);
 }
@@ -170,6 +172,7 @@ async function check2faChallenge(
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
+  const requestOrigin = getRequestOrigin(request);
 
   // Rate limiting (fail-open: errors are caught and logged)
   try {
@@ -224,7 +227,7 @@ export async function middleware(request: NextRequest) {
 
   if (pathname.startsWith("/app") || pathname.startsWith("/onboarding")) {
     if (!user) {
-      const loginUrl = new URL("/auth/login", request.url);
+      const loginUrl = new URL("/auth/login", requestOrigin);
       loginUrl.searchParams.set("callbackUrl", pathname);
       return NextResponse.redirect(loginUrl);
     }
@@ -247,7 +250,7 @@ export async function middleware(request: NextRequest) {
       if (challengeRedirect) return challengeRedirect;
     } catch (err) {
       console.warn("[middleware] 2FA check error, denying access:", err);
-      const loginUrl = new URL("/auth/login", request.url);
+      const loginUrl = new URL("/auth/login", requestOrigin);
       loginUrl.searchParams.set("error", "2fa_check_failed");
       loginUrl.searchParams.set("callbackUrl", pathname);
       return NextResponse.redirect(loginUrl);
