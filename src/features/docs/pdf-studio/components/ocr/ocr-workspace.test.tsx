@@ -1,5 +1,5 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
-import { render, screen, waitFor, fireEvent } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { render, screen, waitFor, fireEvent, act } from "@testing-library/react";
 import { OcrWorkspace } from "@/features/docs/pdf-studio/components/ocr/ocr-workspace";
 
 // --- Mocks ---
@@ -7,7 +7,7 @@ import { OcrWorkspace } from "@/features/docs/pdf-studio/components/ocr/ocr-work
 let mockPlanId = "starter";
 
 vi.mock("@/hooks/use-active-org", () => ({
-  useActiveOrg: () => ({ activeOrg: null }),
+  useActiveOrg: () => ({ activeOrg: { id: "org-ocr" }, isLoading: false }),
 }));
 
 vi.mock("@/hooks/use-plan", () => ({
@@ -46,7 +46,17 @@ vi.mock("@/features/docs/pdf-studio/utils/zip-builder", () => ({
   downloadPdfBytes: vi.fn(),
 }));
 
+vi.mock("@/features/docs/pdf-studio/utils/session-storage", () => ({
+  loadOcrWorkspaceSession: vi.fn(),
+  saveOcrWorkspaceSession: vi.fn(() => true),
+  clearOcrWorkspaceSession: vi.fn(),
+}));
+
 import { processImageForOcrDetailed } from "@/features/docs/pdf-studio/utils/ocr-processor";
+import {
+  loadOcrWorkspaceSession,
+  clearOcrWorkspaceSession,
+} from "@/features/docs/pdf-studio/utils/session-storage";
 import { loadScanSourcePages, buildImageItemsFromScanPages, dataUrlToBlob } from "@/features/docs/pdf-studio/utils/scan-input";
 
 function getFileInput(container: HTMLElement): HTMLInputElement {
@@ -57,6 +67,10 @@ describe("OcrWorkspace", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockPlanId = "starter";
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
   it("renders the upload zone and OCR settings panel", () => {
@@ -270,6 +284,124 @@ describe("OcrWorkspace", () => {
 
     await waitFor(() => {
       expect(screen.getByText(/no page limit/i)).toBeInTheDocument();
+    });
+  });
+
+  it("restores session on mount and shows specific OCR restore messaging", async () => {
+    vi.mocked(loadOcrWorkspaceSession).mockReturnValue({
+      images: [
+        { id: "a", previewUrl: "data:image/png;base64,a", rotation: 0, name: "page1.png", sizeBytes: 1024, ocrStatus: "complete", ocrText: "hello", ocrConfidence: 85 },
+        { id: "b", previewUrl: "data:image/png;base64,b", rotation: 0, name: "page2.png", sizeBytes: 1024 },
+      ],
+      restoreCounts: {
+        completeCount: 1,
+        rerunRequiredCount: 1,
+      },
+      language: "fra",
+      mode: "fast",
+      confidenceThreshold: 80,
+      savedAt: new Date().toISOString(),
+    });
+
+    render(<OcrWorkspace />);
+
+    await waitFor(() => {
+      expect(screen.getByText(/1 page has restored OCR text\. 1 page needs the source file re-uploaded before OCR can run again/i)).toBeInTheDocument();
+    });
+  });
+
+  it("shows fully-restored messaging when all pages have OCR text", async () => {
+    vi.mocked(loadOcrWorkspaceSession).mockReturnValue({
+      images: [
+        { id: "a", previewUrl: "data:image/png;base64,a", rotation: 0, name: "page1.png", sizeBytes: 1024, ocrStatus: "complete", ocrText: "hello", ocrConfidence: 85 },
+      ],
+      savedAt: new Date().toISOString(),
+    });
+
+    render(<OcrWorkspace />);
+
+    await waitFor(() => {
+      expect(screen.getByText(/OCR text restored for all 1 page/i)).toBeInTheDocument();
+    });
+  });
+
+  it("does not claim untouched uploaded pages need rerun after restore", async () => {
+    vi.mocked(loadOcrWorkspaceSession).mockReturnValue({
+      images: [
+        { id: "a", previewUrl: "data:image/png;base64,a", rotation: 0, name: "page1.png", sizeBytes: 1024, ocrStatus: "complete", ocrText: "hello", ocrConfidence: 85 },
+        { id: "b", previewUrl: "data:image/png;base64,b", rotation: 0, name: "page2.png", sizeBytes: 1024 },
+      ],
+      restoreCounts: {
+        completeCount: 1,
+        rerunRequiredCount: 0,
+      },
+      savedAt: new Date().toISOString(),
+    });
+
+    render(<OcrWorkspace />);
+
+    await waitFor(() => {
+      expect(screen.getByText(/OCR text restored for all 1 page/i)).toBeInTheDocument();
+    });
+    expect(screen.queryByText(/need.*re-uploaded/i)).not.toBeInTheDocument();
+  });
+
+  it("keeps restore messaging visible instead of replacing it with autosave copy", async () => {
+    vi.useFakeTimers();
+    vi.mocked(loadOcrWorkspaceSession).mockReturnValue({
+      images: [
+        { id: "a", previewUrl: "data:image/png;base64,a", rotation: 0, name: "page1.png", sizeBytes: 1024, ocrStatus: "complete", ocrText: "hello", ocrConfidence: 85 },
+      ],
+      restoreCounts: {
+        completeCount: 1,
+        rerunRequiredCount: 0,
+      },
+      savedAt: new Date().toISOString(),
+    });
+
+    render(<OcrWorkspace />);
+
+    await act(async () => {
+      await vi.runAllTimersAsync();
+    });
+
+    expect(screen.getByText(/OCR text restored for all 1 page/i)).toBeInTheDocument();
+  });
+
+  it("clears session on new file upload", async () => {
+    vi.mocked(loadOcrWorkspaceSession).mockReturnValue({
+      images: [
+        { id: "a", previewUrl: "data:image/png;base64,a", rotation: 0, name: "page1.png", sizeBytes: 1024, ocrStatus: "complete", ocrText: "hello", ocrConfidence: 85 },
+      ],
+      restoreCounts: {
+        completeCount: 1,
+        rerunRequiredCount: 0,
+      },
+      savedAt: new Date().toISOString(),
+    });
+
+    vi.mocked(loadScanSourcePages).mockResolvedValue({
+      ok: true,
+      pages: [{ previewUrl: "data:image/png;base64,b", name: "new.png" }],
+      fileClass: "image",
+    } as unknown as Awaited<ReturnType<typeof loadScanSourcePages>>);
+
+    vi.mocked(buildImageItemsFromScanPages).mockReturnValue([
+      { id: "b", previewUrl: "data:image/png;base64,b", rotation: 0, name: "new.png", sizeBytes: 1024 },
+    ]);
+
+    const { container } = render(<OcrWorkspace />);
+
+    await waitFor(() => {
+      expect(screen.getByText(/OCR text restored for all 1 page/i)).toBeInTheDocument();
+    });
+
+    const file = new File(["dummy"], "new.png", { type: "image/png" });
+    const input = getFileInput(container);
+    fireEvent.change(input, { target: { files: [file] } });
+
+    await waitFor(() => {
+      expect(clearOcrWorkspaceSession).toHaveBeenCalledWith("org-ocr");
     });
   });
 });
