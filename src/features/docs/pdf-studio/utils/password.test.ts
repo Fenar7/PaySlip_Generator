@@ -3,6 +3,7 @@ import {
   calculatePasswordStrength,
   validatePasswords,
   validateOwnerPassword,
+  validatePasswordPermissions,
   validatePasswordSettings,
   arePasswordsEqual,
   getPasswordStrengthColor,
@@ -10,6 +11,7 @@ import {
   isPasswordSettingsValid,
   sanitizePasswordSettings,
   getPasswordStrengthDescription,
+  INVALID_PASSWORD_PERMISSIONS_MESSAGE,
   PDF_STUDIO_PASSWORD_MAX_LENGTH,
 } from "./password";
 import type { PasswordSettings, PasswordValidation } from "../types";
@@ -162,6 +164,59 @@ describe("Password Utility Functions", () => {
       expect(result.errors).toContain(
         `Owner password must be ${PDF_STUDIO_PASSWORD_MAX_LENGTH} characters or fewer`,
       );
+    });
+
+    it("should reject malformed permission values", () => {
+      const settings = {
+        enabled: true,
+        userPassword: "test123",
+        confirmPassword: "test123",
+        permissions: {
+          printing: "yes",
+          copying: true,
+          modifying: true,
+        } as unknown as PasswordSettings["permissions"],
+      } satisfies PasswordSettings;
+      const result = validatePasswordSettings(settings);
+
+      expect(result.isValid).toBe(false);
+      expect(result.errors).toContain(INVALID_PASSWORD_PERMISSIONS_MESSAGE);
+    });
+  });
+
+  describe("validatePasswordPermissions", () => {
+    it("should accept full boolean permission objects", () => {
+      const result = validatePasswordPermissions({
+        printing: true,
+        copying: false,
+        modifying: true,
+      });
+
+      expect(result.isValid).toBe(true);
+      expect(result.errors).toHaveLength(0);
+    });
+
+    it("should allow missing permission fields when requested", () => {
+      const result = validatePasswordPermissions(
+        {
+          printing: false,
+        },
+        { allowMissing: true },
+      );
+
+      expect(result.isValid).toBe(true);
+      expect(result.errors).toHaveLength(0);
+    });
+
+    it("should reject non-boolean permission values", () => {
+      const result = validatePasswordPermissions({
+        printing: "no",
+        copying: true,
+        modifying: true,
+      });
+
+      expect(result.isValid).toBe(false);
+      expect(result.errors).toContain(INVALID_PASSWORD_PERMISSIONS_MESSAGE);
     });
   });
 

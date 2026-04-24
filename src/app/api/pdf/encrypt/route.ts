@@ -1,22 +1,20 @@
 import { NextRequest, NextResponse } from "next/server";
 import { encryptPDF } from "@pdfsmaller/pdf-encrypt";
+import {
+  PDF_STUDIO_PASSWORD_MAX_LENGTH,
+  validateOwnerPassword,
+  validatePasswordPermissions,
+} from "@/features/docs/pdf-studio/utils/password";
 
 export const runtime = "nodejs";
 
 // 50MB — large PDFs with many high-res images
 export const maxDuration = 60;
 
-/** Maximum password length shared with client-side validation. */
-export const PDF_ENCRYPT_PASSWORD_MAX_LENGTH = 32;
-
 interface EncryptOptions {
-  userPassword: string;
-  ownerPassword?: string;
-  permissions?: {
-    printing?: boolean;
-    copying?: boolean;
-    modifying?: boolean;
-  };
+  userPassword?: unknown;
+  ownerPassword?: unknown;
+  permissions?: unknown;
 }
 
 // Simple in-memory rate limiter (per-IP, 10 req/min)
@@ -78,22 +76,36 @@ export async function POST(request: NextRequest) {
     return errorResponse("Password is required", 400);
   }
 
-  if (options.userPassword.length > PDF_ENCRYPT_PASSWORD_MAX_LENGTH) {
+  if (options.userPassword.length > PDF_STUDIO_PASSWORD_MAX_LENGTH) {
     return errorResponse(
-      `Password must be ${PDF_ENCRYPT_PASSWORD_MAX_LENGTH} characters or fewer`,
+      `Password must be ${PDF_STUDIO_PASSWORD_MAX_LENGTH} characters or fewer`,
       400,
     );
   }
 
-  // Sprint 37.1: harden owner-password validation
   if (
-    typeof options.ownerPassword === "string" &&
-    options.ownerPassword.length > PDF_ENCRYPT_PASSWORD_MAX_LENGTH
+    options.ownerPassword !== undefined &&
+    typeof options.ownerPassword !== "string"
   ) {
-    return errorResponse(
-      `Owner password must be ${PDF_ENCRYPT_PASSWORD_MAX_LENGTH} characters or fewer`,
-      400,
-    );
+    return errorResponse("Owner password must be a string", 400);
+  }
+
+  const ownerPassword = options.ownerPassword;
+  const ownerValidation = validateOwnerPassword(ownerPassword ?? "");
+  if (!ownerValidation.isValid) {
+    return errorResponse(ownerValidation.errors[0] ?? "Owner password is invalid", 400);
+  }
+
+  if (options.permissions !== undefined) {
+    const permissionValidation = validatePasswordPermissions(options.permissions, {
+      allowMissing: true,
+    });
+    if (!permissionValidation.isValid) {
+      return errorResponse(
+        permissionValidation.errors[0] ?? "Password permissions are invalid",
+        400,
+      );
+    }
   }
 
   // Size check (50MB limit)
@@ -104,17 +116,26 @@ export async function POST(request: NextRequest) {
   try {
     const pdfBytes = new Uint8Array(await pdfBlob.arrayBuffer());
 
+    const permissions =
+      typeof options.permissions === "object" && options.permissions !== null
+        ? (options.permissions as {
+            printing?: boolean;
+            copying?: boolean;
+            modifying?: boolean;
+          })
+        : undefined;
+
     const encryptedBytes = await encryptPDF(pdfBytes, options.userPassword, {
-      ownerPassword: options.ownerPassword,
+      ownerPassword,
       algorithm: "AES-256",
-      allowPrinting: options.permissions?.printing ?? true,
-      allowHighQualityPrint: options.permissions?.printing ?? true,
-      allowCopying: options.permissions?.copying ?? true,
-      allowModifying: options.permissions?.modifying ?? true,
+      allowPrinting: permissions?.printing ?? true,
+      allowHighQualityPrint: permissions?.printing ?? true,
+      allowCopying: permissions?.copying ?? true,
+      allowModifying: permissions?.modifying ?? true,
       allowAnnotating: true,
       allowFillingForms: true,
-      allowExtraction: options.permissions?.copying ?? true,
-      allowAssembly: options.permissions?.modifying ?? true,
+      allowExtraction: permissions?.copying ?? true,
+      allowAssembly: permissions?.modifying ?? true,
     });
 
     // Verify encrypted output is a valid PDF (sanity check: %PDF header)

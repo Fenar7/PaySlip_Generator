@@ -19,7 +19,11 @@ import {
 } from "@/features/docs/pdf-studio/utils/password";
 import { PASSWORD_PERMISSION_PRESETS } from "@/features/docs/pdf-studio/constants";
 import type { PdfStudioToolId } from "@/features/docs/pdf-studio/types";
-import { PdfEncryptionError } from "@/features/docs/pdf-studio/utils/pdf-encryptor";
+import {
+  encryptPdfViaApi,
+  PDF_ENCRYPTION_ERROR_MESSAGES,
+  PdfEncryptionError,
+} from "@/features/docs/pdf-studio/utils/pdf-encryptor";
 
 // ── Types ──────────────────────────────────────────────────────────────
 
@@ -46,6 +50,59 @@ interface UnlockState {
   password: string;
   status: "idle" | "detecting" | "unlocking" | "done" | "error";
   error: string | null;
+}
+
+type UnlockDetectionResult =
+  | { kind: "ready"; needsPassword: boolean }
+  | { kind: "error"; failure: PdfJsFailure };
+
+function toPdfJsFailure(error: unknown): PdfJsFailure {
+  return typeof error === "object" &&
+    error !== null &&
+    "code" in error &&
+    "message" in error
+    ? (error as PdfJsFailure)
+    : normalizePdfJsError(error);
+}
+
+async function detectUnlockPasswordRequirement(
+  bytes: Uint8Array,
+): Promise<UnlockDetectionResult> {
+  const detectWithPdfJs = async (): Promise<UnlockDetectionResult> => {
+    let loadingTask: Awaited<ReturnType<typeof openPdfJsDocument>>["loadingTask"] | null =
+      null;
+    let pdf: Awaited<ReturnType<typeof openPdfJsDocument>>["pdf"] | null = null;
+
+    try {
+      const opened = await openPdfJsDocument(bytes);
+      loadingTask = opened.loadingTask;
+      pdf = opened.pdf;
+      return { kind: "ready", needsPassword: false };
+    } catch (error) {
+      const failure = toPdfJsFailure(error);
+      if (failure.code === "password-protected") {
+        return { kind: "ready", needsPassword: true };
+      }
+      return { kind: "error", failure };
+    } finally {
+      if (loadingTask) {
+        await destroyPdfJsDocument(loadingTask, pdf);
+      }
+    }
+  };
+
+  try {
+    await PDFDocument.load(bytes, { ignoreEncryption: true });
+  } catch {
+    return detectWithPdfJs();
+  }
+
+  try {
+    await PDFDocument.load(bytes);
+    return { kind: "ready", needsPassword: false };
+  } catch {
+    return detectWithPdfJs();
+  }
 }
 
 // ── Component ──────────────────────────────────────────────────────────
@@ -145,41 +202,17 @@ export function ProtectUnlockWorkspaceWithOptions(props?: {
     try {
       const arrayBuffer = await protect.file.arrayBuffer();
       const pdfBytes = new Uint8Array(arrayBuffer);
-
-      const formData = new FormData();
-      formData.append(
-        "pdf",
-        new Blob([pdfBytes], { type: "application/octet-stream" }),
-        "document.pdf",
-      );
-      formData.append(
-        "options",
-        JSON.stringify({
-          userPassword: protect.userPassword,
-          ownerPassword: protect.ownerPassword || undefined,
-          permissions: {
-            printing: protect.permissions.printing,
-            copying: protect.permissions.copying,
-            modifying: protect.permissions.modifying,
-          },
-        }),
-      );
-
-      const response = await fetch("/api/pdf/encrypt", {
-        method: "POST",
-        body: formData,
+      const encryptedBytes = await encryptPdfViaApi(pdfBytes, {
+        enabled: true,
+        userPassword: protect.userPassword,
+        confirmPassword: protect.userPasswordConfirm,
+        ownerPassword: protect.ownerPassword || undefined,
+        permissions: {
+          printing: protect.permissions.printing,
+          copying: protect.permissions.copying,
+          modifying: protect.permissions.modifying,
+        },
       });
-
-      if (!response.ok) {
-        if (response.status === 429)
-          throw new PdfEncryptionError("Too many requests. Please wait a moment and try again.");
-        if (response.status === 413)
-          throw new PdfEncryptionError("PDF is too large to encrypt. Try reducing image count or quality.");
-        throw new PdfEncryptionError("PDF encryption failed. Please try again.");
-      }
-
-      const encryptedBuffer = await response.arrayBuffer();
-      const encryptedBytes = new Uint8Array(encryptedBuffer);
       const baseName = protect.file.name.replace(/\.pdf$/i, "");
       downloadPdfBytes(
         encryptedBytes,
@@ -209,11 +242,15 @@ export function ProtectUnlockWorkspaceWithOptions(props?: {
           : "Protection failed. Please try again.";
 
       const reason =
-        err instanceof PdfEncryptionError && err.message.includes("Too many requests")
-          ? "rate-limited"
-          : err instanceof PdfEncryptionError && err.message.includes("too large")
-            ? "payload-too-large"
-            : "encryption-failed";
+        err instanceof PdfEncryptionError
+          ? err.isNetworkError
+            ? "network-failed"
+            : err.message === PDF_ENCRYPTION_ERROR_MESSAGES.rateLimited
+              ? "rate-limited"
+              : err.message === PDF_ENCRYPTION_ERROR_MESSAGES.payloadTooLarge
+                ? "payload-too-large"
+                : "encryption-failed"
+          : "encryption-failed";
 
       setProtect((prev) => ({ ...prev, status: "error", error: message }));
       analytics.trackFail({
@@ -255,34 +292,27 @@ export function ProtectUnlockWorkspaceWithOptions(props?: {
         const arrayBuffer = await f.arrayBuffer();
         const bytes = new Uint8Array(arrayBuffer);
 
-        // Try loading without password to detect if protected
-        try {
-          await PDFDocument.load(bytes, { ignoreEncryption: true });
-          // If successful, check if it's actually encrypted by trying a proper load
-          try {
-            await PDFDocument.load(bytes);
-            setUnlock((prev) => ({
-              ...prev,
-              pdfBytes: bytes,
-              needsPassword: false,
-              status: "idle",
-            }));
-          } catch {
-            setUnlock((prev) => ({
-              ...prev,
-              pdfBytes: bytes,
-              needsPassword: true,
-              status: "idle",
-            }));
-          }
-        } catch {
+        const detection = await detectUnlockPasswordRequirement(bytes);
+        if (detection.kind === "error") {
           setUnlock((prev) => ({
             ...prev,
-            pdfBytes: bytes,
-            needsPassword: true,
-            status: "idle",
+            status: "error",
+            error: detection.failure.message,
           }));
+          analytics.trackFail({
+            action: "unlock",
+            stage: "upload",
+            reason: detection.failure.code,
+          });
+          return;
         }
+
+        setUnlock((prev) => ({
+          ...prev,
+          pdfBytes: bytes,
+          needsPassword: detection.needsPassword,
+          status: "idle",
+        }));
         analytics.trackUpload({
           action: "unlock",
           fileCount: 1,
@@ -806,6 +836,12 @@ export function ProtectUnlockWorkspaceWithOptions(props?: {
                 </div>
               )}
 
+              {unlock.error && (
+                <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                  {unlock.error}
+                </div>
+              )}
+
               {unlock.needsPassword && (
                 <>
                   <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
@@ -835,12 +871,6 @@ export function ProtectUnlockWorkspaceWithOptions(props?: {
                       placeholder="PDF password"
                     />
                   </div>
-
-                  {unlock.error && (
-                    <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-                      {unlock.error}
-                    </div>
-                  )}
 
                   {unlock.status === "done" && (
                     <div className="rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">

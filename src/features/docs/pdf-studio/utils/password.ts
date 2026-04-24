@@ -1,12 +1,49 @@
-"use client";
-
 import type { PasswordSettings, PasswordValidation } from "../types";
+
+const PASSWORD_PERMISSION_KEYS = ["printing", "copying", "modifying"] as const;
+
+export const INVALID_PASSWORD_PERMISSIONS_MESSAGE =
+  "Password permissions are invalid. Please reset them and try again.";
 
 /**
  * Maximum length for PDF passwords (user and owner).
  * Aligns with the server-side encrypt route limit.
  */
 export const PDF_STUDIO_PASSWORD_MAX_LENGTH = 32;
+
+export function validatePasswordPermissions(
+  permissions: unknown,
+  options: { allowMissing?: boolean } = {},
+): { isValid: boolean; errors: string[] } {
+  if (
+    typeof permissions !== "object" ||
+    permissions === null ||
+    Array.isArray(permissions)
+  ) {
+    return {
+      isValid: false,
+      errors: [INVALID_PASSWORD_PERMISSIONS_MESSAGE],
+    };
+  }
+
+  const candidate = permissions as Partial<Record<(typeof PASSWORD_PERMISSION_KEYS)[number], unknown>>;
+
+  for (const key of PASSWORD_PERMISSION_KEYS) {
+    const value = candidate[key];
+    if (typeof value === "boolean") {
+      continue;
+    }
+    if (options.allowMissing && value === undefined) {
+      continue;
+    }
+    return {
+      isValid: false,
+      errors: [INVALID_PASSWORD_PERMISSIONS_MESSAGE],
+    };
+  }
+
+  return { isValid: true, errors: [] };
+}
 
 /**
  * Calculates password strength using 18-point scoring system
@@ -137,8 +174,13 @@ export function validatePasswordSettings(settings: PasswordSettings): { isValid:
 
   const userValidation = validatePasswords(settings.userPassword, settings.confirmPassword);
   const ownerValidation = validateOwnerPassword(settings.ownerPassword ?? "");
+  const permissionValidation = validatePasswordPermissions(settings.permissions);
 
-  const errors = [...userValidation.errors, ...ownerValidation.errors];
+  const errors = [
+    ...userValidation.errors,
+    ...ownerValidation.errors,
+    ...permissionValidation.errors,
+  ];
 
   return {
     isValid: errors.length === 0,

@@ -35,6 +35,35 @@ const { buildPdfStudioOutputName } = vi.hoisted(() => ({
   buildPdfStudioOutputName: vi.fn(({ baseName }) => `${baseName}.pdf`),
 }));
 
+const { encryptPdfViaApi, PdfEncryptionError, PDF_ENCRYPTION_ERROR_MESSAGES } = vi.hoisted(
+  () => {
+    class MockPdfEncryptionError extends Error {
+      constructor(
+        message: string,
+        public readonly isNetworkError: boolean = false,
+      ) {
+        super(message);
+        this.name = "PdfEncryptionError";
+      }
+    }
+
+    return {
+      encryptPdfViaApi: vi.fn(),
+      PdfEncryptionError: MockPdfEncryptionError,
+      PDF_ENCRYPTION_ERROR_MESSAGES: {
+        passwordNotSet: "Encryption requested but password is not set.",
+        passwordTooLong: "Password must be 32 characters or fewer.",
+        rateLimited: "Too many requests. Please wait a moment and try again.",
+        payloadTooLarge:
+          "PDF is too large to encrypt. Try reducing image count or quality.",
+        genericFailure: "PDF encryption failed. Please try again.",
+        networkFailure:
+          "Unable to reach the encryption service. Check your connection and try again.",
+      },
+    };
+  },
+);
+
 vi.mock("pdf-lib", () => ({
   PDFDocument,
 }));
@@ -55,6 +84,12 @@ vi.mock("@/features/docs/pdf-studio/lib/ingestion", () => ({
 
 vi.mock("@/features/docs/pdf-studio/lib/output", () => ({
   buildPdfStudioOutputName,
+}));
+
+vi.mock("@/features/docs/pdf-studio/utils/pdf-encryptor", () => ({
+  encryptPdfViaApi,
+  PdfEncryptionError,
+  PDF_ENCRYPTION_ERROR_MESSAGES,
 }));
 
 vi.mock("@/features/docs/pdf-studio/lib/analytics", () => ({
@@ -88,6 +123,11 @@ describe("ProtectUnlockWorkspaceWithOptions", () => {
   function getFileInput(container: HTMLElement) {
     return container.querySelector('input[type="file"]') as HTMLInputElement;
   }
+
+  const passwordProtectedFailure = {
+    code: "password-protected",
+    message: "This PDF is password-protected. Unlock it first, then retry.",
+  } as const;
 
   // ── Protect tab ───────────────────────────────────────────────────────
 
@@ -135,11 +175,7 @@ describe("ProtectUnlockWorkspaceWithOptions", () => {
   });
 
   it("calls encrypt API and downloads on successful protect", async () => {
-    const mockFetch = vi.fn().mockResolvedValue({
-      ok: true,
-      arrayBuffer: vi.fn().mockResolvedValue(new ArrayBuffer(4)),
-    });
-    global.fetch = mockFetch;
+    encryptPdfViaApi.mockResolvedValue(new Uint8Array([1, 2, 3, 4]));
 
     const { container } = render(<ProtectUnlockWorkspaceWithOptions initialTab="protect" />);
 
@@ -156,18 +192,28 @@ describe("ProtectUnlockWorkspaceWithOptions", () => {
 
     fireEvent.click(screen.getByRole("button", { name: /Protect & Download/i }));
 
-    await waitFor(() => expect(mockFetch).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(encryptPdfViaApi).toHaveBeenCalledTimes(1));
 
-    expect(mockFetch).toHaveBeenCalledWith("/api/pdf/encrypt", expect.any(Object));
+    expect(encryptPdfViaApi).toHaveBeenCalledWith(
+      expect.any(Uint8Array),
+      expect.objectContaining({
+        enabled: true,
+        userPassword: "secret123",
+        confirmPassword: "secret123",
+        permissions: {
+          printing: true,
+          copying: true,
+          modifying: true,
+        },
+      }),
+    );
     expect(downloadPdfBytes).toHaveBeenCalled();
   });
 
   it("shows rate-limit error when API returns 429", async () => {
-    const mockFetch = vi.fn().mockResolvedValue({
-      ok: false,
-      status: 429,
-    });
-    global.fetch = mockFetch;
+    encryptPdfViaApi.mockRejectedValue(
+      new PdfEncryptionError(PDF_ENCRYPTION_ERROR_MESSAGES.rateLimited),
+    );
 
     const { container } = render(<ProtectUnlockWorkspaceWithOptions initialTab="protect" />);
 
@@ -191,11 +237,7 @@ describe("ProtectUnlockWorkspaceWithOptions", () => {
   });
 
   it("clears password fields after successful protect", async () => {
-    const mockFetch = vi.fn().mockResolvedValue({
-      ok: true,
-      arrayBuffer: vi.fn().mockResolvedValue(new ArrayBuffer(4)),
-    });
-    global.fetch = mockFetch;
+    encryptPdfViaApi.mockResolvedValue(new Uint8Array([1, 2, 3, 4]));
 
     const { container } = render(<ProtectUnlockWorkspaceWithOptions initialTab="protect" />);
 
@@ -237,6 +279,7 @@ describe("ProtectUnlockWorkspaceWithOptions", () => {
     PDFDocument.load
       .mockResolvedValueOnce({}) // ignoreEncryption: true succeeds
       .mockRejectedValueOnce(new Error("Password required")); // normal load fails
+    openPdfJsDocument.mockRejectedValueOnce(passwordProtectedFailure);
 
     const { container } = render(<ProtectUnlockWorkspaceWithOptions initialTab="unlock" />);
 
@@ -248,15 +291,36 @@ describe("ProtectUnlockWorkspaceWithOptions", () => {
     );
   });
 
+  it("shows malformed PDF upload errors instead of prompting for a password", async () => {
+    PDFDocument.load.mockRejectedValueOnce(new Error("Broken xref table"));
+    openPdfJsDocument.mockRejectedValueOnce({
+      code: "pdf-read-failed",
+      message: "This PDF appears malformed or unsupported.",
+    });
+
+    const { container } = render(<ProtectUnlockWorkspaceWithOptions initialTab="unlock" />);
+
+    const fileInput = getFileInput(container);
+    fireEvent.change(fileInput, { target: { files: [makePdfFile()] } });
+
+    await waitFor(() =>
+      expect(
+        screen.getByText(/This PDF appears malformed or unsupported\./i),
+      ).toBeInTheDocument(),
+    );
+
+    expect(screen.queryByPlaceholderText("PDF password")).not.toBeInTheDocument();
+    expect(screen.queryByText(/Protected/i)).not.toBeInTheDocument();
+  });
+
   it("shows wrong-password error when pdfjs reports password-protected failure", async () => {
     PDFDocument.load
       .mockResolvedValueOnce({})
       .mockRejectedValueOnce(new Error("Password required"));
 
-    openPdfJsDocument.mockRejectedValue({
-      code: "password-protected",
-      message: "This PDF is password-protected. Unlock it first, then retry.",
-    });
+    openPdfJsDocument
+      .mockRejectedValueOnce(passwordProtectedFailure)
+      .mockRejectedValueOnce(passwordProtectedFailure);
 
     const { container } = render(<ProtectUnlockWorkspaceWithOptions initialTab="unlock" />);
 
@@ -278,10 +342,12 @@ describe("ProtectUnlockWorkspaceWithOptions", () => {
       .mockResolvedValueOnce({})
       .mockRejectedValueOnce(new Error("Password required"));
 
-    openPdfJsDocument.mockRejectedValue({
-      code: "pdf-read-failed",
-      message: "This PDF appears malformed or unsupported.",
-    });
+    openPdfJsDocument
+      .mockRejectedValueOnce(passwordProtectedFailure)
+      .mockRejectedValueOnce({
+        code: "pdf-read-failed",
+        message: "This PDF appears malformed or unsupported.",
+      });
 
     const { container } = render(<ProtectUnlockWorkspaceWithOptions initialTab="unlock" />);
 
@@ -313,10 +379,12 @@ describe("ProtectUnlockWorkspaceWithOptions", () => {
       cleanup: vi.fn(),
     };
 
-    openPdfJsDocument.mockResolvedValue({
-      pdf: mockPdf,
-      loadingTask: { destroy: vi.fn() },
-    });
+    openPdfJsDocument
+      .mockRejectedValueOnce(passwordProtectedFailure)
+      .mockResolvedValueOnce({
+        pdf: mockPdf,
+        loadingTask: { destroy: vi.fn() },
+      });
 
     const newDoc = {
       addPage: vi.fn().mockReturnValue({ drawImage: vi.fn() }),

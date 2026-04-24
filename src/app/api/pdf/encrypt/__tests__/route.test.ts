@@ -1,5 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { NextRequest } from "next/server";
+import {
+  INVALID_PASSWORD_PERMISSIONS_MESSAGE,
+  PDF_STUDIO_PASSWORD_MAX_LENGTH,
+} from "@/features/docs/pdf-studio/utils/password";
 
 const { encryptPDF } = vi.hoisted(() => ({
   encryptPDF: vi.fn(),
@@ -9,7 +13,9 @@ vi.mock("@pdfsmaller/pdf-encrypt", () => ({
   encryptPDF,
 }));
 
-import { POST, PDF_ENCRYPT_PASSWORD_MAX_LENGTH } from "../route";
+import { POST } from "../route";
+
+let requestCounter = 0;
 
 function makeRequest(
   fields: Record<string, string | File>,
@@ -25,7 +31,10 @@ function makeRequest(
   }
   return new Request("http://localhost/api/pdf/encrypt", {
     method: "POST",
-    headers: options?.headers,
+    headers: {
+      "x-forwarded-for": `test-ip-${requestCounter++}`,
+      ...options?.headers,
+    },
     body: formData,
   }) as NextRequest;
 }
@@ -86,7 +95,7 @@ describe("POST /api/pdf/encrypt", () => {
     const request = makeRequest({
       pdf: makePdfBlob(),
       options: JSON.stringify({
-        userPassword: "a".repeat(PDF_ENCRYPT_PASSWORD_MAX_LENGTH + 1),
+        userPassword: "a".repeat(PDF_STUDIO_PASSWORD_MAX_LENGTH + 1),
       }),
     });
     const response = await POST(request);
@@ -94,7 +103,7 @@ describe("POST /api/pdf/encrypt", () => {
     expect(response.status).toBe(400);
     const json = await response.json();
     expect(json.error).toBe(
-      `Password must be ${PDF_ENCRYPT_PASSWORD_MAX_LENGTH} characters or fewer`,
+      `Password must be ${PDF_STUDIO_PASSWORD_MAX_LENGTH} characters or fewer`,
     );
   });
 
@@ -103,7 +112,7 @@ describe("POST /api/pdf/encrypt", () => {
       pdf: makePdfBlob(),
       options: JSON.stringify({
         userPassword: "secret",
-        ownerPassword: "o".repeat(PDF_ENCRYPT_PASSWORD_MAX_LENGTH + 1),
+        ownerPassword: "o".repeat(PDF_STUDIO_PASSWORD_MAX_LENGTH + 1),
       }),
     });
     const response = await POST(request);
@@ -111,8 +120,42 @@ describe("POST /api/pdf/encrypt", () => {
     expect(response.status).toBe(400);
     const json = await response.json();
     expect(json.error).toBe(
-      `Owner password must be ${PDF_ENCRYPT_PASSWORD_MAX_LENGTH} characters or fewer`,
+      `Owner password must be ${PDF_STUDIO_PASSWORD_MAX_LENGTH} characters or fewer`,
     );
+  });
+
+  it("returns 400 when ownerPassword is not a string", async () => {
+    const request = makeRequest({
+      pdf: makePdfBlob(),
+      options: JSON.stringify({
+        userPassword: "secret",
+        ownerPassword: 1234,
+      }),
+    });
+    const response = await POST(request);
+
+    expect(response.status).toBe(400);
+    const json = await response.json();
+    expect(json.error).toBe("Owner password must be a string");
+  });
+
+  it("returns 400 when permissions contain non-boolean values", async () => {
+    const request = makeRequest({
+      pdf: makePdfBlob(),
+      options: JSON.stringify({
+        userPassword: "secret",
+        permissions: {
+          printing: "yes",
+          copying: true,
+          modifying: true,
+        },
+      }),
+    });
+    const response = await POST(request);
+
+    expect(response.status).toBe(400);
+    const json = await response.json();
+    expect(json.error).toBe(INVALID_PASSWORD_PERMISSIONS_MESSAGE);
   });
 
   it("returns 413 when PDF is too large", async () => {
@@ -171,6 +214,22 @@ describe("POST /api/pdf/encrypt", () => {
         allowCopying: true,
         allowModifying: true,
       }),
+    );
+  });
+
+  it("accepts a userPassword at exactly the shared max length", async () => {
+    const atLimit = "a".repeat(PDF_STUDIO_PASSWORD_MAX_LENGTH);
+    const request = makeRequest({
+      pdf: makePdfBlob(),
+      options: makeOptions({ userPassword: atLimit }),
+    });
+    const response = await POST(request);
+
+    expect(response.status).toBe(200);
+    expect(encryptPDF).toHaveBeenCalledWith(
+      expect.any(Uint8Array),
+      atLimit,
+      expect.any(Object),
     );
   });
 
