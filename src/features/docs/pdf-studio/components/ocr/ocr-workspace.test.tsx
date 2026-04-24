@@ -1,96 +1,275 @@
-import { render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { OcrWorkspace } from "./ocr-workspace";
+import { render, screen, waitFor, fireEvent } from "@testing-library/react";
+import { OcrWorkspace } from "@/features/docs/pdf-studio/components/ocr/ocr-workspace";
 
-const { usePdfStudioSurface, useActiveOrg, usePlan } = vi.hoisted(() => ({
-  usePdfStudioSurface: vi.fn(),
-  useActiveOrg: vi.fn(),
-  usePlan: vi.fn(),
-}));
+// --- Mocks ---
 
-vi.mock("@/features/docs/pdf-studio/lib/surface", () => ({
-  usePdfStudioSurface,
-}));
+let mockPlanId = "starter";
 
 vi.mock("@/hooks/use-active-org", () => ({
-  useActiveOrg,
+  useActiveOrg: () => ({ activeOrg: null }),
 }));
 
 vi.mock("@/hooks/use-plan", () => ({
-  usePlan,
+  usePlan: () => ({ plan: { planId: mockPlanId } }),
 }));
 
 vi.mock("@/features/docs/pdf-studio/lib/analytics", () => ({
   usePdfStudioAnalytics: () => ({
-    surface: "public",
-    trackFail: vi.fn(),
+    surface: "workspace",
+    trackUpload: vi.fn(),
     trackStart: vi.fn(),
     trackSuccess: vi.fn(),
-    trackUpload: vi.fn(),
+    trackFail: vi.fn(),
+    trackUpgradeIntent: vi.fn(),
   }),
 }));
 
-vi.mock("@/features/docs/pdf-studio/components/shared/pdf-upload-zone", () => ({
-  PdfUploadZone: ({
-    label,
-    sublabel,
-  }: {
-    label?: string;
-    sublabel?: string;
-  }) => (
-    <div data-testid="upload-zone">
-      <span>{label}</span>
-      <span>{sublabel}</span>
-    </div>
-  ),
+vi.mock("@/features/docs/pdf-studio/utils/ocr-processor", () => ({
+  cancelAllOcr: vi.fn(),
+  getOcrServiceStatus: () => "ready",
+  processImageForOcrDetailed: vi.fn(),
 }));
 
-vi.mock("@/features/docs/pdf-studio/components/ocr-enhancement-panel", () => ({
-  OcrEnhancementPanel: () => <div data-testid="ocr-enhancement-panel" />,
+vi.mock("@/features/docs/pdf-studio/utils/scan-input", () => ({
+  loadScanSourcePages: vi.fn(),
+  buildImageItemsFromScanPages: vi.fn(),
+  dataUrlToBlob: vi.fn(),
 }));
 
-vi.mock("@/features/docs/pdf-studio/components/ocr-progress-panel", () => ({
-  OcrProgressPanel: () => <div data-testid="ocr-progress-panel" />,
+vi.mock("@/features/docs/pdf-studio/utils/pdf-generator", () => ({
+  generatePdfFromImages: vi.fn(),
 }));
+
+vi.mock("@/features/docs/pdf-studio/utils/zip-builder", () => ({
+  downloadBlob: vi.fn(),
+  downloadPdfBytes: vi.fn(),
+}));
+
+import { processImageForOcrDetailed } from "@/features/docs/pdf-studio/utils/ocr-processor";
+import { loadScanSourcePages, buildImageItemsFromScanPages, dataUrlToBlob } from "@/features/docs/pdf-studio/utils/scan-input";
+
+function getFileInput(container: HTMLElement): HTMLInputElement {
+  return container.querySelector('input[type="file"]') as HTMLInputElement;
+}
 
 describe("OcrWorkspace", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    useActiveOrg.mockReturnValue({ activeOrg: { id: "org-123" } });
-    usePlan.mockReturnValue({
-      plan: { planId: "pro", planName: "Pro" },
+    mockPlanId = "starter";
+  });
+
+  it("renders the upload zone and OCR settings panel", () => {
+    render(<OcrWorkspace />);
+    expect(screen.getByText(/OCR PDF & Images/i)).toBeInTheDocument();
+    expect(screen.getByText(/OCR Settings/i)).toBeInTheDocument();
+  });
+
+  it("shows plan-limit messaging for starter when near the limit", async () => {
+    const mockPages = Array.from({ length: 9 }, (_, i) => ({
+      id: `page-${i}`,
+      previewUrl: "data:image/png;base64,abc",
+      name: `page-${i}.png`,
+    }));
+
+    vi.mocked(loadScanSourcePages).mockResolvedValue({
+      ok: true,
+      pages: mockPages as unknown as Array<{ previewUrl: string; name: string }>,
+      fileClass: "pdf",
+    } as unknown as Awaited<ReturnType<typeof loadScanSourcePages>>);
+
+    vi.mocked(buildImageItemsFromScanPages).mockReturnValue(
+      mockPages.map((p) => ({
+        id: p.id,
+        previewUrl: p.previewUrl,
+        rotation: 0,
+        name: p.name,
+        sizeBytes: 1024,
+      })),
+    );
+
+    const { container } = render(<OcrWorkspace />);
+
+    const file = new File(["dummy"], "scan.pdf", { type: "application/pdf" });
+    const input = getFileInput(container);
+    fireEvent.change(input, { target: { files: [file] } });
+
+    await waitFor(() => {
+      expect(screen.getByText(/Starter covers OCR up to/i)).toBeInTheDocument();
     });
   });
 
-  it("keeps the public OCR lane off workspace hooks", () => {
-    usePdfStudioSurface.mockReturnValue({
-      surface: "public",
-      isPublic: true,
-      isWorkspace: false,
+  it("shows scope selector after upload", async () => {
+    vi.mocked(loadScanSourcePages).mockResolvedValue({
+      ok: true,
+      pages: [{ previewUrl: "data:image/png;base64,abc", name: "page.png" }],
+      fileClass: "image",
+    } as unknown as Awaited<ReturnType<typeof loadScanSourcePages>>);
+
+    vi.mocked(buildImageItemsFromScanPages).mockReturnValue([
+      {
+        id: "img-1",
+        previewUrl: "data:image/png;base64,abc",
+        rotation: 0,
+        name: "page.png",
+        sizeBytes: 1024,
+      },
+    ]);
+
+    const { container } = render(<OcrWorkspace />);
+
+    const file = new File(["dummy"], "scan.png", { type: "image/png" });
+    const input = getFileInput(container);
+    fireEvent.change(input, { target: { files: [file] } });
+
+    await waitFor(() => {
+      expect(screen.getByLabelText(/OCR run scope/i)).toBeInTheDocument();
+    });
+  });
+
+  it("runs OCR on all pages when scope is 'all'", async () => {
+    vi.mocked(loadScanSourcePages).mockResolvedValue({
+      ok: true,
+      pages: [
+        { previewUrl: "data:image/png;base64,a", name: "page1.png" },
+        { previewUrl: "data:image/png;base64,b", name: "page2.png" },
+      ],
+      fileClass: "pdf",
+    } as unknown as Awaited<ReturnType<typeof loadScanSourcePages>>);
+
+    vi.mocked(buildImageItemsFromScanPages).mockReturnValue([
+      { id: "a", previewUrl: "data:image/png;base64,a", rotation: 0, name: "page1.png", sizeBytes: 1024 },
+      { id: "b", previewUrl: "data:image/png;base64,b", rotation: 0, name: "page2.png", sizeBytes: 1024 },
+    ]);
+
+    vi.mocked(dataUrlToBlob).mockReturnValue(new Blob(["x"]));
+    vi.mocked(processImageForOcrDetailed).mockResolvedValue({
+      text: "hello",
+      confidence: 85,
+      language: "eng",
+      mode: "accurate",
     });
 
-    render(<OcrWorkspace />);
+    const { container } = render(<OcrWorkspace />);
 
-    expect(useActiveOrg).not.toHaveBeenCalled();
-    expect(usePlan).not.toHaveBeenCalled();
-    expect(screen.getByTestId("upload-zone")).toHaveTextContent(
-      /up to 10 pages on this lane/i,
+    const file = new File(["dummy"], "scan.pdf", { type: "application/pdf" });
+    const input = getFileInput(container);
+    fireEvent.change(input, { target: { files: [file] } });
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: /Start OCR/i })).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: /Start OCR/i }));
+
+    await waitFor(() => {
+      expect(processImageForOcrDetailed).toHaveBeenCalledTimes(2);
+    });
+  });
+
+  it("skips completed pages when scope is 'remaining'", async () => {
+    vi.mocked(loadScanSourcePages).mockResolvedValue({
+      ok: true,
+      pages: [
+        { previewUrl: "data:image/png;base64,a", name: "page1.png" },
+        { previewUrl: "data:image/png;base64,b", name: "page2.png" },
+      ],
+      fileClass: "pdf",
+    } as unknown as Awaited<ReturnType<typeof loadScanSourcePages>>);
+
+    vi.mocked(buildImageItemsFromScanPages).mockReturnValue([
+      { id: "a", previewUrl: "data:image/png;base64,a", rotation: 0, name: "page1.png", sizeBytes: 1024, ocrStatus: "complete", ocrText: "done", ocrConfidence: 90 },
+      { id: "b", previewUrl: "data:image/png;base64,b", rotation: 0, name: "page2.png", sizeBytes: 1024, ocrStatus: "error" },
+    ]);
+
+    vi.mocked(dataUrlToBlob).mockReturnValue(new Blob(["x"]));
+    vi.mocked(processImageForOcrDetailed).mockResolvedValue({
+      text: "hello",
+      confidence: 85,
+      language: "eng",
+      mode: "accurate",
+    });
+
+    const { container } = render(<OcrWorkspace />);
+
+    const file = new File(["dummy"], "scan.pdf", { type: "application/pdf" });
+    const input = getFileInput(container);
+    fireEvent.change(input, { target: { files: [file] } });
+
+    await waitFor(() => {
+      expect(screen.getByLabelText(/OCR run scope/i)).toBeInTheDocument();
+    });
+
+    fireEvent.change(screen.getByLabelText(/OCR run scope/i), { target: { value: "remaining" } });
+    fireEvent.click(screen.getByRole("button", { name: /Start OCR/i }));
+
+    await waitFor(() => {
+      expect(processImageForOcrDetailed).toHaveBeenCalledTimes(1);
+    });
+
+    expect(processImageForOcrDetailed).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ dedupeKey: "b" }),
     );
   });
 
-  it("uses org plan limits in the workspace", () => {
-    usePdfStudioSurface.mockReturnValue({
-      surface: "workspace",
-      isPublic: false,
-      isWorkspace: true,
+  it("fires handleRetry for a single failed image", async () => {
+    vi.mocked(loadScanSourcePages).mockResolvedValue({
+      ok: true,
+      pages: [{ previewUrl: "data:image/png;base64,a", name: "page1.png" }],
+      fileClass: "image",
+    } as unknown as Awaited<ReturnType<typeof loadScanSourcePages>>);
+
+    vi.mocked(buildImageItemsFromScanPages).mockReturnValue([
+      { id: "a", previewUrl: "data:image/png;base64,a", rotation: 0, name: "page1.png", sizeBytes: 1024, ocrStatus: "error", ocrErrorMessage: "Failed" },
+    ]);
+
+    vi.mocked(dataUrlToBlob).mockReturnValue(new Blob(["x"]));
+    vi.mocked(processImageForOcrDetailed).mockResolvedValue({
+      text: "fixed",
+      confidence: 90,
+      language: "eng",
+      mode: "accurate",
     });
 
-    render(<OcrWorkspace />);
+    const { container } = render(<OcrWorkspace />);
 
-    expect(useActiveOrg).toHaveBeenCalledTimes(1);
-    expect(usePlan).toHaveBeenCalledWith("org-123");
-    expect(screen.getByTestId("upload-zone")).toHaveTextContent(
-      /up to 30 pages on this lane/i,
-    );
+    const file = new File(["dummy"], "scan.png", { type: "image/png" });
+    const input = getFileInput(container);
+    fireEvent.change(input, { target: { files: [file] } });
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: /Retry/i })).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: /Retry/i }));
+
+    await waitFor(() => {
+      expect(processImageForOcrDetailed).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  it("shows honest Pro page limit copy (no hardcoded 30)", async () => {
+    mockPlanId = "pro";
+
+    vi.mocked(loadScanSourcePages).mockResolvedValue({
+      ok: true,
+      pages: [{ previewUrl: "data:image/png;base64,a", name: "page.png" }],
+      fileClass: "image",
+    } as unknown as Awaited<ReturnType<typeof loadScanSourcePages>>);
+
+    vi.mocked(buildImageItemsFromScanPages).mockReturnValue([
+      { id: "a", previewUrl: "data:image/png;base64,a", rotation: 0, name: "page.png", sizeBytes: 1024 },
+    ]);
+
+    const { container } = render(<OcrWorkspace />);
+
+    const file = new File(["dummy"], "scan.png", { type: "image/png" });
+    const input = getFileInput(container);
+    fireEvent.change(input, { target: { files: [file] } });
+
+    await waitFor(() => {
+      expect(screen.getByText(/no page limit/i)).toBeInTheDocument();
+    });
   });
 });

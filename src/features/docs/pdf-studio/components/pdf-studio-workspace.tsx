@@ -8,6 +8,7 @@ import { PdfPreview } from "@/features/docs/pdf-studio/components/pdf-preview";
 import {
   PDF_STUDIO_DEFAULT_SETTINGS,
   PDF_STUDIO_MAX_IMAGES,
+  PDF_STUDIO_OCR_LOW_CONFIDENCE_THRESHOLD,
   PDF_STUDIO_SUPPORTED_EXTENSIONS,
 } from "@/features/docs/pdf-studio/constants";
 import type {
@@ -31,7 +32,6 @@ import {
   loadPdfStudioSession,
   savePdfStudioSession,
 } from "@/features/docs/pdf-studio/utils/session-storage";
-import { usePdfStudioSurface } from "@/features/docs/pdf-studio/lib/surface";
 import { OcrProgressPanel } from "@/features/docs/pdf-studio/components/ocr-progress-panel";
 import { usePdfStudioAnalytics } from "@/features/docs/pdf-studio/lib/analytics";
 import { buildPdfStudioOutputName } from "@/features/docs/pdf-studio/lib/output";
@@ -215,20 +215,15 @@ function GenerationDialog({
   );
 }
 
-export const PUBLIC_PDF_STUDIO_SCOPE = "anonymous-browser-create-jpg";
-
-interface PdfStudioWorkspaceContentProps {
+export function PdfStudioWorkspace(props?: {
   toolId?: "create" | "jpg-to-pdf";
   title?: string;
   description?: string;
-  orgScope: string;
-  isOrgLoading: boolean;
-}
-
-function PdfStudioWorkspaceContent(props: PdfStudioWorkspaceContentProps) {
-  const toolId = props.toolId ?? "create";
+}) {
+  const toolId = props?.toolId ?? "create";
   const analytics = usePdfStudioAnalytics(toolId);
-  const { orgScope, isOrgLoading } = props;
+  const { activeOrg, isLoading: isOrgLoading } = useActiveOrg();
+  const orgScope = activeOrg?.id ?? "anonymous";
   const [images, setImages] = useState<ImageItem[]>([]);
   const [settings, setSettings] = useState<PageSettings>(PDF_STUDIO_DEFAULT_SETTINGS);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
@@ -243,6 +238,17 @@ function PdfStudioWorkspaceContent(props: PdfStudioWorkspaceContentProps) {
   const [estimatedPdfSizeBytes, setEstimatedPdfSizeBytes] = useState<number | null>(null);
   const [estimateStatus, setEstimateStatus] = useState<"idle" | "estimating" | "ready" | "error">("idle");
   const [isOcrUnavailable, setIsOcrUnavailable] = useState(false);
+  const [ocrLanguage, setOcrLanguage] = useState("eng");
+  const hasLowConfidenceImages = useMemo(
+    () =>
+      images.some(
+        (img) =>
+          img.ocrStatus === "complete" &&
+          typeof img.ocrConfidence === "number" &&
+          img.ocrConfidence < PDF_STUDIO_OCR_LOW_CONFIDENCE_THRESHOLD,
+      ),
+    [images],
+  );
 
   const selectedIdSet = useMemo(() => new Set(selectedIds), [selectedIds]);
   const estimateCacheRef = useRef(new Map<string, number>());
@@ -287,13 +293,19 @@ function PdfStudioWorkspaceContent(props: PdfStudioWorkspaceContentProps) {
       commitImages((current) =>
         current.map((img) =>
           img.id === imageId
-            ? { ...img, ocrStatus: "pending" as const, ocrErrorMessage: undefined, ocrText: undefined }
+            ? {
+                ...img,
+                ocrStatus: "pending" as const,
+                ocrErrorMessage: undefined,
+                ocrText: undefined,
+                ocrConfidence: undefined,
+              }
             : img,
         ),
       );
-      void runOcrForImage(imageId, targetFile, commitImages, () => setIsOcrUnavailable(true));
+      void runOcrForImage(imageId, targetFile, commitImages, () => setIsOcrUnavailable(true), ocrLanguage);
     },
-    [commitImages],
+    [commitImages, ocrLanguage],
   );
 
   const handleCancelGenerate = useCallback(() => {
@@ -313,29 +325,39 @@ function PdfStudioWorkspaceContent(props: PdfStudioWorkspaceContentProps) {
   }, []);
 
   const handleRetryAllOcr = useCallback(() => {
-    // Collect all images that failed or were cancelled and still have a file
+    // Retry every non-healthy OCR result, including low-confidence completes.
     setImages((current) => {
       const retryable = current.filter(
-        (img) => (img.ocrStatus === "error" || img.ocrStatus === "cancelled") && img.file,
+        (img) =>
+          !!img.file &&
+          (img.ocrStatus === "error" ||
+            img.ocrStatus === "cancelled" ||
+            (img.ocrStatus === "complete" &&
+              typeof img.ocrConfidence === "number" &&
+              img.ocrConfidence < PDF_STUDIO_OCR_LOW_CONFIDENCE_THRESHOLD)),
       );
 
       if (retryable.length === 0) return current;
 
-      // Reset them to pending
       const updated = current.map((img) =>
         retryable.some((r) => r.id === img.id)
-          ? { ...img, ocrStatus: "pending" as const, ocrErrorMessage: undefined, ocrText: undefined }
+          ? {
+              ...img,
+              ocrStatus: "pending" as const,
+              ocrErrorMessage: undefined,
+              ocrText: undefined,
+              ocrConfidence: undefined,
+            }
           : img,
       );
 
-      // Fire off OCR for each one
       retryable.forEach((img) => {
-        void runOcrForImage(img.id, img.file!, (fn) => setImages(fn), () => setIsOcrUnavailable(true));
+        void runOcrForImage(img.id, img.file!, (fn) => setImages(fn), () => setIsOcrUnavailable(true), ocrLanguage);
       });
 
       return updated;
     });
-  }, []);
+  }, [ocrLanguage]);
 
   const handleSelectionChange = useCallback((ids: string[]) => {
     setImages((prevImages) => {
@@ -363,12 +385,7 @@ function PdfStudioWorkspaceContent(props: PdfStudioWorkspaceContentProps) {
     commitImages((prevImages) =>
       prevImages.map((image) =>
         selectedIdSet.has(image.id)
-          ? {
-              ...image,
-              rotation: rotateLeft(image.rotation),
-              // Rotation invalidates OCR geometry — clear prior output
-              ...(image.ocrStatus ? { ocrText: undefined, ocrConfidence: undefined, ocrStatus: "pending" as const, ocrErrorMessage: undefined } : {}),
-            }
+          ? { ...image, rotation: rotateLeft(image.rotation) }
           : image,
       ),
     );
@@ -382,12 +399,7 @@ function PdfStudioWorkspaceContent(props: PdfStudioWorkspaceContentProps) {
     commitImages((prevImages) =>
       prevImages.map((image) =>
         selectedIdSet.has(image.id)
-          ? {
-              ...image,
-              rotation: rotateRight(image.rotation),
-              // Rotation invalidates OCR geometry — clear prior output
-              ...(image.ocrStatus ? { ocrText: undefined, ocrConfidence: undefined, ocrStatus: "pending" as const, ocrErrorMessage: undefined } : {}),
-            }
+          ? { ...image, rotation: rotateRight(image.rotation) }
           : image,
       ),
     );
@@ -540,7 +552,7 @@ function PdfStudioWorkspaceContent(props: PdfStudioWorkspaceContentProps) {
     } finally {
       generateCancelRef.current = null;
     }
-  }, [images, settings]);
+  }, [analytics, images, settings, toolId]);
 
   useEffect(() => {
     if (isOrgLoading) {
@@ -734,10 +746,10 @@ function PdfStudioWorkspaceContent(props: PdfStudioWorkspaceContentProps) {
                 PDF Studio
               </p>
               <h1 className="mt-3 max-w-3xl text-[2.3rem] leading-[0.98] tracking-[-0.05em] text-[var(--foreground)] md:text-[3rem]">
-                {props.title ?? "Images to PDF"}
+                {props?.title ?? "Images to PDF"}
               </h1>
               <p className="mt-3 max-w-3xl text-[0.98rem] leading-7 text-[var(--foreground-soft)]">
-                {props.description ??
+                {props?.description ??
                   `Upload up to ${PDF_STUDIO_MAX_IMAGES} images, arrange them, configure page settings, and generate a clean downloadable PDF — entirely in your browser.`}
               </p>
               <div className="mt-5 hidden flex-wrap gap-2 xl:flex">
@@ -841,7 +853,9 @@ function PdfStudioWorkspaceContent(props: PdfStudioWorkspaceContentProps) {
           </div>
         ) : null}
 
-        {sessionStatus || images.some(img => img.ocrStatus && img.ocrStatus !== 'complete') ? (
+        {sessionStatus ||
+        images.some((img) => img.ocrStatus && img.ocrStatus !== "complete") ||
+        hasLowConfidenceImages ? (
           <div className="space-y-3">
             {sessionStatus ? (
               <div className="rounded-xl border border-[var(--border-soft)] bg-white px-5 py-4 text-sm text-[var(--foreground-soft)] shadow-[var(--shadow-soft)]">
@@ -851,6 +865,8 @@ function PdfStudioWorkspaceContent(props: PdfStudioWorkspaceContentProps) {
             <OcrProgressPanel
               images={images}
               isOcrUnavailable={isOcrUnavailable}
+              language={ocrLanguage}
+              lowConfidenceThreshold={PDF_STUDIO_OCR_LOW_CONFIDENCE_THRESHOLD}
               onRetry={handleOcrRetry}
               onRetryAll={handleRetryAllOcr}
               onCancelOcr={handleCancelAllOcr}
@@ -967,6 +983,8 @@ function PdfStudioWorkspaceContent(props: PdfStudioWorkspaceContentProps) {
                   onSelectAll={handleSelectAll}
                   onClearSelection={handleClearSelection}
                   onOcrUnavailable={() => setIsOcrUnavailable(true)}
+                  ocrLanguage={ocrLanguage}
+                  onOcrLanguageChange={setOcrLanguage}
                 />
               </FormSection>
             </section>
@@ -1077,49 +1095,5 @@ function PdfStudioWorkspaceContent(props: PdfStudioWorkspaceContentProps) {
         onRetry={handleRetry}
       />
     </main>
-  );
-}
-
-function PdfStudioWorkspacePublic(props: {
-  toolId?: "create" | "jpg-to-pdf";
-  title?: string;
-  description?: string;
-}) {
-  return (
-    <PdfStudioWorkspaceContent
-      {...props}
-      orgScope={PUBLIC_PDF_STUDIO_SCOPE}
-      isOrgLoading={false}
-    />
-  );
-}
-
-function PdfStudioWorkspaceWorkspace(props: {
-  toolId?: "create" | "jpg-to-pdf";
-  title?: string;
-  description?: string;
-}) {
-  const { activeOrg, isLoading: isOrgLoading } = useActiveOrg();
-
-  return (
-    <PdfStudioWorkspaceContent
-      {...props}
-      orgScope={activeOrg?.id ?? "anonymous"}
-      isOrgLoading={isOrgLoading}
-    />
-  );
-}
-
-export function PdfStudioWorkspace(props?: {
-  toolId?: "create" | "jpg-to-pdf";
-  title?: string;
-  description?: string;
-}) {
-  const { isPublic } = usePdfStudioSurface();
-
-  return isPublic ? (
-    <PdfStudioWorkspacePublic {...props} />
-  ) : (
-    <PdfStudioWorkspaceWorkspace {...props} />
   );
 }
