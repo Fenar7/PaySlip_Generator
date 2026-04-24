@@ -6,13 +6,16 @@ import {
   getRememberedSupabaseCookieRefreshes,
   getSessionPersistenceCookie,
   getSessionPersistenceModeFromCookies,
+  isSupabaseAuthCookie,
   isTerminalSupabaseAuthError,
 } from "@/lib/supabase/session-persistence";
 
 export async function updateSession(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request });
-  const persistenceMode = getSessionPersistenceModeFromCookies(
-    request.cookies.getAll(),
+  const requestCookies = request.cookies.getAll();
+  const persistenceMode = getSessionPersistenceModeFromCookies(requestCookies);
+  const hasSupabaseAuthCookies = requestCookies.some((cookie) =>
+    isSupabaseAuthCookie(cookie.name),
   );
 
   const supabase = createServerClient(
@@ -54,7 +57,11 @@ export async function updateSession(request: NextRequest) {
   // Clear stale/invalid sessions (e.g. old Better Auth JWTs or deleted users).
   // Without this, the client loops on 403 user_not_found on every request.
   if (authError && !user) {
-    if (isTerminalSupabaseAuthError(authError)) {
+    if (!hasSupabaseAuthCookies && authError.message === "Auth session missing!") {
+      return { user: null, supabaseResponse };
+    }
+
+    if (isTerminalSupabaseAuthError(authError) && hasSupabaseAuthCookies) {
       console.warn("[middleware] Clearing invalid session:", authError.message);
       await supabase.auth.signOut({ scope: "local" });
       const clearedCookie = getClearedSessionPersistenceCookie();

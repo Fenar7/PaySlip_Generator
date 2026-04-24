@@ -8,19 +8,15 @@ import { GoogleButton } from "@/features/auth/components/google-button";
 import { AuthDivider } from "@/features/auth/components/auth-divider";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import {
-  clearSupabaseBrowserSessionStorage,
-  createSupabaseBrowser,
-  setBrowserSessionPersistence,
-} from "@/lib/supabase/client";
 
 export function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const callbackUrl = searchParams.get("callbackUrl");
   const destination = callbackUrl?.startsWith("/") ? callbackUrl : "/onboarding";
-  const initialEmail = searchParams.get("sso_email") ?? "";
+  const initialEmail = searchParams.get("email") ?? searchParams.get("sso_email") ?? "";
   const initialOrgSlug = searchParams.get("org") ?? "";
+  const initialError = searchParams.get("error") ?? "";
   const ssoErrorCode = searchParams.get("sso_error");
   const ssoRequired = searchParams.get("sso_required") === "1";
 
@@ -29,7 +25,7 @@ export function LoginForm() {
   const [orgSlug, setOrgSlug] = useState(initialOrgSlug);
   const [breakGlassCode, setBreakGlassCode] = useState("");
   const [rememberMe, setRememberMe] = useState(true);
-  const [error, setError] = useState("");
+  const [error, setError] = useState(initialError);
   const [loading, setLoading] = useState(false);
 
   const ssoMessages: Record<string, string> = {
@@ -69,55 +65,44 @@ export function LoginForm() {
     setError("");
     setLoading(true);
     try {
-      await clearSupabaseBrowserSessionStorage();
-      setBrowserSessionPersistence(rememberMe ? "remembered" : "session");
-      const supabase = createSupabaseBrowser({ rememberSession: rememberMe });
-      const { error: signInError } = await supabase.auth.signInWithPassword({ email, password });
-       if (signInError) {
-         console.error("[login] signIn error:", signInError.message, signInError.code);
-         if (signInError.code === "email_not_confirmed") {
-           await supabase.auth.resend({ type: "signup", email });
-           router.push("/auth/verify-email?email=" + encodeURIComponent(email));
-           return;
-         }
-         setError(signInError.message ?? "Invalid email or password");
-         return;
-       }
+      const response = await fetch("/api/auth/password-login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email,
+          password,
+          callbackUrl,
+          rememberMe,
+          orgSlug: orgSlug.trim() || undefined,
+          breakGlassCode: breakGlassCode.trim() || undefined,
+        }),
+      });
 
-       if (breakGlassCode.trim()) {
-         if (!orgSlug.trim()) {
-           await supabase.auth.signOut();
-           setError("Enter your organization slug to redeem a break-glass code.");
-           return;
-         }
+      const data = (await response.json().catch(() => ({}))) as {
+        error?: string;
+        code?: string | null;
+        redirectTo?: string;
+      };
 
-         const response = await fetch("/api/auth/sso/break-glass/redeem", {
-           method: "POST",
-           headers: { "Content-Type": "application/json" },
-           body: JSON.stringify({
-             email,
-             orgSlug: orgSlug.trim(),
-             code: breakGlassCode.trim(),
-           }),
-         });
+      if (!response.ok) {
+        if (data.code === "email_not_confirmed") {
+          router.push("/auth/verify-email?email=" + encodeURIComponent(email));
+          return;
+        }
 
-         if (!response.ok) {
-           await supabase.auth.signOut();
-           const data = await response.json().catch(() => ({ error: "" }));
-           setError(data.error || "Break-glass code was rejected.");
-           return;
-         }
-       }
-
-        console.log("[login] signed in successfully");
-        router.replace(destination);
-        router.refresh();
+        setError(data.error ?? "Invalid email or password");
         return;
-      } catch (err) {
-        console.error("[login] unexpected error:", err);
-        setError("Something went wrong. Please try again.");
-      } finally {
-        setLoading(false);
+      }
+
+      console.log("[login] signed in successfully");
+      router.replace(data.redirectTo || destination);
+      router.refresh();
+      return;
+    } catch (err) {
+      console.error("[login] unexpected error:", err);
+      setError("Could not reach login service. Make sure local auth is reachable from this device.");
+    } finally {
+      setLoading(false);
     }
   }
 
@@ -148,9 +133,16 @@ export function LoginForm() {
       </div>
       <GoogleButton />
       <AuthDivider />
-      <form onSubmit={handleSubmit} className="space-y-4">
+      <form
+        action="/api/auth/password-login"
+        method="post"
+        onSubmit={handleSubmit}
+        className="space-y-4"
+      >
+        <input type="hidden" name="callbackUrl" value={callbackUrl ?? ""} />
         <Input
           label="Email"
+          name="email"
           type="email"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
@@ -160,6 +152,7 @@ export function LoginForm() {
         <div>
           <Input
             label="Password"
+            name="password"
             type="password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
@@ -175,12 +168,15 @@ export function LoginForm() {
         <label className="flex items-center gap-2 text-sm text-[#666]">
           <input
             type="checkbox"
+            name="rememberMe"
+            value="true"
             checked={rememberMe}
             onChange={(e) => setRememberMe(e.target.checked)}
             className="h-4 w-4 rounded border-[var(--border-strong)] text-[#dc2626] focus:ring-[#dc2626]"
           />
           <span>Remember me</span>
         </label>
+        {!rememberMe ? <input type="hidden" name="rememberMe" value="false" /> : null}
         <div className="rounded-lg border border-[var(--border-soft)] bg-[var(--surface-soft)] p-4">
           <p className="text-sm font-semibold text-[#1a1a1a]">
             Break-glass sign-in
@@ -191,6 +187,7 @@ export function LoginForm() {
           <div className="mt-3">
             <Input
               label="Break-glass code (optional)"
+              name="breakGlassCode"
               value={breakGlassCode}
               onChange={(e) => setBreakGlassCode(e.target.value)}
               placeholder="ABCD-EFGH-IJKL-MNOP"
@@ -198,6 +195,7 @@ export function LoginForm() {
             />
           </div>
         </div>
+        <input type="hidden" name="orgSlug" value={orgSlug} />
         {error && <p className="text-sm text-red-600">{error}</p>}
         <Button type="submit" className="w-full" disabled={loading}>
           {loading ? "Signing in…" : "Sign in"}
