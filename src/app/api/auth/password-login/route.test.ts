@@ -30,7 +30,10 @@ import { POST } from "./route";
 function makeRequest(body: unknown, cookieHeader?: string) {
   return new NextRequest("http://localhost/api/auth/password-login", {
     method: "POST",
-    headers: cookieHeader ? { cookie: cookieHeader } : undefined,
+    headers: {
+      "content-type": "application/json",
+      ...(cookieHeader ? { cookie: cookieHeader } : {}),
+    },
     body: JSON.stringify(body),
   });
 }
@@ -150,5 +153,45 @@ describe("POST /api/auth/password-login", () => {
 
     const cookies = response.cookies.getAll();
     expect(cookies.some((cookie) => cookie.name === "sb-demo-auth-token")).toBe(true);
+  });
+
+  it("supports plain form posts by redirecting back with preserved email on failure", async () => {
+    signInWithPasswordMock.mockResolvedValueOnce({
+      error: { message: "Invalid email or password", code: "invalid_credentials" },
+    });
+
+    const formData = new FormData();
+    formData.set("email", "user@example.com");
+    formData.set("password", "wrong");
+    formData.set("callbackUrl", "/app/home");
+
+    const response = await POST(
+      new NextRequest("http://localhost/api/auth/password-login", {
+        method: "POST",
+        body: formData,
+      }),
+    );
+
+    expect(response.status).toBe(307);
+    expect(response.headers.get("location")).toBe(
+      "http://localhost/auth/login?error=Invalid+email+or+password&email=user%40example.com&callbackUrl=%2Fapp%2Fhome",
+    );
+  });
+
+  it("supports plain form posts by redirecting to the destination on success", async () => {
+    const formData = new FormData();
+    formData.set("email", "user@example.com");
+    formData.set("password", "secret123");
+    formData.set("callbackUrl", "/app/home");
+
+    const response = await POST(
+      new NextRequest("http://localhost/api/auth/password-login", {
+        method: "POST",
+        body: formData,
+      }),
+    );
+
+    expect(response.status).toBe(307);
+    expect(response.headers.get("location")).toBe("http://localhost/app/home");
   });
 });

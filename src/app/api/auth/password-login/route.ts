@@ -20,6 +20,56 @@ type PasswordLoginBody = {
   breakGlassCode?: string;
 };
 
+function isJsonRequest(request: NextRequest) {
+  return request.headers.get("content-type")?.includes("application/json");
+}
+
+function buildLoginRedirectUrl(
+  request: NextRequest,
+  params: {
+    error?: string;
+    email?: string;
+    orgSlug?: string;
+    callbackUrl?: string;
+    ssoError?: string;
+  },
+) {
+  const url = new URL("/auth/login", request.url);
+  if (params.error) {
+    url.searchParams.set("error", params.error);
+  }
+  if (params.email) {
+    url.searchParams.set("email", params.email);
+  }
+  if (params.orgSlug) {
+    url.searchParams.set("org", params.orgSlug);
+  }
+  if (params.callbackUrl) {
+    url.searchParams.set("callbackUrl", params.callbackUrl);
+  }
+  if (params.ssoError) {
+    url.searchParams.set("sso_error", params.ssoError);
+  }
+  return url;
+}
+
+async function readRequestBody(request: NextRequest): Promise<PasswordLoginBody> {
+  if (isJsonRequest(request)) {
+    return (await request.json()) as PasswordLoginBody;
+  }
+
+  const formData = await request.formData();
+  return {
+    email: formData.get("email")?.toString(),
+    password: formData.get("password")?.toString(),
+    callbackUrl: formData.get("callbackUrl")?.toString(),
+    rememberMe:
+      formData.get("rememberMe")?.toString() === "false" ? false : true,
+    orgSlug: formData.get("orgSlug")?.toString(),
+    breakGlassCode: formData.get("breakGlassCode")?.toString(),
+  };
+}
+
 function clearSupabaseAuthCookies(response: NextResponse, request: NextRequest) {
   request.cookies.getAll().forEach(({ name }) => {
     if (!isSupabaseAuthCookie(name)) return;
@@ -35,7 +85,7 @@ function clearSupabaseAuthCookies(response: NextResponse, request: NextRequest) 
 
 export async function POST(request: NextRequest) {
   try {
-    const body = (await request.json()) as PasswordLoginBody;
+    const body = await readRequestBody(request);
     const email = body.email?.trim();
     const password = body.password;
     const redirectTo = getSafeRedirectPath(body.callbackUrl, "/onboarding");
@@ -47,6 +97,17 @@ export async function POST(request: NextRequest) {
     const breakGlassCode = body.breakGlassCode?.trim();
 
     if (!email || !password) {
+      if (!isJsonRequest(request)) {
+        return NextResponse.redirect(
+          buildLoginRedirectUrl(request, {
+            error: "Email and password are required.",
+            email,
+            orgSlug,
+            callbackUrl: redirectTo,
+          }),
+        );
+      }
+
       return NextResponse.json(
         { error: "Email and password are required." },
         { status: 400 },
@@ -54,6 +115,16 @@ export async function POST(request: NextRequest) {
     }
 
     if (breakGlassCode && !orgSlug) {
+      if (!isJsonRequest(request)) {
+        return NextResponse.redirect(
+          buildLoginRedirectUrl(request, {
+            error: "Enter your organization slug to redeem a break-glass code.",
+            email,
+            callbackUrl: redirectTo,
+          }),
+        );
+      }
+
       return NextResponse.json(
         { error: "Enter your organization slug to redeem a break-glass code." },
         { status: 400 },
@@ -95,6 +166,23 @@ export async function POST(request: NextRequest) {
     });
 
     if (signInError) {
+      if (!isJsonRequest(request)) {
+        if (signInError.code === "email_not_confirmed") {
+          const verifyUrl = new URL("/auth/verify-email", request.url);
+          verifyUrl.searchParams.set("email", email);
+          return NextResponse.redirect(verifyUrl);
+        }
+
+        return NextResponse.redirect(
+          buildLoginRedirectUrl(request, {
+            error: signInError.message ?? "Invalid email or password",
+            email,
+            orgSlug,
+            callbackUrl: redirectTo,
+          }),
+        );
+      }
+
       return NextResponse.json(
         {
           error: signInError.message ?? "Invalid email or password",
@@ -125,9 +213,24 @@ export async function POST(request: NextRequest) {
       });
     }
 
+    if (!isJsonRequest(request)) {
+      return NextResponse.redirect(new URL(redirectTo, request.url), {
+        headers: response.headers,
+      });
+    }
+
     return response;
   } catch (error) {
     console.error("Password login failed:", error);
+
+    if (!isJsonRequest(request)) {
+      return NextResponse.redirect(
+        buildLoginRedirectUrl(request, {
+          error: "Could not reach login service. Please try again.",
+        }),
+      );
+    }
+
     return NextResponse.json(
       {
         error:

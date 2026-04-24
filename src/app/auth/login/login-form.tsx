@@ -14,8 +14,9 @@ export function LoginForm() {
   const searchParams = useSearchParams();
   const callbackUrl = searchParams.get("callbackUrl");
   const destination = callbackUrl?.startsWith("/") ? callbackUrl : "/onboarding";
-  const initialEmail = searchParams.get("sso_email") ?? "";
+  const initialEmail = searchParams.get("email") ?? searchParams.get("sso_email") ?? "";
   const initialOrgSlug = searchParams.get("org") ?? "";
+  const initialError = searchParams.get("error") ?? "";
   const ssoErrorCode = searchParams.get("sso_error");
   const ssoRequired = searchParams.get("sso_required") === "1";
 
@@ -24,7 +25,7 @@ export function LoginForm() {
   const [orgSlug, setOrgSlug] = useState(initialOrgSlug);
   const [breakGlassCode, setBreakGlassCode] = useState("");
   const [rememberMe, setRememberMe] = useState(true);
-  const [error, setError] = useState("");
+  const [error, setError] = useState(initialError);
   const [loading, setLoading] = useState(false);
 
   const ssoMessages: Record<string, string> = {
@@ -99,7 +100,7 @@ export function LoginForm() {
       return;
     } catch (err) {
       console.error("[login] unexpected error:", err);
-      setError("Something went wrong. Please try again.");
+      setError("Could not reach login service. Make sure local auth is reachable from this device.");
     } finally {
       setLoading(false);
     }
@@ -132,9 +133,16 @@ export function LoginForm() {
       </div>
       <GoogleButton />
       <AuthDivider />
-      <form onSubmit={handleSubmit} className="space-y-4">
+      <form
+        action="/api/auth/password-login"
+        method="post"
+        onSubmit={handleSubmit}
+        className="space-y-4"
+      >
+        <input type="hidden" name="callbackUrl" value={callbackUrl ?? ""} />
         <Input
           label="Email"
+          name="email"
           type="email"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
@@ -144,6 +152,7 @@ export function LoginForm() {
         <div>
           <Input
             label="Password"
+            name="password"
             type="password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
@@ -159,12 +168,15 @@ export function LoginForm() {
         <label className="flex items-center gap-2 text-sm text-[#666]">
           <input
             type="checkbox"
+            name="rememberMe"
+            value="true"
             checked={rememberMe}
             onChange={(e) => setRememberMe(e.target.checked)}
             className="h-4 w-4 rounded border-[var(--border-strong)] text-[#dc2626] focus:ring-[#dc2626]"
           />
           <span>Remember me</span>
         </label>
+        {!rememberMe ? <input type="hidden" name="rememberMe" value="false" /> : null}
         <div className="rounded-lg border border-[var(--border-soft)] bg-[var(--surface-soft)] p-4">
           <p className="text-sm font-semibold text-[#1a1a1a]">
             Break-glass sign-in
@@ -175,6 +187,7 @@ export function LoginForm() {
           <div className="mt-3">
             <Input
               label="Break-glass code (optional)"
+              name="breakGlassCode"
               value={breakGlassCode}
               onChange={(e) => setBreakGlassCode(e.target.value)}
               placeholder="ABCD-EFGH-IJKL-MNOP"
@@ -182,6 +195,7 @@ export function LoginForm() {
             />
           </div>
         </div>
+        <input type="hidden" name="orgSlug" value={orgSlug} />
         {error && <p className="text-sm text-red-600">{error}</p>}
         <Button type="submit" className="w-full" disabled={loading}>
           {loading ? "Signing in…" : "Sign in"}
