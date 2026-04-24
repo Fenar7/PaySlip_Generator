@@ -1,6 +1,7 @@
 "use client";
 
 import type { PasswordSettings } from "@/features/docs/pdf-studio/types";
+import { validatePasswordSettings, PDF_STUDIO_PASSWORD_MAX_LENGTH } from "./password";
 
 export class PdfEncryptionError extends Error {
   constructor(
@@ -13,18 +14,40 @@ export class PdfEncryptionError extends Error {
 }
 
 /**
+ * Shared error messages used across browser and server paths.
+ * Keep these in sync with the encrypt route and workspace UIs.
+ */
+export const PDF_ENCRYPTION_ERROR_MESSAGES = {
+  passwordNotSet: "Encryption requested but password is not set.",
+  passwordTooLong: `Password must be ${PDF_STUDIO_PASSWORD_MAX_LENGTH} characters or fewer.`,
+  rateLimited: "Too many requests. Please wait a moment and try again.",
+  payloadTooLarge: "PDF is too large to encrypt. Try reducing image count or quality.",
+  genericFailure: "PDF encryption failed. Please try again.",
+  networkFailure: "Unable to reach the encryption service. Check your connection and try again.",
+} as const;
+
+/**
  * Sends unencrypted PDF bytes to the server encryption endpoint and
  * returns the AES-256 encrypted result.
  *
  * Fail-closed: throws PdfEncryptionError on any failure — never returns
  * the unencrypted bytes as a fallback.
+ *
+ * Sprint 37.1 hardening:
+ * - Client-side validation runs before the network request to fail fast.
+ * - Error messages are aligned with the server route and workspace UI.
  */
 export async function encryptPdfViaApi(
   pdfBytes: Uint8Array,
   passwordSettings: PasswordSettings,
 ): Promise<Uint8Array> {
   if (!passwordSettings.enabled || !passwordSettings.userPassword) {
-    throw new PdfEncryptionError("Encryption requested but password is not set");
+    throw new PdfEncryptionError(PDF_ENCRYPTION_ERROR_MESSAGES.passwordNotSet);
+  }
+
+  const validation = validatePasswordSettings(passwordSettings);
+  if (!validation.isValid) {
+    throw new PdfEncryptionError(validation.errors[0] ?? PDF_ENCRYPTION_ERROR_MESSAGES.genericFailure);
   }
 
   let response: Response;
@@ -55,20 +78,20 @@ export async function encryptPdfViaApi(
     });
   } catch {
     throw new PdfEncryptionError(
-      "Unable to reach the encryption service. Check your connection and try again.",
+      PDF_ENCRYPTION_ERROR_MESSAGES.networkFailure,
       true,
     );
   }
 
   if (!response.ok) {
     if (response.status === 429) {
-      throw new PdfEncryptionError("Too many requests. Please wait a moment and try again.");
+      throw new PdfEncryptionError(PDF_ENCRYPTION_ERROR_MESSAGES.rateLimited);
     }
     if (response.status === 413) {
-      throw new PdfEncryptionError("PDF is too large to encrypt. Try reducing image count or quality.");
+      throw new PdfEncryptionError(PDF_ENCRYPTION_ERROR_MESSAGES.payloadTooLarge);
     }
     // Don't expose server error details to the client
-    throw new PdfEncryptionError("PDF encryption failed. Please try again.");
+    throw new PdfEncryptionError(PDF_ENCRYPTION_ERROR_MESSAGES.genericFailure);
   }
 
   const arrayBuffer = await response.arrayBuffer();

@@ -6,6 +6,9 @@ export const runtime = "nodejs";
 // 50MB — large PDFs with many high-res images
 export const maxDuration = 60;
 
+/** Maximum password length shared with client-side validation. */
+export const PDF_ENCRYPT_PASSWORD_MAX_LENGTH = 32;
+
 interface EncryptOptions {
   userPassword: string;
   ownerPassword?: string;
@@ -34,6 +37,14 @@ function checkRateLimit(ip: string): boolean {
   return true;
 }
 
+/**
+ * Shared error messages aligned with the client-side PdfEncryptionError vocabulary.
+ * Keep these in sync with pdf-encryptor.ts and workspace UIs.
+ */
+function errorResponse(message: string, status: number) {
+  return NextResponse.json({ error: message }, { status });
+}
+
 export async function POST(request: NextRequest) {
   const ip =
     request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ??
@@ -41,39 +52,53 @@ export async function POST(request: NextRequest) {
     "unknown";
 
   if (!checkRateLimit(ip)) {
-    return NextResponse.json({ error: "Too many requests" }, { status: 429 });
+    return errorResponse("Too many requests. Please wait a moment and try again.", 429);
   }
 
   const formData = await request.formData();
   const pdfBlob = formData.get("pdf");
   const optionsStr = formData.get("options");
 
-  if (!(pdfBlob instanceof Blob) || pdfBlob.size === 0) {
-    return NextResponse.json({ error: "pdf is required" }, { status: 400 });
+  if (!(pdfBlob && typeof pdfBlob === "object" && "size" in pdfBlob && typeof pdfBlob.size === "number") || pdfBlob.size === 0) {
+    return errorResponse("pdf is required", 400);
   }
 
   if (typeof optionsStr !== "string") {
-    return NextResponse.json({ error: "options is required" }, { status: 400 });
+    return errorResponse("options is required", 400);
   }
 
   let options: EncryptOptions;
   try {
     options = JSON.parse(optionsStr) as EncryptOptions;
   } catch {
-    return NextResponse.json({ error: "Invalid options" }, { status: 400 });
+    return errorResponse("Invalid options", 400);
   }
 
   if (typeof options.userPassword !== "string" || options.userPassword.length === 0) {
-    return NextResponse.json({ error: "userPassword is required" }, { status: 400 });
+    return errorResponse("Password is required", 400);
   }
 
-  if (options.userPassword.length > 32) {
-    return NextResponse.json({ error: "Password too long" }, { status: 400 });
+  if (options.userPassword.length > PDF_ENCRYPT_PASSWORD_MAX_LENGTH) {
+    return errorResponse(
+      `Password must be ${PDF_ENCRYPT_PASSWORD_MAX_LENGTH} characters or fewer`,
+      400,
+    );
+  }
+
+  // Sprint 37.1: harden owner-password validation
+  if (
+    typeof options.ownerPassword === "string" &&
+    options.ownerPassword.length > PDF_ENCRYPT_PASSWORD_MAX_LENGTH
+  ) {
+    return errorResponse(
+      `Owner password must be ${PDF_ENCRYPT_PASSWORD_MAX_LENGTH} characters or fewer`,
+      400,
+    );
   }
 
   // Size check (50MB limit)
   if (pdfBlob.size > 50 * 1024 * 1024) {
-    return NextResponse.json({ error: "PDF too large" }, { status: 413 });
+    return errorResponse("PDF is too large to encrypt. Try reducing image count or quality.", 413);
   }
 
   try {
@@ -100,7 +125,7 @@ export async function POST(request: NextRequest) {
       encryptedBytes[2] !== 0x44 ||
       encryptedBytes[3] !== 0x46
     ) {
-      return NextResponse.json({ error: "Encryption produced invalid output" }, { status: 500 });
+      return errorResponse("Encryption produced invalid output", 500);
     }
 
     return new NextResponse(Buffer.from(encryptedBytes), {
@@ -113,6 +138,6 @@ export async function POST(request: NextRequest) {
     });
   } catch {
     // Never expose internal error details — fail-closed
-    return NextResponse.json({ error: "Encryption failed" }, { status: 500 });
+    return errorResponse("PDF encryption failed. Please try again.", 500);
   }
 }

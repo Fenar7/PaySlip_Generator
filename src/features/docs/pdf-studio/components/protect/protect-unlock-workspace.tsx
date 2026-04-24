@@ -11,11 +11,15 @@ import {
   destroyPdfJsDocument,
   normalizePdfJsError,
   openPdfJsDocument,
+  type PdfJsFailure,
 } from "@/features/docs/pdf-studio/utils/pdfjs-client";
 import { downloadPdfBytes } from "@/features/docs/pdf-studio/utils/zip-builder";
-import { validatePasswords } from "@/features/docs/pdf-studio/utils/password";
+import {
+  validatePasswordSettings,
+} from "@/features/docs/pdf-studio/utils/password";
 import { PASSWORD_PERMISSION_PRESETS } from "@/features/docs/pdf-studio/constants";
 import type { PdfStudioToolId } from "@/features/docs/pdf-studio/types";
+import { PdfEncryptionError } from "@/features/docs/pdf-studio/utils/pdf-encryptor";
 
 // ── Types ──────────────────────────────────────────────────────────────
 
@@ -115,10 +119,15 @@ export function ProtectUnlockWorkspaceWithOptions(props?: {
   const handleProtect = useCallback(async () => {
     if (!protect.file) return;
 
-    const validation = validatePasswords(
-      protect.userPassword,
-      protect.userPasswordConfirm,
-    );
+    // Sprint 37.1: use centralized validation that covers user, confirm, and owner passwords
+    const validation = validatePasswordSettings({
+      enabled: true,
+      userPassword: protect.userPassword,
+      confirmPassword: protect.userPasswordConfirm,
+      ownerPassword: protect.ownerPassword,
+      permissions: protect.permissions,
+    });
+
     if (!validation.isValid) {
       setProtect((prev) => ({
         ...prev,
@@ -163,10 +172,10 @@ export function ProtectUnlockWorkspaceWithOptions(props?: {
 
       if (!response.ok) {
         if (response.status === 429)
-          throw new Error("Too many requests. Please wait and try again.");
+          throw new PdfEncryptionError("Too many requests. Please wait a moment and try again.");
         if (response.status === 413)
-          throw new Error("PDF is too large to encrypt.");
-        throw new Error("Encryption failed. Please try again.");
+          throw new PdfEncryptionError("PDF is too large to encrypt. Try reducing image count or quality.");
+        throw new PdfEncryptionError("PDF encryption failed. Please try again.");
       }
 
       const encryptedBuffer = await response.arrayBuffer();
@@ -181,23 +190,28 @@ export function ProtectUnlockWorkspaceWithOptions(props?: {
         }),
       );
 
-      setProtect((prev) => ({ ...prev, status: "done" }));
+      // Sprint 37.1: clear password fields after successful protect (security)
+      setProtect((prev) => ({
+        ...prev,
+        status: "done",
+        userPassword: "",
+        userPasswordConfirm: "",
+        ownerPassword: "",
+      }));
       analytics.trackSuccess({
         action: "protect",
         requiresProcessing: true,
       });
     } catch (err) {
       const message =
-        err instanceof Error && err.message === "Too many requests. Please wait and try again."
-          ? "Too many protection requests are already running. Please wait a moment and try again."
-          : err instanceof Error && err.message === "PDF is too large to encrypt."
-            ? "This PDF exceeds the current protection limit."
-            : "Protection failed. Please try again.";
+        err instanceof PdfEncryptionError
+          ? err.message
+          : "Protection failed. Please try again.";
 
       const reason =
-        err instanceof Error && err.message === "Too many requests. Please wait and try again."
+        err instanceof PdfEncryptionError && err.message.includes("Too many requests")
           ? "rate-limited"
-          : err instanceof Error && err.message === "PDF is too large to encrypt."
+          : err instanceof PdfEncryptionError && err.message.includes("too large")
             ? "payload-too-large"
             : "encryption-failed";
 
@@ -358,14 +372,32 @@ export function ProtectUnlockWorkspaceWithOptions(props?: {
         }),
       );
 
-      setUnlock((prev) => ({ ...prev, status: "done" }));
+      // Sprint 37.1: clear password after successful unlock (security)
+      setUnlock((prev) => ({
+        ...prev,
+        status: "done",
+        password: "",
+      }));
       analytics.trackSuccess({
         action: "unlock",
         outputKind: "image-only-pdf",
       });
-    } catch {
-      const message =
-        "Incorrect password or this PDF cannot be converted with the current image-only unlock fallback.";
+    } catch (err) {
+      // Sprint 37.1: distinguish wrong password from processing failure
+      const normalized =
+        typeof err === "object" &&
+        err !== null &&
+        "code" in err &&
+        "message" in err
+          ? (err as PdfJsFailure)
+          : normalizePdfJsError(err);
+
+      const isWrongPassword = normalized.code === "password-protected";
+
+      const message = isWrongPassword
+        ? "Incorrect password. Please check your password and try again."
+        : "Unlock failed. The PDF could not be rendered. It may be corrupted or use unsupported features.";
+
       setUnlock((prev) => ({
         ...prev,
         status: "error",
@@ -374,7 +406,7 @@ export function ProtectUnlockWorkspaceWithOptions(props?: {
       analytics.trackFail({
         action: "unlock",
         stage: "process",
-        reason: "incorrect-password",
+        reason: isWrongPassword ? "incorrect-password" : "processing-failed",
       });
     } finally {
       if (loadingTask) {
