@@ -177,7 +177,8 @@ describe("PdfStudioWorkspace", () => {
 
     render(<PdfStudioWorkspace />);
 
-    fireEvent.click(await screen.findByRole("button", { name: /Retry all/i }));
+    await screen.findByTestId("ocr-progress-panel");
+    fireEvent.click(screen.getByRole("button", { name: /Retry all/i }));
 
     await waitFor(() => expect(runOcrForImage).toHaveBeenCalledTimes(2));
     expect(runOcrForImage).toHaveBeenCalledWith(
@@ -194,5 +195,93 @@ describe("PdfStudioWorkspace", () => {
       expect.any(Function),
       "eng",
     );
+  });
+
+  it("shows specific restore banner with OCR counts when some OCR was dropped", async () => {
+    usePdfStudioSurface.mockReturnValue({
+      surface: "workspace",
+      isPublic: false,
+      isWorkspace: true,
+    });
+    loadPdfStudioSession.mockReturnValue({
+      images: [
+        makeImage({
+          id: "img-1",
+          ocrStatus: "complete",
+          ocrText: "hello",
+          ocrConfidence: 85,
+        }),
+        makeImage({ id: "img-2" }),
+      ],
+      settings: PDF_STUDIO_DEFAULT_SETTINGS,
+      savedAt: new Date().toISOString(),
+      _ocrCompleteCount: 1,
+      _ocrDroppedCount: 1,
+    });
+
+    render(<PdfStudioWorkspace />);
+
+    await waitFor(() => {
+      expect(screen.getByText(/1 page has restored OCR text\. 1 page needs OCR rerun/i)).toBeInTheDocument();
+    });
+  });
+
+  it("shows fully-restored OCR message when all pages have OCR text", async () => {
+    usePdfStudioSurface.mockReturnValue({
+      surface: "workspace",
+      isPublic: false,
+      isWorkspace: true,
+    });
+    loadPdfStudioSession.mockReturnValue({
+      images: [
+        makeImage({
+          id: "img-1",
+          ocrStatus: "complete",
+          ocrText: "hello",
+          ocrConfidence: 85,
+        }),
+      ],
+      settings: PDF_STUDIO_DEFAULT_SETTINGS,
+      savedAt: new Date().toISOString(),
+      _ocrCompleteCount: 1,
+      _ocrDroppedCount: 0,
+    });
+
+    render(<PdfStudioWorkspace />);
+
+    await waitFor(() => {
+      expect(screen.getByText(/OCR text restored for all 1 page/i)).toBeInTheDocument();
+    });
+  });
+
+  it("combines watermark cleared message with OCR restore message", async () => {
+    usePdfStudioSurface.mockReturnValue({
+      surface: "workspace",
+      isPublic: false,
+      isWorkspace: true,
+    });
+    loadPdfStudioSession.mockReturnValue({
+      images: [
+        makeImage({
+          id: "img-1",
+          ocrStatus: "complete",
+          ocrText: "hello",
+          ocrConfidence: 85,
+        }),
+        makeImage({ id: "img-2" }),
+      ],
+      settings: PDF_STUDIO_DEFAULT_SETTINGS,
+      savedAt: new Date().toISOString(),
+      watermarkImageCleared: true,
+      _ocrCompleteCount: 1,
+      _ocrDroppedCount: 1,
+    });
+
+    render(<PdfStudioWorkspace />);
+
+    await waitFor(() => {
+      expect(screen.getByText(/Watermark image was cleared on refresh/i)).toBeInTheDocument();
+    });
+    expect(screen.getByText(/1 page has restored OCR text\. 1 page needs OCR rerun/i)).toBeInTheDocument();
   });
 });

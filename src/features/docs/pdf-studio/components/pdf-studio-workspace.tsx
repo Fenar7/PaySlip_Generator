@@ -568,17 +568,33 @@ export function PdfStudioWorkspace(props?: {
         setHistory([session.images]);
         setHistoryIndex(0);
         setSelectedIds([]);
+
+        const parts: string[] = [];
         if (session.watermarkImageCleared) {
-          setSessionStatus(
-            "Watermark image was cleared on refresh. Please re-upload your watermark image in Settings.",
-          );
-        } else {
-          setSessionStatus(
+          parts.push("Watermark image was cleared on refresh. Please re-upload your watermark image in Settings.");
+        }
+
+        const completeCount = session._ocrCompleteCount ?? 0;
+        const droppedCount = session._ocrDroppedCount ?? 0;
+        if (completeCount > 0 || droppedCount > 0) {
+          if (droppedCount > 0) {
+            parts.push(
+              `${completeCount} page${completeCount !== 1 ? "s" : ""} ha${completeCount === 1 ? "s" : "ve"} restored OCR text. ${droppedCount} page${droppedCount !== 1 ? "s" : ""} need${droppedCount === 1 ? "s" : ""} OCR rerun.`,
+            );
+          } else {
+            parts.push(
+              `OCR text restored for all ${completeCount} page${completeCount !== 1 ? "s" : ""}.`,
+            );
+          }
+        } else if (!session.watermarkImageCleared) {
+          parts.push(
             session.images.length > 0
               ? "Previous session restored."
               : "Settings restored from your previous session.",
           );
         }
+
+        setSessionStatus(parts.join(" "));
       }
 
       setHasHydratedSession(true);
