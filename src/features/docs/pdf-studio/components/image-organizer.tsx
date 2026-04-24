@@ -29,7 +29,8 @@ import { trackPdfStudioLifecycleEvent } from "@/features/docs/pdf-studio/lib/ana
 import { validatePdfStudioFiles } from "@/features/docs/pdf-studio/lib/ingestion";
 import { loadImageFromFile } from "@/features/docs/pdf-studio/utils/image-processor";
 import { convertHeicToJpeg } from "@/features/docs/pdf-studio/utils/heic-converter";
-import { processImageForOcrDetailed, getOcrServiceStatus } from "@/features/docs/pdf-studio/utils/ocr-processor";
+import { processImageForOcr, getOcrServiceStatus } from "@/features/docs/pdf-studio/utils/ocr-processor";
+import { OCR_LANGUAGES } from "@/features/docs/pdf-studio/components/ocr-enhancement-panel";
 import { cn } from "@/lib/utils";
 import type { MouseEvent } from "react";
 
@@ -43,6 +44,7 @@ export async function runOcrForImage(
   file: File | Blob,
   onChange: (fn: (imgs: ImageItem[]) => ImageItem[]) => void,
   onOcrUnavailable?: () => void,
+  language?: string,
 ): Promise<void> {
   // Mark as processing
   onChange((currentImages) =>
@@ -52,17 +54,14 @@ export async function runOcrForImage(
   );
 
   try {
-    const result = await processImageForOcrDetailed(file, { dedupeKey: imageId });
+    const ocrText = await processImageForOcr(file, {
+      dedupeKey: imageId,
+      language: language ?? "eng",
+    });
     onChange((currentImages) =>
       currentImages.map((img) =>
         img.id === imageId
-          ? {
-              ...img,
-              ocrText: result.text,
-              ocrConfidence: result.confidence,
-              ocrStatus: "complete" as const,
-              ocrErrorMessage: undefined,
-            }
+          ? { ...img, ocrText, ocrStatus: "complete" as const, ocrErrorMessage: undefined }
           : img,
       ),
     );
@@ -71,13 +70,7 @@ export async function runOcrForImage(
     onChange((currentImages) =>
       currentImages.map((img) =>
         img.id === imageId
-          ? {
-              ...img,
-              ocrStatus: "error" as const,
-              ocrErrorMessage: message,
-              ocrText: undefined,
-              ocrConfidence: undefined,
-            }
+          ? { ...img, ocrStatus: "error" as const, ocrErrorMessage: message, ocrText: undefined }
           : img,
       ),
     );
@@ -101,23 +94,9 @@ type ImageOrganizerProps = {
   onClearSelection: () => void;
   onUploadError?: (message?: string) => void;
   onOcrUnavailable?: () => void;
+  ocrLanguage?: string;
+  onOcrLanguageChange?: (lang: string) => void;
 };
-
-function invalidateEditedImageOcr(image: ImageItem): ImageItem {
-  if (!image.ocrStatus) {
-    return image;
-  }
-
-  return {
-    ...image,
-    ocrText: undefined,
-    ocrConfidence: undefined,
-    ocrErrorMessage: image.file
-      ? undefined
-      : "OCR must be rerun after editing this image. Re-upload the source file to continue.",
-    ocrStatus: image.file ? "pending" : "error",
-  };
-}
 
 function UploadIcon() {
   return (
@@ -146,6 +125,8 @@ export function ImageOrganizer({
   onClearSelection,
   onUploadError,
   onOcrUnavailable,
+  ocrLanguage = "eng",
+  onOcrLanguageChange,
 }: ImageOrganizerProps) {
   const pathname = usePathname();
   const inputRef = useRef<HTMLInputElement>(null);
@@ -251,11 +232,11 @@ export function ImageOrganizer({
 
         // Start OCR in background — only if file is available
         if (newItem.file) {
-          runOcrForImage(id, newItem.file, onChange, onOcrUnavailable);
+          runOcrForImage(id, newItem.file, onChange, onOcrUnavailable, ocrLanguage);
         }
       });
     },
-    [images.length, onChange, onOcrUnavailable, onUploadError, pathname],
+    [images.length, onChange, onOcrUnavailable, onUploadError, pathname, ocrLanguage],
   );
 
   const handleFileInput = useCallback(
@@ -280,48 +261,28 @@ export function ImageOrganizer({
 
   const handleRotateLeft = useCallback(
     (id: string) => {
-      const target = images.find((img) => img.id === id);
-      if (!target) return;
-
       onChange(
         images.map((img) =>
           img.id === id
-            ? invalidateEditedImageOcr({
-                ...img,
-                rotation: (((img.rotation - 90) % 360 + 360) % 360) as ImageRotation,
-              })
+            ? { ...img, rotation: (((img.rotation - 90) % 360 + 360) % 360) as ImageRotation }
             : img,
         ),
       );
-
-      if (target.file) {
-        void runOcrForImage(id, target.file, onChange, onOcrUnavailable);
-      }
     },
-    [images, onChange, onOcrUnavailable],
+    [images, onChange],
   );
 
   const handleRotateRight = useCallback(
     (id: string) => {
-      const target = images.find((img) => img.id === id);
-      if (!target) return;
-
       onChange(
         images.map((img) =>
           img.id === id
-            ? invalidateEditedImageOcr({
-                ...img,
-                rotation: ((img.rotation + 90) % 360) as ImageRotation,
-              })
+            ? { ...img, rotation: ((img.rotation + 90) % 360) as ImageRotation }
             : img,
         ),
       );
-
-      if (target.file) {
-        void runOcrForImage(id, target.file, onChange, onOcrUnavailable);
-      }
     },
-    [images, onChange, onOcrUnavailable],
+    [images, onChange],
   );
 
   const handleDelete = useCallback(
@@ -351,23 +312,11 @@ export function ImageOrganizer({
       }
 
       onChange(
-        images.map((img) =>
-          img.id === cropTargetId
-            ? invalidateEditedImageOcr({
-                ...img,
-                crop,
-              })
-            : img,
-        ),
+        images.map((img) => (img.id === cropTargetId ? { ...img, crop } : img)),
       );
-
-      const target = images.find((img) => img.id === cropTargetId);
-      if (target?.file) {
-        void runOcrForImage(cropTargetId, target.file, onChange, onOcrUnavailable);
-      }
       setCropTargetId(null);
     },
-    [cropTargetId, images, onChange, onOcrUnavailable],
+    [cropTargetId, images, onChange],
   );
 
   const handleClearAll = useCallback(() => {
@@ -490,6 +439,22 @@ export function ImageOrganizer({
               <p className="text-[0.8rem] font-semibold uppercase tracking-[0.22em] text-[var(--muted-foreground)]">
                 {images.length} {images.length === 1 ? "image" : "images"}
               </p>
+              {onOcrLanguageChange ? (
+                <label className="flex items-center gap-2">
+                  <span className="text-[0.72rem] text-[var(--muted-foreground)]">OCR language</span>
+                  <select
+                    value={ocrLanguage}
+                    onChange={(e) => onOcrLanguageChange(e.target.value)}
+                    className="rounded-md border border-[var(--border-soft)] bg-white px-2 py-1 text-[0.72rem] text-[var(--foreground)]"
+                  >
+                    {OCR_LANGUAGES.map((lang) => (
+                      <option key={lang.code} value={lang.code}>
+                        {lang.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              ) : null}
               <div className="flex items-center gap-3">
                 <button
                   type="button"

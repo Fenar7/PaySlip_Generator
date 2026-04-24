@@ -1,12 +1,13 @@
 "use client";
 
-import { PDF_STUDIO_OCR_LOW_CONFIDENCE_THRESHOLD } from "@/features/docs/pdf-studio/constants";
 import type { ImageItem } from "@/features/docs/pdf-studio/types";
+import { OCR_LANGUAGES } from "@/features/docs/pdf-studio/components/ocr-enhancement-panel";
 import { useMemo } from "react";
 
 type OcrProgressPanelProps = {
   images: ImageItem[];
   isOcrUnavailable?: boolean;
+  language?: string;
   lowConfidenceThreshold?: number;
   onRetry?: (imageId: string) => void;
   onRetryAll?: () => void;
@@ -22,10 +23,15 @@ function LoadingSpinner() {
   );
 }
 
+function getLanguageLabel(code: string): string {
+  return OCR_LANGUAGES.find((l) => l.code === code)?.label ?? code;
+}
+
 export function OcrProgressPanel({
   images,
   isOcrUnavailable,
-  lowConfidenceThreshold = PDF_STUDIO_OCR_LOW_CONFIDENCE_THRESHOLD,
+  language = "eng",
+  lowConfidenceThreshold = 70,
   onRetry,
   onRetryAll,
   onCancelOcr,
@@ -64,8 +70,7 @@ export function OcrProgressPanel({
           counts.lowConfidence++;
           counts.lowConfidenceImages.push(item);
         }
-      }
-      else if (item.ocrStatus === "error") {
+      } else if (item.ocrStatus === "error") {
         counts.error++;
         counts.errorImages.push(item);
       } else if (item.ocrStatus === "cancelled") {
@@ -78,8 +83,8 @@ export function OcrProgressPanel({
 
   const total = images.length;
   const inProgress = pending + processing;
-  const retryableCount = error + cancelled;
-  const retryableImages = [...errorImages, ...cancelledImages];
+  const retryableCount = error + cancelled + lowConfidence;
+  const retryableImages = [...errorImages, ...cancelledImages, ...lowConfidenceImages];
 
   // Show unavailable banner regardless of image state
   if (isOcrUnavailable) {
@@ -93,9 +98,11 @@ export function OcrProgressPanel({
     );
   }
 
-  if (total === 0 || (inProgress === 0 && retryableCount === 0 && lowConfidence === 0)) {
+  if (total === 0 || (inProgress === 0 && retryableCount === 0)) {
     return null;
   }
+
+  const languageLabel = getLanguageLabel(language);
 
   return (
     <div className="space-y-2">
@@ -129,7 +136,7 @@ export function OcrProgressPanel({
         <div className="mt-2 flex flex-wrap items-center gap-2">
           {inProgress > 0 && (
             <p className="flex-1 text-[0.72rem] text-[var(--muted-foreground)]">
-              English OCR runs locally in your browser. Large images may take longer.
+              {languageLabel} OCR runs locally in your browser. Large images may take longer.
             </p>
           )}
           {inProgress > 0 && onCancelOcr && (
@@ -144,7 +151,7 @@ export function OcrProgressPanel({
         </div>
       </div>
 
-      {/* Per-image retry for failed / cancelled OCR */}
+      {/* Per-image retry for failed / cancelled / low-confidence OCR */}
       {retryableCount > 0 && (
         <div className="rounded-[1.2rem] border border-red-100 bg-red-50/60 px-4 py-3 text-sm">
           <div className="mb-2 flex items-center justify-between gap-2">
@@ -165,50 +172,18 @@ export function OcrProgressPanel({
             <ul className="space-y-1.5">
               {retryableImages.map((img) => (
                 <li key={img.id} className="flex items-center justify-between gap-2">
-                  <span className="truncate text-[0.78rem] text-red-600" title={img.ocrErrorMessage ?? (img.ocrStatus === "cancelled" ? "OCR was cancelled" : "OCR failed")}>
-                    {img.name} — {img.ocrStatus === "cancelled" ? "Cancelled" : (img.ocrErrorMessage ?? "OCR failed")}
+                  <span className="truncate text-[0.78rem] text-red-600" title={img.ocrErrorMessage ?? (img.ocrStatus === "cancelled" ? "OCR was cancelled" : img.ocrStatus === "complete" ? `Low confidence (${Math.round(img.ocrConfidence ?? 0)}%)` : "OCR failed")}>
+                    {img.name} —{" "}
+                    {img.ocrStatus === "cancelled"
+                      ? "Cancelled"
+                      : img.ocrStatus === "complete"
+                        ? `Low confidence (${Math.round(img.ocrConfidence ?? 0)}%)`
+                        : (img.ocrErrorMessage ?? "OCR failed")}
                   </span>
                   <button
                     type="button"
                     onClick={() => onRetry(img.id)}
                     className="shrink-0 rounded-md bg-red-100 px-2 py-0.5 text-[0.72rem] font-medium text-red-700 hover:bg-red-200 transition-colors"
-                  >
-                    Retry
-                  </button>
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
-      )}
-
-      {lowConfidence > 0 && (
-        <div className="rounded-[1.2rem] border border-amber-200 bg-amber-50/70 px-4 py-3 text-sm">
-          <div className="mb-2 flex items-center justify-between gap-2">
-            <p className="font-medium text-amber-800">
-              {lowConfidence} image{lowConfidence > 1 ? "s" : ""} completed with low OCR confidence
-            </p>
-            <span className="text-[0.72rem] text-amber-700">
-              Below {lowConfidenceThreshold}%
-            </span>
-          </div>
-          <p className="mb-2 text-[0.78rem] text-amber-700">
-            These pages stay exportable, but the searchable text may need verification.
-          </p>
-          {onRetry && (
-            <ul className="space-y-1.5">
-              {lowConfidenceImages.map((img) => (
-                <li key={img.id} className="flex items-center justify-between gap-2">
-                  <span
-                    className="truncate text-[0.78rem] text-amber-700"
-                    title={`${img.name} — ${img.ocrConfidence ?? 0}% confidence`}
-                  >
-                    {img.name} — {Math.round(img.ocrConfidence ?? 0)}% confidence
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => onRetry(img.id)}
-                    className="shrink-0 rounded-md bg-amber-100 px-2 py-0.5 text-[0.72rem] font-medium text-amber-800 hover:bg-amber-200 transition-colors"
                   >
                     Retry
                   </button>

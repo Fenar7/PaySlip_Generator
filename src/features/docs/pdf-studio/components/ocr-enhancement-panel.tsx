@@ -36,7 +36,7 @@ type OcrEnhancementPanelProps = {
 
 // --- Constants ---
 
-const LANGUAGES: OcrLanguage[] = [
+export const OCR_LANGUAGES: OcrLanguage[] = [
   { code: "eng", label: "English" },
   { code: "ara", label: "Arabic" },
   { code: "fra", label: "French" },
@@ -183,7 +183,7 @@ export function OcrEnhancementPanel({
             disabled={isProcessing}
             className="block w-full rounded-lg border border-[#e5e5e5] bg-white px-3 py-1.5 text-sm text-[#1a1a1a] shadow-sm transition-colors focus:border-[var(--accent)] focus:outline-none focus:ring-1 focus:ring-[var(--accent)] disabled:opacity-50"
           >
-            {LANGUAGES.map((lang) => (
+            {OCR_LANGUAGES.map((lang) => (
               <option key={lang.code} value={lang.code}>
                 {lang.label}
               </option>
