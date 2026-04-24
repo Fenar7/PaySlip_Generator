@@ -61,7 +61,7 @@ describe("LoginForm", () => {
     });
   });
 
-  it("navigates with the app router after a successful password sign-in", async () => {
+  it("navigates to the redirect destination after a successful password sign-in", async () => {
     render(<LoginForm />);
 
     fireEvent.change(getEmailInput(), {
@@ -80,12 +80,12 @@ describe("LoginForm", () => {
           headers: { "Content-Type": "application/json" },
         }),
       );
-      expect(routerReplaceMock).toHaveBeenCalledWith("/onboarding");
-      expect(routerRefreshMock).toHaveBeenCalled();
+      expect(locationAssignMock).toHaveBeenCalledWith("/onboarding");
     });
 
     expect(routerPushMock).not.toHaveBeenCalled();
-    expect(locationAssignMock).not.toHaveBeenCalled();
+    expect(routerReplaceMock).not.toHaveBeenCalled();
+    expect(routerRefreshMock).not.toHaveBeenCalled();
   });
 
   it("passes session persistence when remember me is disabled", async () => {

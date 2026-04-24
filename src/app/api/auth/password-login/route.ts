@@ -96,8 +96,10 @@ export async function POST(request: NextRequest) {
     const orgSlug = body.orgSlug?.trim();
     const breakGlassCode = body.breakGlassCode?.trim();
 
+    const isJson = isJsonRequest(request);
+
     if (!email || !password) {
-      if (!isJsonRequest(request)) {
+      if (!isJson) {
         // 303 ensures the browser follows with GET (Post/Redirect/Get pattern).
         return NextResponse.redirect(
           buildLoginRedirectUrl(request, {
@@ -117,7 +119,7 @@ export async function POST(request: NextRequest) {
     }
 
     if (breakGlassCode && !orgSlug) {
-      if (!isJsonRequest(request)) {
+      if (!isJson) {
         return NextResponse.redirect(
           buildLoginRedirectUrl(request, {
             error: "Enter your organization slug to redeem a break-glass code.",
@@ -134,8 +136,14 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const response = NextResponse.json({ success: true, redirectTo });
-    clearSupabaseAuthCookies(response, request);
+    // Build the success response upfront so Supabase can write cookies directly
+    // to it via the setAll callback. This avoids copying Set-Cookie headers
+    // between response objects (which can drop entries in some environments).
+    const finalResponse = isJson
+      ? NextResponse.json({ success: true, redirectTo })
+      : NextResponse.redirect(new URL(redirectTo, request.url), { status: 303 });
+
+    clearSupabaseAuthCookies(finalResponse, request);
 
     const supabase = createServerClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -147,7 +155,7 @@ export async function POST(request: NextRequest) {
           },
           setAll(cookiesToSet) {
             cookiesToSet.forEach(({ name, value, options }) => {
-              response.cookies.set(
+              finalResponse.cookies.set(
                 name,
                 value,
                 value === ""
@@ -169,7 +177,7 @@ export async function POST(request: NextRequest) {
     });
 
     if (signInError) {
-      if (!isJsonRequest(request)) {
+      if (!isJson) {
         if (signInError.code === "email_not_confirmed") {
           const verifyUrl = new URL("/auth/verify-email", request.url);
           verifyUrl.searchParams.set("email", email);
@@ -197,7 +205,7 @@ export async function POST(request: NextRequest) {
     }
 
     const persistenceCookie = getSessionPersistenceCookie(persistenceMode);
-    response.cookies.set(
+    finalResponse.cookies.set(
       persistenceCookie.name,
       persistenceCookie.value,
       persistenceCookie.options,
@@ -210,21 +218,14 @@ export async function POST(request: NextRequest) {
         code: breakGlassCode,
       });
 
-      setSsoSessionCookie(response, {
+      setSsoSessionCookie(finalResponse, {
         orgId: result.orgId,
         userId: result.userId,
         mode: "break_glass",
       });
     }
 
-    if (!isJsonRequest(request)) {
-      return NextResponse.redirect(new URL(redirectTo, request.url), {
-        status: 303,
-        headers: response.headers,
-      });
-    }
-
-    return response;
+    return finalResponse;
   } catch (error) {
     console.error("Password login failed:", error);
 

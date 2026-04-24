@@ -103,9 +103,7 @@ export function LoginForm({
         return;
       }
 
-      console.log("[login] signed in successfully");
-      router.replace(data.redirectTo || destination);
-      router.refresh();
+      window.location.assign(data.redirectTo || destination);
       return;
     } catch (err) {
       console.error("[login] unexpected error:", err);
