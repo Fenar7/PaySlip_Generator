@@ -8,6 +8,7 @@ import { PdfPreview } from "@/features/docs/pdf-studio/components/pdf-preview";
 import {
   PDF_STUDIO_DEFAULT_SETTINGS,
   PDF_STUDIO_MAX_IMAGES,
+  PDF_STUDIO_OCR_LOW_CONFIDENCE_THRESHOLD,
   PDF_STUDIO_SUPPORTED_EXTENSIONS,
 } from "@/features/docs/pdf-studio/constants";
 import type {
@@ -238,6 +239,16 @@ export function PdfStudioWorkspace(props?: {
   const [estimateStatus, setEstimateStatus] = useState<"idle" | "estimating" | "ready" | "error">("idle");
   const [isOcrUnavailable, setIsOcrUnavailable] = useState(false);
   const [ocrLanguage, setOcrLanguage] = useState("eng");
+  const hasLowConfidenceImages = useMemo(
+    () =>
+      images.some(
+        (img) =>
+          img.ocrStatus === "complete" &&
+          typeof img.ocrConfidence === "number" &&
+          img.ocrConfidence < PDF_STUDIO_OCR_LOW_CONFIDENCE_THRESHOLD,
+      ),
+    [images],
+  );
 
   const selectedIdSet = useMemo(() => new Set(selectedIds), [selectedIds]);
   const estimateCacheRef = useRef(new Map<string, number>());
@@ -282,7 +293,13 @@ export function PdfStudioWorkspace(props?: {
       commitImages((current) =>
         current.map((img) =>
           img.id === imageId
-            ? { ...img, ocrStatus: "pending" as const, ocrErrorMessage: undefined, ocrText: undefined }
+            ? {
+                ...img,
+                ocrStatus: "pending" as const,
+                ocrErrorMessage: undefined,
+                ocrText: undefined,
+                ocrConfidence: undefined,
+              }
             : img,
         ),
       );
@@ -308,22 +325,32 @@ export function PdfStudioWorkspace(props?: {
   }, []);
 
   const handleRetryAllOcr = useCallback(() => {
-    // Collect all images that failed or were cancelled and still have a file
+    // Retry every non-healthy OCR result, including low-confidence completes.
     setImages((current) => {
       const retryable = current.filter(
-        (img) => (img.ocrStatus === "error" || img.ocrStatus === "cancelled") && img.file,
+        (img) =>
+          !!img.file &&
+          (img.ocrStatus === "error" ||
+            img.ocrStatus === "cancelled" ||
+            (img.ocrStatus === "complete" &&
+              typeof img.ocrConfidence === "number" &&
+              img.ocrConfidence < PDF_STUDIO_OCR_LOW_CONFIDENCE_THRESHOLD)),
       );
 
       if (retryable.length === 0) return current;
 
-      // Reset them to pending
       const updated = current.map((img) =>
         retryable.some((r) => r.id === img.id)
-          ? { ...img, ocrStatus: "pending" as const, ocrErrorMessage: undefined, ocrText: undefined }
+          ? {
+              ...img,
+              ocrStatus: "pending" as const,
+              ocrErrorMessage: undefined,
+              ocrText: undefined,
+              ocrConfidence: undefined,
+            }
           : img,
       );
 
-      // Fire off OCR for each one
       retryable.forEach((img) => {
         void runOcrForImage(img.id, img.file!, (fn) => setImages(fn), () => setIsOcrUnavailable(true), ocrLanguage);
       });
@@ -525,7 +552,7 @@ export function PdfStudioWorkspace(props?: {
     } finally {
       generateCancelRef.current = null;
     }
-  }, [images, settings]);
+  }, [analytics, images, settings, toolId]);
 
   useEffect(() => {
     if (isOrgLoading) {
@@ -826,7 +853,9 @@ export function PdfStudioWorkspace(props?: {
           </div>
         ) : null}
 
-        {sessionStatus || images.some(img => img.ocrStatus && img.ocrStatus !== 'complete') ? (
+        {sessionStatus ||
+        images.some((img) => img.ocrStatus && img.ocrStatus !== "complete") ||
+        hasLowConfidenceImages ? (
           <div className="space-y-3">
             {sessionStatus ? (
               <div className="rounded-xl border border-[var(--border-soft)] bg-white px-5 py-4 text-sm text-[var(--foreground-soft)] shadow-[var(--shadow-soft)]">
@@ -837,6 +866,7 @@ export function PdfStudioWorkspace(props?: {
               images={images}
               isOcrUnavailable={isOcrUnavailable}
               language={ocrLanguage}
+              lowConfidenceThreshold={PDF_STUDIO_OCR_LOW_CONFIDENCE_THRESHOLD}
               onRetry={handleOcrRetry}
               onRetryAll={handleRetryAllOcr}
               onCancelOcr={handleCancelAllOcr}
