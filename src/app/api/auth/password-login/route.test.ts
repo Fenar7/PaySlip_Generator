@@ -172,7 +172,7 @@ describe("POST /api/auth/password-login", () => {
       }),
     );
 
-    expect(response.status).toBe(307);
+    expect(response.status).toBe(303);
     expect(response.headers.get("location")).toBe(
       "http://localhost/auth/login?error=Invalid+email+or+password&email=user%40example.com&callbackUrl=%2Fapp%2Fhome",
     );
@@ -191,7 +191,7 @@ describe("POST /api/auth/password-login", () => {
       }),
     );
 
-    expect(response.status).toBe(307);
+    expect(response.status).toBe(303);
     expect(response.headers.get("location")).toBe("http://localhost/app/home");
   });
 });

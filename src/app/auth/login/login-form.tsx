@@ -2,23 +2,32 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { AuthCard } from "@/features/auth/components/auth-card";
 import { GoogleButton } from "@/features/auth/components/google-button";
 import { AuthDivider } from "@/features/auth/components/auth-divider";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
-export function LoginForm() {
+type LoginFormProps = {
+  initialError?: string;
+  initialEmail?: string;
+  initialOrgSlug?: string;
+  callbackUrl?: string | null;
+  ssoRequired?: boolean;
+  ssoErrorCode?: string | null;
+};
+
+export function LoginForm({
+  initialError = "",
+  initialEmail = "",
+  initialOrgSlug = "",
+  callbackUrl = null,
+  ssoRequired = false,
+  ssoErrorCode = null,
+}: LoginFormProps) {
   const router = useRouter();
-  const searchParams = useSearchParams();
-  const callbackUrl = searchParams.get("callbackUrl");
   const destination = callbackUrl?.startsWith("/") ? callbackUrl : "/onboarding";
-  const initialEmail = searchParams.get("email") ?? searchParams.get("sso_email") ?? "";
-  const initialOrgSlug = searchParams.get("org") ?? "";
-  const initialError = searchParams.get("error") ?? "";
-  const ssoErrorCode = searchParams.get("sso_error");
-  const ssoRequired = searchParams.get("sso_required") === "1";
 
   const [email, setEmail] = useState(initialEmail);
   const [password, setPassword] = useState("");
