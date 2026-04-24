@@ -58,4 +58,62 @@ describe("pdf studio storage scoping", () => {
     expect(loadPdfStudioSession("org-a")).toBeNull();
     expect(loadPdfStudioSession("org-b")?.images).toEqual(orgBImages);
   });
+
+  it("persists and restores completed OCR text and confidence", () => {
+    const images = [
+      {
+        id: "img-ocr",
+        previewUrl: "data:image/png;base64,x",
+        rotation: 0 as const,
+        name: "scan.png",
+        sizeBytes: 100,
+        ocrText: "Hello world",
+        ocrConfidence: 87,
+        ocrStatus: "complete" as const,
+      },
+    ];
+
+    expect(savePdfStudioSession(images as any, PDF_STUDIO_DEFAULT_SETTINGS, "org-ocr")).toBe(true);
+
+    const restored = loadPdfStudioSession("org-ocr");
+    expect(restored).not.toBeNull();
+    expect(restored!.images).toHaveLength(1);
+    expect(restored!.images[0]).toMatchObject({
+      id: "img-ocr",
+      ocrText: "Hello world",
+      ocrConfidence: 87,
+      ocrStatus: "complete",
+    });
+  });
+
+  it("does not persist failed or pending OCR state", () => {
+    const images = [
+      {
+        id: "img-fail",
+        previewUrl: "data:image/png;base64,y",
+        rotation: 0 as const,
+        name: "bad.png",
+        sizeBytes: 50,
+        ocrStatus: "error" as const,
+        ocrErrorMessage: "OCR failed",
+      },
+      {
+        id: "img-pending",
+        previewUrl: "data:image/png;base64,z",
+        rotation: 0 as const,
+        name: "wait.png",
+        sizeBytes: 60,
+        ocrStatus: "pending" as const,
+      },
+    ];
+
+    expect(savePdfStudioSession(images as any, PDF_STUDIO_DEFAULT_SETTINGS, "org-pending")).toBe(true);
+
+    const restored = loadPdfStudioSession("org-pending");
+    expect(restored).not.toBeNull();
+    expect(restored!.images).toHaveLength(2);
+    expect(restored!.images[0].ocrStatus).toBeUndefined();
+    expect(restored!.images[0].ocrErrorMessage).toBeUndefined();
+    expect(restored!.images[1].ocrStatus).toBeUndefined();
+  });
 });

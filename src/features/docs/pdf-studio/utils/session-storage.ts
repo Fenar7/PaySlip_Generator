@@ -86,7 +86,14 @@ function sanitizeImages(images: unknown): ImageItem[] {
       sizeBytes: item.sizeBytes,
       // Restore completed OCR state — no file needed to use existing ocrText
       ...(item.ocrStatus === "complete" && typeof item.ocrText === "string" && item.ocrText
-        ? { ocrText: item.ocrText, ocrStatus: "complete" as const }
+        ? {
+            ocrText: item.ocrText,
+            ocrConfidence:
+              typeof item.ocrConfidence === "number"
+                ? Math.max(0, Math.min(100, item.ocrConfidence))
+                : undefined,
+            ocrStatus: "complete" as const,
+          }
         : {}),
     }));
 }
@@ -300,7 +307,7 @@ export function savePdfStudioSession(images: ImageItem[], settings: PageSettings
   }
 
   const payload: PdfStudioSession & { _hadImageWatermark?: boolean } = {
-    images: images.map(({ id, previewUrl, rotation, crop, name, sizeBytes, ocrText, ocrStatus }) => ({
+    images: images.map(({ id, previewUrl, rotation, crop, name, sizeBytes, ocrText, ocrConfidence, ocrStatus }) => ({
       id,
       previewUrl,
       rotation,
@@ -308,7 +315,9 @@ export function savePdfStudioSession(images: ImageItem[], settings: PageSettings
       name,
       sizeBytes,
       // Only persist completed OCR — other states require the source file to re-run
-      ...(ocrStatus === "complete" && ocrText ? { ocrText, ocrStatus: "complete" as const } : {}),
+      ...(ocrStatus === "complete" && ocrText
+        ? { ocrText, ocrConfidence, ocrStatus: "complete" as const }
+        : {}),
     })),
     settings: {
       ...settings,

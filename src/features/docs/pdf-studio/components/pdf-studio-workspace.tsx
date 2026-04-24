@@ -363,7 +363,12 @@ function PdfStudioWorkspaceContent(props: PdfStudioWorkspaceContentProps) {
     commitImages((prevImages) =>
       prevImages.map((image) =>
         selectedIdSet.has(image.id)
-          ? { ...image, rotation: rotateLeft(image.rotation) }
+          ? {
+              ...image,
+              rotation: rotateLeft(image.rotation),
+              // Rotation invalidates OCR geometry — clear prior output
+              ...(image.ocrStatus ? { ocrText: undefined, ocrConfidence: undefined, ocrStatus: "pending" as const, ocrErrorMessage: undefined } : {}),
+            }
           : image,
       ),
     );
@@ -377,7 +382,12 @@ function PdfStudioWorkspaceContent(props: PdfStudioWorkspaceContentProps) {
     commitImages((prevImages) =>
       prevImages.map((image) =>
         selectedIdSet.has(image.id)
-          ? { ...image, rotation: rotateRight(image.rotation) }
+          ? {
+              ...image,
+              rotation: rotateRight(image.rotation),
+              // Rotation invalidates OCR geometry — clear prior output
+              ...(image.ocrStatus ? { ocrText: undefined, ocrConfidence: undefined, ocrStatus: "pending" as const, ocrErrorMessage: undefined } : {}),
+            }
           : image,
       ),
     );
