@@ -255,7 +255,12 @@ export function ImageOrganizer({
       onChange(
         images.map((img) =>
           img.id === id
-            ? { ...img, rotation: (((img.rotation - 90) % 360 + 360) % 360) as ImageRotation }
+            ? {
+                ...img,
+                rotation: (((img.rotation - 90) % 360 + 360) % 360) as ImageRotation,
+                // Rotation invalidates OCR geometry — clear prior output
+                ...(img.ocrStatus ? { ocrText: undefined, ocrConfidence: undefined, ocrStatus: "pending" as const, ocrErrorMessage: undefined } : {}),
+              }
             : img,
         ),
       );
@@ -268,7 +273,12 @@ export function ImageOrganizer({
       onChange(
         images.map((img) =>
           img.id === id
-            ? { ...img, rotation: ((img.rotation + 90) % 360) as ImageRotation }
+            ? {
+                ...img,
+                rotation: ((img.rotation + 90) % 360) as ImageRotation,
+                // Rotation invalidates OCR geometry — clear prior output
+                ...(img.ocrStatus ? { ocrText: undefined, ocrConfidence: undefined, ocrStatus: "pending" as const, ocrErrorMessage: undefined } : {}),
+              }
             : img,
         ),
       );
@@ -303,7 +313,16 @@ export function ImageOrganizer({
       }
 
       onChange(
-        images.map((img) => (img.id === cropTargetId ? { ...img, crop } : img)),
+        images.map((img) =>
+          img.id === cropTargetId
+            ? {
+                ...img,
+                crop,
+                // Crop changes visible text region — invalidate prior OCR
+                ...(img.ocrStatus ? { ocrText: undefined, ocrConfidence: undefined, ocrStatus: "pending" as const, ocrErrorMessage: undefined } : {}),
+              }
+            : img,
+        ),
       );
       setCropTargetId(null);
     },
