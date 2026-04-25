@@ -74,12 +74,67 @@ describe("PdfStudioSupportNotice", () => {
     );
   });
 
-  it("links to worker job guide in all modes", () => {
-    render(<PdfStudioSupportNotice surface="public" executionMode="processing" />);
+  it("hides worker job guide for browser-only mode", () => {
+    render(<PdfStudioSupportNotice surface="public" executionMode="browser" />);
+
+    expect(screen.queryByText("Worker job guide")).not.toBeInTheDocument();
+    expect(screen.getByText("Suite support guide")).toBeInTheDocument();
+  });
+
+  it("shows worker job guide for processing mode", () => {
+    render(<PdfStudioSupportNotice surface="workspace" executionMode="processing" />);
 
     expect(screen.getByText("Worker job guide")).toHaveAttribute(
       "href",
       "/help/troubleshooting/pdf-studio-jobs",
     );
+  });
+
+  it("shows worker job guide for hybrid mode", () => {
+    render(<PdfStudioSupportNotice surface="public" executionMode="hybrid" />);
+
+    expect(screen.getByText("Worker job guide")).toBeInTheDocument();
+  });
+
+  it("shows worker job guide for unknown/fallback mode", () => {
+    render(<PdfStudioSupportNotice surface="workspace" />);
+
+    expect(screen.getByText("Worker job guide")).toBeInTheDocument();
+  });
+
+  it("shows browser recovery hint when failureReason is provided for browser mode", () => {
+    render(
+      <PdfStudioSupportNotice
+        surface="workspace"
+        executionMode="browser"
+        failureReason="pdf-read-failed"
+      />,
+    );
+
+    expect(
+      screen.getByText(/check that the file is a valid PDF/i),
+    ).toBeInTheDocument();
+  });
+
+  it("does not show recovery hint when failureReason is missing", () => {
+    render(<PdfStudioSupportNotice surface="workspace" executionMode="browser" />);
+
+    expect(
+      screen.queryByText(/check that the file is a valid PDF/i),
+    ).not.toBeInTheDocument();
+  });
+
+  it("does not show recovery hint for processing mode even with failureReason", () => {
+    render(
+      <PdfStudioSupportNotice
+        surface="workspace"
+        executionMode="processing"
+        failureReason="pdf-read-failed"
+      />,
+    );
+
+    expect(
+      screen.queryByText(/check that the file is a valid PDF/i),
+    ).not.toBeInTheDocument();
   });
 });
