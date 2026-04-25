@@ -4,8 +4,10 @@ import type { PasswordSettings } from "@/features/docs/pdf-studio/types";
 import {
   calculatePasswordStrength,
   validatePasswords,
+  validateOwnerPassword,
   arePasswordsEqual,
   getPasswordStrengthDescription,
+  PDF_STUDIO_PASSWORD_MAX_LENGTH,
 } from "@/features/docs/pdf-studio/utils/password";
 import { cn } from "@/lib/utils";
 import { useState, useCallback, useMemo } from "react";
@@ -292,11 +294,20 @@ export function PasswordSettingsPanel({ settings, onSettingsChange }: PasswordSe
   }, [settings, onSettingsChange]);
 
   // Validation errors
-  const passwordMismatchError = settings.enabled && settings.userPassword && settings.confirmPassword && 
+  const passwordMismatchError = settings.enabled && settings.userPassword && settings.confirmPassword &&
     !arePasswordsEqual(settings.userPassword, settings.confirmPassword) ? "Passwords do not match" : undefined;
 
-  const confirmPasswordError = settings.enabled && settings.userPassword && !settings.confirmPassword ? 
+  const confirmPasswordError = settings.enabled && settings.userPassword && !settings.confirmPassword ?
     "Please confirm your password" : passwordMismatchError;
+
+  const ownerValidation = useMemo(() => {
+    if (!settings.enabled) return null;
+    return validateOwnerPassword(settings.ownerPassword ?? "");
+  }, [settings.enabled, settings.ownerPassword]);
+
+  const ownerPasswordError = ownerValidation && !ownerValidation.isValid
+    ? ownerValidation.errors[0]
+    : undefined;
 
   return (
     <div className="space-y-6">
@@ -315,7 +326,7 @@ export function PasswordSettingsPanel({ settings, onSettingsChange }: PasswordSe
           {/* User Password */}
           <PasswordInput
             label="Password"
-            hint="Enter a strong password to protect your PDF."
+            hint={`Enter a strong password to protect your PDF. Maximum ${PDF_STUDIO_PASSWORD_MAX_LENGTH} characters.`}
             value={settings.userPassword}
             placeholder="Enter password..."
             onChange={handleUserPasswordChange}
@@ -336,10 +347,11 @@ export function PasswordSettingsPanel({ settings, onSettingsChange }: PasswordSe
           <CollapsibleSection title="Advanced" defaultExpanded={false}>
             <PasswordInput
               label="Owner Password (Optional)"
-              hint="Administrative password with full permissions. Leave empty to use the same password."
+              hint={`Administrative password with full permissions. Leave empty to use the same password. Maximum ${PDF_STUDIO_PASSWORD_MAX_LENGTH} characters.`}
               value={settings.ownerPassword || ''}
               placeholder="Enter owner password..."
               onChange={handleOwnerPasswordChange}
+              error={ownerPasswordError}
             />
           </CollapsibleSection>
 
