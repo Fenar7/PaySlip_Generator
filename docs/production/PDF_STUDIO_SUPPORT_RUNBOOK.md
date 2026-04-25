@@ -1,6 +1,6 @@
 # PDF Studio Support Runbook
 
-**Version:** Phase 38 baseline  
+**Version:** Phase 38 in progress  
 **Date:** 2026-04-25  
 **Scope:** PDF Studio 37-tool suite  
 
@@ -136,6 +136,20 @@ For browser-first escalations, replace job-specific fields with:
 | `/help/troubleshooting/pdf-studio-jobs` | Worker job guide (processing-lane) |
 | `/pdf-studio` | Public hub (discovery) |
 | `/app/docs/pdf-studio` | Workspace hub (signed-in) |
+
+---
+
+## 8. Manual Verification of Referenced Routes
+
+Verified on `feature/pdf-studio-phase-38-sprint-38-2` by source inspection:
+
+| Path | Source location | Status |
+|---|---|---|
+| `/app/docs/pdf-studio/readiness` | `src/app/app/docs/pdf-studio/readiness/page.tsx` | ✅ Verified |
+| `/help/troubleshooting/pdf-studio-support` | `src/features/docs/pdf-studio/lib/support-links.ts` | ✅ Verified |
+| `/help/troubleshooting/pdf-studio-jobs` | `src/features/docs/pdf-studio/lib/support-links.ts` | ✅ Verified |
+| `/pdf-studio` | `src/app/pdf-studio/page.tsx` | ✅ Verified |
+| `/app/docs/pdf-studio` | `src/app/app/docs/pdf-studio/page.tsx` | ✅ Verified |
 
 ---
 

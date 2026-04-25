@@ -1,8 +1,8 @@
 # PDF Studio — Branch and Merge Workflow
 
-**Version:** Phase 38 baseline  
+**Version:** Phase 38 in progress  
 **Date:** 2026-04-25  
-**Applies to:** All PDF Studio work after Phase 38 completion, including post-roadmap remediation
+**Applies to:** All PDF Studio work during and after Phase 38, including post-roadmap remediation
 
 ---
 

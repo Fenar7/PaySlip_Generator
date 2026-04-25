@@ -1,8 +1,8 @@
 # PDF Studio — Engineering Handoff Summary
 
-**Version:** Phase 38 completion baseline  
+**Version:** Phase 38 in progress  
 **Date:** 2026-04-25  
-**Status:** Live catalog complete; awaiting Sprint 38.3 release sign-off  
+**Status:** Sprint 38.2 open; Sprint 38.1 awaiting review/merge; Sprint 38.3 pending  
 **Authoritative PRD:** `docs/PDF studio/pdf-studio-phases-36-38-prd.md`
 
 ---
@@ -89,7 +89,7 @@ PDF Studio is a 37-tool PDF utility suite inside Slipwise. It runs across two su
 | Doc | Purpose |
 |---|---|
 | `docs/PDF studio/pdf-studio-phases-36-38-prd.md` | Forward execution PRD (Phases 36–38) |
-| `docs/PDF studio/pdf-studio-qa-handbook.md` | QA matrix and verification paths (Sprint 38.1) |
+| `docs/PDF studio/pdf-studio-qa-handbook.md` | QA matrix and verification paths (Sprint 38.1, pending merge) |
 | `docs/production/PDF_STUDIO_LAUNCH_CHECKLIST.md` | Launch readiness checklist |
 | `docs/production/PDF_STUDIO_SUPPORT_RUNBOOK.md` | Support escalation runbook |
 | `docs/PDF studio/pdf-studio-workflow.md` | Branch and merge workflow |
@@ -102,6 +102,22 @@ PDF Studio is a 37-tool PDF utility suite inside Slipwise. It runs across two su
 - `docs/PDF studio/pdf-studio-phase2-slices-6-9-prd.md` — historical slice PRD
 - `docs/pdf-studio-phase2-plan.md` — root-level duplicate of stale Phase 2 plan
 - `docs/pdf-studio-phase2-slice5-handoff.md` — historical slice handoff
+
+---
+
+## 9. Manual Route and Support-Path Verification
+
+The following paths were manually verified on `feature/pdf-studio-phase-38-sprint-38-2` by inspecting source files and confirming the routes exist in the current branch:
+
+| Path | Verification method | Result |
+|---|---|---|
+| `/pdf-studio` | `src/app/pdf-studio/page.tsx` exists and imports `PdfStudioHub` | ✅ Confirmed |
+| `/app/docs/pdf-studio` | `src/app/app/docs/pdf-studio/page.tsx` exists and imports `PdfStudioHub` | ✅ Confirmed |
+| `/app/docs/pdf-studio/readiness` | `src/app/app/docs/pdf-studio/readiness/page.tsx` exists and loads diagnostics | ✅ Confirmed |
+| `/help/troubleshooting/pdf-studio-support` | Defined in `src/features/docs/pdf-studio/lib/support-links.ts` as `PDF_STUDIO_SUPPORT_GUIDE`; referenced in 23+ source locations | ✅ Confirmed |
+| `/help/troubleshooting/pdf-studio-jobs` | Defined in `src/features/docs/pdf-studio/lib/support-links.ts` as `PDF_STUDIO_JOB_SUPPORT_GUIDE`; referenced in 11+ source locations | ✅ Confirmed |
+| `/pdf-studio/{tool}` | `src/app/pdf-studio/[tool]/page.tsx` exists; `generateStaticParams` resolves all 37 tool slugs | ✅ Confirmed |
+| `/app/docs/pdf-studio/{tool}` | 37 individual `page.tsx` files exist under `src/app/app/docs/pdf-studio/*/` | ✅ Confirmed |
 
 ---
 
