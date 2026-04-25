@@ -177,7 +177,7 @@ function PdfStudioHubContent({
                   href="/pricing"
                   className="inline-flex items-center justify-center rounded-full border border-[var(--border-strong)] bg-white px-4 py-2.5 text-sm font-medium text-[var(--foreground)] transition-colors hover:bg-[var(--surface-soft)]"
                   onClick={() =>
-                    analytics.trackUpgradeIntent({ destination: "/pricing" })
+                    analytics.trackUpgradeIntent({ destination: "/pricing", source: "public-hub-header" })
                   }
                 >
                   See plans

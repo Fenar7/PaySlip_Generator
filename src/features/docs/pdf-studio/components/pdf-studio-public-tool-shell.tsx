@@ -134,7 +134,7 @@ export function PdfStudioPublicToolShell({
         />
       ) : null}
 
-      <PdfStudioSupportNotice surface="public" />
+      <PdfStudioSupportNotice surface="public" executionMode={tool.executionMode} />
 
       <PdfStudioCapabilityMatrix />
 
