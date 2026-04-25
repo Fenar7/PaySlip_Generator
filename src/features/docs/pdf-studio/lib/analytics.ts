@@ -56,6 +56,24 @@ type FailureProperties = SafeAnalyticsProperties & {
   reason: PdfStudioFailureReason;
 };
 
+export function getPdfStudioSupportLane(
+  executionMode: PdfStudioExecutionMode | null,
+): "browser-first" | "worker-backed" | "hybrid" | "unknown" {
+  if (executionMode === "browser") return "browser-first";
+  if (executionMode === "processing") return "worker-backed";
+  if (executionMode === "hybrid") return "hybrid";
+  return "unknown";
+}
+
+export function getPdfStudioDiagnosticsScope(
+  executionMode: PdfStudioExecutionMode | null,
+): "telemetry-only" | "job-history" | "mixed" | "unknown" {
+  if (executionMode === "browser") return "telemetry-only";
+  if (executionMode === "processing") return "job-history";
+  if (executionMode === "hybrid") return "mixed";
+  return "unknown";
+}
+
 const SUPPORT_CAPTURE_REASONS = new Set<PdfStudioFailureReason>([
   "pdf-read-failed",
   "pdf-runtime-failed",
@@ -175,15 +193,18 @@ export function usePdfStudioAnalytics(subject: PdfStudioAnalyticsSubject) {
       });
     },
     trackFail(properties: FailureProperties) {
+      const executionMode = tool?.executionMode ?? null;
       const failureProperties = {
         ...baseProperties,
         ...sanitizeAnalyticsProperties(properties),
+        supportLane: getPdfStudioSupportLane(executionMode),
+        diagnosticsScope: getPdfStudioDiagnosticsScope(executionMode),
       };
 
       trackPdfStudioLifecycleEvent("pdf_studio_fail", failureProperties);
       void capturePdfStudioSupportFailure({
         subject,
-        executionMode: tool?.executionMode ?? null,
+        executionMode,
         route: pathname,
         surface,
         failure: properties,

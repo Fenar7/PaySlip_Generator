@@ -1,6 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   capturePdfStudioSupportFailure,
+  getPdfStudioDiagnosticsScope,
+  getPdfStudioSupportLane,
   trackPdfStudioLifecycleEvent,
 } from "@/features/docs/pdf-studio/lib/analytics";
 import { trackEvent } from "@/lib/analytics";
@@ -83,5 +85,21 @@ describe("pdf studio analytics", () => {
     });
 
     expect(captureError).not.toHaveBeenCalled();
+  });
+});
+
+describe("pdf studio analytics lane taxonomy", () => {
+  it("maps execution modes to support lanes", () => {
+    expect(getPdfStudioSupportLane("browser")).toBe("browser-first");
+    expect(getPdfStudioSupportLane("processing")).toBe("worker-backed");
+    expect(getPdfStudioSupportLane("hybrid")).toBe("hybrid");
+    expect(getPdfStudioSupportLane(null)).toBe("unknown");
+  });
+
+  it("maps execution modes to diagnostics scopes", () => {
+    expect(getPdfStudioDiagnosticsScope("browser")).toBe("telemetry-only");
+    expect(getPdfStudioDiagnosticsScope("processing")).toBe("job-history");
+    expect(getPdfStudioDiagnosticsScope("hybrid")).toBe("mixed");
+    expect(getPdfStudioDiagnosticsScope(null)).toBe("unknown");
   });
 });
