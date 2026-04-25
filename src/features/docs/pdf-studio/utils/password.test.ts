@@ -2,12 +2,17 @@ import { describe, it, expect } from "vitest";
 import {
   calculatePasswordStrength,
   validatePasswords,
+  validateOwnerPassword,
+  validatePasswordPermissions,
+  validatePasswordSettings,
   arePasswordsEqual,
   getPasswordStrengthColor,
   getPasswordErrors,
   isPasswordSettingsValid,
   sanitizePasswordSettings,
   getPasswordStrengthDescription,
+  INVALID_PASSWORD_PERMISSIONS_MESSAGE,
+  PDF_STUDIO_PASSWORD_MAX_LENGTH,
 } from "./password";
 import type { PasswordSettings, PasswordValidation } from "../types";
 
@@ -24,16 +29,16 @@ describe("Password Utility Functions", () => {
     it("should calculate correct scores for various password types", () => {
       // Single character: 1 length + 2 lowercase = 3 points
       expect(calculatePasswordStrength("a").score).toBe(3);
-      
+
       // Simple word: 8 length + 2 lowercase = 10 points
       expect(calculatePasswordStrength("password").score).toBe(10);
-      
+
       // Mixed case with numbers: 9 length + 2 upper + 2 lower + 2 numbers = 15 points
       expect(calculatePasswordStrength("Password1").score).toBe(15);
-      
+
       // Full variety: 10 length + 2 upper + 2 lower + 2 numbers + 2 symbols = 18 points (max)
       expect(calculatePasswordStrength("Password1!").score).toBe(18);
-      
+
       // Long password caps at 10 length points: 10 length + 2 upper + 2 lower + 2 numbers + 2 symbols = 18 points
       expect(calculatePasswordStrength("VeryLongPassword123!").score).toBe(18);
     });
@@ -74,6 +79,144 @@ describe("Password Utility Functions", () => {
       const result = validatePasswords("", "");
       expect(result.isValid).toBe(false);
       expect(result.errors).toContain("Password is required");
+    });
+
+    it("should reject passwords exceeding max length", () => {
+      const tooLong = "a".repeat(PDF_STUDIO_PASSWORD_MAX_LENGTH + 1);
+      const result = validatePasswords(tooLong, tooLong);
+      expect(result.isValid).toBe(false);
+      expect(result.errors).toContain(
+        `Password must be ${PDF_STUDIO_PASSWORD_MAX_LENGTH} characters or fewer`,
+      );
+    });
+
+    it("should accept passwords at exactly max length", () => {
+      const atLimit = "a".repeat(PDF_STUDIO_PASSWORD_MAX_LENGTH);
+      const result = validatePasswords(atLimit, atLimit);
+      expect(result.isValid).toBe(true);
+      expect(result.errors).toHaveLength(0);
+    });
+  });
+
+  describe("validateOwnerPassword", () => {
+    it("should accept empty owner password", () => {
+      const result = validateOwnerPassword("");
+      expect(result.isValid).toBe(true);
+      expect(result.errors).toHaveLength(0);
+    });
+
+    it("should accept owner password within max length", () => {
+      const result = validateOwnerPassword("owner-pass");
+      expect(result.isValid).toBe(true);
+      expect(result.errors).toHaveLength(0);
+    });
+
+    it("should reject owner password exceeding max length", () => {
+      const tooLong = "o".repeat(PDF_STUDIO_PASSWORD_MAX_LENGTH + 1);
+      const result = validateOwnerPassword(tooLong);
+      expect(result.isValid).toBe(false);
+      expect(result.errors).toContain(
+        `Owner password must be ${PDF_STUDIO_PASSWORD_MAX_LENGTH} characters or fewer`,
+      );
+    });
+  });
+
+  describe("validatePasswordSettings", () => {
+    it("should return valid for disabled settings", () => {
+      const settings: PasswordSettings = {
+        enabled: false,
+        userPassword: "",
+        confirmPassword: "",
+        permissions: { printing: true, copying: true, modifying: true },
+      };
+      const result = validatePasswordSettings(settings);
+      expect(result.isValid).toBe(true);
+      expect(result.errors).toHaveLength(0);
+    });
+
+    it("should return valid for matching user password and valid owner password", () => {
+      const settings: PasswordSettings = {
+        enabled: true,
+        userPassword: "test123",
+        confirmPassword: "test123",
+        ownerPassword: "owner",
+        permissions: { printing: true, copying: true, modifying: true },
+      };
+      const result = validatePasswordSettings(settings);
+      expect(result.isValid).toBe(true);
+      expect(result.errors).toHaveLength(0);
+    });
+
+    it("should combine user and owner password errors", () => {
+      const tooLong = "x".repeat(PDF_STUDIO_PASSWORD_MAX_LENGTH + 1);
+      const settings: PasswordSettings = {
+        enabled: true,
+        userPassword: tooLong,
+        confirmPassword: tooLong,
+        ownerPassword: tooLong,
+        permissions: { printing: true, copying: true, modifying: true },
+      };
+      const result = validatePasswordSettings(settings);
+      expect(result.isValid).toBe(false);
+      expect(result.errors).toContain(
+        `Password must be ${PDF_STUDIO_PASSWORD_MAX_LENGTH} characters or fewer`,
+      );
+      expect(result.errors).toContain(
+        `Owner password must be ${PDF_STUDIO_PASSWORD_MAX_LENGTH} characters or fewer`,
+      );
+    });
+
+    it("should reject malformed permission values", () => {
+      const settings = {
+        enabled: true,
+        userPassword: "test123",
+        confirmPassword: "test123",
+        permissions: {
+          printing: "yes",
+          copying: true,
+          modifying: true,
+        } as unknown as PasswordSettings["permissions"],
+      } satisfies PasswordSettings;
+      const result = validatePasswordSettings(settings);
+
+      expect(result.isValid).toBe(false);
+      expect(result.errors).toContain(INVALID_PASSWORD_PERMISSIONS_MESSAGE);
+    });
+  });
+
+  describe("validatePasswordPermissions", () => {
+    it("should accept full boolean permission objects", () => {
+      const result = validatePasswordPermissions({
+        printing: true,
+        copying: false,
+        modifying: true,
+      });
+
+      expect(result.isValid).toBe(true);
+      expect(result.errors).toHaveLength(0);
+    });
+
+    it("should allow missing permission fields when requested", () => {
+      const result = validatePasswordPermissions(
+        {
+          printing: false,
+        },
+        { allowMissing: true },
+      );
+
+      expect(result.isValid).toBe(true);
+      expect(result.errors).toHaveLength(0);
+    });
+
+    it("should reject non-boolean permission values", () => {
+      const result = validatePasswordPermissions({
+        printing: "no",
+        copying: true,
+        modifying: true,
+      });
+
+      expect(result.isValid).toBe(false);
+      expect(result.errors).toContain(INVALID_PASSWORD_PERMISSIONS_MESSAGE);
     });
   });
 
@@ -147,6 +290,17 @@ describe("Password Utility Functions", () => {
       };
       expect(isPasswordSettingsValid(invalidSettings)).toBe(false);
     });
+
+    it("should invalidate enabled settings with too-long owner password", () => {
+      const settings: PasswordSettings = {
+        enabled: true,
+        userPassword: "test123",
+        confirmPassword: "test123",
+        ownerPassword: "o".repeat(PDF_STUDIO_PASSWORD_MAX_LENGTH + 1),
+        permissions: { printing: true, copying: true, modifying: true },
+      };
+      expect(isPasswordSettingsValid(settings)).toBe(false);
+    });
   });
 
   describe("sanitizePasswordSettings", () => {
@@ -183,7 +337,7 @@ describe("Password Utility Functions", () => {
         enabled: "invalid",
         userPassword: 123,
         permissions: "invalid",
-      } as Partial<PasswordSettings>;
+      } as unknown as Partial<PasswordSettings>;
       const result = sanitizePasswordSettings(invalidSettings);
       expect(result.enabled).toBe(false);
       expect(result.userPassword).toBe("");
