@@ -93,132 +93,126 @@ PDF Studio ships **37 live tools** across three categories. Every tool has a rea
 
 ---
 
-## 3. Route Verification Checklist
+## 3. Route Verification
 
-### 3.1 Public routes
+### 3.1 Verified by automated tests (this sprint)
 
-- [ ] `/pdf-studio` renders the public hub with all 37 tools listed
-- [ ] `/pdf-studio/[tool]` generates static params for all 37 tools
-- [ ] Every public tool page returns 200 (not 404 or 500)
-- [ ] Non-interactive public pages show the correct upgrade/workspace CTA
-- [ ] Interactive public pages render the actual workspace component
-- [ ] Public metadata uses canonical `/pdf-studio/{tool}` paths
-- [ ] Public hub structured data includes every tool
+- [x] **Public hub renders all 37 tools** — `pdf-studio-hub.test.tsx` verifies tool cards appear for every live tool
+- [x] **Workspace hub renders all 37 tools** — `pdf-studio-hub.test.tsx` verifies tool cards appear for every live tool in workspace mode
+- [x] **Public tool route resolves every slug** — `page.test.tsx` verifies `generateStaticParams` emits a slug for all 37 tools and `getPdfStudioToolBySlug` resolves every emitted slug back to the correct tool
+- [x] **No "Soon" or placeholder state in public shell** — `pdf-studio-public-tool-shell.test.tsx` verifies non-interactive tools show upgrade/workspace CTAs and interactive tools render workspace components; no placeholder text appears
 
-### 3.2 Workspace routes
+### 3.2 Verified by code inspection (this sprint)
 
-- [ ] `/app/docs/pdf-studio` renders the workspace hub with all 37 tools
-- [ ] Every tool has a dedicated workspace page under `/app/docs/pdf-studio/{tool}`
-- [ ] Workspace pages are marked `robots: { index: false, follow: false }`
-- [ ] Workspace hub shows plan panel and analytics for signed-in orgs
-- [ ] `/app/docs/pdf-studio/readiness` loads diagnostics and checklist
+- [x] Every tool has a dedicated workspace page under `/app/docs/pdf-studio/{tool}` — filesystem inspection confirms 37 page files
+- [x] Workspace pages are marked `robots: { index: false, follow: false }` — verified in `route-metadata.ts` and workspace hub metadata
+- [x] Public metadata uses canonical `/pdf-studio/{tool}` paths — verified in `route-metadata.ts`
+- [x] Public hub structured data includes every tool — verified in `route-metadata.ts` via `buildPdfStudioHubStructuredData`
+- [x] `PDF_STUDIO_TOOL_REGISTRY` contains 37 entries with matching `TOOL_COMPONENTS` — verified in `tool-registry.test.ts`
 
-### 3.3 Registry-to-route consistency
+### 3.3 Requires browser execution (not performed in Sprint 38.1)
 
-Verified in code:
-- `PDF_STUDIO_TOOL_REGISTRY` contains 37 entries
-- `TOOL_COMPONENTS` contains 37 entries matching every registry tool ID
-- `src/app/app/docs/pdf-studio/{tool}/page.tsx` exists for all 37 tools
-- `src/app/pdf-studio/[tool]/page.tsx` dynamically handles all public routes
-- No tool ID exists in the registry without a corresponding component or route
+- [ ] Every public tool page returns HTTP 200 (not 404 or 500) — requires running dev server or build
+- [ ] Interactive public pages render the actual workspace component in a real browser — requires Playwright/manual click-through
+- [ ] Workspace hub shows plan panel and analytics for signed-in orgs — requires authenticated session
+- [ ] `/app/docs/pdf-studio/readiness` loads real diagnostics and checklist — requires authenticated session with conversion job history
 
 ---
 
-## 4. Plan Gate Verification Checklist
+## 4. Plan Gate Verification
 
-### 4.1 Tier mapping
+### 4.1 Tier mapping — verified by automated tests
 
-- [ ] 17 tools are `free` tier (publicly interactive)
-- [ ] 14 tools are `workspace` tier (workspace-only interactivity)
-- [ ] 6 tools are `pro` tier (Pro plan required)
-- [ ] Tier labels render correctly: Free / Workspace / Pro
-- [ ] `getPdfStudioCapabilityTier` returns correct tier for every tool ID
-- [ ] `isPdfStudioToolInteractiveOnPublicSurface` returns `true` only for free-tier tools
+- [x] 17 tools are `free` tier (publicly interactive) — `plan-gates.test.ts`
+- [x] 14 tools are `workspace` tier (workspace-only interactivity) — `plan-gates.test.ts`
+- [x] 6 tools are `pro` tier (Pro plan required) — `plan-gates.test.ts`
+- [x] `getPdfStudioCapabilityTier` returns correct tier for every tool ID — `plan-gates.test.ts`
+- [x] `isPdfStudioToolInteractiveOnPublicSurface` returns `true` only for free-tier tools — `plan-gates.test.ts` + `tool-registry.test.ts`
 
-### 4.2 Plan minimums
+### 4.2 Plan minimums — verified by automated tests
 
-- [ ] Free-tier tools require `starter` minimum plan in workspace
-- [ ] Workspace-tier tools require `starter` minimum plan in workspace
-- [ ] Pro-tier tools require `pro` minimum plan in workspace
-- [ ] `getPdfStudioWorkspaceMinimumPlan` returns `pro` for pro tools, `starter` for all others
+- [x] Free-tier tools require `starter` minimum plan in workspace — `plan-gates.test.ts`
+- [x] Workspace-tier tools require `starter` minimum plan in workspace — `plan-gates.test.ts`
+- [x] Pro-tier tools require `pro` minimum plan in workspace — `plan-gates.test.ts`
+- [x] `getPdfStudioWorkspaceMinimumPlan` returns `pro` for pro tools, `starter` for all others — `plan-gates.test.ts`
 
-### 4.3 Limits and retention
+### 4.3 Limits and retention — verified by automated tests
 
-- [ ] Starter plan: 10 history entries, 24-hour retention
-- [ ] Pro plan: 25 history entries, 72-hour (3-day) retention
-- [ ] Enterprise plan: 50 history entries, 168-hour (7-day) retention
-- [ ] Free plan: 0 history entries, 24-hour retention
-- [ ] OCR page limit for starter: 10 pages (`PDF_STUDIO_STARTER_OCR_PAGE_LIMIT`)
-- [ ] Processing page limit for starter: 40 pages (`PDF_STUDIO_STARTER_PROCESSING_PAGE_LIMIT`)
-- [ ] `requiresProForPdfStudioLargeJob` correctly gates OCR > 10 pages and pro processing > 40 pages
+- [x] Starter plan: 10 history entries, 24-hour retention — `plan-gates.test.ts`
+- [x] Pro plan: 25 history entries, 72-hour (3-day) retention — `plan-gates.test.ts`
+- [x] Enterprise plan: 50 history entries, 168-hour (7-day) retention — `plan-gates.test.ts`
+- [x] Free plan: 0 history entries, 24-hour retention — `plan-gates.test.ts`
+- [x] OCR page limit for starter: 10 pages — `plan-gates.test.ts`
+- [x] Processing page limit for starter: 40 pages — `plan-gates.test.ts`
+- [x] `requiresProForPdfStudioLargeJob` correctly gates OCR > 10 pages and pro processing > 40 pages — `plan-gates.test.ts`
 
-### 4.4 Upgrade copy honesty
+### 4.4 Upgrade copy honesty — verified by automated tests
 
-- [ ] Repair tool: mentions Pro plan and workspace lane
-- [ ] OCR tool: mentions 10-page starter limit
-- [ ] Office conversions: mentions Pro plan and tracked batch processing
-- [ ] Default copy: generic workspace/Pro upgrade message
-- [ ] No tool claims public interactivity when it is tier-gated
+- [x] Repair tool: mentions Pro plan and workspace lane — `plan-gates.test.ts` (non-empty copy check)
+- [x] OCR tool: mentions 10-page starter limit — `plan-gates.test.ts` (non-empty copy check)
+- [x] Office conversions: mentions Pro plan and tracked batch processing — `plan-gates.test.ts` (non-empty copy check)
+- [x] Default copy: generic workspace/Pro upgrade message — `plan-gates.test.ts` (non-empty copy check)
+- [x] No tool claims public interactivity when it is tier-gated — `tool-registry.test.ts` + `qa-matrix.test.ts`
 
----
+### 4.5 Requires visual verification (not performed in Sprint 38.1)
 
-## 5. Support Lane Verification Checklist
-
-### 5.1 Browser-first lane
-
-- [ ] 30 tools classified as browser-first
-- [ ] Support copy never mentions job IDs, failure codes, or worker queues
-- [ ] Recovery hints point to the suite support guide
-- [ ] Examples shown in support lane match actual browser tools
-
-### 5.2 Worker-backed lane
-
-- [ ] 7 tools classified as worker-backed (5 processing + 2 hybrid)
-- [ ] Support copy references job IDs and failure codes
-- [ ] Recovery hints mention retry and queue behavior
-- [ ] Diagnostics page shows queue depth, success rate, and top failure codes
-- [ ] Examples shown in support lane match actual worker-backed tools
-
-### 5.3 Readiness checks
-
-- [ ] PDF Studio workspace access check reflects actual feature flag state
-- [ ] Plan window check shows correct history limit and retention label
-- [ ] Queue headroom check reflects actual active job limit
-- [ ] Recovery paths check shows failed/retrying job counts
-- [ ] Browser-first recovery paths check confirms suite support guide is linked
+- [ ] Tier labels render correctly in UI: Free / Workspace / Pro — requires browser screenshot check
+- [ ] Upgrade notice copy renders correctly for non-interactive tools — requires browser screenshot check
 
 ---
 
-## 6. Execution Mode Verification Checklist
+## 5. Support Lane Verification
 
-### 6.1 Browser-first
+### 5.1 Browser-first lane — verified by automated tests
 
-- [ ] Badge reads "Use in browser"
-- [ ] Description states files stay on the device
-- [ ] No server job is created
-- [ ] No queue depth or history entry is generated
+- [x] 30 tools classified as browser-first — `support.test.ts`
+- [x] Support copy never mentions job IDs, failure codes, or worker queues — `support.test.ts`
+- [x] Recovery hints point to the suite support guide — `support.test.ts`
+- [x] Examples shown in support lane match actual browser tools — `support.test.ts`
 
-### 6.2 Processing
+### 5.2 Worker-backed lane — verified by automated tests
 
-- [ ] Badge reads "Requires processing"
-- [ ] Description mentions secure server-side processing
-- [ ] Job is tracked with a job ID
-- [ ] History entry is created on completion or failure
-- [ ] Retention and retry policies apply
+- [x] 7 tools classified as worker-backed (5 processing + 2 hybrid) — `support.test.ts`
+- [x] Support copy references job IDs and failure codes — `support.test.ts`
+- [x] Recovery hints mention retry and queue behavior — `support.test.ts`
+- [x] Examples shown in support lane match actual worker-backed tools — `support.test.ts`
 
-### 6.3 Hybrid
+### 5.3 Readiness checks — verified by automated tests
 
-- [ ] Badge reads "Browser + processing"
-- [ ] Description mentions mixed browser and secure processing
-- [ ] Protect: browser-side validation + server-side encryption
-- [ ] Unlock: browser-side validation + server-side decryption/rendering
+- [x] Plan window check shows correct history limit and retention label — `support.test.ts`
+- [x] Queue headroom check reflects actual active job limit — `support.test.ts`
+- [x] Recovery paths check shows failed/retrying job counts — `support.test.ts`
+- [x] Browser-first recovery paths check confirms suite support guide is linked — `support.test.ts`
+
+### 5.4 Requires runtime verification (not performed in Sprint 38.1)
+
+- [ ] PDF Studio workspace access check reflects actual feature flag state — requires authenticated org with feature flag on/off
+- [ ] Diagnostics page shows queue depth, success rate, and top failure codes with real data — requires authenticated org with conversion job history
+
+---
+
+## 6. Execution Mode Verification
+
+### 6.1 Verified by automated tests and code inspection
+
+- [x] Badge copy is correct for all execution modes — `route-metadata.test.ts` + `tool-registry.test.ts`
+- [x] Description copy is correct for all execution modes — `route-metadata.test.ts` + `tool-registry.test.ts`
+- [x] Execution mode counts are correct (30 browser, 5 processing, 2 hybrid) — `tool-registry.test.ts`
+
+### 6.2 Requires runtime/browser verification (not performed in Sprint 38.1)
+
+- [ ] Browser-first: no server job is created during actual use — requires network trace
+- [ ] Processing: job is tracked with a job ID in real usage — requires server integration test
+- [ ] Processing: history entry is created on completion or failure — requires server integration test
+- [ ] Hybrid: protect/unlock enqueue worker jobs for encryption/decryption — requires server integration test
 
 ---
 
 ## 7. Known Invariants (Test-Backed)
 
-The following invariants are enforced by automated Vitest coverage:
+The following invariants are enforced by automated Vitest coverage. They prove registry consistency, honest gating, and rendered catalog behavior — not full end-to-end browser execution.
 
+### Registry and gating invariants
 1. **Registry completeness:** `PDF_STUDIO_TOOL_ORDER` length equals `PDF_STUDIO_TOOL_REGISTRY` key count.
 2. **Component mapping:** Every `PdfStudioToolId` has a matching entry in `TOOL_COMPONENTS`.
 3. **Route mapping:** Every tool has a non-empty `workspacePath` and `publicPath`.
@@ -230,11 +224,17 @@ The following invariants are enforced by automated Vitest coverage:
 9. **Upgrade copy presence:** `getPdfStudioToolUpgradeCopy` returns non-empty strings for all tier-gated tools.
 10. **Retention messaging:** `getPdfStudioRetentionMessaging` produces honest, plan-specific labels.
 
+### Rendered catalog invariants (new in Sprint 38.1 remediation)
+11. **Public hub renders every tool:** `PdfStudioHub` in public mode renders a card with the correct title for all 37 tools.
+12. **Workspace hub renders every tool:** `PdfStudioHub` in workspace mode renders a card with the correct title for all 37 tools.
+13. **Public slug resolution:** `generateStaticParams` emits a slug for every public tool, and `getPdfStudioToolBySlug` resolves every slug back to the correct tool.
+14. **No placeholder state in public shell:** `PdfStudioPublicToolShell` renders an upgrade/workspace CTA for non-interactive tools and never renders "Soon" or placeholder text.
+
 ---
 
-## 8. Manual QA Quick Pass
+## 8. Manual QA Quick Pass — Documented for Sprint 38.3
 
-For a representative sample, verify end-to-end:
+The following representative sample is documented for execution during Sprint 38.3 (release sign-off). It was **not executed in Sprint 38.1**.
 
 ### Browser-first (sample)
 - [ ] **merge** — public page interactive, drag-drop works, export succeeds
@@ -253,15 +253,26 @@ For a representative sample, verify end-to-end:
 
 ---
 
-## 9. Sprint 38.1 Sign-Off
+## 9. Sprint 38.1 Completion Status
 
-| Criterion | Status |
+### Completed in Sprint 38.1
+
+| Criterion | Evidence |
 |---|---|
-| Every live tool has a documented verification path | ✅ |
-| Public/workspace availability matches the registry | ✅ |
-| Execution mode framing matches the live registry | ✅ |
-| No tool behaves like hidden/soon while presented as live | ✅ |
-| Plan gates, limits, and support messaging remain honest | ✅ |
-| Focused Vitest coverage added for high-risk gaps | ✅ |
+| Every live tool has a documented verification path | QA handbook sections 1–8 |
+| Public/workspace availability matches the registry | `tool-registry.test.ts` (surface parity + category alignment) |
+| Execution mode framing matches the live registry | `tool-registry.test.ts` (execution count invariants) |
+| No tool behaves like hidden/soon while presented as live | `qa-matrix.test.ts` (no hidden tools) + `pdf-studio-public-tool-shell.test.tsx` (no placeholder state) |
+| Plan gates, limits, and support messaging remain honest | `plan-gates.test.ts` + `support.test.ts` |
+| Focused Vitest coverage added for high-risk gaps | 24 new tests across 4 test files; 380 PDF Studio tests pass |
 
-**Engineering sign-off:** Sprint 38.1 QA matrix is complete and backed by automated invariants.
+### Deferred to Sprint 38.3
+
+| Criterion | Reason |
+|---|---|
+| Representative browser-first manual QA | Requires real browser drag-drop, file upload, and export verification |
+| Representative worker-backed manual QA | Requires server-side conversion queue and authenticated download verification |
+| Live HTTP 200 verification for all public routes | Requires running dev server or production build |
+| Authenticated workspace hub with real plan panel | Requires signed-in org context |
+
+**Engineering sign-off:** Sprint 38.1 delivered the full QA matrix, automated route/catalog verification, and honest documentation of what remains for final sign-off in Sprint 38.3. No unchecked claim of manual QA execution is made.

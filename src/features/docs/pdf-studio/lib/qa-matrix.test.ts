@@ -3,22 +3,31 @@ import { listPdfStudioTools } from "@/features/docs/pdf-studio/lib/tool-registry
 import {
   getPdfStudioCapabilityTier,
   getPdfStudioToolUpgradeCopy,
-  isPdfStudioToolDiscoverableOnPublicSurface,
   isPdfStudioToolInteractiveOnPublicSurface,
 } from "@/features/docs/pdf-studio/lib/plan-gates";
 import { buildPdfStudioSupportCoverageLanes } from "@/features/docs/pdf-studio/lib/support";
+import { generateStaticParams } from "@/app/pdf-studio/[tool]/page";
 
 describe("pdf studio qa matrix invariants", () => {
-  it("every live tool has a public discovery page", () => {
+  it("every live tool has a public route with a valid slug", () => {
     const allTools = listPdfStudioTools();
 
     for (const tool of allTools) {
-      expect(
-        isPdfStudioToolDiscoverableOnPublicSurface(tool.id),
-        `${tool.id} should be discoverable on the public surface`,
-      ).toBe(true);
       expect(tool.publicPath).toMatch(/^\/pdf-studio\/[a-z0-9-]+$/);
     }
+  });
+
+  it("every live tool is represented in generateStaticParams", () => {
+    const staticParams = generateStaticParams();
+    const paramSlugs = new Set(staticParams.map((p) => p.tool));
+    const allTools = listPdfStudioTools();
+
+    for (const tool of allTools) {
+      const slug = tool.publicPath.split("/").pop();
+      expect(paramSlugs.has(slug)).toBe(true);
+    }
+
+    expect(paramSlugs.size).toBe(allTools.length);
   });
 
   it("every live tool has a workspace route", () => {
