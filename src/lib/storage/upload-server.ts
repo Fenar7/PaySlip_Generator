@@ -151,3 +151,34 @@ export async function downloadFileServer(
 
   return new Uint8Array(await data.arrayBuffer());
 }
+
+export async function fileExistsServer(
+  bucket: StorageBucket,
+  storageKey: string,
+  options?: StorageClientOptions,
+): Promise<boolean> {
+  try {
+    await assertResidencyCompatible(storageKey, "read");
+    const supabase = await getStorageClient(options);
+    const { error } = await supabase.storage
+      .from(bucket)
+      .createSignedUrl(storageKey, 1);
+
+    if (error) {
+      const message = error.message?.toLowerCase() ?? "";
+      if (
+        message.includes("not found") ||
+        message.includes("object not found") ||
+        message.includes("404")
+      ) {
+        return false;
+      }
+      console.error("Server file existence check error:", error);
+      return false;
+    }
+
+    return true;
+  } catch {
+    return false;
+  }
+}

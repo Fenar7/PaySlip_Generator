@@ -17,6 +17,7 @@ import {
 import {
   deleteFileServer,
   downloadFileServer,
+  fileExistsServer,
   getSignedUrlServer,
   uploadFileServer,
 } from "@/lib/storage/upload-server";
@@ -159,12 +160,25 @@ function getSourceManifests(payload: PdfStudioConversionPayload): PdfStudioConve
   return [];
 }
 
-function hasAvailableSources(payload: PdfStudioConversionPayload): boolean {
+async function checkSourcesAvailable(payload: PdfStudioConversionPayload): Promise<boolean> {
   const manifests = getSourceManifests(payload);
   if (manifests.length === 0) {
     return Boolean(payload.sourceUrl);
   }
-  return manifests.some((source) => Boolean(source.storageKey));
+
+  const checks = manifests
+    .filter((source) => Boolean(source.storageKey))
+    .map(async (source) => {
+      if (!source.storageKey) return false;
+      return fileExistsServer("attachments", source.storageKey, { useAdmin: true });
+    });
+
+  if (checks.length === 0) {
+    return Boolean(payload.sourceUrl);
+  }
+
+  const results = await Promise.all(checks);
+  return results.every(Boolean);
 }
 
 function getOutputManifests(payload: PdfStudioConversionPayload): PdfStudioConversionOutputManifest[] {
@@ -434,8 +448,8 @@ export async function getPdfStudioConversionJob(jobId: string, orgId: string) {
     canRetry:
       record.status === "dead_letter" &&
       payload.failureRetryable === true &&
-      hasAvailableSources(payload),
-    sourceAvailable: hasAvailableSources(payload),
+      await checkSourcesAvailable(payload),
+    sourceAvailable: await checkSourcesAvailable(payload),
     nextRetryAt: record.nextRetryAt?.toISOString(),
   } satisfies PdfStudioConversionJobResult;
 }
@@ -551,6 +565,14 @@ export async function markPdfStudioConversionComplete(params: { jobId: string })
   const payload = getPayload(job);
   const outputs = getOutputManifests(payload);
   const sources = getSourceManifests(payload);
+  const totalItems = getTotalItems(payload);
+
+  if (outputs.length !== totalItems) {
+    throw new Error(
+      `Cannot complete conversion job ${params.jobId}: expected ${totalItems} outputs but found ${outputs.length}.`,
+    );
+  }
+
   const completedAt = new Date();
   const orgPlan = await getOrgPlan(job.orgId);
   const resultRetentionHours = getPdfStudioResultRetentionHours(orgPlan.planId);
@@ -689,7 +711,7 @@ export async function retryPdfStudioConversionJob(jobId: string, orgId: string) 
     throw new Error("This PDF Studio job cannot be retried automatically.");
   }
 
-  if (!hasAvailableSources(payload)) {
+  if (!(await checkSourcesAvailable(payload))) {
     throw new Error("The original conversion inputs are no longer available for retry.");
   }
 
@@ -726,14 +748,15 @@ export async function listPdfStudioConversionHistory(params: {
     take: Math.max(take * 3, 20),
   });
 
-  return rows
-    .map((row) => {
+  const entries = await Promise.all(
+    rows.map(async (row) => {
       const payload = getPayload(row);
       const outputs = getOutputManifests(payload);
       const totalItems = getTotalItems(payload);
       const resultExpired =
         payload.resultExpiresAt != null &&
         new Date(payload.resultExpiresAt).getTime() <= Date.now();
+      const sourceAvailable = await checkSourcesAvailable(payload);
 
       return {
         jobId: row.id,
@@ -757,13 +780,16 @@ export async function listPdfStudioConversionHistory(params: {
         canRetry:
           row.status === "dead_letter" &&
           payload.failureRetryable === true &&
-          hasAvailableSources(payload),
-        sourceAvailable: hasAvailableSources(payload),
+          sourceAvailable,
+        sourceAvailable,
         bundleAvailable:
           row.status === "completed" && outputs.length > 1 && !resultExpired,
         nextRetryAt: row.nextRetryAt?.toISOString(),
       } satisfies PdfStudioConversionHistoryEntry;
-    })
+    }),
+  );
+
+  return entries
     .filter((entry) => (params.toolId ? entry.toolId === params.toolId : true))
     .slice(0, take);
 }
