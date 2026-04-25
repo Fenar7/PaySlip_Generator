@@ -1,5 +1,7 @@
 import Link from "next/link";
 import type { PdfStudioExecutionMode } from "@/features/docs/pdf-studio/types";
+import type { PdfStudioFailureReason } from "@/features/docs/pdf-studio/lib/analytics";
+import { getPdfStudioBrowserFailureRecoveryHint } from "@/features/docs/pdf-studio/lib/support";
 import {
   PDF_STUDIO_JOB_SUPPORT_GUIDE,
   PDF_STUDIO_SUPPORT_GUIDE,
@@ -32,12 +34,23 @@ function buildSupportNoticeCopy(
     : "Public PDF Studio pages use the suite support guide for browser-first recovery. Worker-backed conversions still require the signed-in workspace for job IDs, failure codes, and readiness diagnostics.";
 }
 
+function shouldShowWorkerGuide(executionMode?: PdfStudioExecutionMode) {
+  if (executionMode === "browser") return false;
+  return true;
+}
+
 export function PdfStudioSupportNotice(props?: {
   surface?: "workspace" | "public";
   executionMode?: PdfStudioExecutionMode;
+  failureReason?: PdfStudioFailureReason;
 }) {
   const surface = props?.surface ?? "workspace";
   const copy = buildSupportNoticeCopy(surface, props?.executionMode);
+  const showWorkerGuide = shouldShowWorkerGuide(props?.executionMode);
+  const recoveryHint =
+    props?.failureReason && props?.executionMode === "browser"
+      ? getPdfStudioBrowserFailureRecoveryHint(props.failureReason)
+      : null;
 
   return (
     <section className="rounded-2xl border border-blue-200 bg-blue-50 p-4">
@@ -45,6 +58,9 @@ export function PdfStudioSupportNotice(props?: {
         Support &amp; recovery
       </p>
       <p className="mt-2 text-sm text-blue-900">{copy}</p>
+      {recoveryHint ? (
+        <p className="mt-2 text-sm font-medium text-blue-800">{recoveryHint}</p>
+      ) : null}
       <div className="mt-3 flex flex-wrap gap-3 text-xs font-medium">
         <Link href={PDF_STUDIO_SUPPORT_GUIDE} className="text-blue-700 hover:underline">
           Suite support guide
@@ -57,12 +73,14 @@ export function PdfStudioSupportNotice(props?: {
         >
           {surface === "workspace" ? "Readiness & diagnostics" : "Open workspace"}
         </Link>
-        <Link
-          href={PDF_STUDIO_JOB_SUPPORT_GUIDE}
-          className="text-blue-700 hover:underline"
-        >
-          Worker job guide
-        </Link>
+        {showWorkerGuide ? (
+          <Link
+            href={PDF_STUDIO_JOB_SUPPORT_GUIDE}
+            className="text-blue-700 hover:underline"
+          >
+            Worker job guide
+          </Link>
+        ) : null}
       </div>
     </section>
   );
