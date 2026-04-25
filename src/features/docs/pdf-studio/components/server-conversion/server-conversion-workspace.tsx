@@ -18,6 +18,7 @@ import {
   getPdfStudioWorkspaceMinimumPlan,
 } from "@/features/docs/pdf-studio/lib/plan-gates";
 import {
+  derivePdfStudioRecoveryState,
   getPdfStudioFailureHelpHref,
   getPdfStudioFailureLabel,
   getPdfStudioFailureRecoveryHint,
@@ -92,38 +93,6 @@ function formatJobStatus(status: PdfStudioConversionJobStatus) {
     case "dead_letter":
       return "Failed";
   }
-}
-
-function getHistoryRecoveryState(entry: ConversionHistoryEntry) {
-  if (entry.status === "retry_pending") {
-    return { label: "Automatic retry queued", tone: "warning" as const };
-  }
-  if (entry.status === "dead_letter") {
-    if (entry.canRetry) {
-      return { label: "Failed — manual retry available", tone: "error" as const };
-    }
-    if (!entry.sourceAvailable) {
-      return { label: "Failed — source repair required", tone: "error" as const };
-    }
-    return { label: "Failed — terminal error", tone: "error" as const };
-  }
-  return null;
-}
-
-function getJobRecoveryState(job: ConversionStatusResponse) {
-  if (job.status === "retry_pending") {
-    return { label: "Automatic retry queued", tone: "warning" as const };
-  }
-  if (job.status === "dead_letter") {
-    if (job.canRetry) {
-      return { label: "Failed — manual retry available", tone: "error" as const };
-    }
-    if (!job.sourceAvailable) {
-      return { label: "Failed — source repair required", tone: "error" as const };
-    }
-    return { label: "Failed — terminal error", tone: "error" as const };
-  }
-  return null;
 }
 
 export function ServerConversionWorkspace(props: {
@@ -495,7 +464,11 @@ export function ServerConversionWorkspace(props: {
               </div>
 
               {(() => {
-                const recovery = getJobRecoveryState(job);
+                const recovery = derivePdfStudioRecoveryState({
+                  status: job.status,
+                  canRetry: job.canRetry ?? false,
+                  sourceAvailable: job.sourceAvailable ?? false,
+                });
                 if (!recovery) return null;
                 return (
                   <p className={`mt-3 text-sm ${recovery.tone === "warning" ? "text-[#7a5d00]" : "text-red-700"}`}>
@@ -633,7 +606,11 @@ export function ServerConversionWorkspace(props: {
                   </div>
 
                   {(() => {
-                    const recovery = getHistoryRecoveryState(entry);
+                    const recovery = derivePdfStudioRecoveryState({
+                      status: entry.status,
+                      canRetry: entry.canRetry,
+                      sourceAvailable: entry.sourceAvailable,
+                    });
                     if (!recovery) return null;
                     return (
                       <p className={`mt-2 text-xs ${recovery.tone === "warning" ? "text-[#7a5d00]" : "text-red-700"}`}>
