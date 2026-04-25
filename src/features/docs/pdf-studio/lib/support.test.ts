@@ -4,6 +4,7 @@ import {
   buildPdfStudioSupportCoverageLanes,
   buildPdfStudioSupportDiagnostics,
   derivePdfStudioRecoveryState,
+  getPdfStudioBrowserFailureRecoveryHint,
   getPdfStudioFailureHelpHref,
   getPdfStudioFailureRecoveryHint,
 } from "@/features/docs/pdf-studio/lib/support";
@@ -201,5 +202,36 @@ describe("pdf studio support helpers", () => {
       helpHref: "/help/troubleshooting/pdf-studio-jobs",
     });
     expect(lanes[1].toolCount).toBeGreaterThan(0);
+  });
+
+  it("provides browser-first recovery hints that never mention job IDs", () => {
+    const hints = [
+      getPdfStudioBrowserFailureRecoveryHint("pdf-read-failed"),
+      getPdfStudioBrowserFailureRecoveryHint("processing-failed"),
+      getPdfStudioBrowserFailureRecoveryHint("file-too-large"),
+      getPdfStudioBrowserFailureRecoveryHint("password-protected"),
+      getPdfStudioBrowserFailureRecoveryHint("unknown"),
+    ];
+
+    for (const hint of hints) {
+      expect(hint).not.toMatch(/job id/i);
+      expect(hint).not.toMatch(/failure code/i);
+      expect(hint).not.toMatch(/worker/i);
+      expect(hint.length).toBeGreaterThan(10);
+    }
+  });
+
+  it("provides worker-backed recovery hints that reference job IDs or failure codes", () => {
+    const workerHints = [
+      getPdfStudioFailureRecoveryHint("storage_error"),
+      getPdfStudioFailureRecoveryHint("conversion_failed"),
+      getPdfStudioFailureRecoveryHint("rate_limited"),
+    ];
+
+    for (const hint of workerHints) {
+      expect(
+        hint.match(/job ID/i) || hint.match(/failure code/i) || hint.match(/retry/i),
+      ).toBeTruthy();
+    }
   });
 });

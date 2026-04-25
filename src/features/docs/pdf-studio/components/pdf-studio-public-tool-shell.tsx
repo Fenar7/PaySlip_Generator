@@ -19,7 +19,7 @@ import {
   isPdfStudioToolInteractiveForPublic,
   type PdfStudioToolDefinition,
 } from "@/features/docs/pdf-studio/lib/tool-registry";
-import { trackPdfStudioLifecycleEvent } from "@/features/docs/pdf-studio/lib/analytics";
+import { usePdfStudioAnalytics } from "@/features/docs/pdf-studio/lib/analytics";
 
 export function PdfStudioPublicToolShell({
   tool,
@@ -28,6 +28,7 @@ export function PdfStudioPublicToolShell({
   tool: PdfStudioToolDefinition;
   children: React.ReactNode;
 }) {
+  const analytics = usePdfStudioAnalytics(tool.id);
   const execution = getPdfStudioExecutionCopy(tool.executionMode);
   const interactive = isPdfStudioToolInteractiveForPublic(tool);
   const tier = getPdfStudioTierBadgeCopy(tool);
@@ -96,12 +97,9 @@ export function PdfStudioPublicToolShell({
               href="/pricing"
               className="inline-flex items-center justify-center rounded-full border border-[var(--border-strong)] bg-white px-4 py-2.5 text-sm font-medium text-[var(--foreground)] transition-colors hover:bg-[var(--surface-soft)]"
               onClick={() =>
-                trackPdfStudioLifecycleEvent("pdf_studio_upgrade_intent", {
-                  subject: tool.id,
-                  surface: "public",
-                  route: tool.publicPath,
+                analytics.trackUpgradeIntent({
                   destination: "/pricing",
-                  executionMode: tool.executionMode,
+                  source: "public-tool-shell",
                 })
               }
             >
@@ -134,7 +132,7 @@ export function PdfStudioPublicToolShell({
         />
       ) : null}
 
-      <PdfStudioSupportNotice surface="public" />
+      <PdfStudioSupportNotice surface="public" executionMode={tool.executionMode} />
 
       <PdfStudioCapabilityMatrix />
 

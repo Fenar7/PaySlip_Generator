@@ -2,6 +2,7 @@ import type { PlanId } from "@/lib/plans/config";
 import type { PdfStudioToolDefinition } from "@/features/docs/pdf-studio/lib/tool-registry";
 import type { PdfStudioConversionFailureCode } from "@/features/docs/pdf-studio/lib/conversion-errors";
 import type { PdfStudioConversionHistoryEntry } from "@/features/docs/pdf-studio/lib/conversion-jobs";
+import type { PdfStudioFailureReason } from "@/features/docs/pdf-studio/lib/analytics";
 import type { PdfStudioConversionJobStatus } from "@/features/docs/pdf-studio/types";
 import { PDF_STUDIO_CONVERSION_ACTIVE_JOB_LIMIT } from "@/features/docs/pdf-studio/lib/server-conversion-policy";
 import {
@@ -202,6 +203,66 @@ export function getPdfStudioFailureRecoveryHint(
     case "conversion_failed":
     default:
       return "Open the recovery guide, keep the job ID, and escalate with the failure code if the retry fails.";
+  }
+}
+
+export function getPdfStudioBrowserFailureRecoveryHint(
+  reason: PdfStudioFailureReason,
+): string {
+  switch (reason) {
+    case "no-files":
+      return "Select at least one file that matches the tool’s supported formats.";
+    case "too-many-files":
+      return "Reduce the number of files to stay within the tool limit, then try again.";
+    case "file-too-large":
+      return "Compress or split the file so it stays under the size limit, then retry.";
+    case "unsupported-file-type":
+      return "Convert the file to a supported format first, then reopen it in the tool.";
+    case "page-limit-exceeded":
+      return "Split the document into smaller parts that stay within the page limit.";
+    case "pdf-read-failed":
+      return "Check that the file is a valid PDF and try again. If it keeps failing, use the repair tool or re-export the source file.";
+    case "pdf-runtime-failed":
+      return "Try again with a smaller or simpler file. If the issue persists, check the suite support guide.";
+    case "processing-failed":
+      return "Reload the page and try again. Persistent failures should be reported via the suite support guide.";
+    case "render-failed":
+      return "Reduce document complexity and try again. If rendering keeps failing, check the support guide.";
+    case "validation-failed":
+      return "Check the file against the tool requirements and try again.";
+    case "password-protected":
+      return "Unlock the file first, then reopen it in the tool.";
+    case "password-required":
+      return "Enter the password to open the file, or unlock it first.";
+    case "password-mismatch":
+      return "The passwords do not match. Re-enter them carefully and try again.";
+    case "password-too-short":
+      return "Use a longer password that meets the minimum length requirement.";
+    case "incorrect-password":
+      return "The password is incorrect. Try again or unlock the file first.";
+    case "rate-limited":
+      return "Wait a moment, then retry. Rate limits reset automatically.";
+    case "payload-too-large":
+      return "Reduce the file size or number of pages, then try again.";
+    case "encryption-failed":
+      return "Check the password and permission settings, then try again.";
+    case "no-embedded-images":
+      return "The file does not contain extractable images. Try a different file.";
+    case "no-text-detected":
+      return "No text was detected. The file may be image-only; try OCR first.";
+    case "ocr-unavailable":
+      return "OCR is not available right now. Retry later or check your plan.";
+    case "confidence-low":
+      return "OCR completed but with low confidence. Review the output before using it.";
+    case "weak-detection":
+      return "Text detection was weak. Try a higher-resolution scan or better contrast.";
+    case "no-recoverable-pages":
+      return "No pages could be recovered. Try a different file or the repair tool.";
+    case "image-only-output":
+      return "The output is image-only. Use OCR if you need selectable text.";
+    case "unknown":
+    default:
+      return "Try again or check the suite support guide for troubleshooting steps.";
   }
 }
 
