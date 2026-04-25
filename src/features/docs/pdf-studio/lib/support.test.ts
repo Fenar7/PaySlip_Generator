@@ -3,6 +3,7 @@ import {
   buildPdfStudioReadinessChecklist,
   buildPdfStudioSupportCoverageLanes,
   buildPdfStudioSupportDiagnostics,
+  derivePdfStudioRecoveryState,
   getPdfStudioFailureHelpHref,
   getPdfStudioFailureRecoveryHint,
 } from "@/features/docs/pdf-studio/lib/support";
@@ -27,6 +28,7 @@ describe("pdf studio support helpers", () => {
           error: "The PDF is malformed.",
           failureCode: "malformed_pdf",
           canRetry: false,
+          sourceAvailable: true,
           bundleAvailable: false,
         },
         {
@@ -41,7 +43,8 @@ describe("pdf studio support helpers", () => {
           sourceLabel: "2 files",
           error: "Storage temporarily failed.",
           failureCode: "storage_error",
-          canRetry: true,
+          canRetry: false,
+          sourceAvailable: true,
           bundleAvailable: false,
         },
         {
@@ -55,6 +58,7 @@ describe("pdf studio support helpers", () => {
           failedItems: 0,
           sourceLabel: "print.html",
           canRetry: false,
+          sourceAvailable: true,
           bundleAvailable: false,
         },
       ] satisfies PdfStudioConversionHistoryEntry[],
@@ -75,7 +79,84 @@ describe("pdf studio support helpers", () => {
     expect(diagnostics.recentIssues[0]).toMatchObject({
       jobId: "job-1",
       toolTitle: "PDF to Word",
+      recoveryState: { kind: "terminal_error", label: "Failed — terminal error" },
     });
+    expect(diagnostics.recentIssues[1]).toMatchObject({
+      jobId: "job-2",
+      toolTitle: "Word to PDF",
+      recoveryState: { kind: "automatic_retry", label: "Automatic retry queued" },
+    });
+  });
+
+  it("maps recovery links and hints for failure codes", () => {
+    expect(getPdfStudioFailureHelpHref("storage_error")).toBe(
+      "/help/troubleshooting/pdf-studio-jobs#storage_error",
+    );
+    expect(getPdfStudioFailureRecoveryHint("storage_error")).toContain("Retry once");
+  });
+
+  it("derives recovery states aligned with workspace history", () => {
+    expect(
+      derivePdfStudioRecoveryState({
+        status: "retry_pending",
+        canRetry: false,
+        sourceAvailable: true,
+      }),
+    ).toMatchObject({
+      kind: "automatic_retry",
+      label: "Automatic retry queued",
+      tone: "warning",
+    });
+
+    expect(
+      derivePdfStudioRecoveryState({
+        status: "dead_letter",
+        canRetry: true,
+        sourceAvailable: true,
+      }),
+    ).toMatchObject({
+      kind: "manual_retry",
+      label: "Failed — manual retry available",
+      tone: "error",
+    });
+
+    expect(
+      derivePdfStudioRecoveryState({
+        status: "dead_letter",
+        canRetry: false,
+        sourceAvailable: false,
+      }),
+    ).toMatchObject({
+      kind: "source_repair",
+      label: "Failed — source repair required",
+      tone: "error",
+    });
+
+    expect(
+      derivePdfStudioRecoveryState({
+        status: "dead_letter",
+        canRetry: false,
+        sourceAvailable: true,
+      }),
+    ).toMatchObject({
+      kind: "terminal_error",
+      label: "Failed — terminal error",
+      tone: "error",
+    });
+
+    expect(
+      derivePdfStudioRecoveryState({
+        status: "completed",
+        canRetry: false,
+        sourceAvailable: true,
+      }),
+    ).toBeNull();
+  });
+
+  it("maps source_unavailable to source-repair guidance", () => {
+    expect(getPdfStudioFailureRecoveryHint("source_unavailable")).toContain(
+      "Re-upload the file",
+    );
   });
 
   it("builds readiness checks from feature, plan, and queue state", () => {
@@ -104,13 +185,6 @@ describe("pdf studio support helpers", () => {
       status: "pass",
       actionHref: "/help/troubleshooting/pdf-studio-support",
     });
-  });
-
-  it("maps recovery links and hints for failure codes", () => {
-    expect(getPdfStudioFailureHelpHref("storage_error")).toBe(
-      "/help/troubleshooting/pdf-studio-jobs#storage_error",
-    );
-    expect(getPdfStudioFailureRecoveryHint("storage_error")).toContain("Retry once");
   });
 
   it("builds honest support coverage lanes for browser and worker tools", () => {

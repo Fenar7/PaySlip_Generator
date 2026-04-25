@@ -2,6 +2,7 @@ import type { PlanId } from "@/lib/plans/config";
 import type { PdfStudioToolDefinition } from "@/features/docs/pdf-studio/lib/tool-registry";
 import type { PdfStudioConversionFailureCode } from "@/features/docs/pdf-studio/lib/conversion-errors";
 import type { PdfStudioConversionHistoryEntry } from "@/features/docs/pdf-studio/lib/conversion-jobs";
+import type { PdfStudioConversionJobStatus } from "@/features/docs/pdf-studio/types";
 import { PDF_STUDIO_CONVERSION_ACTIVE_JOB_LIMIT } from "@/features/docs/pdf-studio/lib/server-conversion-policy";
 import {
   getPdfStudioHistoryEntryLimit,
@@ -17,6 +18,32 @@ import {
 } from "@/features/docs/pdf-studio/lib/support-links";
 
 type PdfStudioReadinessStatus = "pass" | "warn" | "fail";
+
+export type PdfStudioConversionRecoveryState = {
+  kind: "automatic_retry" | "manual_retry" | "source_repair" | "terminal_error";
+  label: string;
+  tone: "warning" | "error";
+};
+
+export function derivePdfStudioRecoveryState(params: {
+  status: PdfStudioConversionJobStatus;
+  canRetry: boolean;
+  sourceAvailable: boolean;
+}): PdfStudioConversionRecoveryState | null {
+  if (params.status === "retry_pending") {
+    return { kind: "automatic_retry", label: "Automatic retry queued", tone: "warning" };
+  }
+  if (params.status === "dead_letter") {
+    if (params.canRetry) {
+      return { kind: "manual_retry", label: "Failed — manual retry available", tone: "error" };
+    }
+    if (!params.sourceAvailable) {
+      return { kind: "source_repair", label: "Failed — source repair required", tone: "error" };
+    }
+    return { kind: "terminal_error", label: "Failed — terminal error", tone: "error" };
+  }
+  return null;
+}
 
 export type PdfStudioReadinessItem = {
   id: string;
@@ -47,6 +74,7 @@ export type PdfStudioSupportDiagnostics = {
       toolTitle: string;
       helpHref: string;
       recoveryHint: string;
+      recoveryState: PdfStudioConversionRecoveryState | null;
     }
   >;
 };
@@ -135,6 +163,8 @@ export function getPdfStudioFailureLabel(
       return "HTML render timeout";
     case "storage_error":
       return "Storage error";
+    case "source_unavailable":
+      return "Source unavailable";
     case "conversion_failed":
       return "Conversion failed";
     default:
@@ -167,6 +197,8 @@ export function getPdfStudioFailureRecoveryHint(
       return "Reduce page complexity or split the input before retrying.";
     case "storage_error":
       return "Retry once. If it fails again, escalate with the job ID and failure code.";
+    case "source_unavailable":
+      return "The original source file is no longer available. Re-upload the file and start a new conversion.";
     case "conversion_failed":
     default:
       return "Open the recovery guide, keep the job ID, and escalate with the failure code if the retry fails.";
@@ -234,6 +266,11 @@ export function buildPdfStudioSupportDiagnostics(params: {
         toolTitle: getPdfStudioTool(entry.toolId).title,
         helpHref: getPdfStudioFailureHelpHref(entry.failureCode),
         recoveryHint: getPdfStudioFailureRecoveryHint(entry.failureCode),
+        recoveryState: derivePdfStudioRecoveryState({
+          status: entry.status,
+          canRetry: entry.canRetry,
+          sourceAvailable: entry.sourceAvailable,
+        }),
       })),
   } satisfies PdfStudioSupportDiagnostics;
 }

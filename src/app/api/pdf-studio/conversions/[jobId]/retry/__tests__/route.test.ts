@@ -74,6 +74,7 @@ describe("POST /api/pdf-studio/conversions/[jobId]/retry", () => {
         targetFormat: "docx",
       },
       canRetry: false,
+      sourceAvailable: true,
     } as never);
 
     const response = await POST(
@@ -98,5 +99,33 @@ describe("POST /api/pdf-studio/conversions/[jobId]/retry", () => {
         },
       },
     );
+  });
+
+  it("returns 409 when the job is not retryable", async () => {
+    vi.mocked(retryPdfStudioConversionJob).mockRejectedValue(
+      new Error("This PDF Studio job cannot be retried automatically."),
+    );
+
+    const response = await POST(new Request("http://localhost") as NextRequest, {
+      params: Promise.resolve({ jobId: "job-1" }),
+    });
+    const body = await response.json();
+
+    expect(response.status).toBe(409);
+    expect(body.error).toBe("This PDF Studio job cannot be retried automatically.");
+  });
+
+  it("returns 409 when the original source is no longer available", async () => {
+    vi.mocked(retryPdfStudioConversionJob).mockRejectedValue(
+      new Error("The original conversion inputs are no longer available for retry."),
+    );
+
+    const response = await POST(new Request("http://localhost") as NextRequest, {
+      params: Promise.resolve({ jobId: "job-1" }),
+    });
+    const body = await response.json();
+
+    expect(response.status).toBe(409);
+    expect(body.error).toBe("The original conversion inputs are no longer available for retry.");
   });
 });
