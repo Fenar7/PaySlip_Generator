@@ -234,4 +234,57 @@ describe("pdf studio support helpers", () => {
       ).toBeTruthy();
     }
   });
+
+  it("reports exact lane counts matching the live registry", () => {
+    const lanes = buildPdfStudioSupportCoverageLanes();
+
+    expect(lanes[0].toolCount).toBe(30);
+    expect(lanes[1].toolCount).toBe(7);
+    expect(lanes[0].toolCount + lanes[1].toolCount).toBe(37);
+
+    expect(lanes[0].examples.length).toBeGreaterThan(0);
+    expect(lanes[1].examples.length).toBeGreaterThan(0);
+
+    // Browser-first lane should only reference browser tools
+    expect(lanes[0].id).toBe("browser-first");
+    expect(lanes[0].helpHref).toBe("/help/troubleshooting/pdf-studio-support");
+
+    // Worker-backed lane should only reference non-browser tools
+    expect(lanes[1].id).toBe("worker-backed");
+    expect(lanes[1].helpHref).toBe("/help/troubleshooting/pdf-studio-jobs");
+  });
+
+  it("never classifies a tool into both lanes or neither lane", () => {
+    const lanes = buildPdfStudioSupportCoverageLanes();
+    const browserLane = lanes.find((l) => l.id === "browser-first")!;
+    const workerLane = lanes.find((l) => l.id === "worker-backed")!;
+
+    expect(browserLane.toolCount + workerLane.toolCount).toBe(37);
+  });
+
+  it("returns null recovery state for completed jobs", () => {
+    expect(
+      derivePdfStudioRecoveryState({
+        status: "completed",
+        canRetry: false,
+        sourceAvailable: true,
+      }),
+    ).toBeNull();
+
+    expect(
+      derivePdfStudioRecoveryState({
+        status: "pending",
+        canRetry: false,
+        sourceAvailable: true,
+      }),
+    ).toBeNull();
+
+    expect(
+      derivePdfStudioRecoveryState({
+        status: "processing",
+        canRetry: false,
+        sourceAvailable: true,
+      }),
+    ).toBeNull();
+  });
 });

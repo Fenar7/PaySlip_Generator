@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import { render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { PdfStudioHub } from "./pdf-studio-hub";
+import { listPdfStudioTools } from "@/features/docs/pdf-studio/lib/tool-registry";
 
 const { useActiveOrg, usePlan } = vi.hoisted(() => ({
   useActiveOrg: vi.fn(),
@@ -74,5 +75,41 @@ describe("PdfStudioHub", () => {
     expect(useActiveOrg).toHaveBeenCalledTimes(1);
     expect(usePlan).toHaveBeenCalledWith("org-123");
     expect(screen.getByTestId("analytics-panel")).toHaveTextContent("org-123");
+  });
+
+  it("renders every live tool on the public hub", () => {
+    render(<PdfStudioHub surface="public" />);
+
+    const tools = listPdfStudioTools("public");
+    for (const tool of tools) {
+      expect(
+        screen.getByText(tool.title),
+        `Public hub should render tool card for ${tool.id}`,
+      ).toBeInTheDocument();
+    }
+  });
+
+  it("renders every live tool on the workspace hub", () => {
+    render(<PdfStudioHub surface="workspace" />);
+
+    const tools = listPdfStudioTools("workspace");
+    for (const tool of tools) {
+      expect(
+        screen.getByText(tool.title),
+        `Workspace hub should render tool card for ${tool.id}`,
+      ).toBeInTheDocument();
+    }
+  });
+
+  it("renders the correct number of category sections on both surfaces", () => {
+    const { rerender } = render(<PdfStudioHub surface="public" />);
+    expect(screen.getAllByText(/pages? organization/i).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/edit & enhance/i).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/convert & export/i).length).toBeGreaterThan(0);
+
+    rerender(<PdfStudioHub surface="workspace" />);
+    expect(screen.getAllByText(/pages? organization/i).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/edit & enhance/i).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/convert & export/i).length).toBeGreaterThan(0);
   });
 });
