@@ -8,6 +8,7 @@ import {
   listPdfStudioTools,
   listPdfStudioToolsByCategory,
 } from "@/features/docs/pdf-studio/lib/tool-registry";
+import { TOOL_COMPONENTS } from "@/features/docs/pdf-studio/lib/tool-components";
 
 describe("pdf studio tool registry", () => {
   it("surfaces the previously hidden live tools", () => {
@@ -225,5 +226,89 @@ describe("pdf studio tool registry", () => {
     expect(isPdfStudioToolInteractiveForPublic(getPdfStudioTool("merge"))).toBe(true);
     expect(isPdfStudioToolInteractiveForPublic(getPdfStudioTool("protect"))).toBe(false);
     expect(isPdfStudioToolInteractiveForPublic(getPdfStudioTool("repair"))).toBe(false);
+  });
+
+  it("exposes every tool on both public and workspace surfaces with no hidden entries", () => {
+    const allTools = listPdfStudioTools();
+    const publicTools = listPdfStudioTools("public");
+    const workspaceTools = listPdfStudioTools("workspace");
+
+    expect(allTools).toHaveLength(37);
+    expect(publicTools).toHaveLength(37);
+    expect(workspaceTools).toHaveLength(37);
+
+    for (const tool of allTools) {
+      expect(publicTools.some((t) => t.id === tool.id)).toBe(true);
+      expect(workspaceTools.some((t) => t.id === tool.id)).toBe(true);
+      expect(tool.workspacePath).toMatch(/^\/app\/docs\/pdf-studio\/[a-z0-9-]+$/);
+      expect(tool.publicPath).toMatch(/^\/pdf-studio\/[a-z0-9-]+$/);
+    }
+  });
+
+  it("maps every registry tool to a workspace component via TOOL_COMPONENTS", () => {
+    const allTools = listPdfStudioTools();
+
+    for (const tool of allTools) {
+      expect(TOOL_COMPONENTS[tool.id]).toBeDefined();
+      expect(typeof TOOL_COMPONENTS[tool.id]).toBe("function");
+    }
+  });
+
+  it("keeps execution mode counts aligned with support lane expectations", () => {
+    const allTools = listPdfStudioTools();
+    const browserTools = allTools.filter((t) => t.executionMode === "browser");
+    const processingTools = allTools.filter((t) => t.executionMode === "processing");
+    const hybridTools = allTools.filter((t) => t.executionMode === "hybrid");
+
+    expect(browserTools).toHaveLength(30);
+    expect(processingTools).toHaveLength(5);
+    expect(hybridTools).toHaveLength(2);
+    expect(browserTools.length + processingTools.length + hybridTools.length).toBe(37);
+  });
+
+  it("resolves every tool by its public path slug", () => {
+    const allTools = listPdfStudioTools();
+
+    for (const tool of allTools) {
+      const slug = tool.publicPath.split("/").pop();
+      expect(slug).toBeDefined();
+      const bySlug = getPdfStudioToolBySlug(slug!);
+      expect(bySlug).not.toBeNull();
+      expect(bySlug!.id).toBe(tool.id);
+    }
+  });
+
+  it("marks only free-tier tools as publicly interactive", () => {
+    const allTools = listPdfStudioTools();
+    const interactivePublic = allTools.filter((t) => isPdfStudioToolInteractiveForPublic(t));
+    const nonInteractivePublic = allTools.filter((t) => !isPdfStudioToolInteractiveForPublic(t));
+
+    expect(interactivePublic).toHaveLength(17);
+    expect(nonInteractivePublic).toHaveLength(20);
+
+    for (const tool of interactivePublic) {
+      expect(getPdfStudioTierBadgeCopy(tool).tier).toBe("free");
+    }
+
+    for (const tool of nonInteractivePublic) {
+      expect(["workspace", "pro"]).toContain(getPdfStudioTierBadgeCopy(tool).tier);
+    }
+  });
+
+  it("never presents a tool as available on one surface but missing on the other", () => {
+    const publicCatalog = listPdfStudioToolsByCategory("public");
+    const workspaceCatalog = listPdfStudioToolsByCategory("workspace");
+
+    expect(publicCatalog.length).toBe(workspaceCatalog.length);
+
+    for (let i = 0; i < publicCatalog.length; i++) {
+      expect(publicCatalog[i].tools.length).toBe(workspaceCatalog[i].tools.length);
+      for (const tool of publicCatalog[i].tools) {
+        expect(
+          workspaceCatalog[i].tools.some((t) => t.id === tool.id),
+          `${tool.id} is in public catalog but missing from workspace catalog`,
+        ).toBe(true);
+      }
+    }
   });
 });

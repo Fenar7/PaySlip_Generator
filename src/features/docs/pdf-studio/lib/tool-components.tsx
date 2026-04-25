@@ -38,7 +38,7 @@ import { WatermarkWorkspace } from "@/features/docs/pdf-studio/components/waterm
 import { WordToPdfWorkspace } from "@/features/docs/pdf-studio/components/word-to-pdf/word-to-pdf-workspace";
 import type { PdfStudioToolId } from "@/features/docs/pdf-studio/types";
 
-const TOOL_COMPONENTS: Record<PdfStudioToolId, ComponentType> = {
+export const TOOL_COMPONENTS: Record<PdfStudioToolId, ComponentType> = {
   create: PdfStudioWorkspace,
   "jpg-to-pdf": JpgToPdfWorkspace,
   merge: MergeWorkspace,

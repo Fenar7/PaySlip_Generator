@@ -70,6 +70,8 @@ export function getPdfStudioWorkspaceMinimumPlan(toolId: PdfStudioToolId): PlanI
 }
 
 export function isPdfStudioToolDiscoverableOnPublicSurface(toolId: PdfStudioToolId) {
+  // Every live PDF Studio tool has a public discovery/landing page.
+  // Interactivity on the public surface is gated separately by isPdfStudioToolInteractiveOnPublicSurface.
   return toolId.length > 0;
 }
 
