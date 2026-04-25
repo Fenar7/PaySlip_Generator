@@ -1,3 +1,7 @@
+> **SUPERSEDED** — This document is the historical Phase 1 PRD. PDF Studio has evolved into a 37-tool suite with workspace lanes, plan gates, worker-backed conversions, and auth/org context. Do not use for execution.  
+>  
+> **Current authority:** `docs/PDF studio/pdf-studio-phases-36-38-prd.md` and `docs/PDF studio/pdf-studio-engineering-handoff.md`
+
 # PDF Studio Phase 1 Product Requirements Document (PRD)
 
 **Feature Module:** PDF Studio  
