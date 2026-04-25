@@ -114,7 +114,7 @@ describe("pdf studio conversion job processor", () => {
     expect(markPdfStudioConversionFailed).toHaveBeenCalledWith({
       jobId: "job-1",
       code: "source_unavailable",
-      message: "The original conversion sources are no longer available.",
+      message: "The original conversion sources are no longer available for report.pdf.",
       retryable: false,
     });
   });
@@ -155,7 +155,67 @@ describe("pdf studio conversion job processor", () => {
     expect(markPdfStudioConversionFailed).toHaveBeenCalledWith({
       jobId: "job-batch",
       code: "source_unavailable",
-      message: "The original conversion sources are no longer available.",
+      message: "The original conversion sources are no longer available for alpha.pdf, beta.pdf.",
+      retryable: false,
+    });
+  });
+
+  it("fails a batch job when some pending sources are missing rather than silently skipping them", async () => {
+    vi.mocked(claimPdfStudioConversionJob).mockResolvedValue(true);
+    vi.mocked(db.jobLog.findUniqueOrThrow).mockResolvedValue({
+      id: "job-batch",
+      payload: {
+        toolId: "pdf-to-word",
+        targetFormat: "docx",
+        totalItems: 3,
+        sources: [
+          {
+            index: 0,
+            storageKey: "org/job-batch/sources/01.pdf",
+            fileName: "alpha.pdf",
+            mimeType: "application/pdf",
+            sizeBytes: 100,
+          },
+          {
+            index: 1,
+            storageKey: "org/job-batch/sources/02.pdf",
+            fileName: "beta.pdf",
+            mimeType: "application/pdf",
+            sizeBytes: 120,
+          },
+          {
+            index: 2,
+            storageKey: undefined,
+            fileName: "gamma.pdf",
+            mimeType: "application/pdf",
+            sizeBytes: 130,
+          },
+        ],
+        outputs: [
+          {
+            index: 0,
+            storageKey: "org/job-batch/outputs/01-alpha.docx",
+            sourceFileName: "alpha.pdf",
+            fileName: "alpha-batch-01.docx",
+            mimeType:
+              "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+          },
+        ],
+      },
+      retryCount: 0,
+      maxRetries: 3,
+    } as never);
+
+    const result = await processPdfStudioConversionJob("job-batch");
+
+    expect(result).toEqual({ processed: true, success: false });
+    expect(runServerConversion).not.toHaveBeenCalled();
+    expect(appendPdfStudioConversionOutput).not.toHaveBeenCalled();
+    expect(markPdfStudioConversionComplete).not.toHaveBeenCalled();
+    expect(markPdfStudioConversionFailed).toHaveBeenCalledWith({
+      jobId: "job-batch",
+      code: "source_unavailable",
+      message: "The original conversion sources are no longer available for gamma.pdf.",
       retryable: false,
     });
   });

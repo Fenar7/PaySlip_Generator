@@ -64,16 +64,16 @@ export async function processPdfStudioConversionJob(jobId: string, orgId?: strin
         mimeType: result.mimeType,
       });
     } else {
-      const availableSources = sources.filter((source) => Boolean(source.storageKey));
-      if (availableSources.length === 0) {
+      const missingSources = sources.filter((source) => !source.storageKey);
+      if (missingSources.length > 0) {
         throw new PdfStudioConversionError({
           code: "source_unavailable",
-          message: "The original conversion sources are no longer available.",
+          message: `The original conversion sources are no longer available for ${missingSources.map((s) => s.fileName).join(", ")}.`,
           retryable: false,
         });
       }
 
-      for (const source of availableSources) {
+      for (const source of sources) {
         const result = await runServerConversion({
           toolId: payload.toolId,
           sourceStorageKey: source.storageKey,
