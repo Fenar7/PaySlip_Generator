@@ -1,3 +1,7 @@
+> **SUPERSEDED** — This document describes historical Phase 1 and Phase 2 planning. PDF Studio has evolved far beyond the scope described here (37 tools, workspace lanes, plan gates, worker-backed conversions, auth/org context). Do not use for execution.  
+>  
+> **Current authority:** `docs/PDF studio/pdf-studio-phases-36-38-prd.md` and `docs/PDF studio/pdf-studio-engineering-handoff.md`
+
 # PDF Studio Phase 2 — Implementation Plan
 
 > **Status:** Phase 1 Complete | **Branch:** `feature/pdf-studio-phase1` | **PR:** #28

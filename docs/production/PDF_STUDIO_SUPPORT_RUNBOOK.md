@@ -1,24 +1,47 @@
 # PDF Studio Support Runbook
 
-Use this runbook for PDF Studio issues in the Phase 34 launch stack. Worker-backed conversions have persistent job diagnostics; browser-first utilities rely on telemetry plus the suite recovery guide.
+**Version:** Phase 38 in progress  
+**Date:** 2026-04-25  
+**Scope:** PDF Studio 37-tool suite  
 
-## Support lanes
+Use this runbook for PDF Studio support issues. Worker-backed conversions have persistent job diagnostics; browser-first utilities rely on telemetry plus the suite recovery guide.
 
-### Worker-backed conversions
+---
 
-- Office conversions
-- HTML to PDF
-- batch jobs
-- retry/dead-letter handling
-- download retention and bundle expiry questions
+## 1. Support Lanes
 
-### Browser-first utilities
+### Worker-backed conversions (7 tools)
 
-- merge / split / organize / rotate / repair / OCR and other in-browser tools
-- upload/runtime/export failures that do not create server jobs
-- recovery questions that depend on route, browser, and failure stage rather than job IDs
+Tools that enqueue tracked server jobs:
 
-## Minimum support payload
+- `pdf-to-word` — PDF to DOCX
+- `pdf-to-excel` — PDF to XLSX
+- `pdf-to-ppt` — PDF to PPTX
+- `word-to-pdf` — DOCX to PDF
+- `html-to-pdf` — HTML to PDF
+- `protect` — AES-256 password encryption (hybrid)
+- `unlock` — Password removal / lossy decryption (hybrid)
+
+Support scope:
+- Job IDs, failure codes, queue depth, retry state
+- Download retention and bundle expiry
+- Batch job questions
+
+### Browser-first utilities (30 tools)
+
+All remaining tools run entirely in the browser:
+
+- **Page Organization:** create, jpg-to-pdf, merge, alternate-mix, split, extract-pages, delete-pages, organize, rotate, resize-pages
+- **Edit & Enhance:** fill-sign, editor, create-forms, page-numbers, bates, metadata, rename, watermark, grayscale, header-footer, remove-annotations, bookmarks, flatten, repair, deskew
+- **Convert & Export:** ocr, pdf-to-image, extract-images, pdf-to-text, n-up
+
+Support scope:
+- Upload, runtime, render, and export failures
+- Recovery depends on route, browser, and failure stage (no job IDs)
+
+---
+
+## 2. Minimum Support Payload
 
 ### Worker-backed conversions
 
@@ -27,7 +50,7 @@ Collect all of the following before escalating engineering work:
 1. Job ID
 2. Tool name
 3. Current status (`pending`, `processing`, `retry_pending`, `completed`, `dead_letter`)
-4. Failure code
+4. Failure code (e.g., `malformed_pdf`, `storage_error`, `rate_limited`, `conversion_failed`)
 5. Failure message
 6. Whether **Retry** is available
 7. Active plan and retention window shown in the workspace
@@ -36,57 +59,99 @@ Collect all of the following before escalating engineering work:
 
 Collect all of the following before escalating engineering work:
 
-1. Tool route
+1. Tool route (e.g., `/pdf-studio/merge`)
 2. Tool name
 3. Failure stage (`upload`, `process`, `render`, or `generate`)
 4. Failure reason shown in recovery guidance when available
 5. Browser + OS
 6. Whether refresh and re-upload changed the result
 
-## First-line support workflow
+---
 
-1. Open **PDF Studio → Readiness & Diagnostics**
+## 3. First-Line Support Workflow
+
+1. Open **PDF Studio → Readiness & Diagnostics** (`/app/docs/pdf-studio/readiness`)
 2. Decide which support lane applies:
-   - worker-backed conversion -> use the readiness page and job guide
-   - browser-first utility -> use the suite support guide and telemetry-backed recovery path
+   - Worker-backed conversion → use the readiness page and job guide (`/help/troubleshooting/pdf-studio-jobs`)
+   - Browser-first utility → use the suite support guide (`/help/troubleshooting/pdf-studio-support`) and telemetry-backed recovery path
 3. For worker-backed conversions, find the job in **Recent failures and retries**
-4. Confirm whether the job is still retrying automatically
+4. Confirm whether the job is still retrying automatically (`retry_pending`)
 5. Open the linked troubleshooting guide for the failure code or browser failure reason
 6. Ask the user to retry only if the guide says the source input is still valid
 
-## Escalate immediately when
+---
 
-- the same job hits `storage_error` twice
+## 4. Escalate Immediately When
+
+- The same job hits `storage_error` twice
 - `conversion_failed` repeats after a retry
-- a user reports missing outputs but the job is `completed`
-- the job is no longer retryable and the failure code is unclear
-- a browser-first runtime/export failure repeats after refresh and re-upload
+- A user reports missing outputs but the job is `completed`
+- The job is no longer retryable and the failure code is unclear
+- A browser-first runtime/export failure repeats after refresh and re-upload
+- Plan-gate behavior appears incorrect (e.g., Pro tool accessible on Starter)
 
-## Engineering handoff template
+---
+
+## 5. Engineering Handoff Template
 
 Include:
 
-- job ID
-- org ID
-- user ID (if available)
-- tool ID
-- target format
-- failure code
-- failure message
-- retry count
-- whether the source was single-file or batch
+- Job ID (worker-backed only)
+- Org ID
+- User ID (if available)
+- Tool ID
+- Target format (conversions only)
+- Failure code
+- Failure message
+- Retry count
+- Whether the source was single-file or batch
 
 For browser-first escalations, replace job-specific fields with:
 
-- tool route
-- failure stage
-- failure reason
-- browser + OS
-- whether refresh/re-upload changed the outcome
+- Tool route
+- Failure stage
+- Failure reason
+- Browser + OS
+- Whether refresh/re-upload changed the outcome
 
-## Recovery notes
+---
 
-- `retry_pending` means the worker will retry automatically; do not manually restart it unless it becomes `dead_letter`
-- `dead_letter` means the job exhausted retries or hit a permanent failure
-- expired downloads are expected after the plan retention window; rerun the job to generate new outputs
-- browser-first tools do not expose persistent job IDs; support depends on sanitized telemetry plus the suite guide at `/help/troubleshooting/pdf-studio-support`
+## 6. Recovery Notes
+
+- `retry_pending` — the worker will retry automatically; do not manually restart unless it becomes `dead_letter`
+- `dead_letter` — the job exhausted retries or hit a permanent failure
+- Expired downloads are expected after the plan retention window; rerun the job to generate new outputs
+- Browser-first tools do not expose persistent job IDs; support depends on sanitized telemetry plus the suite guide
+- Retention windows: Free/Starter = 24h, Pro = 72h (3 days), Enterprise = 168h (7 days)
+- History limits: Starter = 10 entries, Pro = 25, Enterprise = 50, Free = 0
+
+---
+
+## 7. Key Routes and References
+
+| Route | Purpose |
+|---|---|
+| `/app/docs/pdf-studio/readiness` | Diagnostics dashboard |
+| `/help/troubleshooting/pdf-studio-support` | Suite support guide (browser-first) |
+| `/help/troubleshooting/pdf-studio-jobs` | Worker job guide (processing-lane) |
+| `/pdf-studio` | Public hub (discovery) |
+| `/app/docs/pdf-studio` | Workspace hub (signed-in) |
+
+---
+
+## 8. Manual Verification of Referenced Routes
+
+Verified on `feature/pdf-studio-phase-38-sprint-38-2` by source inspection:
+
+| Path | Source location | Status |
+|---|---|---|
+| `/app/docs/pdf-studio/readiness` | `src/app/app/docs/pdf-studio/readiness/page.tsx` | ✅ Verified |
+| `/help/troubleshooting/pdf-studio-support` | `src/features/docs/pdf-studio/lib/support-links.ts` | ✅ Verified |
+| `/help/troubleshooting/pdf-studio-jobs` | `src/features/docs/pdf-studio/lib/support-links.ts` | ✅ Verified |
+| `/pdf-studio` | `src/app/pdf-studio/page.tsx` | ✅ Verified |
+| `/app/docs/pdf-studio` | `src/app/app/docs/pdf-studio/page.tsx` | ✅ Verified |
+
+---
+
+*For suite state and handoff, see `docs/PDF studio/pdf-studio-engineering-handoff.md`.*  
+*For launch readiness, see `docs/production/PDF_STUDIO_LAUNCH_CHECKLIST.md`.*

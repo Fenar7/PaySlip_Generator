@@ -1,3 +1,7 @@
+> **SUPERSEDED** — This document is a historical snapshot from April 3, 2026. It does not reflect the current PDF Studio suite (37 tools, workspace lanes, plan gates, worker-backed conversions, auth/org context). Do not use it for execution planning.  
+>  
+> **Current authority:** `docs/PDF studio/pdf-studio-phases-36-38-prd.md` and `docs/PDF studio/pdf-studio-engineering-handoff.md`
+
 # Slipwise — Product Status Report
 
 **Date:** April 3, 2026  
