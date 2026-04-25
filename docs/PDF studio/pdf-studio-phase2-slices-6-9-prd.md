@@ -1,3 +1,7 @@
+> **SUPERSEDED** — This document describes historical Phase 2 slice planning (watermark, page numbers, password protection, compression). PDF Studio has evolved into a 37-tool suite with workspace lanes, plan gates, and worker-backed conversions. Do not use for execution.  
+>  
+> **Current authority:** `docs/PDF studio/pdf-studio-phases-36-38-prd.md` and `docs/PDF studio/pdf-studio-engineering-handoff.md`
+
 # PDF Studio Phase 2 Slices 6-9 Product Requirements Document (PRD)
 
 **Feature Module:** PDF Studio - Advanced PDF Options  
