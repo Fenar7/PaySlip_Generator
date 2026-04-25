@@ -141,7 +141,7 @@ For browser-first escalations, replace job-specific fields with:
 
 ## 8. Manual Verification of Referenced Routes
 
-Verified on `feature/pdf-studio-phase-38-sprint-38-2` by source inspection:
+Verified on `feature/pdf-studio-phase-38-sprint-38-3` by source inspection:
 
 | Path | Source location | Status |
 |---|---|---|

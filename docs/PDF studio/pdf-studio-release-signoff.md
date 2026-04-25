@@ -9,9 +9,13 @@
 
 ## 1. Executive Summary
 
-PDF Studio is a **conditional go** for release pending merge of Sprint 38.1 and Sprint 38.2 into the phase branch, followed by phase branch merge into `pdf-studio-continuation`.
+**Recommendation: No-Go**
 
-The codebase on `feature/pdf-studio-phase-38` is internally consistent, fully tested, and route-complete. No blocking code defect was found. The only blockers are procedural: Sprint 38.1 (QA matrix) and Sprint 38.2 (documentation closure) remain open PRs and must be merged before Phase 38 can be called complete.
+PDF Studio cannot be called operationally complete at this time. While the codebase on `feature/pdf-studio-phase-38` is internally consistent and fully tested, Sprint 38.3 has identified two categories of unresolved blockers:
+
+1. **Unverified heavy workflows:** The PRD requires manual performance and operational verification against representative heavy scenarios. This sprint could not execute runtime browser or server verification. Code inspection and limit analysis alone do not satisfy the acceptance criteria.
+
+2. **Incomplete sprint merges:** Sprint 38.1 (QA matrix) and Sprint 38.2 (documentation closure) remain open PRs. Phase 38 cannot exit until all three sprints are merged into the phase branch and the phase branch is merged into `pdf-studio-continuation`.
 
 ---
 
@@ -25,16 +29,21 @@ The codebase on `feature/pdf-studio-phase-38` is internally consistent, fully te
 | Test coverage | 354 tests pass across 49 test files | ✅ Verified |
 | Support lane structure | 30 browser-first + 7 worker-backed tools with distinct recovery paths | ✅ Verified |
 | Plan gates | Free/workspace/pro tiers mapped; limits and retention defined | ✅ Verified |
+| Launch checklist current | Updated in this PR to reflect Phase 38 and 37-tool suite | ✅ Fixed in this PR |
+| Support runbook current | Updated in this PR to list all 37 tools by lane | ✅ Fixed in this PR |
+| Lint (PDF Studio scope) | 0 errors, 15 pre-existing warnings | ✅ Verified |
+| Heavy workflow — browser-first (merge 10 PDFs, 200 pages) | ❌ Not executed | ⛔ Blocker |
+| Heavy workflow — worker-backed (pdf-to-word, 10 files, 120 pages) | ❌ Not executed | ⛔ Blocker |
+| Heavy workflow — hybrid (protect, 1 file, AES-256) | ❌ Not executed | ⛔ Blocker |
 | Build | Fails on pre-existing `Decimal` TS error in `books/reports/export` (unrelated) | ⚠️ Documented |
-| Lint (PDF Studio scope) | 0 errors, 15 pre-existing warnings (none blockers) | ✅ Verified |
-| Sprint 38.1 merge | PR #193 open, not yet merged | ⏳ Blocker |
-| Sprint 38.2 merge | PR #194 open, not yet merged | ⏳ Blocker |
+| Sprint 38.1 merge | PR #193 open, not yet merged | ⛔ Blocker |
+| Sprint 38.2 merge | PR #194 open, not yet merged | ⛔ Blocker |
 
 ---
 
 ## 3. Release-Readiness Gate Review
 
-### 3.1 Tool catalog truth
+### 3.1 Tool catalog truth ✅
 
 - **Registry:** `PDF_STUDIO_TOOL_REGISTRY` contains 37 entries
 - **Categories:** 10 page-organization, 17 edit-enhance, 10 convert-export
@@ -42,7 +51,7 @@ The codebase on `feature/pdf-studio-phase-38` is internally consistent, fully te
 - **Tiers:** 17 free, 14 workspace, 6 pro
 - **Components:** `TOOL_COMPONENTS` maps all 37 tool IDs to React workspace components
 
-### 3.2 Route truth
+### 3.2 Route truth ✅
 
 - **Public hub:** `/pdf-studio` — `src/app/pdf-studio/page.tsx` renders `PdfStudioHub`
 - **Public tools:** `/pdf-studio/[tool]/page.tsx` handles all 37 tool slugs via `generateStaticParams`
@@ -50,14 +59,14 @@ The codebase on `feature/pdf-studio-phase-38` is internally consistent, fully te
 - **Workspace tools:** 36 individual `page.tsx` files under `src/app/app/docs/pdf-studio/*/` (plus hub and readiness)
 - **Readiness:** `/app/docs/pdf-studio/readiness` — loads diagnostics and checklist
 
-### 3.3 Support/recovery truth
+### 3.3 Support/recovery truth ✅
 
-- **Browser-first lane:** 30 tools; recovery via suite support guide (`/help/troubleshooting/pdf-studio-support`); no job IDs
-- **Worker-backed lane:** 7 tools (5 processing + 2 hybrid); recovery via job guide (`/help/troubleshooting/pdf-studio-jobs`) with job IDs, failure codes, queue depth
-- **Failure codes:** 15 distinct failure codes mapped to recovery hints in `src/features/docs/pdf-studio/lib/support.ts`
+- **Browser-first lane:** 30 tools; recovery via suite support guide; no job IDs
+- **Worker-backed lane:** 7 tools; recovery via job guide with job IDs, failure codes, queue depth
+- **Failure codes:** 15 distinct failure codes mapped to recovery hints
 - **Readiness checks:** 5 checklist items (access, plan window, queue headroom, recovery paths, browser recovery paths)
 
-### 3.4 Plan/retention/history truth
+### 3.4 Plan/retention/history truth ✅
 
 | Plan | History limit | Retention |
 |---|---|---|
@@ -66,62 +75,41 @@ The codebase on `feature/pdf-studio-phase-38` is internally consistent, fully te
 | pro | 25 | 72h |
 | enterprise | 50 | 168h |
 
-- OCR starter page limit: 10 pages
-- Processing starter page limit: 40 pages
-- Shared PDF limits: 1 file, 50 MB, 200 pages max (varies by tool)
+### 3.5 Launch/support doc truth ✅ (fixed in this PR)
 
-### 3.5 Remaining inconsistencies found
-
-| Issue | Severity | Location | Recommendation |
-|---|---|---|---|
-| Launch checklist still references Phase 34 | Low | `docs/production/PDF_STUDIO_LAUNCH_CHECKLIST.md` | Will be resolved by Sprint 38.2 merge |
-| Support runbook lists generic tool examples, not all 37 | Low | `docs/production/PDF_STUDIO_SUPPORT_RUNBOOK.md` | Will be resolved by Sprint 38.2 merge |
-| No dedicated QA handbook on phase branch | Low | Missing | Will be resolved by Sprint 38.1 merge |
+| Issue | Severity | Action in this PR |
+|---|---|---|
+| Launch checklist still referenced Phase 34 | Medium | Updated to Phase 38 with 37-tool catalog and honest sprint states |
+| Support runbook listed generic tool examples | Medium | Updated to list all 37 tools in correct support lanes |
 
 ---
 
 ## 4. Representative Heavy-Workflow Verification
 
-The following scenarios were verified by code inspection and limit analysis. No runtime browser or server execution was performed in this sprint.
+### What was NOT verified (blockers)
 
-### 4.1 Browser-first: Merge 10 PDFs up to 200 pages total
+The PRD requires manual performance and operational verification against representative heavy scenarios. The following scenarios were **not executed** in this sprint because runtime browser and server execution is not available in the development environment used for this sign-off:
 
-| Aspect | Expected | Verified |
+| Scenario | Type | Why unverified | Impact |
+|---|---|---|---|
+| Merge 10 PDFs, 200 pages, 50 MB | Browser-first | No runtime browser execution to test actual drag-drop, render, and export | Cannot confirm actual performance at limit |
+| PDF to Word, 10 files, 120 pages, 25 MB | Worker-backed | No running server or authenticated org to queue conversion job | Cannot confirm queue behavior, job ID generation, or download retention |
+| Protect PDF, 1 file, 200 pages, AES-256 | Hybrid | No runtime browser or server to test encryption pipeline | Cannot confirm actual encryption output or worker job creation |
+| History/retention recovery with real data | Recovery | No authenticated org with job history | Cannot confirm readiness page renders real diagnostics |
+
+### What WAS verified ✅
+
+The following was verified by code inspection, test execution, and limit analysis:
+
+| Scenario | Verification method | Result |
 |---|---|---|
-| Max files | 10 | `merge.limits.maxFiles = 10` ✅ |
-| Max pages | 200 | `merge.limits.maxPages = 200` ✅ |
-| Max size | 50 MB | `merge.limits.maxSizeMb = 50` ✅ |
-| Execution | Browser-only | `merge.executionMode = "browser"` ✅ |
-| Component | Real workspace | `TOOL_COMPONENTS["merge"]` = `MergeWorkspace` ✅ |
-
-### 4.2 Worker-backed: PDF to Word conversion (10 files, 120 pages, 25 MB)
-
-| Aspect | Expected | Verified |
-|---|---|---|
-| Max files | 10 | `pdf-to-word.limits.maxFiles = 10` ✅ |
-| Max pages | 120 | `pdf-to-word.limits.maxPages = 120` ✅ |
-| Max size | 25 MB | `pdf-to-word.limits.maxSizeMb = 25` ✅ |
-| Execution | Processing | `pdf-to-word.executionMode = "processing"` ✅ |
-| Component | Real workspace | `TOOL_COMPONENTS["pdf-to-word"]` = `PdfToWordWorkspace` ✅ |
-
-### 4.3 Hybrid: Protect PDF with AES-256 password
-
-| Aspect | Expected | Verified |
-|---|---|---|
-| Max files | 1 | `protect.limits.maxFiles = 1` ✅ |
-| Max pages | 200 | `protect.limits.maxPages = 200` ✅ |
-| Execution | Hybrid | `protect.executionMode = "hybrid"` ✅ |
-| Component | Real workspace | `TOOL_COMPONENTS["protect"]` = `ProtectUnlockWorkspace` ✅ |
-
-### 4.4 History/retention/recovery workflow
-
-| Aspect | Expected | Verified |
-|---|---|---|
-| Starter history | 10 entries | `getPdfStudioHistoryEntryLimit("starter") = 10` ✅ |
-| Pro retention | 72 hours | `getPdfStudioResultRetentionHours("pro") = 72` ✅ |
-| Recovery states | 4 states | `derivePdfStudioRecoveryState` covers retry_pending, dead_letter × 3 ✅ |
-| Browser hints | No job IDs | `getPdfStudioBrowserFailureRecoveryHint` never mentions job ID ✅ |
-| Worker hints | Job IDs referenced | `getPdfStudioFailureRecoveryHint` references job ID / failure code ✅ |
+| Merge limits | `merge.limits` inspection + registry test | Pass (10 files, 200 pages, 50 MB) |
+| PDF-to-Word limits | `pdf-to-word.limits` inspection + registry test | Pass (10 files, 120 pages, 25 MB) |
+| Protect limits | `protect.limits` inspection + registry test | Pass (1 file, 200 pages, hybrid mode) |
+| Recovery state logic | `derivePdfStudioRecoveryState` tests | Pass (4 states covered) |
+| Browser hint honesty | `getPdfStudioBrowserFailureRecoveryHint` tests | Pass (no job ID references) |
+| Worker hint honesty | `getPdfStudioFailureRecoveryHint` tests | Pass (job ID / failure code references) |
+| Support lane counts | `buildPdfStudioSupportCoverageLanes` tests | Pass (30 + 7 = 37) |
 
 ---
 
@@ -164,35 +152,44 @@ The following scenarios were verified by code inspection and limit analysis. No 
 | Tests pass | ✅ Pass | 354/354 tests pass |
 | Support lanes are honest | ✅ Pass | 30 browser + 7 worker; distinct recovery copy |
 | Plan gates are consistent | ✅ Pass | Tier mapping, limits, retention all defined |
+| Launch checklist is current | ✅ Pass | Updated in this PR to Phase 38 / 37 tools |
+| Support runbook is current | ✅ Pass | Updated in this PR to list all 37 tools |
 | Lint (PDF Studio scope) | ✅ Pass | 0 errors, 15 pre-existing warnings |
-| Sprint 38.1 merged | ⏳ Blocker | PR #193 open |
-| Sprint 38.2 merged | ⏳ Blocker | PR #194 open |
-| Phase 38 branch merged into `pdf-studio-continuation` | ⏳ Blocker | Requires 38.1 and 38.2 first |
+| Heavy workflow — browser-first runtime | ⛔ Blocker | Not executed; limits only inspected |
+| Heavy workflow — worker-backed runtime | ⛔ Blocker | Not executed; limits only inspected |
+| Heavy workflow — hybrid runtime | ⛔ Blocker | Not executed; limits only inspected |
+| Sprint 38.1 merged | ⛔ Blocker | PR #193 open |
+| Sprint 38.2 merged | ⛔ Blocker | PR #194 open |
+| Phase 38 branch merged into `pdf-studio-continuation` | ⛔ Blocker | Requires 38.1 and 38.2 first |
 
-### Should pass before release (not blockers)
+### Should pass before release
 
 | Item | Status | Evidence |
 |---|---|---|
-| Manual browser drag-drop QA | ⏳ Deferred | Documented for Sprint 38.1; not executed in this sprint |
-| Server worker queue QA | ⏳ Deferred | Requires running server + authenticated org |
-| Full green build | ⚠️ Pre-existing blocker | `Decimal` TS error in `books/reports/export` (unrelated) |
-| Full green lint | ⚠️ Pre-existing debt | 2467 repo-wide warnings (unrelated to PDF Studio) |
+| Full green build | ⚠️ Pre-existing | `Decimal` TS error in `books/reports/export` (unrelated) |
+| Full green lint | ⚠️ Pre-existing | 2467 repo-wide warnings (unrelated to PDF Studio) |
 
 ---
 
 ## 7. Final Recommendation
 
-**Recommendation: Conditional Go**
+**Recommendation: No-Go**
 
-PDF Studio is **code-complete and internally consistent** on `feature/pdf-studio-phase-38`. No code defect blocks release.
+PDF Studio is **code-complete and internally consistent** on `feature/pdf-studio-phase-38`, but it is **not release-ready** because:
 
-**Conditions for full Go:**
-1. Merge PR #193 (Sprint 38.1) into `feature/pdf-studio-phase-38`
-2. Merge PR #194 (Sprint 38.2) into `feature/pdf-studio-phase-38`
-3. Merge `feature/pdf-studio-phase-38` into `pdf-studio-continuation`
-4. Run final build/test/lint after merge and confirm no new PDF Studio failures
+1. **Heavy workflows are unverified.** The PRD requires manual runtime verification of representative heavy scenarios. Code inspection and limit analysis are useful but do not substitute for actual execution evidence.
 
-**If any of the above reveals a new blocking issue**, treat it as a remediation sprint under a new remediation phase branch, not as an extension of Phase 38.
+2. **Sprint 38.1 and Sprint 38.2 are unmerged.** Phase 38 cannot exit until all three sprint PRs are merged into the phase branch and the phase branch merges into `pdf-studio-continuation`.
+
+**Path to Go:**
+1. Execute the representative heavy scenarios in a runtime environment and record observed results
+2. Merge PR #193 (Sprint 38.1)
+3. Merge PR #194 (Sprint 38.2)
+4. Merge this PR #195 (Sprint 38.3)
+5. Merge `feature/pdf-studio-phase-38` into `pdf-studio-continuation`
+6. Run final build/test/lint and confirm no new PDF Studio failures
+
+**If runtime verification reveals blocking issues**, treat them as a remediation phase under a new PRD, not as an extension of Phase 38.
 
 ---
 
@@ -214,6 +211,8 @@ Verified on `feature/pdf-studio-phase-38-sprint-38-3` (based on `feature/pdf-stu
 | No "Soon"/placeholder states | `rg -i` across PDF Studio code | ✅ |
 | Tests | `npm run test -- src/features/docs/pdf-studio/` | 354 passed |
 | Lint | `npx eslint src/features/docs/pdf-studio/ ...` | 0 errors |
+| Launch checklist | Updated in this PR to Phase 38 | ✅ |
+| Support runbook | Updated in this PR to 37-tool lanes | ✅ |
 
 ---
 
