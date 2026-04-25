@@ -135,6 +135,8 @@ export function getPdfStudioFailureLabel(
       return "HTML render timeout";
     case "storage_error":
       return "Storage error";
+    case "source_unavailable":
+      return "Source unavailable";
     case "conversion_failed":
       return "Conversion failed";
     default:
@@ -167,6 +169,8 @@ export function getPdfStudioFailureRecoveryHint(
       return "Reduce page complexity or split the input before retrying.";
     case "storage_error":
       return "Retry once. If it fails again, escalate with the job ID and failure code.";
+    case "source_unavailable":
+      return "The original source file is no longer available. Re-upload the file and start a new conversion.";
     case "conversion_failed":
     default:
       return "Open the recovery guide, keep the job ID, and escalate with the failure code if the retry fails.";

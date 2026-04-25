@@ -50,6 +50,7 @@ type ConversionStatusResponse = {
   completedItems?: number;
   failedItems?: number;
   canRetry?: boolean;
+  sourceAvailable?: boolean;
   nextRetryAt?: string;
 };
 
@@ -66,6 +67,7 @@ type ConversionHistoryEntry = {
   error?: string;
   failureCode?: PdfStudioConversionFailureCode;
   canRetry: boolean;
+  sourceAvailable: boolean;
   bundleAvailable: boolean;
   nextRetryAt?: string;
 };
@@ -90,6 +92,38 @@ function formatJobStatus(status: PdfStudioConversionJobStatus) {
     case "dead_letter":
       return "Failed";
   }
+}
+
+function getHistoryRecoveryState(entry: ConversionHistoryEntry) {
+  if (entry.status === "retry_pending") {
+    return { label: "Automatic retry queued", tone: "warning" as const };
+  }
+  if (entry.status === "dead_letter") {
+    if (entry.canRetry) {
+      return { label: "Failed — manual retry available", tone: "error" as const };
+    }
+    if (!entry.sourceAvailable) {
+      return { label: "Failed — source repair required", tone: "error" as const };
+    }
+    return { label: "Failed — terminal error", tone: "error" as const };
+  }
+  return null;
+}
+
+function getJobRecoveryState(job: ConversionStatusResponse) {
+  if (job.status === "retry_pending") {
+    return { label: "Automatic retry queued", tone: "warning" as const };
+  }
+  if (job.status === "dead_letter") {
+    if (job.canRetry) {
+      return { label: "Failed — manual retry available", tone: "error" as const };
+    }
+    if (!job.sourceAvailable) {
+      return { label: "Failed — source repair required", tone: "error" as const };
+    }
+    return { label: "Failed — terminal error", tone: "error" as const };
+  }
+  return null;
 }
 
 export function ServerConversionWorkspace(props: {
@@ -460,11 +494,16 @@ export function ServerConversionWorkspace(props: {
                 </div>
               </div>
 
-              {job.nextRetryAt ? (
-                <p className="mt-3 text-sm text-[#7a5d00]">
-                  The worker will retry this job automatically. Keep the job ID for support and resume it from history if you leave this page.
-                </p>
-              ) : null}
+              {(() => {
+                const recovery = getJobRecoveryState(job);
+                if (!recovery) return null;
+                return (
+                  <p className={`mt-3 text-sm ${recovery.tone === "warning" ? "text-[#7a5d00]" : "text-red-700"}`}>
+                    {recovery.label}
+                    {job.nextRetryAt ? ` • ${new Date(job.nextRetryAt).toLocaleString()}` : ""}
+                  </p>
+                );
+              })()}
 
               {job.error ? (
                 <div className="mt-3 space-y-2">
@@ -477,6 +516,11 @@ export function ServerConversionWorkspace(props: {
                   <p className="text-xs text-[#666]">
                     {getPdfStudioFailureRecoveryHint(job.failureCode)}
                   </p>
+                  {job.status === "dead_letter" && !job.sourceAvailable ? (
+                    <p className="text-xs text-[#666]">
+                      The original source file was removed or expired. Re-upload it and start a new conversion.
+                    </p>
+                  ) : null}
                   <div className="flex flex-wrap gap-3 text-xs font-medium">
                     <Link
                       href={getPdfStudioFailureHelpHref(job.failureCode)}
@@ -588,17 +632,33 @@ export function ServerConversionWorkspace(props: {
                     </span>
                   </div>
 
+                  {(() => {
+                    const recovery = getHistoryRecoveryState(entry);
+                    if (!recovery) return null;
+                    return (
+                      <p className={`mt-2 text-xs ${recovery.tone === "warning" ? "text-[#7a5d00]" : "text-red-700"}`}>
+                        {recovery.label}
+                        {entry.nextRetryAt ? ` • ${new Date(entry.nextRetryAt).toLocaleString()}` : ""}
+                      </p>
+                    );
+                  })()}
+
                   {entry.error ? (
                     <div className="mt-2 space-y-2">
                       <p className="text-xs text-red-700">{entry.error}</p>
                       {entry.failureCode ? (
-                      <p className="text-[11px] font-medium text-red-700">
+                        <p className="text-[11px] font-medium text-red-700">
                           Failure code: {getPdfStudioFailureLabel(entry.failureCode)}
                         </p>
                       ) : null}
                       <p className="text-[11px] text-[#666]">
                         {getPdfStudioFailureRecoveryHint(entry.failureCode)}
                       </p>
+                      {entry.status === "dead_letter" && !entry.sourceAvailable ? (
+                        <p className="text-[11px] text-[#666]">
+                          The original source file was removed or expired. Re-upload it and start a new conversion.
+                        </p>
+                      ) : null}
                       <Link
                         href={getPdfStudioFailureHelpHref(entry.failureCode)}
                         className="inline-flex text-[11px] font-medium text-blue-600 hover:underline"
@@ -606,11 +666,6 @@ export function ServerConversionWorkspace(props: {
                         Open recovery guide
                       </Link>
                     </div>
-                  ) : null}
-                  {entry.nextRetryAt ? (
-                    <p className="mt-2 text-xs text-[#7a5d00]">
-                      Retry scheduled automatically.
-                    </p>
                   ) : null}
 
                   <div className="mt-3 flex flex-wrap gap-2">

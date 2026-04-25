@@ -4,6 +4,7 @@ import {
   validatePdfStudioBatchConversionRequest,
   validatePdfStudioConversionRequest,
 } from "@/features/docs/pdf-studio/lib/server-conversion-policy";
+import { PdfStudioConversionError } from "@/features/docs/pdf-studio/lib/conversion-errors";
 
 async function buildDocxFile(extraEntries?: Record<string, string>) {
   const zip = new JSZip();
@@ -109,7 +110,7 @@ describe("server conversion policy", () => {
         margin: "12mm",
         preferPrintCss: true,
       },
-      });
+    });
   });
 
   it("validates multi-file DOCX to PDF batches with shared normalized options", async () => {
@@ -140,5 +141,63 @@ describe("server conversion policy", () => {
         preferPrintCss: false,
       },
     });
+  });
+
+  it("rejects oversized files with a clear size error", async () => {
+    const bigPdf = new File(["%PDF-1.7 " + "x".repeat(1024)], "big.pdf", {
+      type: "application/pdf",
+    });
+    Object.defineProperty(bigPdf, "size", { value: 60 * 1024 * 1024 });
+
+    await expect(
+      validatePdfStudioConversionRequest({
+        toolId: "pdf-to-word",
+        targetFormat: "docx",
+        sourceFile: bigPdf,
+      }),
+    ).rejects.toThrow("exceeds the");
+  });
+
+  it("maps oversized rejection to file_too_large with non-retryable semantics", async () => {
+    const bigPdf = new File(["%PDF-1.7 " + "x".repeat(1024)], "big.pdf", {
+      type: "application/pdf",
+    });
+    Object.defineProperty(bigPdf, "size", { value: 60 * 1024 * 1024 });
+
+    try {
+      await validatePdfStudioConversionRequest({
+        toolId: "pdf-to-word",
+        targetFormat: "docx",
+        sourceFile: bigPdf,
+      });
+      expect.fail("Expected rejection");
+    } catch (error) {
+      expect(error).toBeInstanceOf(PdfStudioConversionError);
+      const conversionError = error as PdfStudioConversionError;
+      expect(conversionError.code).toBe("file_too_large");
+      expect(conversionError.retryable).toBe(false);
+      expect(conversionError.status).toBe(413);
+    }
+  });
+
+  it("maps malformed DOCX rejection to malformed_docx with non-retryable semantics", async () => {
+    const badDocx = new File(["not a zip"], "bad.docx", {
+      type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    });
+
+    try {
+      await validatePdfStudioConversionRequest({
+        toolId: "word-to-pdf",
+        targetFormat: "pdf",
+        sourceFile: badDocx,
+      });
+      expect.fail("Expected rejection");
+    } catch (error) {
+      expect(error).toBeInstanceOf(PdfStudioConversionError);
+      const conversionError = error as PdfStudioConversionError;
+      expect(conversionError.code).toBe("malformed_docx");
+      expect(conversionError.retryable).toBe(false);
+      expect(conversionError.status).toBe(422);
+    }
   });
 });

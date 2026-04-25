@@ -111,6 +111,7 @@ export type PdfStudioConversionJobResult = {
   completedItems: number;
   failedItems: number;
   canRetry: boolean;
+  sourceAvailable: boolean;
   nextRetryAt?: string;
 };
 
@@ -128,6 +129,7 @@ export type PdfStudioConversionHistoryEntry = {
   error?: string;
   failureCode?: PdfStudioConversionFailureCode;
   canRetry: boolean;
+  sourceAvailable: boolean;
   bundleAvailable: boolean;
   nextRetryAt?: string;
 };
@@ -155,6 +157,14 @@ function getSourceManifests(payload: PdfStudioConversionPayload): PdfStudioConve
   }
 
   return [];
+}
+
+function hasAvailableSources(payload: PdfStudioConversionPayload): boolean {
+  const manifests = getSourceManifests(payload);
+  if (manifests.length === 0) {
+    return Boolean(payload.sourceUrl);
+  }
+  return manifests.some((source) => Boolean(source.storageKey));
 }
 
 function getOutputManifests(payload: PdfStudioConversionPayload): PdfStudioConversionOutputManifest[] {
@@ -424,7 +434,8 @@ export async function getPdfStudioConversionJob(jobId: string, orgId: string) {
     canRetry:
       record.status === "dead_letter" &&
       payload.failureRetryable === true &&
-      (getSourceManifests(payload).length > 0 || Boolean(payload.sourceUrl)),
+      hasAvailableSources(payload),
+    sourceAvailable: hasAvailableSources(payload),
     nextRetryAt: record.nextRetryAt?.toISOString(),
   } satisfies PdfStudioConversionJobResult;
 }
@@ -678,7 +689,7 @@ export async function retryPdfStudioConversionJob(jobId: string, orgId: string) 
     throw new Error("This PDF Studio job cannot be retried automatically.");
   }
 
-  if (getSourceManifests(payload).length === 0 && !payload.sourceUrl) {
+  if (!hasAvailableSources(payload)) {
     throw new Error("The original conversion inputs are no longer available for retry.");
   }
 
@@ -746,7 +757,8 @@ export async function listPdfStudioConversionHistory(params: {
         canRetry:
           row.status === "dead_letter" &&
           payload.failureRetryable === true &&
-          (getSourceManifests(payload).length > 0 || Boolean(payload.sourceUrl)),
+          hasAvailableSources(payload),
+        sourceAvailable: hasAvailableSources(payload),
         bundleAvailable:
           row.status === "completed" && outputs.length > 1 && !resultExpired,
         nextRetryAt: row.nextRetryAt?.toISOString(),
