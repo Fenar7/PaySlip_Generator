@@ -14,8 +14,13 @@ import {
   listPasskeys,
   renamePasskey,
   removePasskey,
+  getStepUpFactors,
+  verifyStepUpPassword,
+  verifyStepUpTotp,
+  beginStepUpPasskey,
+  verifyStepUpPasskey,
 } from "./passkey-actions";
-import { registerPasskey, browserSupportsWebAuthn } from "@/lib/passkey/client";
+import { registerPasskey, authenticatePasskey, browserSupportsWebAuthn } from "@/lib/passkey/client";
 import QRCode from "qrcode";
 import { ShieldCheck, ShieldOff, KeyRound, Fingerprint, Trash2, Pencil } from "lucide-react";
 
@@ -32,6 +37,8 @@ type PasskeyListItem = {
   createdAt: Date;
   updatedAt: Date;
 };
+
+type StepUpMethod = "none" | "password" | "totp" | "passkey";
 
 export default function SecuritySettingsPage() {
   const router = useRouter();
@@ -61,8 +68,15 @@ export default function SecuritySettingsPage() {
   const [renameId, setRenameId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState("");
   const [webauthnSupported, setWebauthnSupported] = useState(true);
+
+  // Step-up verification state for passkey removal
   const [removeId, setRemoveId] = useState<string | null>(null);
-  const [removePassword, setRemovePassword] = useState("");
+  const [stepUpMethod, setStepUpMethod] = useState<StepUpMethod>("none");
+  const [stepUpFactors, setStepUpFactors] = useState<{ hasPassword: boolean; hasTotp: boolean; hasPasskey: boolean } | null>(null);
+  const [stepUpToken, setStepUpToken] = useState("");
+  const [stepUpPassword, setStepUpPassword] = useState("");
+  const [stepUpTotpCode, setStepUpTotpCode] = useState("");
+  const [stepUpBusy, setStepUpBusy] = useState(false);
 
   useEffect(() => {
     setWebauthnSupported(browserSupportsWebAuthn());
@@ -206,20 +220,110 @@ export default function SecuritySettingsPage() {
     await loadMfaStatus();
   }
 
-  async function handleRemovePasskey(id: string) {
+  // ─── Step-up verification for passkey removal ──────────────────────────────
+
+  async function startRemovePasskey(id: string) {
     setPasskeyError("");
-    if (!removePassword.trim()) {
-      setPasskeyError("Enter your current password to remove this passkey.");
-      return;
+    setRemoveId(id);
+    setStepUpToken("");
+    setStepUpPassword("");
+    setStepUpTotpCode("");
+    setStepUpMethod("none");
+    const res = await getStepUpFactors();
+    if (res.success) {
+      setStepUpFactors(res.data);
+      // Auto-select the first available method
+      if (res.data.hasPassword) {
+        setStepUpMethod("password");
+      } else if (res.data.hasTotp) {
+        setStepUpMethod("totp");
+      } else if (res.data.hasPasskey) {
+        setStepUpMethod("passkey");
+      }
     }
-    const res = await removePasskey(id, removePassword.trim());
-    if (!res.success) {
-      setPasskeyError(res.error);
-      return;
+  }
+
+  async function handleStepUpPassword() {
+    setPasskeyError("");
+    setStepUpBusy(true);
+    try {
+      const res = await verifyStepUpPassword(stepUpPassword);
+      if (!res.success) {
+        setPasskeyError(res.error);
+        return;
+      }
+      setStepUpToken(res.data.stepUpToken);
+    } finally {
+      setStepUpBusy(false);
     }
+  }
+
+  async function handleStepUpTotp() {
+    setPasskeyError("");
+    setStepUpBusy(true);
+    try {
+      const res = await verifyStepUpTotp(stepUpTotpCode);
+      if (!res.success) {
+        setPasskeyError(res.error);
+        return;
+      }
+      setStepUpToken(res.data.stepUpToken);
+    } finally {
+      setStepUpBusy(false);
+    }
+  }
+
+  async function handleStepUpPasskey() {
+    setPasskeyError("");
+    setStepUpBusy(true);
+    try {
+      const beginRes = await beginStepUpPasskey();
+      if (!beginRes.success) {
+        setPasskeyError(beginRes.error);
+        return;
+      }
+      const options = beginRes.data.options as unknown as import("@simplewebauthn/browser").PublicKeyCredentialRequestOptionsJSON;
+      const response = await authenticatePasskey(options);
+      const finishRes = await verifyStepUpPasskey(response);
+      if (!finishRes.success) {
+        setPasskeyError(finishRes.error);
+        return;
+      }
+      setStepUpToken(finishRes.data.stepUpToken);
+    } catch (err) {
+      setPasskeyError(err instanceof Error ? err.message : "Passkey step-up failed");
+    } finally {
+      setStepUpBusy(false);
+    }
+  }
+
+  async function handleRemovePasskeyConfirmed() {
+    setPasskeyError("");
+    setStepUpBusy(true);
+    try {
+      const res = await removePasskey(removeId!, stepUpToken);
+      if (!res.success) {
+        setPasskeyError(res.error);
+        return;
+      }
+      setRemoveId(null);
+      setStepUpToken("");
+      setStepUpPassword("");
+      setStepUpTotpCode("");
+      setStepUpMethod("none");
+      await loadMfaStatus();
+    } finally {
+      setStepUpBusy(false);
+    }
+  }
+
+  function cancelRemove() {
     setRemoveId(null);
-    setRemovePassword("");
-    await loadMfaStatus();
+    setStepUpToken("");
+    setStepUpPassword("");
+    setStepUpTotpCode("");
+    setStepUpMethod("none");
+    setPasskeyError("");
   }
 
   const anyMfaEnabled = totpEnabled || passkeyEnabled;
@@ -249,11 +353,11 @@ export default function SecuritySettingsPage() {
               autoComplete="new-password"
             />
             {success && (
-              <p className="text-sm text-green-600">✓ Password changed successfully.</p>
+              <p className="text-sm text-green-600">&#10003; Password changed successfully.</p>
             )}
             {error && <p className="text-sm text-red-600">{error}</p>}
             <Button type="submit" disabled={saving}>
-              {saving ? "Saving…" : "Change password"}
+              {saving ? "Saving&#8230;" : "Change password"}
             </Button>
           </form>
         </CardContent>
@@ -301,7 +405,7 @@ export default function SecuritySettingsPage() {
                   disabled={passkeyBusy}
                   className="mb-3"
                 >
-                  {passkeyBusy ? "Loading…" : "Add passkey"}
+                  {passkeyBusy ? "Loading&#8230;" : "Add passkey"}
                 </Button>
                 {passkeys.length > 0 && (
                   <ul className="space-y-2">
@@ -336,41 +440,140 @@ export default function SecuritySettingsPage() {
                                 Cancel
                               </Button>
                             </div>
-                          ) : removeId === pk.id ? (
+                          ) : removeId === pk.id && stepUpToken ? (
+                            /* ── Confirmation after step-up verified ── */
                             <div className="space-y-2">
-                              <p className="text-sm font-medium text-[#1a1a1a]">{pk.deviceName || "Unnamed passkey"}</p>
+                              <p className="text-sm font-medium text-[#1a1a1a]">
+                                Remove &ldquo;{pk.deviceName || "Unnamed passkey"}&rdquo;?
+                              </p>
+                              <p className="text-sm text-[#666]">This action cannot be undone.</p>
                               <div className="flex items-center gap-2">
-                                <input
-                                  type="password"
-                                  value={removePassword}
-                                  onChange={(e) => setRemovePassword(e.target.value)}
-                                  placeholder="Current password"
-                                  className="rounded border border-input bg-background px-2 py-1 text-sm w-40"
-                                  autoFocus
-                                  autoComplete="current-password"
-                                />
                                 <Button
                                   size="sm"
                                   variant="danger"
-                                  onClick={() => handleRemovePasskey(pk.id)}
+                                  onClick={handleRemovePasskeyConfirmed}
+                                  disabled={stepUpBusy}
                                 >
-                                  Remove
+                                  {stepUpBusy ? "Removing&#8230;" : "Confirm removal"}
                                 </Button>
                                 <Button
                                   size="sm"
                                   variant="ghost"
-                                  onClick={() => { setRemoveId(null); setRemovePassword(""); }}
+                                  onClick={cancelRemove}
                                 >
                                   Cancel
                                 </Button>
                               </div>
+                            </div>
+                          ) : removeId === pk.id && !stepUpToken ? (
+                            /* ── Step-up verification (not yet verified) ── */
+                            <div className="space-y-3">
+                              <p className="text-sm font-medium text-[#1a1a1a]">
+                                Verify your identity to remove &ldquo;{pk.deviceName || "Unnamed passkey"}&rdquo;
+                              </p>
+                              {stepUpFactors && (
+                                <div className="space-y-2">
+                                  {stepUpFactors.hasPassword && (
+                                    <div className="space-y-2">
+                                      <button
+                                        type="button"
+                                        className={`text-sm font-medium ${stepUpMethod === "password" ? "text-blue-700" : "text-slate-600 underline"}`}
+                                        onClick={() => { setStepUpMethod("password"); setPasskeyError(""); }}
+                                      >
+                                        Verify with password
+                                      </button>
+                                      {stepUpMethod === "password" && (
+                                        <div className="flex items-center gap-2">
+                                          <input
+                                            type="password"
+                                            value={stepUpPassword}
+                                            onChange={(e) => setStepUpPassword(e.target.value)}
+                                            placeholder="Current password"
+                                            className="rounded border border-input bg-background px-2 py-1 text-sm w-48"
+                                            autoFocus
+                                            autoComplete="current-password"
+                                          />
+                                          <Button
+                                            size="sm"
+                                            onClick={handleStepUpPassword}
+                                            disabled={stepUpBusy || !stepUpPassword.trim()}
+                                          >
+                                            Verify
+                                          </Button>
+                                        </div>
+                                      )}
+                                    </div>
+                                  )}
+                                  {stepUpFactors.hasTotp && (
+                                    <div className="space-y-2">
+                                      <button
+                                        type="button"
+                                        className={`text-sm font-medium ${stepUpMethod === "totp" ? "text-blue-700" : "text-slate-600 underline"}`}
+                                        onClick={() => { setStepUpMethod("totp"); setPasskeyError(""); }}
+                                      >
+                                        Verify with authenticator app
+                                      </button>
+                                      {stepUpMethod === "totp" && (
+                                        <div className="flex items-center gap-2">
+                                          <input
+                                            type="text"
+                                            inputMode="numeric"
+                                            pattern="[0-9]*"
+                                            maxLength={6}
+                                            value={stepUpTotpCode}
+                                            onChange={(e) => setStepUpTotpCode(e.target.value.replace(/\D/g, ""))}
+                                            placeholder="6-digit code"
+                                            className="rounded border border-input bg-background px-2 py-1 text-sm w-32"
+                                            autoFocus
+                                            autoComplete="one-time-code"
+                                          />
+                                          <Button
+                                            size="sm"
+                                            onClick={handleStepUpTotp}
+                                            disabled={stepUpBusy || stepUpTotpCode.length !== 6}
+                                          >
+                                            Verify
+                                          </Button>
+                                        </div>
+                                      )}
+                                    </div>
+                                  )}
+                                  {stepUpFactors.hasPasskey && (
+                                    <div className="space-y-2">
+                                      <button
+                                        type="button"
+                                        className={`text-sm font-medium ${stepUpMethod === "passkey" ? "text-blue-700" : "text-slate-600 underline"}`}
+                                        onClick={() => { setStepUpMethod("passkey"); setPasskeyError(""); }}
+                                      >
+                                        Verify with passkey
+                                      </button>
+                                      {stepUpMethod === "passkey" && (
+                                        <Button
+                                          size="sm"
+                                          onClick={handleStepUpPasskey}
+                                          disabled={stepUpBusy}
+                                        >
+                                          {stepUpBusy ? "Waiting&#8230;" : "Authenticate with passkey"}
+                                        </Button>
+                                      )}
+                                    </div>
+                                  )}
+                                </div>
+                              )}
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={cancelRemove}
+                              >
+                                Cancel
+                              </Button>
                             </div>
                           ) : (
                             <div>
                               <p className="text-sm font-medium text-[#1a1a1a]">{pk.deviceName || "Unnamed passkey"}</p>
                               <p className="text-xs text-[#666]">
                                 Added {new Date(pk.createdAt).toLocaleDateString()}
-                                {pk.lastUsedAt && ` · Last used ${new Date(pk.lastUsedAt).toLocaleDateString()}`}
+                                {pk.lastUsedAt && ` \u00B7 Last used ${new Date(pk.lastUsedAt).toLocaleDateString()}`}
                               </p>
                             </div>
                           )}
@@ -386,7 +589,7 @@ export default function SecuritySettingsPage() {
                           </button>
                           <button
                             type="button"
-                            onClick={() => { setRemoveId(pk.id); setRemovePassword(""); setRenameId(null); }}
+                            onClick={() => { startRemovePasskey(pk.id); setRenameId(null); }}
                             className="p-1.5 rounded hover:bg-red-50 text-red-500"
                             title="Remove"
                           >
@@ -414,7 +617,7 @@ export default function SecuritySettingsPage() {
             {/* ── idle: not enabled ── */}
             {!totpEnabled && twoFaStep === "idle" && (
               <Button onClick={handleEnable2fa} disabled={twoFaBusy}>
-                {twoFaBusy ? "Loading…" : "Enable authenticator app"}
+                {twoFaBusy ? "Loading&#8230;" : "Enable authenticator app"}
               </Button>
             )}
 
@@ -448,7 +651,7 @@ export default function SecuritySettingsPage() {
                     className="w-32"
                   />
                   <Button type="submit" disabled={twoFaBusy || totpCode.length !== 6} className="mt-6">
-                    {twoFaBusy ? "Verifying…" : "Verify"}
+                    {twoFaBusy ? "Verifying&#8230;" : "Verify"}
                   </Button>
                 </form>
               </div>
@@ -457,7 +660,7 @@ export default function SecuritySettingsPage() {
             {/* ── done: show recovery codes ── */}
             {twoFaStep === "done" && recoveryCodes.length > 0 && (
               <div className="max-w-md space-y-3">
-                <p className="text-sm font-medium text-green-700">✓ Authenticator app enabled successfully.</p>
+                <p className="text-sm font-medium text-green-700">&#10003; Authenticator app enabled successfully.</p>
                 <div className="rounded-lg border border-amber-200 bg-amber-50 p-4">
                   <p className="mb-2 text-xs font-medium text-amber-800">
                     Save these recovery codes in a secure place. Each code can only be used once.
@@ -491,7 +694,7 @@ export default function SecuritySettingsPage() {
                   autoComplete="current-password"
                 />
                 <Button variant="danger" type="submit" disabled={twoFaBusy}>
-                  {twoFaBusy ? "Disabling…" : "Disable authenticator app"}
+                  {twoFaBusy ? "Disabling&#8230;" : "Disable authenticator app"}
                 </Button>
               </form>
             )}

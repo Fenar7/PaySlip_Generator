@@ -26,7 +26,7 @@ vi.mock("@/lib/db", () => ({
     webAuthnChallenge: {
       create: vi.fn(),
       findMany: vi.fn(),
-      update: vi.fn(),
+      updateMany: vi.fn(),
       deleteMany: vi.fn(),
     },
   },
@@ -58,6 +58,16 @@ vi.mock("@/lib/audit", () => ({
   logAudit: vi.fn(),
 }));
 
+vi.mock("@/lib/step-up", () => ({
+  signStepUpToken: vi.fn(),
+  verifyStepUpToken: vi.fn(),
+}));
+
+vi.mock("@/lib/totp", () => ({
+  verifyTotpCode: vi.fn(),
+  decryptTotpSecret: vi.fn(),
+}));
+
 vi.mock("next/headers", () => ({
   cookies: vi.fn(() => ({
     set: vi.fn(),
@@ -80,6 +90,11 @@ import {
   renamePasskey,
   removePasskey,
   getMfaStatus,
+  getStepUpFactors,
+  verifyStepUpPassword,
+  verifyStepUpTotp,
+  beginStepUpPasskey,
+  verifyStepUpPasskey,
 } from "../passkey-actions";
 import { createSupabaseServer, createSupabaseAdmin } from "@/lib/supabase/server";
 import { db } from "@/lib/db";
@@ -92,15 +107,16 @@ import {
   countPasskeysForUser,
 } from "@/lib/passkey/db";
 import { logAudit } from "@/lib/audit";
+import { signStepUpToken, verifyStepUpToken } from "@/lib/step-up";
+import { verifyTotpCode, decryptTotpSecret } from "@/lib/totp";
 
 const mockSupabaseServer = vi.mocked(createSupabaseServer);
 const mockSupabaseAdmin = vi.mocked(createSupabaseAdmin);
 
-function mockUser(userId: string, email?: string, signInResult?: { error: Error | null }) {
+function mockUser(userId: string, email?: string, identities?: { provider: string }[]) {
   mockSupabaseServer.mockResolvedValue({
     auth: {
-      getUser: vi.fn().mockResolvedValue({ data: { user: { id: userId, email: email ?? "test@example.com" } }, error: null }),
-      signInWithPassword: vi.fn().mockResolvedValue({ error: signInResult?.error ?? null }),
+      getUser: vi.fn().mockResolvedValue({ data: { user: { id: userId, email: email ?? "test@example.com", identities: identities ?? [{ provider: "email" }] } }, error: null }),
     },
   } as any);
 }
@@ -337,8 +353,9 @@ describe("finishPasskeyAuthentication", () => {
 });
 
 describe("removePasskey", () => {
-  it("removes a passkey successfully with valid password", async () => {
-    mockUser("user_1", "test@example.com");
+  it("removes a passkey with valid step-up token", async () => {
+    mockUser("user_1");
+    vi.mocked(verifyStepUpToken).mockReturnValue("password");
     vi.mocked(db.profile.findUnique).mockResolvedValue({
       totpEnabled: true,
       twoFaEnforcedByOrg: false,
@@ -349,36 +366,271 @@ describe("removePasskey", () => {
       auth: { admin: { updateUserById: vi.fn().mockResolvedValue({}) } },
     } as any);
 
-    const result = await removePasskey("pk_1", "correct_password");
+    const result = await removePasskey("pk_1", "valid_step_up_token");
     expect(result.success).toBe(true);
+    expect(verifyStepUpToken).toHaveBeenCalledWith("valid_step_up_token", "user_1");
   });
 
-  it("denies removal without valid re-auth", async () => {
-    mockUser("user_1", "test@example.com", { error: new Error("Invalid login credentials") });
-    vi.mocked(db.profile.findUnique).mockResolvedValue({
-      totpEnabled: true,
-      twoFaEnforcedByOrg: false,
-    } as any);
+  it("denies removal without valid step-up token", async () => {
+    mockUser("user_1");
+    vi.mocked(verifyStepUpToken).mockReturnValue(null);
 
-    const result = await removePasskey("pk_1", "wrong_password");
+    const result = await removePasskey("pk_1", "invalid_token");
     expect(result.success).toBe(false);
     if (!result.success) {
-      expect(result.error).toContain("Incorrect password");
+      expect(result.error).toContain("Step-up verification required");
     }
   });
 
   it("blocks removal of last factor when org requires MFA", async () => {
-    mockUser("user_1", "test@example.com");
+    mockUser("user_1");
+    vi.mocked(verifyStepUpToken).mockReturnValue("password");
     vi.mocked(db.profile.findUnique).mockResolvedValue({
       totpEnabled: false,
       twoFaEnforcedByOrg: true,
     } as any);
     vi.mocked(countPasskeysForUser).mockResolvedValue(1);
 
-    const result = await removePasskey("pk_1", "correct_password");
+    const result = await removePasskey("pk_1", "valid_step_up_token");
     expect(result.success).toBe(false);
     if (!result.success) {
       expect(result.error).toContain("Cannot remove your last MFA factor");
+    }
+  });
+
+  it("allows passkey-only user with totp fallback to remove a passkey", async () => {
+    mockUser("user_1");
+    vi.mocked(verifyStepUpToken).mockReturnValue("totp");
+    vi.mocked(db.profile.findUnique).mockResolvedValue({
+      totpEnabled: true,
+      twoFaEnforcedByOrg: false,
+    } as any);
+    vi.mocked(countPasskeysForUser).mockResolvedValueOnce(1).mockResolvedValueOnce(0);
+    vi.mocked(removePasskeyCredential).mockResolvedValue({ count: 1 } as any);
+    mockSupabaseAdmin.mockResolvedValue({
+      auth: { admin: { updateUserById: vi.fn().mockResolvedValue({}) } },
+    } as any);
+
+    const result = await removePasskey("pk_1", "valid_step_up_token");
+    expect(result.success).toBe(true);
+  });
+
+  it("rejects when passkey not found", async () => {
+    mockUser("user_1");
+    vi.mocked(verifyStepUpToken).mockReturnValue("passkey");
+    vi.mocked(db.profile.findUnique).mockResolvedValue({
+      totpEnabled: true,
+      twoFaEnforcedByOrg: false,
+    } as any);
+    vi.mocked(countPasskeysForUser).mockResolvedValue(2);
+    vi.mocked(removePasskeyCredential).mockResolvedValue({ count: 0 } as any);
+
+    const result = await removePasskey("pk_nonexistent", "valid_step_up_token");
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error).toBe("Passkey not found");
+    }
+  });
+});
+
+describe("getStepUpFactors", () => {
+  it("returns hasPassword=true for email identity users", async () => {
+    mockUser("user_1", "test@example.com", [{ provider: "email" }]);
+    vi.mocked(countPasskeysForUser).mockResolvedValue(2);
+    vi.mocked(db.profile.findUnique).mockResolvedValue({ totpEnabled: true } as any);
+
+    const result = await getStepUpFactors();
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.hasPassword).toBe(true);
+      expect(result.data.hasTotp).toBe(true);
+      expect(result.data.hasPasskey).toBe(true);
+    }
+  });
+
+  it("returns hasPassword=false for Google-only users", async () => {
+    mockUser("user_1", "test@example.com", [{ provider: "google" }]);
+    vi.mocked(countPasskeysForUser).mockResolvedValue(1);
+    vi.mocked(db.profile.findUnique).mockResolvedValue({ totpEnabled: false } as any);
+
+    const result = await getStepUpFactors();
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.hasPassword).toBe(false);
+      expect(result.data.hasTotp).toBe(false);
+      expect(result.data.hasPasskey).toBe(true);
+    }
+  });
+
+  it("returns hasTotp=true when TOTP is enabled", async () => {
+    mockUser("user_1", "test@example.com", [{ provider: "email" }]);
+    vi.mocked(countPasskeysForUser).mockResolvedValue(0);
+    vi.mocked(db.profile.findUnique).mockResolvedValue({ totpEnabled: true } as any);
+
+    const result = await getStepUpFactors();
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.hasTotp).toBe(true);
+    }
+  });
+});
+
+describe("verifyStepUpPassword", () => {
+  it("returns step-up token on valid password", async () => {
+    mockUser("user_1", "test@example.com");
+    const mockSignIn = vi.fn().mockResolvedValue({ error: null });
+    mockSupabaseServer.mockResolvedValue({
+      auth: {
+        getUser: vi.fn().mockResolvedValue({ data: { user: { id: "user_1", email: "test@example.com" } }, error: null }),
+        signInWithPassword: mockSignIn,
+      },
+    } as any);
+    vi.mocked(signStepUpToken).mockReturnValue("step_up_tok_password");
+
+    const result = await verifyStepUpPassword("correct_password");
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.stepUpToken).toBe("step_up_tok_password");
+    }
+    expect(mockSignIn).toHaveBeenCalledWith({ email: "test@example.com", password: "correct_password" });
+  });
+
+  it("rejects with wrong password", async () => {
+    mockUser("user_1", "test@example.com");
+    const mockSignIn = vi.fn().mockResolvedValue({ error: new Error("Invalid login credentials") });
+    mockSupabaseServer.mockResolvedValue({
+      auth: {
+        getUser: vi.fn().mockResolvedValue({ data: { user: { id: "user_1", email: "test@example.com" } }, error: null }),
+        signInWithPassword: mockSignIn,
+      },
+    } as any);
+
+    const result = await verifyStepUpPassword("wrong_password");
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error).toContain("Incorrect password");
+    }
+  });
+});
+
+describe("verifyStepUpTotp", () => {
+  it("returns step-up token on valid TOTP code", async () => {
+    mockUser("user_1");
+    vi.mocked(db.profile.findUnique).mockResolvedValue({
+      totpEnabled: true,
+      totpSecret: "encrypted_secret",
+    } as any);
+    vi.mocked(decryptTotpSecret).mockReturnValue("plain_secret");
+    vi.mocked(verifyTotpCode).mockReturnValue(true);
+    vi.mocked(signStepUpToken).mockReturnValue("step_up_tok_totp");
+
+    const result = await verifyStepUpTotp("123456");
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.stepUpToken).toBe("step_up_tok_totp");
+    }
+  });
+
+  it("rejects invalid TOTP code", async () => {
+    mockUser("user_1");
+    vi.mocked(db.profile.findUnique).mockResolvedValue({
+      totpEnabled: true,
+      totpSecret: "encrypted_secret",
+    } as any);
+    vi.mocked(decryptTotpSecret).mockReturnValue("plain_secret");
+    vi.mocked(verifyTotpCode).mockReturnValue(false);
+
+    const result = await verifyStepUpTotp("000000");
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error).toContain("Invalid code");
+    }
+  });
+
+  it("rejects when TOTP not enabled", async () => {
+    mockUser("user_1");
+    vi.mocked(db.profile.findUnique).mockResolvedValue({
+      totpEnabled: false,
+      totpSecret: null,
+    } as any);
+
+    const result = await verifyStepUpTotp("123456");
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error).toContain("not enabled");
+    }
+  });
+});
+
+describe("verifyStepUpPasskey", () => {
+  it("returns step-up token on valid passkey authentication", async () => {
+    mockUser("user_1");
+    vi.mocked(getPasskeyByCredentialId).mockResolvedValue({
+      id: "pk_1",
+      credentialId: "cred_1",
+      publicKey: Buffer.from([1, 2, 3]),
+      counter: BigInt(0),
+      userId: "user_1",
+    } as any);
+    vi.mocked(verifyAuthentication).mockResolvedValue({
+      verified: true,
+      authenticationInfo: { newCounter: 1 },
+    } as any);
+    vi.mocked(signStepUpToken).mockReturnValue("step_up_tok_passkey");
+
+    const result = await verifyStepUpPasskey({
+      id: "cred_1",
+      rawId: "raw_1",
+      response: {} as any,
+      clientExtensionResults: {},
+      type: "public-key",
+    });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.stepUpToken).toBe("step_up_tok_passkey");
+    }
+  });
+
+  it("rejects unknown passkey credential", async () => {
+    mockUser("user_1");
+    vi.mocked(getPasskeyByCredentialId).mockResolvedValue(null);
+
+    const result = await verifyStepUpPasskey({
+      id: "cred_unknown",
+      rawId: "raw_1",
+      response: {} as any,
+      clientExtensionResults: {},
+      type: "public-key",
+    });
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error).toBe("Unknown passkey credential");
+    }
+  });
+
+  it("rejects failed passkey verification", async () => {
+    mockUser("user_1");
+    vi.mocked(getPasskeyByCredentialId).mockResolvedValue({
+      id: "pk_1",
+      credentialId: "cred_1",
+      publicKey: Buffer.from([1, 2, 3]),
+      counter: BigInt(0),
+      userId: "user_1",
+    } as any);
+    vi.mocked(verifyAuthentication).mockResolvedValue({
+      verified: false,
+    } as any);
+
+    const result = await verifyStepUpPasskey({
+      id: "cred_1",
+      rawId: "raw_1",
+      response: {} as any,
+      clientExtensionResults: {},
+      type: "public-key",
+    });
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error).toBe("Passkey verification failed");
     }
   });
 });

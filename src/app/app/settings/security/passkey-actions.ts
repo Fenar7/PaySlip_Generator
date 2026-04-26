@@ -25,6 +25,8 @@ import {
   updatePasskeyCounter,
 } from "@/lib/passkey/db";
 import { logAudit } from "@/lib/audit";
+import { signStepUpToken, verifyStepUpToken } from "@/lib/step-up";
+import { verifyTotpCode, decryptTotpSecret } from "@/lib/totp";
 import type { RegistrationResponseJSON, AuthenticationResponseJSON } from "@simplewebauthn/browser";
 
 export type ActionResult<T> = { success: true; data: T } | { success: false; error: string };
@@ -345,14 +347,53 @@ export async function renamePasskey(
   }
 }
 
+// ─── Step-up verification (auth-method-agnostic re-auth) ─────────────────────
+
 /**
- * Remove a passkey with re-authentication.
- * Requires the user's current password for destructive confirmation.
+ * Returns which step-up methods are available to the current user.
+ * Used by the UI to show the appropriate verification options.
  */
-export async function removePasskey(
-  id: string,
+export async function getStepUpFactors(): Promise<
+  ActionResult<{ hasPassword: boolean; hasTotp: boolean; hasPasskey: boolean }>
+> {
+  try {
+    const supabase = await createSupabaseServer();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) return { success: false, error: "Not authenticated" };
+
+    const hasPassword = user.identities?.some(
+      (id) => id.provider === "email"
+    ) ?? false;
+
+    const profile = await db.profile.findUnique({
+      where: { id: user.id },
+      select: { totpEnabled: true },
+    });
+
+    const passkeyCount = await countPasskeysForUser(user.id);
+
+    return {
+      success: true,
+      data: {
+        hasPassword,
+        hasTotp: profile?.totpEnabled ?? false,
+        hasPasskey: passkeyCount > 0,
+      },
+    };
+  } catch (err) {
+    return { success: false, error: err instanceof Error ? err.message : "Failed to load factors" };
+  }
+}
+
+/**
+ * Step-up verification via password re-auth.
+ * Only works for users who have an email/password identity.
+ */
+export async function verifyStepUpPassword(
   currentPassword: string
-): Promise<ActionResult<void>> {
+): Promise<ActionResult<{ stepUpToken: string }>> {
   try {
     const supabase = await createSupabaseServer();
     const {
@@ -360,13 +401,145 @@ export async function removePasskey(
     } = await supabase.auth.getUser();
     if (!user?.email) return { success: false, error: "Not authenticated" };
 
-    // Re-authenticate to confirm identity before removing a passkey
     const { error: authError } = await supabase.auth.signInWithPassword({
       email: user.email,
       password: currentPassword,
     });
     if (authError) {
-      return { success: false, error: "Incorrect password. Passkey was not removed." };
+      return { success: false, error: "Incorrect password." };
+    }
+
+    return { success: true, data: { stepUpToken: signStepUpToken(user.id, "password") } };
+  } catch (err) {
+    return { success: false, error: err instanceof Error ? err.message : "Verification failed" };
+  }
+}
+
+/**
+ * Step-up verification via TOTP code.
+ * Only works for users who have TOTP enrolled.
+ */
+export async function verifyStepUpTotp(
+  code: string
+): Promise<ActionResult<{ stepUpToken: string }>> {
+  try {
+    const supabase = await createSupabaseServer();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) return { success: false, error: "Not authenticated" };
+
+    const profile = await db.profile.findUnique({
+      where: { id: user.id },
+      select: { totpSecret: true, totpEnabled: true },
+    });
+
+    if (!profile?.totpEnabled || !profile.totpSecret) {
+      return { success: false, error: "Authenticator app is not enabled." };
+    }
+
+    const plainSecret = decryptTotpSecret(profile.totpSecret);
+    if (!verifyTotpCode(plainSecret, code)) {
+      return { success: false, error: "Invalid code. Please try again." };
+    }
+
+    return { success: true, data: { stepUpToken: signStepUpToken(user.id, "totp") } };
+  } catch (err) {
+    return { success: false, error: err instanceof Error ? err.message : "Verification failed" };
+  }
+}
+
+/**
+ * Begin step-up verification via passkey authentication.
+ * Returns WebAuthn authentication options for the user's enrolled passkeys.
+ */
+export async function beginStepUpPasskey(): Promise<
+  ActionResult<{ options: Record<string, unknown> }>
+> {
+  try {
+    const supabase = await createSupabaseServer();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) return { success: false, error: "Not authenticated" };
+
+    const passkeys = await getPasskeysForUser(user.id);
+    if (passkeys.length === 0) {
+      return { success: false, error: "No passkeys enrolled" };
+    }
+
+    const options = await createAuthenticationOptions(
+      user.id,
+      passkeys.map((p) => ({ id: p.credentialId, transports: p.transports }))
+    );
+
+    return { success: true, data: { options: options as unknown as Record<string, unknown> } };
+  } catch (err) {
+    return { success: false, error: err instanceof Error ? err.message : "Step-up start failed" };
+  }
+}
+
+/**
+ * Finish step-up verification via passkey authentication.
+ * Verifies the WebAuthn response and, on success, issues a step-up token.
+ */
+export async function verifyStepUpPasskey(
+  response: AuthenticationResponseJSON
+): Promise<ActionResult<{ stepUpToken: string }>> {
+  try {
+    const supabase = await createSupabaseServer();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) return { success: false, error: "Not authenticated" };
+
+    const credentialId = response.id;
+    const credential = await getPasskeyByCredentialId(credentialId);
+    if (!credential || credential.userId !== user.id) {
+      return { success: false, error: "Unknown passkey credential" };
+    }
+
+    const verification = await verifyAuthentication(user.id, response, {
+      credentialId: credential.credentialId,
+      publicKey: new Uint8Array(credential.publicKey),
+      counter: credential.counter,
+    });
+
+    if (!verification.verified) {
+      return { success: false, error: "Passkey verification failed" };
+    }
+
+    if (verification.authenticationInfo) {
+      await updatePasskeyCounter(credential.credentialId, BigInt(verification.authenticationInfo.newCounter));
+    }
+
+    return { success: true, data: { stepUpToken: signStepUpToken(user.id, "passkey") } };
+  } catch (err) {
+    return { success: false, error: err instanceof Error ? err.message : "Step-up verification failed" };
+  }
+}
+
+// ─── Passkey removal (auth-method-agnostic via step-up token) ────────────────
+
+/**
+ * Remove a passkey after step-up verification.
+ * Requires a valid step-up token proving the user re-authenticated
+ * via password, TOTP, or another passkey — regardless of their auth provider.
+ */
+export async function removePasskey(
+  id: string,
+  stepUpToken: string
+): Promise<ActionResult<void>> {
+  try {
+    const supabase = await createSupabaseServer();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) return { success: false, error: "Not authenticated" };
+
+    const method = verifyStepUpToken(stepUpToken, user.id);
+    if (!method) {
+      return { success: false, error: "Step-up verification required. Please verify your identity first." };
     }
 
     const profile = await db.profile.findUnique({
@@ -416,6 +589,7 @@ export async function removePasskey(
           action: "passkey.removed",
           entityType: "PasskeyCredential",
           entityId: id,
+          metadata: { stepUpMethod: method },
         });
       }
     } catch {

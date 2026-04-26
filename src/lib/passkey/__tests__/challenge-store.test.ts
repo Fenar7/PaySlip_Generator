@@ -6,7 +6,7 @@ vi.mock("@/lib/db", () => ({
     webAuthnChallenge: {
       create: vi.fn(),
       findMany: vi.fn(),
-      update: vi.fn(),
+      updateMany: vi.fn(),
       deleteMany: vi.fn(),
     },
   },
@@ -17,7 +17,7 @@ import { db } from "@/lib/db";
 const mockDb = db.webAuthnChallenge as unknown as {
   create: ReturnType<typeof vi.fn>;
   findMany: ReturnType<typeof vi.fn>;
-  update: ReturnType<typeof vi.fn>;
+  updateMany: ReturnType<typeof vi.fn>;
   deleteMany: ReturnType<typeof vi.fn>;
 };
 
@@ -42,30 +42,31 @@ describe("storeChallenge", () => {
 });
 
 describe("consumeChallenge", () => {
-  it("returns true and marks consumed when challenge matches", async () => {
+  it("returns true when atomic claim succeeds and challenge matches", async () => {
     mockDb.findMany.mockResolvedValue([
       { id: "ch_1", challenge: "challenge_abc", consumed: false },
     ]);
-    mockDb.update.mockResolvedValue({});
+    mockDb.updateMany.mockResolvedValue({ count: 1 });
 
     const result = await consumeChallenge("user_1", "registration", "challenge_abc");
     expect(result).toBe(true);
-    expect(mockDb.update).toHaveBeenCalledWith({
-      where: { id: "ch_1" },
+    expect(mockDb.updateMany).toHaveBeenCalledWith({
+      where: { id: "ch_1", consumed: false },
       data: { consumed: true },
     });
   });
 
-  it("returns false and still marks consumed when challenge mismatches (single-use)", async () => {
+  it("returns false when challenge mismatches (single-use, still claimed)", async () => {
     mockDb.findMany.mockResolvedValue([
       { id: "ch_1", challenge: "challenge_real", consumed: false },
     ]);
-    mockDb.update.mockResolvedValue({});
+    mockDb.updateMany.mockResolvedValue({ count: 1 });
 
     const result = await consumeChallenge("user_1", "registration", "challenge_fake");
     expect(result).toBe(false);
-    expect(mockDb.update).toHaveBeenCalledWith({
-      where: { id: "ch_1" },
+    // Claimed atomically — single-use guarantee
+    expect(mockDb.updateMany).toHaveBeenCalledWith({
+      where: { id: "ch_1", consumed: false },
       data: { consumed: true },
     });
   });
@@ -75,7 +76,7 @@ describe("consumeChallenge", () => {
 
     const result = await consumeChallenge("user_1", "registration", "challenge_abc");
     expect(result).toBe(false);
-    expect(mockDb.update).not.toHaveBeenCalled();
+    expect(mockDb.updateMany).not.toHaveBeenCalled();
   });
 
   it("returns false when no challenge exists for the requested purpose", async () => {
@@ -83,27 +84,61 @@ describe("consumeChallenge", () => {
 
     const result = await consumeChallenge("user_1", "authentication", "challenge_abc");
     expect(result).toBe(false);
-    expect(mockDb.update).not.toHaveBeenCalled();
+    expect(mockDb.updateMany).not.toHaveBeenCalled();
+  });
+
+  it("returns false when atomic claim fails (concurrent consumer already consumed)", async () => {
+    // Simulate a race condition: another request consumes the challenge first
+    mockDb.findMany.mockResolvedValue([
+      { id: "ch_1", challenge: "challenge_abc", consumed: false },
+    ]);
+    // updateMany returns count 0 — someone else claimed it
+    mockDb.updateMany.mockResolvedValue({ count: 0 });
+
+    const result = await consumeChallenge("user_1", "registration", "challenge_abc");
+    expect(result).toBe(false);
+  });
+
+  it("returns false for length-mismatch challenges (constant-time safety)", async () => {
+    mockDb.findMany.mockResolvedValue([
+      { id: "ch_1", challenge: "short", consumed: false },
+    ]);
+    mockDb.updateMany.mockResolvedValue({ count: 1 });
+
+    const result = await consumeChallenge("user_1", "registration", "much_longer_challenge");
+    expect(result).toBe(false);
   });
 });
 
 describe("getAndConsumeChallenge", () => {
-  it("returns the challenge string on success", async () => {
+  it("returns the challenge string on atomic claim success", async () => {
     mockDb.findMany.mockResolvedValue([
       { id: "ch_1", challenge: "challenge_xyz", consumed: false },
     ]);
-    mockDb.update.mockResolvedValue({});
+    mockDb.updateMany.mockResolvedValue({ count: 1 });
 
     const result = await getAndConsumeChallenge("user_1", "registration");
     expect(result).toBe("challenge_xyz");
-    expect(mockDb.update).toHaveBeenCalledWith({
-      where: { id: "ch_1" },
+    expect(mockDb.updateMany).toHaveBeenCalledWith({
+      where: { id: "ch_1", consumed: false },
       data: { consumed: true },
     });
   });
 
   it("returns null when no challenge exists", async () => {
     mockDb.findMany.mockResolvedValue([]);
+
+    const result = await getAndConsumeChallenge("user_1", "registration");
+    expect(result).toBeNull();
+    expect(mockDb.updateMany).not.toHaveBeenCalled();
+  });
+
+  it("returns null when atomic claim fails (concurrent consumer)", async () => {
+    mockDb.findMany.mockResolvedValue([
+      { id: "ch_1", challenge: "challenge_xyz", consumed: false },
+    ]);
+    // Another request consumed it first
+    mockDb.updateMany.mockResolvedValue({ count: 0 });
 
     const result = await getAndConsumeChallenge("user_1", "registration");
     expect(result).toBeNull();
