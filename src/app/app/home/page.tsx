@@ -3,6 +3,9 @@ import Link from "next/link";
 import { listInvoices } from "@/app/app/docs/invoices/actions";
 import { listVouchers } from "@/app/app/docs/vouchers/actions";
 import { listSalarySlips } from "@/app/app/docs/salary-slips/actions";
+import { createSupabaseServer } from "@/lib/supabase/server";
+import { countPasskeysForUser } from "@/lib/passkey/db";
+import { PasskeyAdoptionPrompt } from "./passkey-adoption-prompt";
 
 export const metadata: Metadata = { title: "Home | Slipwise" };
 
@@ -65,16 +68,28 @@ function Badge({ label }: { label: string }) {
   );
 }
 
+async function getCurrentUserPasskeyCount(): Promise<number> {
+  const supabase = await createSupabaseServer();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) return 1;
+  return countPasskeysForUser(user.id);
+}
+
 export default async function AppHomePage() {
-  const [invoiceData, voucherData, salaryData] = await Promise.allSettled([
+  const [invoiceData, voucherData, salaryData, passkeyCountData] = await Promise.allSettled([
     listInvoices({ limit: 3 }),
     listVouchers({ limit: 3 }),
     listSalarySlips({ limit: 3 }),
+    getCurrentUserPasskeyCount(),
   ]);
 
   const invoices = invoiceData.status === "fulfilled" ? invoiceData.value : { invoices: [], total: 0 };
   const vouchers = voucherData.status === "fulfilled" ? voucherData.value : { vouchers: [], total: 0 };
   const slips = salaryData.status === "fulfilled" ? salaryData.value : { salarySlips: [], total: 0 };
+  const passkeyCount = passkeyCountData.status === "fulfilled" ? passkeyCountData.value : 1;
 
   return (
     <div className="min-h-screen bg-slate-50">
@@ -83,6 +98,8 @@ export default async function AppHomePage() {
           <h1 className="text-2xl font-semibold text-slate-900">Good day 👋</h1>
           <p className="mt-1 text-sm text-slate-500">What would you like to create today?</p>
         </div>
+
+        <PasskeyAdoptionPrompt show={passkeyCount === 0} />
 
         {/* Quick Actions */}
         <div className="mb-8 grid grid-cols-2 gap-4 sm:grid-cols-4">

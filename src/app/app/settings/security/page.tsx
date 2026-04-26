@@ -51,7 +51,6 @@ export default function SecuritySettingsPage() {
   // MFA state
   const [totpEnabled, setTotpEnabled] = useState(false);
   const [passkeyEnabled, setPasskeyEnabled] = useState(false);
-  const [passkeyCount, setPasskeyCount] = useState(0);
   const [twoFaEnforced, setTwoFaEnforced] = useState(false);
   const [twoFaStep, setTwoFaStep] = useState<TwoFaStep>("idle");
   const [qrDataUrl, setQrDataUrl] = useState("");
@@ -88,7 +87,6 @@ export default function SecuritySettingsPage() {
     if (res.success) {
       setTotpEnabled(res.data.totpEnabled);
       setPasskeyEnabled(res.data.passkeyEnabled);
-      setPasskeyCount(res.data.passkeyCount);
       setTwoFaEnforced(res.data.twoFaEnforcedByOrg);
     }
     const listRes = await listPasskeys();
@@ -384,7 +382,7 @@ export default function SecuritySettingsPage() {
             )}
           </div>
           <p className="text-sm text-[#666]">
-            Passkeys are the preferred method. Authenticator app remains a fallback. Save recovery codes in a secure place.
+            Passkeys are the preferred second factor. Authenticator app and recovery codes remain available as fallback.
           </p>
         </CardHeader>
         <CardContent className="space-y-6">
@@ -392,15 +390,20 @@ export default function SecuritySettingsPage() {
           {twoFaError && <p className="text-sm text-red-600">{twoFaError}</p>}
 
           {/* ── Passkeys ── */}
-          <div>
-            <div className="flex items-center gap-2 mb-3">
-              <Fingerprint className="h-4 w-4 text-slate-600" />
-              <h3 className="text-sm font-semibold text-[#1a1a1a]">Passkeys</h3>
+          <div className="rounded-lg border border-blue-200 bg-blue-50/60 p-4">
+            <div className="mb-3 flex items-start gap-3">
+              <Fingerprint className="mt-0.5 h-4 w-4 text-blue-700" />
+              <div>
+                <h3 className="text-sm font-semibold text-[#1a1a1a]">Passkeys</h3>
+                <p className="mt-1 text-sm text-slate-600">
+                  Use Face ID, Touch ID, Windows Hello, Android fingerprint, or a security key after sign-in.
+                </p>
+              </div>
             </div>
             {webauthnSupported ? (
               <>
                 <Button
-                  variant="secondary"
+                  variant="primary"
                   onClick={handleAddPasskey}
                   disabled={passkeyBusy}
                   className="mb-3"
