@@ -61,6 +61,8 @@ export default function SecuritySettingsPage() {
   const [renameId, setRenameId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState("");
   const [webauthnSupported, setWebauthnSupported] = useState(true);
+  const [removeId, setRemoveId] = useState<string | null>(null);
+  const [removePassword, setRemovePassword] = useState("");
 
   useEffect(() => {
     setWebauthnSupported(browserSupportsWebAuthn());
@@ -205,12 +207,18 @@ export default function SecuritySettingsPage() {
   }
 
   async function handleRemovePasskey(id: string) {
-    if (!confirm("Are you sure you want to remove this passkey?")) return;
-    const res = await removePasskey(id);
+    setPasskeyError("");
+    if (!removePassword.trim()) {
+      setPasskeyError("Enter your current password to remove this passkey.");
+      return;
+    }
+    const res = await removePasskey(id, removePassword.trim());
     if (!res.success) {
       setPasskeyError(res.error);
       return;
     }
+    setRemoveId(null);
+    setRemovePassword("");
     await loadMfaStatus();
   }
 
@@ -328,6 +336,35 @@ export default function SecuritySettingsPage() {
                                 Cancel
                               </Button>
                             </div>
+                          ) : removeId === pk.id ? (
+                            <div className="space-y-2">
+                              <p className="text-sm font-medium text-[#1a1a1a]">{pk.deviceName || "Unnamed passkey"}</p>
+                              <div className="flex items-center gap-2">
+                                <input
+                                  type="password"
+                                  value={removePassword}
+                                  onChange={(e) => setRemovePassword(e.target.value)}
+                                  placeholder="Current password"
+                                  className="rounded border border-input bg-background px-2 py-1 text-sm w-40"
+                                  autoFocus
+                                  autoComplete="current-password"
+                                />
+                                <Button
+                                  size="sm"
+                                  variant="danger"
+                                  onClick={() => handleRemovePasskey(pk.id)}
+                                >
+                                  Remove
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  onClick={() => { setRemoveId(null); setRemovePassword(""); }}
+                                >
+                                  Cancel
+                                </Button>
+                              </div>
+                            </div>
                           ) : (
                             <div>
                               <p className="text-sm font-medium text-[#1a1a1a]">{pk.deviceName || "Unnamed passkey"}</p>
@@ -341,7 +378,7 @@ export default function SecuritySettingsPage() {
                         <div className="flex items-center gap-1 ml-2 shrink-0">
                           <button
                             type="button"
-                            onClick={() => { setRenameId(pk.id); setRenameValue(pk.deviceName || ""); }}
+                            onClick={() => { setRenameId(pk.id); setRenameValue(pk.deviceName || ""); setRemoveId(null); }}
                             className="p-1.5 rounded hover:bg-slate-100 text-slate-500"
                             title="Rename"
                           >
@@ -349,7 +386,7 @@ export default function SecuritySettingsPage() {
                           </button>
                           <button
                             type="button"
-                            onClick={() => handleRemovePasskey(pk.id)}
+                            onClick={() => { setRemoveId(pk.id); setRemovePassword(""); setRenameId(null); }}
                             className="p-1.5 rounded hover:bg-red-50 text-red-500"
                             title="Remove"
                           >

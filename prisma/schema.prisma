@@ -67,6 +67,22 @@ model PasskeyCredential {
   @@map("passkey_credentials")
 }
 
+// ─── Phase 38: WebAuthn Challenge Store ───────────────────────────────────────
+
+model WebAuthnChallenge {
+  id        String   @id @default(cuid())
+  userId    String   @db.Uuid
+  purpose   String // "registration" | "authentication"
+  challenge String
+  consumed  Boolean  @default(false)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([userId, purpose, consumed])
+  @@index([expiresAt])
+  @@map("webauthn_challenges")
+}
+
 // ─── Organization ─────────────────────────────────────────────────────────────
 
 model Organization {

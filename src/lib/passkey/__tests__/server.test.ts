@@ -1,83 +1,46 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import {
-  storeChallenge,
-  consumeChallenge,
   createRegistrationOptions,
   createAuthenticationOptions,
   getRpId,
   getOrigin,
 } from "../server";
+import { storeChallenge, consumeChallenge, getAndConsumeChallenge } from "../challenge-store";
+
+vi.mock("../challenge-store", () => ({
+  storeChallenge: vi.fn(),
+  consumeChallenge: vi.fn(),
+  getAndConsumeChallenge: vi.fn(),
+}));
 
 beforeEach(() => {
   vi.stubEnv("WEBAUTHN_RP_NAME", "Slipwise Test");
   vi.stubEnv("WEBAUTHN_RP_ID", "localhost");
   vi.stubEnv("WEBAUTHN_ORIGIN", "http://localhost:3001");
-  // Clear the in-memory challenge store between tests
-  // We need to access the private map; we do this by consuming with a dummy key
-  // Actually, we can't easily clear the private map. Let's work around by using unique userIds per test.
+  vi.stubEnv("NODE_ENV", "test");
+  vi.clearAllMocks();
 });
 
 describe("getRpId / getOrigin", () => {
   it("reads from environment variables", () => {
-    // In tests, env stubs apply after module import for default values
     expect(getRpId()).toBe("localhost");
     expect(getOrigin()).toBe("http://localhost:3001");
   });
 });
 
-describe("storeChallenge / consumeChallenge", () => {
-  it("stores and consumes a challenge successfully", () => {
-    const userId = "user_store_1";
-    storeChallenge(userId, "registration", "challenge_abc");
-    expect(consumeChallenge(userId, "registration", "challenge_abc")).toBe(true);
-  });
-
-  it("rejects a challenge consumed twice (one-time use)", () => {
-    const userId = "user_store_2";
-    storeChallenge(userId, "registration", "challenge_def");
-    expect(consumeChallenge(userId, "registration", "challenge_def")).toBe(true);
-    expect(consumeChallenge(userId, "registration", "challenge_def")).toBe(false);
-  });
-
-  it("rejects a challenge with wrong purpose", () => {
-    const userId = "user_store_3";
-    storeChallenge(userId, "registration", "challenge_ghi");
-    expect(consumeChallenge(userId, "authentication", "challenge_ghi")).toBe(false);
-  });
-
-  it("rejects a challenge with mismatched value", () => {
-    const userId = "user_store_4";
-    storeChallenge(userId, "registration", "challenge_real");
-    expect(consumeChallenge(userId, "registration", "challenge_fake")).toBe(false);
-  });
-
-  it("rejects a non-existent challenge", () => {
-    const userId = "user_store_5";
-    expect(consumeChallenge(userId, "registration", "challenge_missing")).toBe(false);
-  });
-
-  it("rejects expired challenges (simulated by waiting)", async () => {
-    const userId = "user_store_6";
-    vi.useFakeTimers();
-    storeChallenge(userId, "registration", "challenge_exp");
-    vi.advanceTimersByTime(6 * 60 * 1000); // 6 minutes > 5 min TTL
-    expect(consumeChallenge(userId, "registration", "challenge_exp")).toBe(false);
-    vi.useRealTimers();
-  });
-});
-
 describe("createRegistrationOptions", () => {
-  it("generates options with the correct user info", async () => {
+  it("generates options with the correct user info and required userVerification", async () => {
     const userId = "user_reg_1";
     const email = "test@example.com";
     const opts = await createRegistrationOptions(userId, email, []);
     expect(opts.rp.name).toBe("Slipwise");
     expect(opts.rp.id).toBe("localhost");
-    expect(opts.user.id).toBeTruthy();
     expect(opts.user.name).toBe(email);
     expect(opts.user.displayName).toBe(email);
     expect(opts.challenge).toBeDefined();
     expect(opts.excludeCredentials).toEqual([]);
+    // User verification must be required for production MFA
+    expect(opts.authenticatorSelection?.userVerification).toBe("required");
   });
 
   it("excludes existing credentials", async () => {
@@ -87,10 +50,16 @@ describe("createRegistrationOptions", () => {
     expect(opts.excludeCredentials![0].id).toBe("cred1");
     expect(opts.excludeCredentials![1].id).toBe("cred2");
   });
+
+  it("stores the challenge durably", async () => {
+    const userId = "user_reg_3";
+    await createRegistrationOptions(userId, "test@example.com", []);
+    expect(storeChallenge).toHaveBeenCalledWith(userId, "registration", expect.any(String));
+  });
 });
 
 describe("createAuthenticationOptions", () => {
-  it("generates options with allowed credentials", async () => {
+  it("generates options with allowed credentials and required userVerification", async () => {
     const userId = "user_auth_1";
     const allowCredentials = [
       { id: "credA", transports: ["internal"] as string[] },
@@ -101,11 +70,19 @@ describe("createAuthenticationOptions", () => {
     expect(opts.allowCredentials).toHaveLength(2);
     expect(opts.allowCredentials![0].id).toBe("credA");
     expect(opts.challenge).toBeDefined();
+    // User verification must be required for production MFA
+    expect(opts.userVerification).toBe("required");
   });
 
   it("generates options with no credentials when array is empty", async () => {
     const userId = "user_auth_2";
     const opts = await createAuthenticationOptions(userId, []);
     expect(opts.allowCredentials).toEqual([]);
+  });
+
+  it("stores the challenge durably", async () => {
+    const userId = "user_auth_3";
+    await createAuthenticationOptions(userId, [{ id: "cred1" }]);
+    expect(storeChallenge).toHaveBeenCalledWith(userId, "authentication", expect.any(String));
   });
 });

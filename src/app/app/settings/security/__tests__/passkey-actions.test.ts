@@ -23,6 +23,12 @@ vi.mock("@/lib/db", () => ({
     auditLog: {
       create: vi.fn(),
     },
+    webAuthnChallenge: {
+      create: vi.fn(),
+      findMany: vi.fn(),
+      update: vi.fn(),
+      deleteMany: vi.fn(),
+    },
   },
 }));
 
@@ -85,14 +91,16 @@ import {
   removePasskeyCredential,
   countPasskeysForUser,
 } from "@/lib/passkey/db";
+import { logAudit } from "@/lib/audit";
 
 const mockSupabaseServer = vi.mocked(createSupabaseServer);
 const mockSupabaseAdmin = vi.mocked(createSupabaseAdmin);
 
-function mockUser(userId: string, email?: string) {
+function mockUser(userId: string, email?: string, signInResult?: { error: Error | null }) {
   mockSupabaseServer.mockResolvedValue({
     auth: {
       getUser: vi.fn().mockResolvedValue({ data: { user: { id: userId, email: email ?? "test@example.com" } }, error: null }),
+      signInWithPassword: vi.fn().mockResolvedValue({ error: signInResult?.error ?? null }),
     },
   } as any);
 }
@@ -123,7 +131,7 @@ describe("beginPasskeyRegistration", () => {
       timeout: 60000,
       attestation: "none",
       excludeCredentials: [],
-      authenticatorSelection: { residentKey: "preferred", userVerification: "preferred" },
+      authenticatorSelection: { residentKey: "preferred", userVerification: "required" },
       extensions: { credProps: true },
     } as any);
 
@@ -222,7 +230,7 @@ describe("beginPasskeyAuthentication", () => {
       rpId: "localhost",
       allowCredentials: [{ id: "cred_1", type: "public-key" }],
       timeout: 60000,
-      userVerification: "preferred",
+      userVerification: "required",
     } as any);
 
     const result = await beginPasskeyAuthentication();
@@ -291,11 +299,46 @@ describe("finishPasskeyAuthentication", () => {
       expect(result.error).toBe("Unknown passkey credential");
     }
   });
+
+  it("audits failed challenge attempt", async () => {
+    mockUser("user_1");
+    vi.mocked(getPasskeyByCredentialId).mockResolvedValue({
+      id: "pk_1",
+      credentialId: "cred_1",
+      publicKey: Buffer.from([1, 2, 3]),
+      counter: BigInt(0),
+      userId: "user_1",
+    } as any);
+    vi.mocked(verifyAuthentication).mockResolvedValue({
+      verified: false,
+    } as any);
+    vi.mocked(db.member.findFirst).mockResolvedValue({ organizationId: "org_1" } as any);
+
+    const result = await finishPasskeyAuthentication({
+      id: "cred_1",
+      rawId: "raw_1",
+      response: {} as any,
+      clientExtensionResults: {},
+      type: "public-key",
+    });
+
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error).toBe("Passkey verification failed");
+    }
+    expect(logAudit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: "passkey.challenge_failed",
+        entityType: "PasskeyCredential",
+        entityId: "pk_1",
+      })
+    );
+  });
 });
 
 describe("removePasskey", () => {
-  it("removes a passkey successfully", async () => {
-    mockUser("user_1");
+  it("removes a passkey successfully with valid password", async () => {
+    mockUser("user_1", "test@example.com");
     vi.mocked(db.profile.findUnique).mockResolvedValue({
       totpEnabled: true,
       twoFaEnforcedByOrg: false,
@@ -306,19 +349,33 @@ describe("removePasskey", () => {
       auth: { admin: { updateUserById: vi.fn().mockResolvedValue({}) } },
     } as any);
 
-    const result = await removePasskey("pk_1");
+    const result = await removePasskey("pk_1", "correct_password");
     expect(result.success).toBe(true);
   });
 
+  it("denies removal without valid re-auth", async () => {
+    mockUser("user_1", "test@example.com", { error: new Error("Invalid login credentials") });
+    vi.mocked(db.profile.findUnique).mockResolvedValue({
+      totpEnabled: true,
+      twoFaEnforcedByOrg: false,
+    } as any);
+
+    const result = await removePasskey("pk_1", "wrong_password");
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error).toContain("Incorrect password");
+    }
+  });
+
   it("blocks removal of last factor when org requires MFA", async () => {
-    mockUser("user_1");
+    mockUser("user_1", "test@example.com");
     vi.mocked(db.profile.findUnique).mockResolvedValue({
       totpEnabled: false,
       twoFaEnforcedByOrg: true,
     } as any);
     vi.mocked(countPasskeysForUser).mockResolvedValue(1);
 
-    const result = await removePasskey("pk_1");
+    const result = await removePasskey("pk_1", "correct_password");
     expect(result.success).toBe(false);
     if (!result.success) {
       expect(result.error).toContain("Cannot remove your last MFA factor");

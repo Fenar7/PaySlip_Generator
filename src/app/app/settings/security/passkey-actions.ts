@@ -141,7 +141,6 @@ export async function finishPasskeyRegistration(
 
     await issueMfaCookie(user.id);
 
-    // Try to log audit (best-effort, needs org context which may not exist here)
     try {
       const member = await db.member.findFirst({
         where: { userId: user.id },
@@ -220,6 +219,25 @@ export async function finishPasskeyAuthentication(
     });
 
     if (!verification.verified) {
+      // Best-effort audit of failed challenge
+      try {
+        const member = await db.member.findFirst({
+          where: { userId: user.id },
+          select: { organizationId: true },
+        });
+        if (member) {
+          await logAudit({
+            orgId: member.organizationId,
+            actorId: user.id,
+            action: "passkey.challenge_failed",
+            entityType: "PasskeyCredential",
+            entityId: credential.id,
+            metadata: { purpose: "mfa_challenge", reason: "verification_failed" },
+          });
+        }
+      } catch {
+        // ignore audit failures
+      }
       return { success: false, error: "Passkey verification failed" };
     }
 
@@ -327,15 +345,29 @@ export async function renamePasskey(
   }
 }
 
+/**
+ * Remove a passkey with re-authentication.
+ * Requires the user's current password for destructive confirmation.
+ */
 export async function removePasskey(
-  id: string
+  id: string,
+  currentPassword: string
 ): Promise<ActionResult<void>> {
   try {
     const supabase = await createSupabaseServer();
     const {
       data: { user },
     } = await supabase.auth.getUser();
-    if (!user) return { success: false, error: "Not authenticated" };
+    if (!user?.email) return { success: false, error: "Not authenticated" };
+
+    // Re-authenticate to confirm identity before removing a passkey
+    const { error: authError } = await supabase.auth.signInWithPassword({
+      email: user.email,
+      password: currentPassword,
+    });
+    if (authError) {
+      return { success: false, error: "Incorrect password. Passkey was not removed." };
+    }
 
     const profile = await db.profile.findUnique({
       where: { id: user.id },

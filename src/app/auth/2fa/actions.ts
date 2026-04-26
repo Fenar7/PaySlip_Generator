@@ -16,6 +16,7 @@ import {
   updatePasskeyCounter,
 } from "@/lib/passkey/db";
 import { verifyAuthentication } from "@/lib/passkey/server";
+import { logAudit } from "@/lib/audit";
 import type { AuthenticationResponseJSON } from "@simplewebauthn/browser";
 
 export type ActionResult<T> = { success: true; data: T } | { success: false; error: string };
@@ -88,6 +89,8 @@ export async function verifyTotpChallenge(
 
 /**
  * Use a recovery code instead of a TOTP code. Consumes the code (one-time use).
+ * Recovery codes are a general MFA fallback — available when the user has
+ * recovery codes stored, regardless of whether TOTP or passkey is the primary factor.
  */
 export async function verifyRecoveryChallenge(
   inputCode: string,
@@ -102,13 +105,19 @@ export async function verifyRecoveryChallenge(
 
     const profile = await db.profile.findUnique({
       where: { id: user.id },
-      select: { recoveryCodes: true, totpEnabled: true },
+      select: { recoveryCodes: true, totpEnabled: true, passkeyEnabled: true },
     });
-    if (!profile?.totpEnabled) {
-      return { success: false, error: "2FA is not enabled for this account" };
+
+    const hasMfa = profile?.totpEnabled || profile?.passkeyEnabled;
+    if (!hasMfa) {
+      return { success: false, error: "MFA is not enabled for this account" };
     }
 
     const storedHashes = (profile.recoveryCodes as string[] | null) ?? [];
+    if (storedHashes.length === 0) {
+      return { success: false, error: "No recovery codes available" };
+    }
+
     const idx = findRecoveryCodeIndex(inputCode, storedHashes);
     if (idx === -1) {
       return { success: false, error: "Invalid recovery code" };
@@ -160,6 +169,25 @@ export async function verifyPasskeyChallenge(
     });
 
     if (!verification.verified) {
+      // Best-effort audit of failed passkey challenge
+      try {
+        const member = await db.member.findFirst({
+          where: { userId: user.id },
+          select: { organizationId: true },
+        });
+        if (member) {
+          await logAudit({
+            orgId: member.organizationId,
+            actorId: user.id,
+            action: "passkey.challenge_failed",
+            entityType: "PasskeyCredential",
+            entityId: credential.id,
+            metadata: { purpose: "mfa_challenge", reason: "verification_failed" },
+          });
+        }
+      } catch {
+        // ignore audit failures
+      }
       return { success: false, error: "Passkey verification failed" };
     }
 
