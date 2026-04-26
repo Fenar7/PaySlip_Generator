@@ -3,7 +3,7 @@ import { updateSession } from "@/lib/supabase/middleware";
 import { rateLimitByIp } from "@/lib/rate-limit";
 import {
   verifyChallengeToken,
-  TOTP_CHALLENGE_COOKIE,
+  MFA_CHALLENGE_COOKIE,
 } from "@/lib/totp/challenge-session";
 
 const PUBLIC_PREFIXES = [
@@ -123,32 +123,32 @@ export function applySecurityHeaders(response: NextResponse): NextResponse {
   return response;
 }
 
-// ─── 2FA challenge enforcement ────────────────────────────────────────────────
+// ─── MFA challenge enforcement ────────────────────────────────────────────────
 
 /**
- * Check whether the current request satisfies the 2FA challenge requirement.
+ * Check whether the current request satisfies the MFA challenge requirement.
  *
- * Reading totpEnabled from Supabase user_metadata means no DB call at the edge.
- * The flag is synced into user_metadata by verify2faSetup / disable2fa server
- * actions, so it is authoritative for middleware purposes.
+ * Reading MFA state from Supabase user_metadata means no DB call at the edge.
+ * The flags are synced into user_metadata by server actions, so they are
+ * authoritative for middleware purposes.
  *
  * The sw_2fa cookie is an HMAC-HS256 JWT signed with TOTP_SESSION_SECRET
  * (falls back to PORTAL_JWT_SECRET). Verified using the Web Crypto API
  * (edge-runtime compatible).
  */
-async function check2faChallenge(
+async function checkMfaChallenge(
   request: NextRequest,
   userId: string,
-  twoFaRequired: boolean,
+  mfaRequired: boolean,
   opts?: { enrollmentRequired?: boolean }
 ): Promise<NextResponse | null> {
-  if (!twoFaRequired) return null;
+  if (!mfaRequired) return null;
 
   const callbackUrl = request.nextUrl.pathname + request.nextUrl.search;
 
   if (opts?.enrollmentRequired) {
     const setupUrl = new URL("/app/settings/security", request.url);
-    setupUrl.searchParams.set("setup2fa", "1");
+    setupUrl.searchParams.set("setupMfa", "1");
     setupUrl.searchParams.set("callbackUrl", callbackUrl);
     return NextResponse.redirect(setupUrl);
   }
@@ -158,16 +158,16 @@ async function check2faChallenge(
 
   if (!secret) {
     const loginUrl = new URL("/auth/login", request.url);
-    loginUrl.searchParams.set("error", "2fa_unavailable");
+    loginUrl.searchParams.set("error", "mfa_unavailable");
     loginUrl.searchParams.set("callbackUrl", callbackUrl);
     return NextResponse.redirect(loginUrl);
   }
 
-  const cookieValue = request.cookies.get(TOTP_CHALLENGE_COOKIE)?.value ?? "";
+  const cookieValue = request.cookies.get(MFA_CHALLENGE_COOKIE)?.value ?? "";
   const verifiedUserId = await verifyChallengeToken(cookieValue, secret);
 
   if (verifiedUserId === userId) {
-    // Valid challenge cookie — user has already passed 2FA
+    // Valid challenge cookie — user has already passed MFA
     return null;
   }
 
@@ -244,26 +244,38 @@ export async function middleware(request: NextRequest) {
       return NextResponse.redirect(loginUrl);
     }
 
-    // ── 2FA challenge gate ────────────────────────────────────────────────
-    const totpEnabled = user.user_metadata?.totpEnabled === true;
-    const twoFaEnforcedByOrg = user.user_metadata?.twoFaEnforcedByOrg === true;
-    const twoFaRequired = totpEnabled || twoFaEnforcedByOrg;
-    const enrollmentRequired = twoFaEnforcedByOrg && !totpEnabled;
-    const is2faEnrollmentPath = pathname === "/app/settings/security";
+    // ── MFA challenge gate ────────────────────────────────────────────────
+    // user_metadata holds totpEnabled, passkeyEnabled, and mfaEnabled (union).
+    // Prefer the explicit mfaEnabled flag if present; otherwise fall back to
+    // totpEnabled for backward compatibility during rollout.
+    const mfaEnabled =
+      user.user_metadata?.mfaEnabled === true ||
+      user.user_metadata?.totpEnabled === true ||
+      user.user_metadata?.passkeyEnabled === true;
 
-    if (enrollmentRequired && is2faEnrollmentPath) {
+    const twoFaEnforcedByOrg = user.user_metadata?.twoFaEnforcedByOrg === true;
+    const mfaRequired = mfaEnabled || twoFaEnforcedByOrg;
+
+    // Enrollment is required when org enforces MFA and the user has no factor.
+    const hasFactor =
+      user.user_metadata?.totpEnabled === true ||
+      user.user_metadata?.passkeyEnabled === true;
+    const enrollmentRequired = twoFaEnforcedByOrg && !hasFactor;
+    const isMfaEnrollmentPath = pathname === "/app/settings/security";
+
+    if (enrollmentRequired && isMfaEnrollmentPath) {
       return applySecurityHeaders(supabaseResponse);
     }
 
     try {
-      const challengeRedirect = await check2faChallenge(request, user.id, twoFaRequired, {
+      const challengeRedirect = await checkMfaChallenge(request, user.id, mfaRequired, {
         enrollmentRequired,
       });
       if (challengeRedirect) return challengeRedirect;
     } catch (err) {
-      console.warn("[middleware] 2FA check error, denying access:", err);
+      console.warn("[middleware] MFA check error, denying access:", err);
       const loginUrl = new URL("/auth/login", request.url);
-      loginUrl.searchParams.set("error", "2fa_check_failed");
+      loginUrl.searchParams.set("error", "mfa_check_failed");
       loginUrl.searchParams.set("callbackUrl", pathname);
       return NextResponse.redirect(loginUrl);
     }

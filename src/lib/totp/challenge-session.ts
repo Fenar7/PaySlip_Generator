@@ -1,18 +1,25 @@
 /**
- * 2FA challenge session cookie helpers.
+ * MFA challenge session cookie helpers.
  *
  * Server-side (Node.js): sign cookies with crypto.createHmac (same HS256
  * pattern used in portal-auth.ts).
  *
  * Edge/middleware: verify with the Web Crypto API (crypto.subtle) which is
  * available in the Next.js Edge Runtime.
+ *
+ * Originally TOTP-specific, now generalized for any MFA factor (TOTP, passkey,
+ * recovery code). The cookie name stays stable to avoid migration friction.
  */
 
 import crypto from "crypto";
 
-export const TOTP_CHALLENGE_COOKIE = "sw_2fa";
-/** How long a verified 2FA session stays valid (12 hours). */
-export const TOTP_SESSION_DURATION_SECONDS = 12 * 60 * 60;
+export const MFA_CHALLENGE_COOKIE = "sw_2fa";
+/** How long a verified MFA session stays valid (12 hours). */
+export const MFA_SESSION_DURATION_SECONDS = 12 * 60 * 60;
+
+// Legacy aliases for backward compatibility during transition
+export const TOTP_CHALLENGE_COOKIE = MFA_CHALLENGE_COOKIE;
+export const TOTP_SESSION_DURATION_SECONDS = MFA_SESSION_DURATION_SECONDS;
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -34,13 +41,13 @@ function getSecret(): string {
 
 /**
  * Create a signed challenge cookie value tied to a specific user.
- * Call this after successfully verifying a TOTP code or recovery code.
+ * Call this after successfully verifying any MFA factor (TOTP, passkey, recovery).
  */
 export function signChallengeToken(userId: string): string {
   const now = Math.floor(Date.now() / 1000);
   const header = base64url(JSON.stringify({ alg: "HS256", typ: "JWT" }));
   const body = base64url(
-    JSON.stringify({ sub: userId, iat: now, exp: now + TOTP_SESSION_DURATION_SECONDS })
+    JSON.stringify({ sub: userId, iat: now, exp: now + MFA_SESSION_DURATION_SECONDS })
   );
   const signature = crypto
     .createHmac("sha256", getSecret())

@@ -24,7 +24,13 @@ model Profile {
   recoveryCodes      Json? // array of bcrypt-hashed 8 recovery codes
   twoFaEnforcedByOrg Boolean   @default(false)
 
+  // Phase 38: Passkey MFA
+  passkeyEnabled    Boolean   @default(false)
+  passkeyEnabledAt  DateTime?
+  preferredMfaMethod String   @default("passkey") // passkey | totp
+
   members              Member[]
+  passkeys             PasskeyCredential[]
   auditActorLogs       AuditLog[]            @relation("AuditActor")
   auditRepLogs         AuditLog[]            @relation("AuditRepresented")
   referrals            Referral[]
@@ -37,6 +43,28 @@ model Profile {
   flashReportSchedules FlashReportSchedule[]
 
   @@map("profiles")
+}
+
+// ─── Phase 38: Passkey Credentials ────────────────────────────────────────────
+
+model PasskeyCredential {
+  id             String   @id @default(cuid())
+  userId         String   @db.Uuid
+  credentialId   String   @unique
+  publicKey      Bytes
+  counter        BigInt   @default(0)
+  transports     String[] @default([])
+  deviceName     String?
+  deviceType     String?
+  backedUp       Boolean  @default(false)
+  lastUsedAt     DateTime?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  user Profile @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("passkey_credentials")
 }
 
 // ─── Organization ─────────────────────────────────────────────────────────────

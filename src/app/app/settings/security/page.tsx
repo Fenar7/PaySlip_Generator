@@ -6,11 +6,32 @@ import { createSupabaseBrowser, signOutSupabaseBrowser } from "@/lib/supabase/cl
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { initiate2faSetup, verify2faSetup, disable2fa, get2faStatus } from "./actions";
+import { initiate2faSetup, verify2faSetup, disable2fa } from "./actions";
+import {
+  getMfaStatus,
+  beginPasskeyRegistration,
+  finishPasskeyRegistration,
+  listPasskeys,
+  renamePasskey,
+  removePasskey,
+} from "./passkey-actions";
+import { registerPasskey, browserSupportsWebAuthn } from "@/lib/passkey/client";
 import QRCode from "qrcode";
-import { ShieldCheck, ShieldOff } from "lucide-react";
+import { ShieldCheck, ShieldOff, KeyRound, Fingerprint, Trash2, Pencil } from "lucide-react";
 
 type TwoFaStep = "idle" | "setup" | "verify" | "done";
+
+type PasskeyListItem = {
+  id: string;
+  credentialId: string;
+  deviceName: string | null;
+  deviceType: string | null;
+  backedUp: boolean;
+  transports: string[];
+  lastUsedAt: Date | null;
+  createdAt: Date;
+  updatedAt: Date;
+};
 
 export default function SecuritySettingsPage() {
   const router = useRouter();
@@ -20,8 +41,10 @@ export default function SecuritySettingsPage() {
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState("");
 
-  // 2FA state
-  const [twoFaEnabled, setTwoFaEnabled] = useState(false);
+  // MFA state
+  const [totpEnabled, setTotpEnabled] = useState(false);
+  const [passkeyEnabled, setPasskeyEnabled] = useState(false);
+  const [passkeyCount, setPasskeyCount] = useState(0);
   const [twoFaEnforced, setTwoFaEnforced] = useState(false);
   const [twoFaStep, setTwoFaStep] = useState<TwoFaStep>("idle");
   const [qrDataUrl, setQrDataUrl] = useState("");
@@ -31,14 +54,32 @@ export default function SecuritySettingsPage() {
   const [twoFaError, setTwoFaError] = useState("");
   const [twoFaBusy, setTwoFaBusy] = useState(false);
 
+  // Passkey state
+  const [passkeys, setPasskeys] = useState<PasskeyListItem[]>([]);
+  const [passkeyBusy, setPasskeyBusy] = useState(false);
+  const [passkeyError, setPasskeyError] = useState("");
+  const [renameId, setRenameId] = useState<string | null>(null);
+  const [renameValue, setRenameValue] = useState("");
+  const [webauthnSupported, setWebauthnSupported] = useState(true);
+
   useEffect(() => {
-    get2faStatus().then((res) => {
-      if (res.success) {
-        setTwoFaEnabled(res.data.totpEnabled);
-        setTwoFaEnforced(res.data.twoFaEnforcedByOrg);
-      }
-    });
+    setWebauthnSupported(browserSupportsWebAuthn());
+    loadMfaStatus();
   }, []);
+
+  async function loadMfaStatus() {
+    const res = await getMfaStatus();
+    if (res.success) {
+      setTotpEnabled(res.data.totpEnabled);
+      setPasskeyEnabled(res.data.passkeyEnabled);
+      setPasskeyCount(res.data.passkeyCount);
+      setTwoFaEnforced(res.data.twoFaEnforcedByOrg);
+    }
+    const listRes = await listPasskeys();
+    if (listRes.success) {
+      setPasskeys(listRes.data);
+    }
+  }
 
   async function handleChangePassword(e: React.FormEvent) {
     e.preventDefault();
@@ -97,7 +138,7 @@ export default function SecuritySettingsPage() {
       const res = await verify2faSetup(totpCode);
       if (!res.success) { setTwoFaError(res.error); return; }
       setRecoveryCodes(res.data.recoveryCodes);
-      setTwoFaEnabled(true);
+      setTotpEnabled(true);
       setTwoFaStep("done");
     } finally {
       setTwoFaBusy(false);
@@ -111,13 +152,69 @@ export default function SecuritySettingsPage() {
     try {
       const res = await disable2fa(disablePassword);
       if (!res.success) { setTwoFaError(res.error); return; }
-      setTwoFaEnabled(false);
+      setTotpEnabled(false);
       setTwoFaStep("idle");
       setDisablePassword("");
     } finally {
       setTwoFaBusy(false);
     }
   }
+
+  // ─── Passkey handlers ──────────────────────────────────────────────────────
+
+  async function handleAddPasskey() {
+    setPasskeyError("");
+    setPasskeyBusy(true);
+    try {
+      const beginRes = await beginPasskeyRegistration();
+      if (!beginRes.success) {
+        setPasskeyError(beginRes.error);
+        return;
+      }
+      const options = beginRes.data.options as unknown as import("@simplewebauthn/browser").PublicKeyCredentialCreationOptionsJSON;
+      const response = await registerPasskey(options);
+      const finishRes = await finishPasskeyRegistration(
+        response,
+        `Passkey ${new Date().toLocaleDateString()}`
+      );
+      if (!finishRes.success) {
+        setPasskeyError(finishRes.error);
+        return;
+      }
+      await loadMfaStatus();
+    } catch (err) {
+      setPasskeyError(err instanceof Error ? err.message : "Passkey registration failed");
+    } finally {
+      setPasskeyBusy(false);
+    }
+  }
+
+  async function handleRenamePasskey(id: string) {
+    if (!renameValue.trim()) {
+      setRenameId(null);
+      return;
+    }
+    const res = await renamePasskey(id, renameValue.trim());
+    if (!res.success) {
+      setPasskeyError(res.error);
+      return;
+    }
+    setRenameId(null);
+    setRenameValue("");
+    await loadMfaStatus();
+  }
+
+  async function handleRemovePasskey(id: string) {
+    if (!confirm("Are you sure you want to remove this passkey?")) return;
+    const res = await removePasskey(id);
+    if (!res.success) {
+      setPasskeyError(res.error);
+      return;
+    }
+    await loadMfaStatus();
+  }
+
+  const anyMfaEnabled = totpEnabled || passkeyEnabled;
 
   return (
     <div className="space-y-6">
@@ -154,117 +251,214 @@ export default function SecuritySettingsPage() {
         </CardContent>
       </Card>
 
-      {/* ─── Two-Factor Authentication ─── */}
+      {/* ─── Multi-Factor Authentication ─── */}
       <Card>
         <CardHeader>
           <div className="flex items-center gap-2">
-            {twoFaEnabled
+            {anyMfaEnabled
               ? <ShieldCheck className="h-4 w-4 text-green-600" />
               : <ShieldOff className="h-4 w-4 text-slate-400" />
             }
-            <h2 className="text-lg font-semibold text-[#1a1a1a]">Two-factor authentication</h2>
-            {twoFaEnabled && (
+            <h2 className="text-lg font-semibold text-[#1a1a1a]">Multi-factor authentication</h2>
+            {anyMfaEnabled && (
               <span className="ml-2 rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700">
                 Enabled
               </span>
             )}
-            {twoFaEnforced && !twoFaEnabled && (
+            {twoFaEnforced && !anyMfaEnabled && (
               <span className="ml-2 rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700">
                 Required by org
               </span>
             )}
           </div>
           <p className="text-sm text-[#666]">
-            Use an authenticator app (Google Authenticator, Authy) to add a second layer of security.
+            Passkeys are the preferred method. Authenticator app remains a fallback. Save recovery codes in a secure place.
           </p>
         </CardHeader>
-        <CardContent>
-          {twoFaError && <p className="mb-3 text-sm text-red-600">{twoFaError}</p>}
+        <CardContent className="space-y-6">
+          {passkeyError && <p className="text-sm text-red-600">{passkeyError}</p>}
+          {twoFaError && <p className="text-sm text-red-600">{twoFaError}</p>}
 
-          {/* ── idle: not enabled ── */}
-          {!twoFaEnabled && twoFaStep === "idle" && (
-            <Button onClick={handleEnable2fa} disabled={twoFaBusy}>
-              {twoFaBusy ? "Loading…" : "Enable 2FA"}
-            </Button>
-          )}
-
-          {/* ── setup: show QR code ── */}
-          {twoFaStep === "setup" && (
-            <div className="max-w-sm space-y-4">
-              <p className="text-sm text-slate-600">
-                Scan this QR code with your authenticator app, then enter the 6-digit code below.
+          {/* ── Passkeys ── */}
+          <div>
+            <div className="flex items-center gap-2 mb-3">
+              <Fingerprint className="h-4 w-4 text-slate-600" />
+              <h3 className="text-sm font-semibold text-[#1a1a1a]">Passkeys</h3>
+            </div>
+            {webauthnSupported ? (
+              <>
+                <Button
+                  variant="secondary"
+                  onClick={handleAddPasskey}
+                  disabled={passkeyBusy}
+                  className="mb-3"
+                >
+                  {passkeyBusy ? "Loading…" : "Add passkey"}
+                </Button>
+                {passkeys.length > 0 && (
+                  <ul className="space-y-2">
+                    {passkeys.map((pk) => (
+                      <li
+                        key={pk.id}
+                        className="flex items-center justify-between rounded-lg border border-[var(--border-soft)] bg-[var(--surface-soft)] px-3 py-2"
+                      >
+                        <div className="min-w-0">
+                          {renameId === pk.id ? (
+                            <div className="flex items-center gap-2">
+                              <input
+                                type="text"
+                                value={renameValue}
+                                onChange={(e) => setRenameValue(e.target.value)}
+                                className="rounded border border-input bg-background px-2 py-1 text-sm"
+                                autoFocus
+                                maxLength={100}
+                              />
+                              <Button
+                                size="sm"
+                                variant="secondary"
+                                onClick={() => handleRenamePasskey(pk.id)}
+                              >
+                                Save
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={() => { setRenameId(null); setRenameValue(""); }}
+                              >
+                                Cancel
+                              </Button>
+                            </div>
+                          ) : (
+                            <div>
+                              <p className="text-sm font-medium text-[#1a1a1a]">{pk.deviceName || "Unnamed passkey"}</p>
+                              <p className="text-xs text-[#666]">
+                                Added {new Date(pk.createdAt).toLocaleDateString()}
+                                {pk.lastUsedAt && ` · Last used ${new Date(pk.lastUsedAt).toLocaleDateString()}`}
+                              </p>
+                            </div>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-1 ml-2 shrink-0">
+                          <button
+                            type="button"
+                            onClick={() => { setRenameId(pk.id); setRenameValue(pk.deviceName || ""); }}
+                            className="p-1.5 rounded hover:bg-slate-100 text-slate-500"
+                            title="Rename"
+                          >
+                            <Pencil className="h-3.5 w-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleRemovePasskey(pk.id)}
+                            className="p-1.5 rounded hover:bg-red-50 text-red-500"
+                            title="Remove"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </>
+            ) : (
+              <p className="text-sm text-slate-500">
+                Your browser does not support passkeys. Use the authenticator app option below.
               </p>
-              {qrDataUrl && (
-                <Image
-                  src={qrDataUrl}
-                  alt="TOTP QR code"
-                  className="rounded-lg border p-2"
-                  width={200}
-                  height={200}
-                  unoptimized
-                />
-              )}
-              <form onSubmit={handleVerify2fa} className="flex gap-2">
+            )}
+          </div>
+
+          <div className="border-t border-[var(--border-soft)] pt-4">
+            <div className="flex items-center gap-2 mb-3">
+              <KeyRound className="h-4 w-4 text-slate-600" />
+              <h3 className="text-sm font-semibold text-[#1a1a1a]">Authenticator app</h3>
+            </div>
+
+            {/* ── idle: not enabled ── */}
+            {!totpEnabled && twoFaStep === "idle" && (
+              <Button onClick={handleEnable2fa} disabled={twoFaBusy}>
+                {twoFaBusy ? "Loading…" : "Enable authenticator app"}
+              </Button>
+            )}
+
+            {/* ── setup: show QR code ── */}
+            {twoFaStep === "setup" && (
+              <div className="max-w-sm space-y-4">
+                <p className="text-sm text-slate-600">
+                  Scan this QR code with your authenticator app, then enter the 6-digit code below.
+                </p>
+                {qrDataUrl && (
+                  <Image
+                    src={qrDataUrl}
+                    alt="TOTP QR code"
+                    className="rounded-lg border p-2"
+                    width={200}
+                    height={200}
+                    unoptimized
+                  />
+                )}
+                <form onSubmit={handleVerify2fa} className="flex gap-2">
+                  <Input
+                    label="6-digit code"
+                    type="text"
+                    inputMode="numeric"
+                    pattern="[0-9]{6}"
+                    maxLength={6}
+                    value={totpCode}
+                    onChange={e => setTotpCode(e.target.value.replace(/\D/g, ""))}
+                    required
+                    autoComplete="one-time-code"
+                    className="w-32"
+                  />
+                  <Button type="submit" disabled={twoFaBusy || totpCode.length !== 6} className="mt-6">
+                    {twoFaBusy ? "Verifying…" : "Verify"}
+                  </Button>
+                </form>
+              </div>
+            )}
+
+            {/* ── done: show recovery codes ── */}
+            {twoFaStep === "done" && recoveryCodes.length > 0 && (
+              <div className="max-w-md space-y-3">
+                <p className="text-sm font-medium text-green-700">✓ Authenticator app enabled successfully.</p>
+                <div className="rounded-lg border border-amber-200 bg-amber-50 p-4">
+                  <p className="mb-2 text-xs font-medium text-amber-800">
+                    Save these recovery codes in a secure place. Each code can only be used once.
+                  </p>
+                  <div className="grid grid-cols-2 gap-1">
+                    {recoveryCodes.map((code) => (
+                      <code key={code} className="block rounded bg-white px-2 py-1 text-xs font-mono text-slate-800">
+                        {code}
+                      </code>
+                    ))}
+                  </div>
+                </div>
+                <Button variant="secondary" onClick={() => { setTwoFaStep("idle"); setRecoveryCodes([]); }}>
+                  Done
+                </Button>
+              </div>
+            )}
+
+            {/* ── enabled: allow disable ── */}
+            {totpEnabled && twoFaStep === "idle" && (
+              <form onSubmit={handleDisable2fa} className="max-w-sm space-y-3">
+                <p className="text-sm text-slate-500">
+                  To disable the authenticator app, confirm your password.
+                </p>
                 <Input
-                  label="6-digit code"
-                  type="text"
-                  inputMode="numeric"
-                  pattern="[0-9]{6}"
-                  maxLength={6}
-                  value={totpCode}
-                  onChange={e => setTotpCode(e.target.value.replace(/\D/g, ""))}
+                  label="Current password"
+                  type="password"
+                  value={disablePassword}
+                  onChange={e => setDisablePassword(e.target.value)}
                   required
-                  autoComplete="one-time-code"
-                  className="w-32"
+                  autoComplete="current-password"
                 />
-                <Button type="submit" disabled={twoFaBusy || totpCode.length !== 6} className="mt-6">
-                  {twoFaBusy ? "Verifying…" : "Verify"}
+                <Button variant="danger" type="submit" disabled={twoFaBusy}>
+                  {twoFaBusy ? "Disabling…" : "Disable authenticator app"}
                 </Button>
               </form>
-            </div>
-          )}
-
-          {/* ── done: show recovery codes ── */}
-          {twoFaStep === "done" && recoveryCodes.length > 0 && (
-            <div className="max-w-md space-y-3">
-              <p className="text-sm font-medium text-green-700">✓ 2FA enabled successfully.</p>
-              <div className="rounded-lg border border-amber-200 bg-amber-50 p-4">
-                <p className="mb-2 text-xs font-medium text-amber-800">
-                  Save these recovery codes in a secure place. Each code can only be used once.
-                </p>
-                <div className="grid grid-cols-2 gap-1">
-                  {recoveryCodes.map((code) => (
-                    <code key={code} className="block rounded bg-white px-2 py-1 text-xs font-mono text-slate-800">
-                      {code}
-                    </code>
-                  ))}
-                </div>
-              </div>
-              <Button variant="secondary" onClick={() => { setTwoFaStep("idle"); setRecoveryCodes([]); }}>
-                Done
-              </Button>
-            </div>
-          )}
-
-          {/* ── enabled: allow disable ── */}
-          {twoFaEnabled && twoFaStep === "idle" && (
-            <form onSubmit={handleDisable2fa} className="max-w-sm space-y-3">
-              <p className="text-sm text-slate-500">
-                To disable 2FA, confirm your password.
-              </p>
-              <Input
-                label="Current password"
-                type="password"
-                value={disablePassword}
-                onChange={e => setDisablePassword(e.target.value)}
-                required
-                autoComplete="current-password"
-              />
-              <Button variant="danger" type="submit" disabled={twoFaBusy}>
-                {twoFaBusy ? "Disabling…" : "Disable 2FA"}
-              </Button>
-            </form>
-          )}
+            )}
+          </div>
         </CardContent>
       </Card>
 
