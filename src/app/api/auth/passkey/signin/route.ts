@@ -5,6 +5,7 @@ import { getAndConsumeChallenge } from "@/lib/passkey/challenge-store";
 import { getPasskeyByCredentialId, updatePasskeyCounter } from "@/lib/passkey/db";
 import { getRpId, getOrigin } from "@/lib/passkey/server";
 import { createSupabaseAdmin } from "@/lib/supabase/server";
+import { signMfaToken } from "@/lib/mfa/token";
 import { db } from "@/lib/db";
 import { logAudit } from "@/lib/audit";
 import type { AuthenticationResponseJSON } from "@simplewebauthn/browser";
@@ -29,8 +30,8 @@ function sanitizeCallbackUrl(raw: string): string {
  * 2. Looks up the credential by response.id
  * 3. Verifies the WebAuthn response
  * 4. Creates a Supabase session via admin-generated magiclink + verifyOtp
- * 5. Sets the sw_2fa MFA cookie directly — the passkey authentication itself
- *    satisfies the MFA requirement, so no secondary challenge is needed.
+ * 5. Returns callbackUrl + mfaToken so middleware can promote MFA state
+ *    deterministically on the next navigation.
  */
 export async function POST(request: NextRequest) {
   let body: {
@@ -187,19 +188,18 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 7. The passkey authentication itself satisfies the MFA requirement.
-    // Set the sw_2fa cookie directly on the same response that carries the
-    // Supabase session cookies. This avoids the token-handoff indirection
-    // because the route handler can set cookies deterministically.
-    const { signChallengeToken, MFA_CHALLENGE_COOKIE, MFA_SESSION_DURATION_SECONDS } =
-      await import("@/lib/totp/challenge-session");
-    const mfaCookieValue = signChallengeToken(credential.userId);
-    responseObj.cookies.set(MFA_CHALLENGE_COOKIE, mfaCookieValue, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "lax",
-      path: "/",
-      maxAge: MFA_SESSION_DURATION_SECONDS,
+    // 7. The passkey authentication itself satisfies MFA. Return a short-lived
+    // handoff token so middleware can set the sw_2fa cookie on the next page
+    // load instead of relying on a fetch() Set-Cookie response.
+    const mfaToken = signMfaToken(credential.userId);
+    const finalResponse = NextResponse.json({ success: true, callbackUrl, mfaToken });
+    responseObj.cookies.getAll().forEach(({ name, value }) => {
+      finalResponse.cookies.set(name, value, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: "lax",
+        path: "/",
+      });
     });
 
     // Audit success
@@ -222,7 +222,7 @@ export async function POST(request: NextRequest) {
       // ignore
     }
 
-    return responseObj;
+    return finalResponse;
   } catch (err) {
     console.error("[passkey-signin] unexpected error:", err);
     return NextResponse.json(

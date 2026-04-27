@@ -460,6 +460,8 @@ describe("getMfaFactors", () => {
       user_metadata: {
         totpEnabled: false,
         passkeyEnabled: false,
+        hasTotp: false,
+        hasPasskey: false,
         mfaEnabled: false,
         twoFaEnforcedByOrg: false,
       },

@@ -19,6 +19,14 @@ function base64url(input: string): string {
   return Buffer.from(input).toString("base64url");
 }
 
+function decodeBase64Url(input: string): Uint8Array {
+  const normalized = input.replace(/-/g, "+").replace(/_/g, "/");
+  const padding = "=".repeat((4 - (normalized.length % 4)) % 4);
+  const base64 = normalized + padding;
+  const binary = atob(base64);
+  return Uint8Array.from(binary, (char) => char.charCodeAt(0));
+}
+
 function getSecret(): string {
   const s = process.env.TOTP_SESSION_SECRET ?? process.env.PORTAL_JWT_SECRET ?? "";
   if (!s) {
@@ -116,10 +124,7 @@ export async function verifyMfaToken(
       ["verify"]
     );
 
-    const sigBytes = Uint8Array.from(
-      atob(sig.replace(/-/g, "+").replace(/_/g, "/")),
-      (c) => c.charCodeAt(0)
-    );
+    const sigBytes = decodeBase64Url(sig);
 
     const isValid = await crypto.subtle.verify(
       "HMAC",
@@ -130,7 +135,7 @@ export async function verifyMfaToken(
     if (!isValid) return null;
 
     const payload = JSON.parse(
-      Buffer.from(body, "base64url").toString("utf8")
+      new TextDecoder().decode(decodeBase64Url(body))
     ) as { sub?: string; exp?: number; typ?: string };
 
     const now = Math.floor(Date.now() / 1000);

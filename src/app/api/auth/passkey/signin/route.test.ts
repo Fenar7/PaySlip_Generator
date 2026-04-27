@@ -52,6 +52,7 @@ import { getPasskeyByCredentialId } from "@/lib/passkey/db";
 import { createSupabaseAdmin } from "@/lib/supabase/server";
 import { db } from "@/lib/db";
 import { verifyAuthenticationResponse } from "@simplewebauthn/server";
+import { verifyMfaToken } from "@/lib/mfa/token";
 
 const mockGetAndConsumeChallenge = vi.mocked(getAndConsumeChallenge);
 const mockGetPasskeyByCredentialId = vi.mocked(getPasskeyByCredentialId);
@@ -111,7 +112,7 @@ describe("POST /api/auth/passkey/signin", () => {
     } as any);
   }
 
-  it("signs in with passkey and sets both session and MFA cookies", async () => {
+  it("signs in with passkey and returns an MFA handoff token", async () => {
     setupValidPasskey("user_1", "cred_1");
     setupSupabaseAdmin();
 
@@ -133,13 +134,13 @@ describe("POST /api/auth/passkey/signin", () => {
     expect(res.status).toBe(200);
     expect(json.success).toBe(true);
     expect(json.callbackUrl).toBe("/app");
-    // Primary passkey sign-in should NOT return mfaToken — the cookie is set directly
-    expect(json.mfaToken).toBeUndefined();
+    expect(json.mfaToken).toBeDefined();
+    expect(typeof json.mfaToken).toBe("string");
+    const verifiedUserId = await verifyMfaToken(json.mfaToken, process.env.TOTP_SESSION_SECRET!);
+    expect(verifiedUserId).toBe("user_1");
 
     const setCookie = res.headers.getSetCookie?.() ?? [];
-    // Should have at least one cookie (MFA challenge cookie)
-    expect(setCookie.length).toBeGreaterThan(0);
-    expect(setCookie.some((c: string) => c.includes("sw_2fa="))).toBe(true);
+    expect(setCookie.some((c: string) => c.includes("sw_2fa="))).toBe(false);
   });
 
   it("sanitizes malicious callback URL", async () => {
@@ -271,7 +272,7 @@ describe("POST /api/auth/passkey/signin", () => {
     expect(json.error).toBe("User account not found");
   });
 
-  it("sets MFA cookie even when TOTP is also enabled (passkey satisfies MFA)", async () => {
+  it("returns an MFA handoff token even when TOTP is also enabled", async () => {
     setupValidPasskey("user_1", "cred_1");
     setupSupabaseAdmin();
     mockDbProfileFindUnique.mockResolvedValue({
@@ -298,14 +299,12 @@ describe("POST /api/auth/passkey/signin", () => {
 
     expect(res.status).toBe(200);
     expect(json.success).toBe(true);
-    // Passkey sign-in should satisfy MFA regardless of TOTP being enabled
-    expect(json.mfaToken).toBeUndefined();
-
-    const setCookie = res.headers.getSetCookie?.() ?? [];
-    expect(setCookie.some((c: string) => c.includes("sw_2fa="))).toBe(true);
+    expect(json.mfaToken).toBeDefined();
+    const verifiedUserId = await verifyMfaToken(json.mfaToken, process.env.TOTP_SESSION_SECRET!);
+    expect(verifiedUserId).toBe("user_1");
   });
 
-  it("sets MFA cookie when org enforces MFA (passkey satisfies requirement)", async () => {
+  it("returns an MFA handoff token when org enforces MFA", async () => {
     setupValidPasskey("user_1", "cred_1");
     setupSupabaseAdmin();
     mockDbProfileFindUnique.mockResolvedValue({
@@ -332,9 +331,8 @@ describe("POST /api/auth/passkey/signin", () => {
 
     expect(res.status).toBe(200);
     expect(json.success).toBe(true);
-    expect(json.mfaToken).toBeUndefined();
-
-    const setCookie = res.headers.getSetCookie?.() ?? [];
-    expect(setCookie.some((c: string) => c.includes("sw_2fa="))).toBe(true);
+    expect(json.mfaToken).toBeDefined();
+    const verifiedUserId = await verifyMfaToken(json.mfaToken, process.env.TOTP_SESSION_SECRET!);
+    expect(verifiedUserId).toBe("user_1");
   });
 });

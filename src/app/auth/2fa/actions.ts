@@ -63,14 +63,16 @@ function buildSetupUrl(callbackUrl: string): string {
 
 async function syncMfaMetadata(
   userId: string,
-  metadata: { totpEnabled: boolean; passkeyEnabled: boolean; twoFaEnforcedByOrg: boolean }
+  metadata: { hasTotp: boolean; hasPasskey: boolean; twoFaEnforcedByOrg: boolean }
 ) {
   const admin = await createSupabaseAdmin();
   await admin.auth.admin.updateUserById(userId, {
     user_metadata: {
-      totpEnabled: metadata.totpEnabled,
-      passkeyEnabled: metadata.passkeyEnabled,
-      mfaEnabled: metadata.totpEnabled || metadata.passkeyEnabled,
+      totpEnabled: metadata.hasTotp,
+      passkeyEnabled: metadata.hasPasskey,
+      hasTotp: metadata.hasTotp,
+      hasPasskey: metadata.hasPasskey,
+      mfaEnabled: metadata.hasTotp || metadata.hasPasskey,
       twoFaEnforcedByOrg: metadata.twoFaEnforcedByOrg,
     },
   });
@@ -244,8 +246,8 @@ export async function getMfaFactors(rawCallbackUrl = "/app"): Promise<
         data: { passkeyEnabled: false, passkeyEnabledAt: null },
       });
       await syncMfaMetadata(user.id, {
-        totpEnabled: hasTotp,
-        passkeyEnabled: false,
+        hasTotp,
+        hasPasskey: false,
         twoFaEnforcedByOrg,
       });
     }

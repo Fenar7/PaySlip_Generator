@@ -163,6 +163,7 @@ describe("LoginForm", () => {
         json: async () => ({
           success: true,
           callbackUrl: "/app",
+          mfaToken: "test-mfa-token",
         }),
       });
 
@@ -191,7 +192,7 @@ describe("LoginForm", () => {
         "/api/auth/passkey/signin",
         expect.objectContaining({ method: "POST" })
       );
-      expect(locationAssignMock).toHaveBeenCalledWith("/app");
+      expect(locationAssignMock).toHaveBeenCalledWith("/app?mfaToken=test-mfa-token");
     });
   });
 

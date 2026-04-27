@@ -278,21 +278,22 @@ export async function middleware(request: NextRequest) {
     }
 
     // ── MFA challenge gate ────────────────────────────────────────────────
-    // user_metadata holds totpEnabled, passkeyEnabled, and mfaEnabled (union).
-    // Prefer the explicit mfaEnabled flag if present; otherwise fall back to
-    // totpEnabled for backward compatibility during rollout.
-    const mfaEnabled =
-      user.user_metadata?.mfaEnabled === true ||
-      user.user_metadata?.totpEnabled === true ||
-      user.user_metadata?.passkeyEnabled === true;
-
+    const hasExplicitTotp = typeof user.user_metadata?.hasTotp === "boolean";
+    const hasExplicitPasskey = typeof user.user_metadata?.hasPasskey === "boolean";
+    const hasTotp = hasExplicitTotp
+      ? user.user_metadata?.hasTotp === true
+      : user.user_metadata?.totpEnabled === true;
+    const hasPasskey = hasExplicitPasskey
+      ? user.user_metadata?.hasPasskey === true
+      : user.user_metadata?.passkeyEnabled === true;
+    const hasExplicitFactorMetadata = hasExplicitTotp || hasExplicitPasskey;
+    const legacyMfaEnabled = user.user_metadata?.mfaEnabled === true;
+    const mfaEnabled = hasTotp || hasPasskey || (!hasExplicitFactorMetadata && legacyMfaEnabled);
     const twoFaEnforcedByOrg = user.user_metadata?.twoFaEnforcedByOrg === true;
     const mfaRequired = mfaEnabled || twoFaEnforcedByOrg;
 
     // Enrollment is required when org enforces MFA and the user has no factor.
-    const hasFactor =
-      user.user_metadata?.totpEnabled === true ||
-      user.user_metadata?.passkeyEnabled === true;
+    const hasFactor = hasTotp || hasPasskey;
     const enrollmentRequired = twoFaEnforcedByOrg && !hasFactor;
     const isMfaEnrollmentPath = pathname === "/app/settings/security";
 

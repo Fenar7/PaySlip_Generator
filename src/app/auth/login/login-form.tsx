@@ -116,6 +116,7 @@ export function LoginForm() {
       const verifyData = (await verifyRes.json()) as {
         success: boolean;
         callbackUrl?: string;
+        mfaToken?: string;
         error?: string;
       };
 
@@ -124,7 +125,16 @@ export function LoginForm() {
         return;
       }
 
-      window.location.assign(verifyData.callbackUrl ?? "/app");
+      const nextUrl = verifyData.callbackUrl ?? "/app";
+      if (verifyData.mfaToken) {
+        const separator = nextUrl.includes("?") ? "&" : "?";
+        window.location.assign(
+          `${nextUrl}${separator}mfaToken=${encodeURIComponent(verifyData.mfaToken)}`
+        );
+        return;
+      }
+
+      window.location.assign(nextUrl);
     } catch (err) {
       console.error("[login] passkey sign-in error:", err);
       setError("Passkey sign-in failed. Please try again.");

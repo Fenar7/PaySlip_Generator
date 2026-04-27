@@ -30,14 +30,16 @@ const SECURITY_PATH = "/app/settings/security";
 
 async function syncMfaMetadata(
   userId: string,
-  metadata: { totpEnabled: boolean; passkeyEnabled: boolean; twoFaEnforcedByOrg: boolean }
+  metadata: { hasTotp: boolean; hasPasskey: boolean; twoFaEnforcedByOrg: boolean }
 ) {
   const admin = await createSupabaseAdmin();
   await admin.auth.admin.updateUserById(userId, {
     user_metadata: {
-      totpEnabled: metadata.totpEnabled,
-      passkeyEnabled: metadata.passkeyEnabled,
-      mfaEnabled: metadata.totpEnabled || metadata.passkeyEnabled,
+      totpEnabled: metadata.hasTotp,
+      passkeyEnabled: metadata.hasPasskey,
+      hasTotp: metadata.hasTotp,
+      hasPasskey: metadata.hasPasskey,
+      mfaEnabled: metadata.hasTotp || metadata.hasPasskey,
       twoFaEnforcedByOrg: metadata.twoFaEnforcedByOrg,
     },
   });
@@ -119,8 +121,8 @@ export async function verify2faSetup(
     // Sync MFA metadata into Supabase user_metadata so the Edge middleware
     // can read it from the JWT without a database round-trip.
     await syncMfaMetadata(user.id, {
-      totpEnabled: true,
-      passkeyEnabled: profile.passkeyEnabled,
+      hasTotp: true,
+      hasPasskey: profile.passkeyEnabled,
       twoFaEnforcedByOrg: profile.twoFaEnforcedByOrg,
     });
 
@@ -190,8 +192,8 @@ export async function disable2fa(
 
     // Sync flag into Supabase user_metadata and clear the challenge cookie.
     await syncMfaMetadata(user.id, {
-      totpEnabled: false,
-      passkeyEnabled: existingProfile?.passkeyEnabled ?? false,
+      hasTotp: false,
+      hasPasskey,
       twoFaEnforcedByOrg: existingProfile?.twoFaEnforcedByOrg ?? false,
     });
     const cookieStore = await cookies();
@@ -242,8 +244,8 @@ export async function enforce2faForOrg(): Promise<ActionResult<void>> {
     await Promise.all(
       profiles.map((profile) =>
         syncMfaMetadata(profile.id, {
-          totpEnabled: profile.totpEnabled,
-          passkeyEnabled: profile.passkeyEnabled,
+          hasTotp: profile.totpEnabled,
+          hasPasskey: profile.passkeyEnabled,
           twoFaEnforcedByOrg: profile.twoFaEnforcedByOrg,
         })
       )

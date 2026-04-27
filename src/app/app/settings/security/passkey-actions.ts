@@ -35,14 +35,16 @@ const SECURITY_PATH = "/app/settings/security";
 
 async function syncMfaMetadata(
   userId: string,
-  metadata: { totpEnabled: boolean; passkeyEnabled: boolean; twoFaEnforcedByOrg: boolean }
+  metadata: { hasTotp: boolean; hasPasskey: boolean; twoFaEnforcedByOrg: boolean }
 ) {
   const admin = await createSupabaseAdmin();
   await admin.auth.admin.updateUserById(userId, {
     user_metadata: {
-      totpEnabled: metadata.totpEnabled,
-      passkeyEnabled: metadata.passkeyEnabled,
-      mfaEnabled: metadata.totpEnabled || metadata.passkeyEnabled,
+      totpEnabled: metadata.hasTotp,
+      passkeyEnabled: metadata.hasPasskey,
+      hasTotp: metadata.hasTotp,
+      hasPasskey: metadata.hasPasskey,
+      mfaEnabled: metadata.hasTotp || metadata.hasPasskey,
       twoFaEnforcedByOrg: metadata.twoFaEnforcedByOrg,
     },
   });
@@ -136,8 +138,8 @@ export async function finishPasskeyRegistration(
     });
 
     await syncMfaMetadata(user.id, {
-      totpEnabled: profile?.totpEnabled ?? false,
-      passkeyEnabled: true,
+      hasTotp: profile?.totpEnabled ?? false,
+      hasPasskey: true,
       twoFaEnforcedByOrg: profile?.twoFaEnforcedByOrg ?? false,
     });
 
@@ -572,8 +574,8 @@ export async function removePasskey(
     }
 
     await syncMfaMetadata(user.id, {
-      totpEnabled: profile?.totpEnabled ?? false,
-      passkeyEnabled: remainingCount > 0,
+      hasTotp: profile?.totpEnabled ?? false,
+      hasPasskey: remainingCount > 0,
       twoFaEnforcedByOrg: profile?.twoFaEnforcedByOrg ?? false,
     });
 
