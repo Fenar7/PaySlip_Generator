@@ -28,7 +28,14 @@ export interface MarketplaceFinanceContext {
 
 export type AuthRoutingContext =
   | { isAuthenticated: false; loginPath?: string }
-  | { isAuthenticated: true; userId: string; hasOrg: false }
+  | {
+      isAuthenticated: true;
+      userId: string;
+      hasOrg: false;
+      userName?: string | null;
+      userEmail?: string | null;
+      avatarUrl?: string | null;
+    }
   | {
       isAuthenticated: true;
       userId: string;
@@ -40,6 +47,9 @@ export type AuthRoutingContext =
       representedId: string | null;
       proxyGrantId: string | null;
       proxyScope: string[];
+      userName?: string | null;
+      userEmail?: string | null;
+      avatarUrl?: string | null;
     };
 
 const ROLE_LEVELS: Record<string, number> = {
@@ -103,6 +113,17 @@ export async function getAuthRoutingContext(): Promise<AuthRoutingContext> {
       isAuthenticated: true,
       userId: user.id,
       hasOrg: false,
+      userName:
+        typeof user.user_metadata?.name === "string"
+          ? user.user_metadata.name
+          : typeof user.user_metadata?.full_name === "string"
+            ? user.user_metadata.full_name
+            : null,
+      userEmail: user.email ?? null,
+      avatarUrl:
+        typeof user.user_metadata?.avatar_url === "string"
+          ? user.user_metadata.avatar_url
+          : null,
     };
   }
 
@@ -153,6 +174,17 @@ export async function getAuthRoutingContext(): Promise<AuthRoutingContext> {
     representedId: activeProxyGrant?.representedId ?? null,
     proxyGrantId: activeProxyGrant?.id ?? null,
     proxyScope: activeProxyGrant?.scope ?? [],
+    userName:
+      typeof user.user_metadata?.name === "string"
+        ? user.user_metadata.name
+        : typeof user.user_metadata?.full_name === "string"
+          ? user.user_metadata.full_name
+          : null,
+    userEmail: user.email ?? null,
+    avatarUrl:
+      typeof user.user_metadata?.avatar_url === "string"
+        ? user.user_metadata.avatar_url
+        : null,
   };
 }
 
