@@ -10,6 +10,7 @@ import {
 } from "@/lib/supabase/session-persistence";
 
 const AUTH_STORAGE_KEY = "slipwise-auth-token";
+let browserClient: ReturnType<typeof createBrowserClient> | null = null;
 
 function clearLegacySupabaseStorage(storage: Storage) {
   const keysToRemove: string[] = [];
@@ -88,18 +89,32 @@ export async function signOutSupabaseBrowser() {
 }
 
 export function createSupabaseBrowser(_options: { rememberSession?: boolean } = {}) {
-  const persistenceMode =
-    _options.rememberSession === undefined
-      ? readBrowserPersistenceMode()
-      : _options.rememberSession
-        ? "remembered"
-        : "session";
+  void _options;
 
-  return createBrowserClient(
+  if (typeof window === "undefined") {
+    return createBrowserClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      {
+        cookies: {
+          getAll() {
+            return [];
+          },
+          setAll() {},
+        },
+      }
+    );
+  }
+
+  if (browserClient) {
+    return browserClient;
+  }
+
+  browserClient = createBrowserClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
-      isSingleton: false,
+      isSingleton: true,
       cookies: {
         getAll() {
           return Object.entries(parse(document.cookie)).map(([name, value]) => ({
@@ -108,6 +123,7 @@ export function createSupabaseBrowser(_options: { rememberSession?: boolean } = 
           }));
         },
         setAll(cookiesToSet) {
+          const persistenceMode = readBrowserPersistenceMode();
           cookiesToSet.forEach(({ name, value, options }) => {
             const cookieOptions =
               value === ""
@@ -123,4 +139,6 @@ export function createSupabaseBrowser(_options: { rememberSession?: boolean } = 
       },
     }
   );
+
+  return browserClient;
 }
