@@ -10,9 +10,18 @@ import { Button } from "@/components/ui/button";
 
 type MfaMode = "passkey" | "totp" | "recovery";
 const PASSKEY_VERIFY_TIMEOUT_MS = 20_000;
+type MfaFactors = {
+  status: "challenge" | "skip" | "setup";
+  callbackUrl: string;
+  setupUrl?: string;
+  hasPasskey: boolean;
+  hasTotp: boolean;
+  hasRecoveryCodes: boolean;
+};
 
 export function TwoChallengeForm() {
   const router = useRouter();
+  const { push, refresh, replace } = router;
   const searchParams = useSearchParams();
   const callbackUrl = searchParams.get("callbackUrl") ?? "/app";
 
@@ -20,27 +29,42 @@ export function TwoChallengeForm() {
   const [code, setCode] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
-  const [factors, setFactors] = useState<{ hasPasskey: boolean; hasTotp: boolean; hasRecoveryCodes: boolean } | null>(null);
+  const [factors, setFactors] = useState<MfaFactors | null>(null);
+  const [loadingFactors, setLoadingFactors] = useState(true);
   const [webauthnSupported, setWebauthnSupported] = useState(true);
   const [passkeyLoading, setPasskeyLoading] = useState(false);
   const [passkeyAttempted, setPasskeyAttempted] = useState(false);
 
   useEffect(() => {
-    setWebauthnSupported(browserSupportsWebAuthn());
-    getMfaFactors().then((res) => {
+    const supportsWebAuthn = browserSupportsWebAuthn();
+    setWebauthnSupported(supportsWebAuthn);
+    getMfaFactors(callbackUrl).then((res) => {
       if (res.success) {
+        if (res.data.status === "skip") {
+          replace(res.data.callbackUrl);
+          refresh();
+          return;
+        }
+        if (res.data.status === "setup") {
+          replace(res.data.setupUrl ?? "/app/settings/security?setupMfa=1");
+          refresh();
+          return;
+        }
         setFactors(res.data);
-        // Default to passkey if available and supported, otherwise TOTP
-        if (res.data.hasPasskey && browserSupportsWebAuthn()) {
+        if (res.data.hasPasskey && supportsWebAuthn) {
           setMode("passkey");
         } else if (res.data.hasTotp) {
           setMode("totp");
         } else {
           setMode("recovery");
         }
+      } else {
+        setError(res.error);
       }
+    }).finally(() => {
+      setLoadingFactors(false);
     });
-  }, []);
+  }, [callbackUrl, refresh, replace]);
 
   async function triggerPasskey() {
     setError(null);
@@ -65,8 +89,8 @@ export function TwoChallengeForm() {
         return;
       }
 
-      router.replace(result.data.callbackUrl);
-      router.refresh();
+      replace(result.data.callbackUrl);
+      refresh();
     } catch (err) {
       setError(getPasskeyErrorMessage(err));
     } finally {
@@ -76,8 +100,8 @@ export function TwoChallengeForm() {
 
   async function backToSignIn() {
     await signOutSupabaseBrowser();
-    router.replace("/auth/login");
-    router.refresh();
+    replace("/auth/login");
+    refresh();
   }
 
   function handleSubmit(e: React.FormEvent) {
@@ -95,7 +119,7 @@ export function TwoChallengeForm() {
         return;
       }
 
-      router.push(result.data.callbackUrl);
+      push(result.data.callbackUrl);
     });
   }
 
@@ -109,7 +133,9 @@ export function TwoChallengeForm() {
         <div className="text-center">
           <h1 className="text-2xl font-semibold tracking-tight">Multi-factor authentication</h1>
           <p className="mt-2 text-sm text-muted-foreground">
-            {mode === "passkey"
+            {loadingFactors
+              ? "Checking your verification methods…"
+              : mode === "passkey"
               ? "Verify your identity with your passkey."
               : mode === "totp"
                 ? "Enter the 6-digit code from your authenticator app."
@@ -123,7 +149,13 @@ export function TwoChallengeForm() {
           </p>
         )}
 
-        {mode === "passkey" && showPasskey && (
+        {loadingFactors && (
+          <div className="rounded-md border border-border bg-muted/40 px-4 py-3 text-center text-sm text-muted-foreground">
+            Checking your account before showing a verification method.
+          </div>
+        )}
+
+        {!loadingFactors && mode === "passkey" && showPasskey && (
           <div className="space-y-4">
             <Button
               type="button"
@@ -176,7 +208,45 @@ export function TwoChallengeForm() {
           </div>
         )}
 
-        {(mode === "totp" || mode === "recovery") && (
+        {!loadingFactors && mode === "passkey" && factors?.hasPasskey && !webauthnSupported && (
+          <div className="space-y-4 text-center">
+            <p className="text-sm text-muted-foreground">
+              This browser does not support passkeys. Use another enrolled verification method or sign in from a supported device.
+            </p>
+            {showTotp && (
+              <Button type="button" variant="secondary" className="w-full" onClick={() => setMode("totp")}>
+                Use authenticator app
+              </Button>
+            )}
+            {showRecovery && (
+              <Button type="button" variant="secondary" className="w-full" onClick={() => setMode("recovery")}>
+                Use recovery code
+              </Button>
+            )}
+            {!showTotp && !showRecovery && (
+              <button
+                type="button"
+                onClick={backToSignIn}
+                className="text-xs text-muted-foreground hover:text-foreground underline-offset-4 hover:underline"
+              >
+                Back to sign in
+              </button>
+            )}
+          </div>
+        )}
+
+        {!loadingFactors && !showPasskey && !showTotp && !showRecovery && (
+          <div className="space-y-4 text-center">
+            <p className="text-sm text-muted-foreground">
+              No verification method is available for this account. Sign in again or contact your administrator.
+            </p>
+            <Button type="button" variant="secondary" className="w-full" onClick={backToSignIn}>
+              Back to sign in
+            </Button>
+          </div>
+        )}
+
+        {!loadingFactors && (mode === "totp" || mode === "recovery") && (
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
               <label className="block text-sm font-medium mb-1" htmlFor="code">

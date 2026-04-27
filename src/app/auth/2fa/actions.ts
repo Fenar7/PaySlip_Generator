@@ -7,7 +7,7 @@ import {
   MFA_CHALLENGE_COOKIE,
   MFA_SESSION_DURATION_SECONDS,
 } from "@/lib/totp/challenge-session";
-import { createSupabaseServer } from "@/lib/supabase/server";
+import { createSupabaseAdmin, createSupabaseServer } from "@/lib/supabase/server";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import {
@@ -22,6 +22,15 @@ import type { AuthenticationResponseJSON } from "@simplewebauthn/browser";
 export type ActionResult<T> = { success: true; data: T } | { success: false; error: string };
 
 const MAX_AGE = MFA_SESSION_DURATION_SECONDS;
+
+type MfaChallengeState = {
+  status: "challenge" | "skip" | "setup";
+  callbackUrl: string;
+  setupUrl?: string;
+  hasPasskey: boolean;
+  hasTotp: boolean;
+  hasRecoveryCodes: boolean;
+};
 
 async function issueCookie(userId: string) {
   const cookieStore = await cookies();
@@ -44,6 +53,29 @@ function sanitizeCallbackUrl(raw: string): string {
     // fall through
   }
   return "/app";
+}
+
+function buildSetupUrl(callbackUrl: string): string {
+  const params = new URLSearchParams({
+    setupMfa: "1",
+    callbackUrl,
+  });
+  return `/app/settings/security?${params.toString()}`;
+}
+
+async function syncMfaMetadata(
+  userId: string,
+  metadata: { totpEnabled: boolean; passkeyEnabled: boolean; twoFaEnforcedByOrg: boolean }
+) {
+  const admin = await createSupabaseAdmin();
+  await admin.auth.admin.updateUserById(userId, {
+    user_metadata: {
+      totpEnabled: metadata.totpEnabled,
+      passkeyEnabled: metadata.passkeyEnabled,
+      mfaEnabled: metadata.totpEnabled || metadata.passkeyEnabled,
+      twoFaEnforcedByOrg: metadata.twoFaEnforcedByOrg,
+    },
+  });
 }
 
 /**
@@ -206,12 +238,8 @@ export async function verifyPasskeyChallenge(
  * Get the enrolled MFA factors for the current user.
  * Used by the MFA challenge page to decide which UI to show.
  */
-export async function getMfaFactors(): Promise<
-  ActionResult<{
-    hasPasskey: boolean;
-    hasTotp: boolean;
-    hasRecoveryCodes: boolean;
-  }>
+export async function getMfaFactors(rawCallbackUrl = "/app"): Promise<
+  ActionResult<MfaChallengeState>
 > {
   try {
     const supabase = await createSupabaseServer();
@@ -222,17 +250,42 @@ export async function getMfaFactors(): Promise<
 
     const profile = await db.profile.findUnique({
       where: { id: user.id },
-      select: { totpEnabled: true, recoveryCodes: true },
+      select: {
+        totpEnabled: true,
+        passkeyEnabled: true,
+        recoveryCodes: true,
+        twoFaEnforcedByOrg: true,
+      },
     });
     const passkeys = await getPasskeysForUser(user.id);
-
     const storedHashes = (profile?.recoveryCodes as string[] | null) ?? [];
+    const callbackUrl = sanitizeCallbackUrl(rawCallbackUrl);
+    const hasPasskey = passkeys.length > 0;
+    const hasTotp = profile?.totpEnabled ?? false;
+    const twoFaEnforcedByOrg = profile?.twoFaEnforcedByOrg ?? false;
+
+    if (profile?.passkeyEnabled && !hasPasskey) {
+      await db.profile.update({
+        where: { id: user.id },
+        data: { passkeyEnabled: false, passkeyEnabledAt: null },
+      });
+      await syncMfaMetadata(user.id, {
+        totpEnabled: hasTotp,
+        passkeyEnabled: false,
+        twoFaEnforcedByOrg,
+      });
+    }
+
+    const hasPrimaryMfa = hasPasskey || hasTotp;
 
     return {
       success: true,
       data: {
-        hasPasskey: passkeys.length > 0,
-        hasTotp: profile?.totpEnabled ?? false,
+        status: hasPrimaryMfa ? "challenge" : twoFaEnforcedByOrg ? "setup" : "skip",
+        callbackUrl,
+        setupUrl: twoFaEnforcedByOrg && !hasPrimaryMfa ? buildSetupUrl(callbackUrl) : undefined,
+        hasPasskey,
+        hasTotp,
         hasRecoveryCodes: storedHashes.length > 0,
       },
     };

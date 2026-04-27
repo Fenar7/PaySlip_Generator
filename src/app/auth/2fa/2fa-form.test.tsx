@@ -7,6 +7,7 @@ import { TwoChallengeForm } from "./2fa-form";
 const {
   routerReplaceMock,
   routerRefreshMock,
+  routerPushMock,
   getMfaFactorsMock,
   verifyPasskeyChallengeMock,
   verifyTotpChallengeMock,
@@ -18,6 +19,7 @@ const {
 } = vi.hoisted(() => ({
   routerReplaceMock: vi.fn(),
   routerRefreshMock: vi.fn(),
+  routerPushMock: vi.fn(),
   getMfaFactorsMock: vi.fn(),
   verifyPasskeyChallengeMock: vi.fn(),
   verifyTotpChallengeMock: vi.fn(),
@@ -30,6 +32,7 @@ const {
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({
+    push: routerPushMock,
     replace: routerReplaceMock,
     refresh: routerRefreshMock,
   }),
@@ -64,6 +67,8 @@ describe("TwoChallengeForm", () => {
     getMfaFactorsMock.mockResolvedValue({
       success: true,
       data: {
+        status: "challenge",
+        callbackUrl: "/app/settings/security",
         hasPasskey: true,
         hasTotp: true,
         hasRecoveryCodes: true,
@@ -137,6 +142,8 @@ describe("TwoChallengeForm", () => {
     getMfaFactorsMock.mockResolvedValue({
       success: true,
       data: {
+        status: "challenge",
+        callbackUrl: "/app/settings/security",
         hasPasskey: true,
         hasTotp: false,
         hasRecoveryCodes: false,
@@ -152,5 +159,76 @@ describe("TwoChallengeForm", () => {
       expect(routerReplaceMock).toHaveBeenCalledWith("/auth/login");
       expect(routerRefreshMock).toHaveBeenCalled();
     });
+  });
+
+  it("redirects to the callback when the server says MFA can be skipped", async () => {
+    getMfaFactorsMock.mockResolvedValue({
+      success: true,
+      data: {
+        status: "skip",
+        callbackUrl: "/onboarding",
+        hasPasskey: false,
+        hasTotp: false,
+        hasRecoveryCodes: false,
+      },
+    });
+
+    render(<TwoChallengeForm />);
+
+    await waitFor(() => {
+      expect(routerReplaceMock).toHaveBeenCalledWith("/onboarding");
+      expect(routerRefreshMock).toHaveBeenCalled();
+    });
+    expect(screen.queryByRole("button", { name: "Use passkey" })).not.toBeInTheDocument();
+  });
+
+  it("redirects to MFA setup when the server says enrollment is required", async () => {
+    getMfaFactorsMock.mockResolvedValue({
+      success: true,
+      data: {
+        status: "setup",
+        callbackUrl: "/app/home",
+        setupUrl: "/app/settings/security?setupMfa=1&callbackUrl=%2Fapp%2Fhome",
+        hasPasskey: false,
+        hasTotp: false,
+        hasRecoveryCodes: false,
+      },
+    });
+
+    render(<TwoChallengeForm />);
+
+    await waitFor(() => {
+      expect(routerReplaceMock).toHaveBeenCalledWith(
+        "/app/settings/security?setupMfa=1&callbackUrl=%2Fapp%2Fhome"
+      );
+      expect(routerRefreshMock).toHaveBeenCalled();
+    });
+  });
+
+  it("does not show passkey when no passkey credential exists", async () => {
+    getMfaFactorsMock.mockResolvedValue({
+      success: true,
+      data: {
+        status: "challenge",
+        callbackUrl: "/app/settings/security",
+        hasPasskey: false,
+        hasTotp: true,
+        hasRecoveryCodes: false,
+      },
+    });
+
+    render(<TwoChallengeForm />);
+
+    expect(await screen.findByText("Authenticator code")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Use passkey" })).not.toBeInTheDocument();
+  });
+
+  it("hides passkey and shows fallback when WebAuthn is unsupported", async () => {
+    browserSupportsWebAuthnMock.mockReturnValue(false);
+
+    render(<TwoChallengeForm />);
+
+    expect(await screen.findByText("Authenticator code")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Use passkey" })).not.toBeInTheDocument();
   });
 });

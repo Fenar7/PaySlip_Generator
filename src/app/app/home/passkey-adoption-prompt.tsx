@@ -28,7 +28,7 @@ export function PasskeyAdoptionPrompt({ show }: PasskeyAdoptionPromptProps) {
     <section className="mb-6 rounded-xl border border-blue-200 bg-blue-50 px-5 py-4">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <p className="text-sm font-semibold text-slate-900">Add a passkey for faster MFA</p>
+          <p className="text-sm font-semibold text-slate-900">Add a passkey for secure second-step verification</p>
           <p className="mt-1 text-sm text-slate-600">
             Use Face ID, Touch ID, Windows Hello, Android fingerprint, or a security key after sign-in.
           </p>

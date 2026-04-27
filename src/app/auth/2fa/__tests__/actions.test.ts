@@ -20,6 +20,7 @@ vi.mock("@/lib/db", () => ({
 
 vi.mock("@/lib/supabase/server", () => ({
   createSupabaseServer: vi.fn(),
+  createSupabaseAdmin: vi.fn(),
 }));
 
 vi.mock("@/lib/passkey/server", () => ({
@@ -51,12 +52,14 @@ import {
   getMfaFactors,
 } from "../actions";
 import { createSupabaseServer } from "@/lib/supabase/server";
+import { createSupabaseAdmin } from "@/lib/supabase/server";
 import { db } from "@/lib/db";
 import { getPasskeysForUser, getPasskeyByCredentialId } from "@/lib/passkey/db";
 import { verifyAuthentication } from "@/lib/passkey/server";
 import { logAudit } from "@/lib/audit";
 
 const mockSupabaseServer = vi.mocked(createSupabaseServer);
+const mockSupabaseAdmin = vi.mocked(createSupabaseAdmin);
 
 function mockUser(userId: string) {
   mockSupabaseServer.mockResolvedValue({
@@ -70,6 +73,13 @@ beforeEach(() => {
   vi.clearAllMocks();
   vi.stubEnv("TOTP_SESSION_SECRET", "test-secret-32-bytes-long-xxxxx");
   vi.stubEnv("NODE_ENV", "test");
+  mockSupabaseAdmin.mockResolvedValue({
+    auth: {
+      admin: {
+        updateUserById: vi.fn().mockResolvedValue({ error: null }),
+      },
+    },
+  } as any);
 });
 
 describe("verifyRecoveryChallenge", () => {
@@ -187,9 +197,64 @@ describe("getMfaFactors", () => {
     const result = await getMfaFactors();
     expect(result.success).toBe(true);
     if (result.success) {
+      expect(result.data.status).toBe("challenge");
       expect(result.data.hasPasskey).toBe(true);
       expect(result.data.hasTotp).toBe(false);
       expect(result.data.hasRecoveryCodes).toBe(false);
+    }
+  });
+
+  it("clears stale passkey metadata and skips MFA when no real factor remains", async () => {
+    mockUser("user_1");
+    vi.mocked(db.profile.findUnique).mockResolvedValue({
+      totpEnabled: false,
+      passkeyEnabled: true,
+      recoveryCodes: [],
+      twoFaEnforcedByOrg: false,
+    } as any);
+    vi.mocked(getPasskeysForUser).mockResolvedValue([]);
+
+    const result = await getMfaFactors("/onboarding");
+
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.status).toBe("skip");
+      expect(result.data.callbackUrl).toBe("/onboarding");
+      expect(result.data.hasPasskey).toBe(false);
+    }
+    expect(db.profile.update).toHaveBeenCalledWith({
+      where: { id: "user_1" },
+      data: { passkeyEnabled: false, passkeyEnabledAt: null },
+    });
+    const admin = await mockSupabaseAdmin.mock.results[0].value;
+    expect(admin.auth.admin.updateUserById).toHaveBeenCalledWith("user_1", {
+      user_metadata: {
+        totpEnabled: false,
+        passkeyEnabled: false,
+        mfaEnabled: false,
+        twoFaEnforcedByOrg: false,
+      },
+    });
+  });
+
+  it("routes stale passkey users to setup when org MFA is enforced", async () => {
+    mockUser("user_1");
+    vi.mocked(db.profile.findUnique).mockResolvedValue({
+      totpEnabled: false,
+      passkeyEnabled: true,
+      recoveryCodes: [],
+      twoFaEnforcedByOrg: true,
+    } as any);
+    vi.mocked(getPasskeysForUser).mockResolvedValue([]);
+
+    const result = await getMfaFactors("/app/home");
+
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.status).toBe("setup");
+      expect(result.data.setupUrl).toBe(
+        "/app/settings/security?setupMfa=1&callbackUrl=%2Fapp%2Fhome"
+      );
     }
   });
 });

@@ -147,6 +147,9 @@ export function LoginForm() {
       </div>
       <GoogleButton />
       <AuthDivider />
+      <p className="mb-4 rounded-lg border border-blue-100 bg-blue-50 px-3 py-2 text-xs text-blue-800">
+        If you enabled a passkey, you may be asked to use it as a second verification step after sign-in.
+      </p>
       <form onSubmit={handleSubmit} className="space-y-4">
         <Input
           label="Email"

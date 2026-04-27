@@ -10,7 +10,7 @@ describe("PasskeyAdoptionPrompt", () => {
   it("shows a passkey adoption CTA when requested", () => {
     render(<PasskeyAdoptionPrompt show />);
 
-    expect(screen.getByText("Add a passkey for faster MFA")).toBeInTheDocument();
+    expect(screen.getByText("Add a passkey for secure second-step verification")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Add passkey" })).toHaveAttribute(
       "href",
       "/app/settings/security"
@@ -20,7 +20,7 @@ describe("PasskeyAdoptionPrompt", () => {
   it("does not render when the user already has a passkey", () => {
     render(<PasskeyAdoptionPrompt show={false} />);
 
-    expect(screen.queryByText("Add a passkey for faster MFA")).not.toBeInTheDocument();
+    expect(screen.queryByText("Add a passkey for secure second-step verification")).not.toBeInTheDocument();
   });
 
   it("stays dismissed after the user dismisses it", () => {
@@ -29,7 +29,7 @@ describe("PasskeyAdoptionPrompt", () => {
     fireEvent.click(screen.getByRole("button", { name: "Dismiss passkey prompt" }));
 
     expect(window.localStorage.getItem("slipwise_passkey_adoption_dismissed")).toBe("true");
-    expect(screen.queryByText("Add a passkey for faster MFA")).not.toBeInTheDocument();
+    expect(screen.queryByText("Add a passkey for secure second-step verification")).not.toBeInTheDocument();
   });
 
   it("honors a previous dismissal from localStorage", () => {
@@ -37,6 +37,6 @@ describe("PasskeyAdoptionPrompt", () => {
 
     render(<PasskeyAdoptionPrompt show />);
 
-    expect(screen.queryByText("Add a passkey for faster MFA")).not.toBeInTheDocument();
+    expect(screen.queryByText("Add a passkey for secure second-step verification")).not.toBeInTheDocument();
   });
 });
