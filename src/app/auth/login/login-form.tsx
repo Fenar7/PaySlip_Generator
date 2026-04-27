@@ -3,16 +3,8 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import {
-  Building2,
-  ChevronDown,
-  ChevronUp,
-  KeyRound,
-  LifeBuoy,
-  ShieldCheck,
-} from "lucide-react";
+import { KeyRound } from "lucide-react";
 import { AuthCard } from "@/features/auth/components/auth-card";
-import { AuthHeroPanel } from "@/features/auth/components/auth-hero-panel";
 import { GoogleButton } from "@/features/auth/components/google-button";
 import { AuthDivider } from "@/features/auth/components/auth-divider";
 import { Button } from "@/components/ui/button";
@@ -43,7 +35,8 @@ export function LoginForm() {
   const [loading, setLoading] = useState(false);
   const [passkeyLoading, setPasskeyLoading] = useState(false);
   const [passkeySupported, setPasskeySupported] = useState(true);
-  const [advancedOpen, setAdvancedOpen] = useState(ssoRequired || Boolean(initialOrgSlug));
+  const [ssoOpen, setSsoOpen] = useState(ssoRequired || Boolean(initialOrgSlug));
+  const [breakGlassOpen, setBreakGlassOpen] = useState(false);
 
   useEffect(() => {
     if (typeof window !== "undefined") {
@@ -209,88 +202,30 @@ export function LoginForm() {
   }
 
   return (
-    <AuthCard
-      eyebrow="Secure sign-in"
-      title="Welcome back"
-      subtitle="Choose the fastest path into your Slipwise workspace, then reveal enterprise and recovery options only when you need them."
-      aside={
-        <AuthHeroPanel
-          badge="Made for secure teams"
-          title="Sign in quickly without guessing which option comes first."
-          description="Primary access stays focused on the methods most people use every day, while enterprise and recovery tools remain close at hand when the situation calls for them."
-          supportingPoints={["Google sign-in", "Passkeys ready", "SSO when needed"]}
-          highlights={[
-            {
-              icon: KeyRound,
-              title: "Passkeys stay front and center",
-              description:
-                "People who already enrolled a passkey can jump straight in without digging through a crowded form.",
-            },
-            {
-              icon: Building2,
-              title: "Enterprise access stays explicit",
-              description:
-                "SSO is still available, but it sits in a dedicated section instead of competing with every other method at once.",
-            },
-            {
-              icon: LifeBuoy,
-              title: "Recovery is visible, not noisy",
-              description:
-                "Break-glass access remains discoverable for owners while staying out of the way for everyone else.",
-            },
-          ]}
-          footer="A focused login screen lowers hesitation for first-time users without reducing the strength of the security model behind it."
-        />
-      }
-    >
+    <AuthCard title="Welcome back" subtitle="Sign in to your Slipwise account">
       {ssoMessage && (
-        <div className="mb-4 rounded-[1.4rem] border border-amber-200 bg-amber-50/90 p-4 text-sm leading-7 text-amber-900 shadow-[var(--shadow-soft)]">
+        <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
           {ssoMessage}
         </div>
       )}
 
-      <div className="rounded-[1.5rem] border border-[var(--border-soft)] bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(247,241,235,0.92))] p-4 shadow-[var(--shadow-soft)]">
-        <div className="flex flex-wrap gap-2">
-          {["Password sign-in", "Google sign-in", "Passkeys ready"].map((item) => (
-            <span
-              key={item}
-              className="rounded-full border border-[var(--border-soft)] bg-white px-3 py-1.5 text-[0.72rem] font-medium text-[var(--foreground-soft)]"
-            >
-              {item}
-            </span>
-          ))}
-        </div>
-        <p className="mt-3 text-sm leading-7 text-[var(--foreground-soft)]">
-          Start with the most common sign-in methods first. Enterprise SSO and emergency
-          recovery stay available inside a separate section below.
-        </p>
-      </div>
-
-      <div className="mt-5 space-y-3">
+      <div className="space-y-3">
         <GoogleButton callbackURL={destination} />
         {passkeySupported && (
           <Button
             type="button"
-            variant="secondary"
-            className="h-12 w-full justify-center gap-3 rounded-2xl border-[var(--border-soft)] bg-white shadow-[0_16px_34px_rgba(34,34,34,0.05)]"
+            variant="outline"
+            className="h-10 w-full justify-center gap-2 border-gray-300 bg-white text-sm text-gray-700 hover:bg-gray-50"
             onClick={handlePasskeySignIn}
             disabled={passkeyLoading}
           >
-            <KeyRound className="h-4.5 w-4.5 text-[var(--accent)]" />
+            <KeyRound className="h-4 w-4 text-gray-500" />
             {passkeyLoading ? "Waiting for passkey…" : "Sign in with passkey"}
           </Button>
         )}
       </div>
 
-      <p className="mt-4 flex items-start gap-3 rounded-[1.4rem] border border-blue-100 bg-blue-50/80 px-4 py-3 text-sm leading-7 text-blue-900">
-        <ShieldCheck className="mt-0.5 h-4.5 w-4.5 shrink-0" />
-        <span>
-          If you enabled a passkey, you may be asked to use it as a second verification step
-          after sign-in.
-        </span>
-      </p>
-
-      <AuthDivider text="or continue with email" />
+      <AuthDivider text="or" />
 
       <form onSubmit={handleSubmit} className="space-y-4">
         <Input
@@ -301,132 +236,125 @@ export function LoginForm() {
           required
           autoComplete="email"
         />
-        <div>
-          <Input
-            label="Password"
-            type="password"
-            value={password}
+        <Input
+          label="Password"
+          type="password"
+          value={password}
           onChange={(e) => setPassword(e.target.value)}
           required
           autoComplete="current-password"
         />
-        </div>
-
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <label className="flex items-center gap-2 text-sm text-[var(--foreground-soft)]">
+        <div className="flex items-center justify-between">
+          <label className="flex items-center gap-2 text-sm text-gray-600">
             <input
               type="checkbox"
               checked={rememberMe}
               onChange={(e) => setRememberMe(e.target.checked)}
-              className="h-4 w-4 rounded border-[var(--border-strong)] text-[#dc2626] focus:ring-[#dc2626]"
+              className="h-4 w-4 rounded border-gray-300 text-[#dc2626] focus:ring-[#dc2626]"
             />
-            <span>Remember me</span>
+            Remember me
           </label>
           <Link
             href="/auth/forgot-password"
-            className="text-sm font-medium text-[var(--accent)] underline-offset-4 hover:underline"
+            className="text-sm text-[#dc2626] hover:underline"
           >
             Forgot password?
           </Link>
         </div>
 
-        <div className="rounded-[1.5rem] border border-[var(--border-soft)] bg-[var(--surface-soft)]/70 p-4">
-          <button
-            type="button"
-            onClick={() => setAdvancedOpen((current) => !current)}
-            className="flex w-full items-start justify-between gap-4 text-left"
-            aria-expanded={advancedOpen}
-          >
-            <div>
-              <p className="text-sm font-semibold text-[var(--foreground)]">
-                Enterprise & recovery options
-              </p>
-              <p className="mt-1 text-sm leading-7 text-[var(--foreground-soft)]">
-                Reveal SSO and break-glass access only when your organization requires them.
-              </p>
-            </div>
-            {advancedOpen ? (
-              <ChevronUp className="mt-1 h-4.5 w-4.5 shrink-0 text-[var(--foreground-soft)]" />
-            ) : (
-              <ChevronDown className="mt-1 h-4.5 w-4.5 shrink-0 text-[var(--foreground-soft)]" />
-            )}
-          </button>
-
-          {advancedOpen && (
-            <div className="mt-4 space-y-4 border-t border-[var(--border-soft)] pt-4">
-              <div className="rounded-[1.3rem] border border-[var(--border-soft)] bg-white p-4 shadow-[var(--shadow-soft)]">
-                <div className="flex items-start gap-3">
-                  <span className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-[var(--accent-soft)] text-[var(--accent)]">
-                    <Building2 className="h-4.5 w-4.5" />
-                  </span>
-                  <div className="w-full">
-                    <p className="text-sm font-semibold text-[var(--foreground)]">Enterprise SSO</p>
-                    <p className="mt-1 text-sm leading-7 text-[var(--foreground-soft)]">
-                      Enter your organization slug to continue with your company&apos;s SAML
-                      sign-in flow.
-                    </p>
-                    <div className="mt-3 flex flex-col gap-3">
-                      <Input
-                        label="Organization slug"
-                        value={orgSlug}
-                        onChange={(e) => setOrgSlug(e.target.value)}
-                        placeholder="acme"
-                        autoComplete="organization"
-                      />
-                      <Button
-                        type="button"
-                        variant="secondary"
-                        className="h-11 rounded-2xl"
-                        onClick={handleStartSso}
-                      >
-                        Continue with SSO
-                      </Button>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <div className="rounded-[1.3rem] border border-[var(--border-soft)] bg-white p-4 shadow-[var(--shadow-soft)]">
-                <div className="flex items-start gap-3">
-                  <span className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-[var(--accent-soft)] text-[var(--accent)]">
-                    <LifeBuoy className="h-4.5 w-4.5" />
-                  </span>
-                  <div className="w-full">
-                    <p className="text-sm font-semibold text-[var(--foreground)]">
-                      Break-glass recovery
-                    </p>
-                    <p className="mt-1 text-sm leading-7 text-[var(--foreground-soft)]">
-                      Owners can add a one-time emergency code here before submitting their
-                      password sign-in.
-                    </p>
-                    <div className="mt-3">
-                      <Input
-                        label="Break-glass code (optional)"
-                        value={breakGlassCode}
-                        onChange={(e) => setBreakGlassCode(e.target.value)}
-                        placeholder="ABCD-EFGH-IJKL-MNOP"
-                        autoComplete="one-time-code"
-                      />
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
-
         {error && (
-          <p className="rounded-[1.2rem] border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          <p className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
             {error}
           </p>
         )}
-        <Button type="submit" className="h-12 w-full rounded-2xl" disabled={loading}>
+
+        <Button
+          type="submit"
+          className="h-10 w-full bg-[#dc2626] text-white hover:bg-[#b91c1c]"
+          disabled={loading}
+        >
           {loading ? "Signing in…" : "Sign in"}
         </Button>
       </form>
-      <p className="mt-5 text-center text-sm text-[var(--foreground-soft)]">
+
+      <div className="mt-4 space-y-2 border-t border-gray-100 pt-4 text-center">
+        {!ssoOpen ? (
+          <button
+            type="button"
+            onClick={() => setSsoOpen(true)}
+            className="block w-full text-sm text-gray-500 hover:text-gray-700"
+          >
+            Sign in with SSO →
+          </button>
+        ) : (
+          <div className="space-y-2 text-left">
+            <p className="text-sm font-medium text-gray-700">Enterprise SSO</p>
+            <Input
+              label="Organization slug"
+              value={orgSlug}
+              onChange={(e) => setOrgSlug(e.target.value)}
+              placeholder="acme"
+              autoComplete="organization"
+            />
+            <Button
+              type="button"
+              variant="outline"
+              className="h-9 w-full border-gray-300 text-sm"
+              onClick={handleStartSso}
+            >
+              Continue with SSO
+            </Button>
+            <button
+              type="button"
+              onClick={() => setSsoOpen(false)}
+              className="block text-xs text-gray-400 hover:text-gray-600"
+            >
+              Cancel
+            </button>
+          </div>
+        )}
+
+        {!breakGlassOpen ? (
+          <button
+            type="button"
+            onClick={() => setBreakGlassOpen(true)}
+            className="block w-full text-sm text-gray-500 hover:text-gray-700"
+          >
+            Use break-glass code →
+          </button>
+        ) : (
+          <div className="space-y-2 text-left">
+            <p className="text-sm font-medium text-gray-700">Break-glass recovery</p>
+            {!orgSlug && (
+              <Input
+                label="Organization slug"
+                value={orgSlug}
+                onChange={(e) => setOrgSlug(e.target.value)}
+                placeholder="acme"
+                autoComplete="organization"
+              />
+            )}
+            <Input
+              label="Break-glass code"
+              value={breakGlassCode}
+              onChange={(e) => setBreakGlassCode(e.target.value)}
+              placeholder="ABCD-EFGH-IJKL-MNOP"
+              autoComplete="one-time-code"
+            />
+            <button
+              type="button"
+              onClick={() => setBreakGlassOpen(false)}
+              className="block text-xs text-gray-400 hover:text-gray-600"
+            >
+              Cancel
+            </button>
+          </div>
+        )}
+      </div>
+
+      <p className="mt-4 text-center text-sm text-gray-500">
         Don&apos;t have an account?{" "}
-        <Link href="/auth/signup" className="font-semibold text-[var(--accent)] hover:underline">
+        <Link href="/auth/signup" className="font-medium text-[#dc2626] hover:underline">
           Sign up
         </Link>
       </p>

@@ -28,7 +28,6 @@ export default function ForgotPasswordPage() {
   if (submitted) {
     return (
       <AuthCard
-        eyebrow="Account recovery"
         title="Check your email"
         subtitle="If an account exists, we sent a reset link"
       >
@@ -47,7 +46,6 @@ export default function ForgotPasswordPage() {
 
   return (
     <AuthCard
-      eyebrow="Account recovery"
       title="Reset your password"
       subtitle="Enter your email and we'll send a reset link"
     >

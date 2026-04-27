@@ -72,7 +72,6 @@ export default function OTPPage() {
 
   return (
     <AuthCard
-      eyebrow="Passwordless sign-in"
       title="Sign in with code"
       subtitle={
         step === "email"

@@ -30,9 +30,9 @@ export function GoogleButton({
 
   return (
     <Button
-      variant="secondary"
+      variant="outline"
       className={cn(
-        "h-12 w-full justify-center gap-3 rounded-2xl border-[var(--border-soft)] bg-white text-[var(--foreground)] shadow-[0_16px_34px_rgba(34,34,34,0.05)] hover:bg-[var(--surface-soft)]",
+        "h-10 w-full justify-center gap-2 border-gray-300 bg-white text-sm text-gray-700 hover:bg-gray-50",
         className
       )}
       onClick={() => {

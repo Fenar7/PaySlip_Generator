@@ -98,10 +98,6 @@ describe("LoginForm", () => {
   it("hard redirects after a successful password sign-in", async () => {
     render(<LoginForm />);
 
-    expect(
-      screen.getByText(/passkey.*second verification step after sign-in/i)
-    ).toBeInTheDocument();
-
     fireEvent.change(getEmailInput(), {
       target: { value: "user@example.com" },
     });

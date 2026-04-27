@@ -42,7 +42,6 @@ function ResetPasswordContent() {
 
   return (
     <AuthCard
-      eyebrow="Reset access"
       title="Set new password"
       subtitle="Choose a strong password for your account"
     >
