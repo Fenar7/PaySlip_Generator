@@ -2,14 +2,17 @@
 
 import { useState, useTransition, useEffect, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { verifyTotpChallenge, verifyRecoveryChallenge, verifyPasskeyChallenge, getMfaFactors } from "./actions";
+import { getMfaFactors } from "./actions";
 import { authenticatePasskey, browserSupportsWebAuthn } from "@/lib/passkey/client";
 import { beginPasskeyAuthentication } from "@/app/app/settings/security/passkey-actions";
 import { signOutSupabaseBrowser } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
+import type { AuthenticationResponseJSON } from "@simplewebauthn/browser";
 
 type MfaMode = "passkey" | "totp" | "recovery";
 const PASSKEY_VERIFY_TIMEOUT_MS = 20_000;
+const MFA_VERIFY_ENDPOINT = "/api/auth/mfa/verify";
+
 type MfaFactors = {
   status: "challenge" | "skip" | "setup";
   callbackUrl: string;
@@ -19,8 +22,26 @@ type MfaFactors = {
   hasRecoveryCodes: boolean;
 };
 
+type VerifyResult = { success: true; callbackUrl: string } | { success: false; error: string };
+
 function hardNavigate(url: string) {
   window.location.href = url;
+}
+
+async function verifyMfa(
+  type: "passkey" | "totp" | "recovery",
+  payload: { response?: AuthenticationResponseJSON; code?: string },
+  rawCallbackUrl: string
+): Promise<VerifyResult> {
+  const res = await fetch(MFA_VERIFY_ENDPOINT, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+    body: JSON.stringify({ type, ...payload, callbackUrl: rawCallbackUrl }),
+  });
+
+  const data = (await res.json()) as VerifyResult;
+  return data;
 }
 
 export function TwoChallengeForm() {
@@ -87,7 +108,7 @@ export function TwoChallengeForm() {
       const options = beginRes.data.options as unknown as import("@simplewebauthn/browser").PublicKeyCredentialRequestOptionsJSON;
       const response = await authenticatePasskey(options);
       const result = await withTimeout(
-        verifyPasskeyChallenge(response, callbackUrl),
+        verifyMfa("passkey", { response }, callbackUrl),
         PASSKEY_VERIFY_TIMEOUT_MS,
         "Passkey verification took too long. Try again."
       );
@@ -98,7 +119,7 @@ export function TwoChallengeForm() {
       }
 
       navigatingAway.current = true;
-      hardNavigate(result.data.callbackUrl);
+      hardNavigate(result.callbackUrl);
     } catch (err) {
       if (navigatingAway.current) return;
       setError(getPasskeyErrorMessage(err));
@@ -121,10 +142,11 @@ export function TwoChallengeForm() {
     setError(null);
     startTransition(async () => {
       if (navigatingAway.current) return;
-      const result =
-        mode === "totp"
-          ? await verifyTotpChallenge(code.trim(), callbackUrl)
-          : await verifyRecoveryChallenge(code.trim(), callbackUrl);
+      const result = await verifyMfa(
+        mode === "totp" ? "totp" : "recovery",
+        { code: code.trim() },
+        callbackUrl
+      );
 
       if (!result.success) {
         setError(result.error);
@@ -133,7 +155,7 @@ export function TwoChallengeForm() {
       }
 
       navigatingAway.current = true;
-      hardNavigate(result.data.callbackUrl);
+      hardNavigate(result.callbackUrl);
     });
   }
 

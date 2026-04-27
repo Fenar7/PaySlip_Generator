@@ -9,27 +9,19 @@ const {
   routerRefreshMock,
   routerPushMock,
   getMfaFactorsMock,
-  verifyPasskeyChallengeMock,
-  verifyTotpChallengeMock,
-  verifyRecoveryChallengeMock,
   beginPasskeyAuthenticationMock,
   authenticatePasskeyMock,
   browserSupportsWebAuthnMock,
   signOutSupabaseBrowserMock,
-  locationAssignMock,
 } = vi.hoisted(() => ({
   routerReplaceMock: vi.fn(),
   routerRefreshMock: vi.fn(),
   routerPushMock: vi.fn(),
   getMfaFactorsMock: vi.fn(),
-  verifyPasskeyChallengeMock: vi.fn(),
-  verifyTotpChallengeMock: vi.fn(),
-  verifyRecoveryChallengeMock: vi.fn(),
   beginPasskeyAuthenticationMock: vi.fn(),
   authenticatePasskeyMock: vi.fn(),
   browserSupportsWebAuthnMock: vi.fn(),
   signOutSupabaseBrowserMock: vi.fn(),
-  locationAssignMock: vi.fn(),
 }));
 
 vi.mock("next/navigation", () => ({
@@ -44,9 +36,6 @@ vi.mock("next/navigation", () => ({
 
 vi.mock("./actions", () => ({
   getMfaFactors: getMfaFactorsMock,
-  verifyPasskeyChallenge: verifyPasskeyChallengeMock,
-  verifyTotpChallenge: verifyTotpChallengeMock,
-  verifyRecoveryChallenge: verifyRecoveryChallengeMock,
 }));
 
 vi.mock("@/app/app/settings/security/passkey-actions", () => ({
@@ -63,6 +52,8 @@ vi.mock("@/lib/supabase/client", () => ({
 }));
 
 describe("TwoChallengeForm", () => {
+  let fetchMock: ReturnType<typeof vi.fn>;
+
   beforeEach(() => {
     vi.clearAllMocks();
     browserSupportsWebAuthnMock.mockReturnValue(true);
@@ -87,27 +78,35 @@ describe("TwoChallengeForm", () => {
       response: {},
       clientExtensionResults: {},
     });
-    verifyPasskeyChallengeMock.mockResolvedValue({
-      success: true,
-      data: { callbackUrl: "/app/settings/security" },
-    });
     signOutSupabaseBrowserMock.mockResolvedValue(undefined);
     vi.stubGlobal("location", {
       ...window.location,
       href: "",
-      assign: locationAssignMock,
     });
+
+    fetchMock = vi.fn();
+    global.fetch = fetchMock;
   });
 
   it("hard-navigates via window.location.href after successful passkey verification", async () => {
+    fetchMock.mockResolvedValue({
+      ok: true,
+      json: async () => ({ success: true, callbackUrl: "/app/settings/security" }),
+    });
+
     render(<TwoChallengeForm />);
 
     fireEvent.click(await screen.findByRole("button", { name: "Use passkey" }));
 
     await waitFor(() => {
-      expect(verifyPasskeyChallengeMock).toHaveBeenCalledWith(
-        expect.objectContaining({ id: "credential_1" }),
-        "/app/settings/security",
+      expect(fetchMock).toHaveBeenCalledWith(
+        "/api/auth/mfa/verify",
+        expect.objectContaining({
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: expect.stringContaining("\"type\":\"passkey\""),
+        })
       );
       expect(window.location.href).toBe("/app/settings/security");
     });
@@ -124,9 +123,9 @@ describe("TwoChallengeForm", () => {
         hasRecoveryCodes: false,
       },
     });
-    verifyTotpChallengeMock.mockResolvedValue({
-      success: true,
-      data: { callbackUrl: "/app/settings/security" },
+    fetchMock.mockResolvedValue({
+      ok: true,
+      json: async () => ({ success: true, callbackUrl: "/app/settings/security" }),
     });
 
     render(<TwoChallengeForm />);
@@ -137,7 +136,13 @@ describe("TwoChallengeForm", () => {
     fireEvent.click(screen.getByRole("button", { name: "Verify" }));
 
     await waitFor(() => {
-      expect(verifyTotpChallengeMock).toHaveBeenCalledWith("123456", "/app/settings/security");
+      expect(fetchMock).toHaveBeenCalledWith(
+        "/api/auth/mfa/verify",
+        expect.objectContaining({
+          method: "POST",
+          body: expect.stringContaining("\"type\":\"totp\""),
+        })
+      );
       expect(window.location.href).toBe("/app/settings/security");
     });
   });
@@ -153,9 +158,9 @@ describe("TwoChallengeForm", () => {
         hasRecoveryCodes: true,
       },
     });
-    verifyRecoveryChallengeMock.mockResolvedValue({
-      success: true,
-      data: { callbackUrl: "/app/settings/security" },
+    fetchMock.mockResolvedValue({
+      ok: true,
+      json: async () => ({ success: true, callbackUrl: "/app/settings/security" }),
     });
 
     render(<TwoChallengeForm />);
@@ -166,7 +171,13 @@ describe("TwoChallengeForm", () => {
     fireEvent.click(screen.getByRole("button", { name: "Verify" }));
 
     await waitFor(() => {
-      expect(verifyRecoveryChallengeMock).toHaveBeenCalledWith("abcd1234abcd1234", "/app/settings/security");
+      expect(fetchMock).toHaveBeenCalledWith(
+        "/api/auth/mfa/verify",
+        expect.objectContaining({
+          method: "POST",
+          body: expect.stringContaining("\"type\":\"recovery\""),
+        })
+      );
       expect(window.location.href).toBe("/app/settings/security");
     });
   });
@@ -188,9 +199,10 @@ describe("TwoChallengeForm", () => {
   });
 
   it("resets loading and shows retry when server verification fails", async () => {
-    verifyPasskeyChallengeMock.mockResolvedValue({
-      success: false,
-      error: "Invalid or expired authentication challenge",
+    fetchMock.mockResolvedValue({
+      ok: false,
+      status: 400,
+      json: async () => ({ success: false, error: "Invalid or expired authentication challenge" }),
     });
 
     render(<TwoChallengeForm />);
@@ -302,9 +314,10 @@ describe("TwoChallengeForm", () => {
         hasRecoveryCodes: false,
       },
     });
-    verifyTotpChallengeMock.mockResolvedValue({
-      success: false,
-      error: "Invalid code. Please try again.",
+    fetchMock.mockResolvedValue({
+      ok: false,
+      status: 400,
+      json: async () => ({ success: false, error: "Invalid code. Please try again." }),
     });
 
     render(<TwoChallengeForm />);
