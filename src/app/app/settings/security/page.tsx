@@ -64,6 +64,7 @@ export default function SecuritySettingsPage() {
   const [passkeys, setPasskeys] = useState<PasskeyListItem[]>([]);
   const [passkeyBusy, setPasskeyBusy] = useState(false);
   const [passkeyError, setPasskeyError] = useState("");
+  const [passkeySuccess, setPasskeySuccess] = useState("");
   const [renameId, setRenameId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState("");
   const [webauthnSupported, setWebauthnSupported] = useState(true);
@@ -178,6 +179,7 @@ export default function SecuritySettingsPage() {
 
   async function handleAddPasskey() {
     setPasskeyError("");
+    setPasskeySuccess("");
     setPasskeyBusy(true);
     try {
       const beginRes = await beginPasskeyRegistration();
@@ -196,6 +198,8 @@ export default function SecuritySettingsPage() {
         return;
       }
       await loadMfaStatus();
+      setPasskeySuccess("Passkey added. It will be offered as your preferred MFA method on your next sign-in.");
+      router.refresh();
     } catch (err) {
       setPasskeyError(err instanceof Error ? err.message : "Passkey registration failed");
     } finally {
@@ -387,6 +391,7 @@ export default function SecuritySettingsPage() {
         </CardHeader>
         <CardContent className="space-y-6">
           {passkeyError && <p className="text-sm text-red-600">{passkeyError}</p>}
+          {passkeySuccess && <p className="text-sm text-green-600">{passkeySuccess}</p>}
           {twoFaError && <p className="text-sm text-red-600">{twoFaError}</p>}
 
           {/* ── Passkeys ── */}

@@ -5,9 +5,11 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { verifyTotpChallenge, verifyRecoveryChallenge, verifyPasskeyChallenge, getMfaFactors } from "./actions";
 import { authenticatePasskey, browserSupportsWebAuthn } from "@/lib/passkey/client";
 import { beginPasskeyAuthentication } from "@/app/app/settings/security/passkey-actions";
+import { signOutSupabaseBrowser } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 
 type MfaMode = "passkey" | "totp" | "recovery";
+const PASSKEY_VERIFY_TIMEOUT_MS = 20_000;
 
 export function TwoChallengeForm() {
   const router = useRouter();
@@ -21,6 +23,7 @@ export function TwoChallengeForm() {
   const [factors, setFactors] = useState<{ hasPasskey: boolean; hasTotp: boolean; hasRecoveryCodes: boolean } | null>(null);
   const [webauthnSupported, setWebauthnSupported] = useState(true);
   const [passkeyLoading, setPasskeyLoading] = useState(false);
+  const [passkeyAttempted, setPasskeyAttempted] = useState(false);
 
   useEffect(() => {
     setWebauthnSupported(browserSupportsWebAuthn());
@@ -42,28 +45,39 @@ export function TwoChallengeForm() {
   async function triggerPasskey() {
     setError(null);
     setPasskeyLoading(true);
+    setPasskeyAttempted(true);
     try {
       const beginRes = await beginPasskeyAuthentication();
       if (!beginRes.success) {
         setError(beginRes.error);
-        setMode("totp");
         return;
       }
       const options = beginRes.data.options as unknown as import("@simplewebauthn/browser").PublicKeyCredentialRequestOptionsJSON;
       const response = await authenticatePasskey(options);
-      startTransition(async () => {
-        const result = await verifyPasskeyChallenge(response, callbackUrl);
-        if (!result.success) {
-          setError(result.error);
-          setPasskeyLoading(false);
-          return;
-        }
-        router.push(result.data.callbackUrl);
-      });
+      const result = await withTimeout(
+        verifyPasskeyChallenge(response, callbackUrl),
+        PASSKEY_VERIFY_TIMEOUT_MS,
+        "Passkey verification took too long. Try again."
+      );
+
+      if (!result.success) {
+        setError(result.error);
+        return;
+      }
+
+      router.replace(result.data.callbackUrl);
+      router.refresh();
     } catch (err) {
+      setError(getPasskeyErrorMessage(err));
+    } finally {
       setPasskeyLoading(false);
-      setError(err instanceof Error ? err.message : "Passkey authentication failed");
     }
+  }
+
+  async function backToSignIn() {
+    await signOutSupabaseBrowser();
+    router.replace("/auth/login");
+    router.refresh();
   }
 
   function handleSubmit(e: React.FormEvent) {
@@ -119,6 +133,17 @@ export function TwoChallengeForm() {
             >
               {passkeyLoading ? "Waiting for passkey…" : "Use passkey"}
             </Button>
+            {passkeyAttempted && error && (
+              <Button
+                type="button"
+                variant="secondary"
+                className="w-full"
+                onClick={triggerPasskey}
+                disabled={passkeyLoading || isPending}
+              >
+                Try passkey again
+              </Button>
+            )}
             <div className="flex flex-col gap-2 text-center">
               {showTotp && (
                 <button
@@ -136,6 +161,15 @@ export function TwoChallengeForm() {
                   className="text-xs text-muted-foreground hover:text-foreground underline-offset-4 hover:underline"
                 >
                   Use a recovery code instead
+                </button>
+              )}
+              {!showTotp && !showRecovery && (
+                <button
+                  type="button"
+                  onClick={backToSignIn}
+                  className="text-xs text-muted-foreground hover:text-foreground underline-offset-4 hover:underline"
+                >
+                  Back to sign in
                 </button>
               )}
             </div>
@@ -205,4 +239,32 @@ export function TwoChallengeForm() {
       </div>
     </div>
   );
+}
+
+async function withTimeout<T>(
+  promise: Promise<T>,
+  timeoutMs: number,
+  message: string
+): Promise<T> {
+  let timeoutId: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      promise,
+      new Promise<never>((_, reject) => {
+        timeoutId = setTimeout(() => reject(new Error(message)), timeoutMs);
+      }),
+    ]);
+  } finally {
+    if (timeoutId) clearTimeout(timeoutId);
+  }
+}
+
+function getPasskeyErrorMessage(error: unknown): string {
+  if (!(error instanceof Error)) return "Passkey authentication failed. Try again.";
+
+  if (error.name === "NotAllowedError") {
+    return "Passkey verification was cancelled or timed out. Try again.";
+  }
+
+  return error.message || "Passkey authentication failed. Try again.";
 }
