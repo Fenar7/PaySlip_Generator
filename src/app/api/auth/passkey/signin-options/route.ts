@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { generateAuthenticationOptions } from "@simplewebauthn/server";
 import { storeChallenge } from "@/lib/passkey/challenge-store";
 import { getRpId } from "@/lib/passkey/server";
+import { sanitizeMfaCallbackUrl } from "@/lib/mfa/token";
 import { randomUUID } from "crypto";
 
 /**
@@ -32,9 +33,7 @@ export async function POST(request: NextRequest) {
       success: true,
       options,
       signinSessionId,
-      callbackUrl: callbackUrl?.startsWith("/") && !callbackUrl.startsWith("//")
-        ? callbackUrl
-        : "/app",
+      callbackUrl: sanitizeMfaCallbackUrl(callbackUrl ?? "/app", "/app"),
     });
   } catch (err) {
     console.error("[passkey-signin-options] error:", err);

@@ -9,6 +9,7 @@ import {
 } from "@/lib/totp/challenge-session";
 import { createSupabaseAdmin, createSupabaseServer } from "@/lib/supabase/server";
 import { cookies } from "next/headers";
+import { sanitizeMfaCallbackUrl } from "@/lib/mfa/token";
 import {
   getPasskeysForUser,
   getPasskeyByCredentialId,
@@ -43,14 +44,7 @@ async function issueCookie(userId: string) {
 }
 
 function sanitizeCallbackUrl(raw: string): string {
-  try {
-    if (raw.startsWith("/") && !raw.startsWith("//")) {
-      return raw;
-    }
-  } catch {
-    // fall through
-  }
-  return "/app";
+  return sanitizeMfaCallbackUrl(raw, "/app");
 }
 
 function buildSetupUrl(callbackUrl: string): string {

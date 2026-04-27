@@ -27,6 +27,13 @@ function decodeBase64Url(input: string): Uint8Array {
   return Uint8Array.from(binary, (char) => char.charCodeAt(0));
 }
 
+function getWebCrypto() {
+  if (globalThis.crypto?.subtle) {
+    return globalThis.crypto;
+  }
+  return crypto.webcrypto;
+}
+
 function getSecret(): string {
   const s = process.env.TOTP_SESSION_SECRET ?? process.env.PORTAL_JWT_SECRET ?? "";
   if (!s) {
@@ -78,7 +85,8 @@ export async function signMfaCookieEdge(
   );
 
   const enc = new TextEncoder();
-  const key = await crypto.subtle.importKey(
+  const webCrypto = getWebCrypto();
+  const key = await webCrypto.subtle.importKey(
     "raw",
     enc.encode(secret),
     { name: "HMAC", hash: "SHA-256" },
@@ -86,7 +94,7 @@ export async function signMfaCookieEdge(
     ["sign"]
   );
 
-  const signature = await crypto.subtle.sign(
+  const signature = await webCrypto.subtle.sign(
     "HMAC",
     key,
     enc.encode(`${header}.${body}`)
@@ -116,7 +124,8 @@ export async function verifyMfaToken(
     const [header, body, sig] = parts;
 
     const enc = new TextEncoder();
-    const key = await crypto.subtle.importKey(
+    const webCrypto = getWebCrypto();
+    const key = await webCrypto.subtle.importKey(
       "raw",
       enc.encode(secret),
       { name: "HMAC", hash: "SHA-256" },
@@ -126,7 +135,7 @@ export async function verifyMfaToken(
 
     const sigBytes = decodeBase64Url(sig);
 
-    const isValid = await crypto.subtle.verify(
+    const isValid = await webCrypto.subtle.verify(
       "HMAC",
       key,
       sigBytes,
@@ -151,5 +160,20 @@ export async function verifyMfaToken(
     return payload.sub;
   } catch {
     return null;
+  }
+}
+
+export function sanitizeMfaCallbackUrl(raw: string, fallback = "/app"): string {
+  try {
+    if (!raw.startsWith("/") || raw.startsWith("//")) {
+      return fallback;
+    }
+
+    const url = new URL(raw, "http://localhost");
+    url.searchParams.delete(MFA_TOKEN_QUERY_PARAM);
+    const next = `${url.pathname}${url.search}${url.hash}`;
+    return next || fallback;
+  } catch {
+    return fallback;
   }
 }

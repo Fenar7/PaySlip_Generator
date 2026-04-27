@@ -9,6 +9,7 @@ import {
   verifyMfaToken,
   signMfaCookieEdge,
   MFA_TOKEN_QUERY_PARAM,
+  sanitizeMfaCallbackUrl,
 } from "@/lib/mfa/token";
 
 const PUBLIC_PREFIXES = [
@@ -149,7 +150,9 @@ async function checkMfaChallenge(
 ): Promise<NextResponse | null> {
   if (!mfaRequired) return null;
 
-  const callbackUrl = request.nextUrl.pathname + request.nextUrl.search;
+  const callbackUrl = sanitizeMfaCallbackUrl(
+    request.nextUrl.pathname + request.nextUrl.search
+  );
 
   if (opts?.enrollmentRequired) {
     const setupUrl = new URL("/app/settings/security", request.url);

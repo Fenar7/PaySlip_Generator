@@ -7,6 +7,7 @@ import {
   MFA_SESSION_DURATION_SECONDS,
 } from "@/lib/totp/challenge-session";
 import { signMfaToken } from "@/lib/mfa/token";
+import { sanitizeMfaCallbackUrl } from "@/lib/mfa/token";
 import { createSupabaseServer } from "@/lib/supabase/server";
 import {
   getPasskeyByCredentialId,
@@ -19,14 +20,7 @@ import type { AuthenticationResponseJSON } from "@simplewebauthn/browser";
 const MAX_AGE = MFA_SESSION_DURATION_SECONDS;
 
 function sanitizeCallbackUrl(raw: string): string {
-  try {
-    if (raw.startsWith("/") && !raw.startsWith("//")) {
-      return raw;
-    }
-  } catch {
-    // fall through
-  }
-  return "/app";
+  return sanitizeMfaCallbackUrl(raw, "/app");
 }
 
 function issueCookie(userId: string): [string, string, Record<string, unknown>] {

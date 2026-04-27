@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { NextRequest } from "next/server";
 import { verifyChallengeToken } from "@/lib/totp/challenge-session";
-import { signMfaToken, verifyMfaToken, MFA_TOKEN_QUERY_PARAM } from "@/lib/mfa/token";
+import { signMfaToken, verifyMfaToken, MFA_TOKEN_QUERY_PARAM, sanitizeMfaCallbackUrl } from "@/lib/mfa/token";
 
 // Replicate the middleware MFA gating logic for isolated testing.
 // We cannot import middleware.ts directly because it depends on edge-runtime modules.
@@ -16,7 +16,9 @@ async function checkMfaChallenge(
 ): Promise<{ type: "redirect"; url: string } | null> {
   if (!mfaRequired) return null;
 
-  const callbackUrl = request.nextUrl.pathname + request.nextUrl.search;
+  const callbackUrl = sanitizeMfaCallbackUrl(
+    request.nextUrl.pathname + request.nextUrl.search
+  );
 
   if (opts?.enrollmentRequired) {
     const url = new URL("/app/settings/security", request.url);
@@ -235,35 +237,29 @@ describe("MFA requirement logic", () => {
 });
 
 describe("sanitizeCallbackUrl (unit)", () => {
-  function sanitizeCallbackUrl(raw: string): string {
-    try {
-      if (raw.startsWith("/") && !raw.startsWith("//")) {
-        return raw;
-      }
-    } catch {
-      // fall through
-    }
-    return "/app";
-  }
-
   it("allows safe relative paths", () => {
-    expect(sanitizeCallbackUrl("/onboarding")).toBe("/onboarding");
-    expect(sanitizeCallbackUrl("/app/home")).toBe("/app/home");
-    expect(sanitizeCallbackUrl("/app/settings/security?setupMfa=1")).toBe("/app/settings/security?setupMfa=1");
+    expect(sanitizeMfaCallbackUrl("/onboarding")).toBe("/onboarding");
+    expect(sanitizeMfaCallbackUrl("/app/home")).toBe("/app/home");
+    expect(sanitizeMfaCallbackUrl("/app/settings/security?setupMfa=1")).toBe("/app/settings/security?setupMfa=1");
   });
 
   it("blocks protocol-relative URLs (open redirect)", () => {
-    expect(sanitizeCallbackUrl("//evil.com")).toBe("/app");
-    expect(sanitizeCallbackUrl("//evil.com/path")).toBe("/app");
+    expect(sanitizeMfaCallbackUrl("//evil.com")).toBe("/app");
+    expect(sanitizeMfaCallbackUrl("//evil.com/path")).toBe("/app");
   });
 
   it("blocks absolute URLs (open redirect)", () => {
-    expect(sanitizeCallbackUrl("https://evil.com")).toBe("/app");
-    expect(sanitizeCallbackUrl("http://evil.com")).toBe("/app");
+    expect(sanitizeMfaCallbackUrl("https://evil.com")).toBe("/app");
+    expect(sanitizeMfaCallbackUrl("http://evil.com")).toBe("/app");
   });
 
   it("defaults to /app for empty or invalid input", () => {
-    expect(sanitizeCallbackUrl("")).toBe("/app");
-    expect(sanitizeCallbackUrl("javascript:alert(1)")).toBe("/app");
+    expect(sanitizeMfaCallbackUrl("")).toBe("/app");
+    expect(sanitizeMfaCallbackUrl("javascript:alert(1)")).toBe("/app");
+  });
+
+  it("strips stale mfaToken values from callback URLs", () => {
+    expect(sanitizeMfaCallbackUrl("/app/home?mfaToken=abc123")).toBe("/app/home");
+    expect(sanitizeMfaCallbackUrl("/app/home?foo=1&mfaToken=abc123&bar=2")).toBe("/app/home?foo=1&bar=2");
   });
 });

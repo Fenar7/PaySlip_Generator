@@ -5,7 +5,7 @@ import { getAndConsumeChallenge } from "@/lib/passkey/challenge-store";
 import { getPasskeyByCredentialId, updatePasskeyCounter } from "@/lib/passkey/db";
 import { getRpId, getOrigin } from "@/lib/passkey/server";
 import { createSupabaseAdmin } from "@/lib/supabase/server";
-import { signMfaToken } from "@/lib/mfa/token";
+import { signMfaToken, sanitizeMfaCallbackUrl } from "@/lib/mfa/token";
 import { db } from "@/lib/db";
 import { logAudit } from "@/lib/audit";
 import type { AuthenticationResponseJSON } from "@simplewebauthn/browser";
@@ -13,14 +13,7 @@ import type { AuthenticationResponseJSON } from "@simplewebauthn/browser";
 const CALLBACK_URL_DEFAULT = "/app";
 
 function sanitizeCallbackUrl(raw: string): string {
-  try {
-    if (raw.startsWith("/") && !raw.startsWith("//")) {
-      return raw;
-    }
-  } catch {
-    // fall through
-  }
-  return CALLBACK_URL_DEFAULT;
+  return sanitizeMfaCallbackUrl(raw, CALLBACK_URL_DEFAULT);
 }
 
 /**
