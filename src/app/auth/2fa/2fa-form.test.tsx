@@ -16,7 +16,6 @@ const {
   authenticatePasskeyMock,
   browserSupportsWebAuthnMock,
   signOutSupabaseBrowserMock,
-  locationAssignMock,
 } = vi.hoisted(() => ({
   routerReplaceMock: vi.fn(),
   routerRefreshMock: vi.fn(),
@@ -29,7 +28,6 @@ const {
   authenticatePasskeyMock: vi.fn(),
   browserSupportsWebAuthnMock: vi.fn(),
   signOutSupabaseBrowserMock: vi.fn(),
-  locationAssignMock: vi.fn(),
 }));
 
 vi.mock("next/navigation", () => ({
@@ -92,13 +90,9 @@ describe("TwoChallengeForm", () => {
       data: { callbackUrl: "/app/settings/security" },
     });
     signOutSupabaseBrowserMock.mockResolvedValue(undefined);
-    vi.stubGlobal("location", {
-      ...window.location,
-      assign: locationAssignMock,
-    });
   });
 
-  it("hard redirects after successful passkey verification", async () => {
+  it("invokes verifyPasskeyChallenge with credential and callback URL on passkey verification", async () => {
     render(<TwoChallengeForm />);
 
     fireEvent.click(await screen.findByRole("button", { name: "Use passkey" }));
@@ -108,7 +102,6 @@ describe("TwoChallengeForm", () => {
         expect.objectContaining({ id: "credential_1" }),
         "/app/settings/security"
       );
-      expect(locationAssignMock).toHaveBeenCalledWith("/app/settings/security");
     });
   });
 
@@ -235,5 +228,87 @@ describe("TwoChallengeForm", () => {
 
     expect(await screen.findByText("Authenticator code")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Use passkey" })).not.toBeInTheDocument();
+  });
+
+  it("invokes verifyTotpChallenge with code and callback URL on TOTP submit", async () => {
+    getMfaFactorsMock.mockResolvedValue({
+      success: true,
+      data: {
+        status: "challenge",
+        callbackUrl: "/app/settings/security",
+        hasPasskey: false,
+        hasTotp: true,
+        hasRecoveryCodes: false,
+      },
+    });
+    verifyTotpChallengeMock.mockResolvedValue({
+      success: true,
+      data: { callbackUrl: "/app/settings/security" },
+    });
+
+    render(<TwoChallengeForm />);
+
+    expect(await screen.findByText("Authenticator code")).toBeInTheDocument();
+    const input = screen.getByLabelText("Authenticator code");
+    fireEvent.change(input, { target: { value: "123456" } });
+    fireEvent.click(screen.getByRole("button", { name: "Verify" }));
+
+    await waitFor(() => {
+      expect(verifyTotpChallengeMock).toHaveBeenCalledWith("123456", "/app/settings/security");
+    });
+  });
+
+  it("shows error when TOTP code is wrong", async () => {
+    getMfaFactorsMock.mockResolvedValue({
+      success: true,
+      data: {
+        status: "challenge",
+        callbackUrl: "/app/settings/security",
+        hasPasskey: false,
+        hasTotp: true,
+        hasRecoveryCodes: false,
+      },
+    });
+    verifyTotpChallengeMock.mockResolvedValue({
+      success: false,
+      error: "Invalid code. Please try again.",
+    });
+
+    render(<TwoChallengeForm />);
+
+    expect(await screen.findByText("Authenticator code")).toBeInTheDocument();
+    const input = screen.getByLabelText("Authenticator code");
+    fireEvent.change(input, { target: { value: "000000" } });
+    fireEvent.click(screen.getByRole("button", { name: "Verify" }));
+
+    expect(await screen.findByText("Invalid code. Please try again.")).toBeInTheDocument();
+  });
+
+  it("invokes verifyRecoveryChallenge with code and callback URL on recovery submit", async () => {
+    getMfaFactorsMock.mockResolvedValue({
+      success: true,
+      data: {
+        status: "challenge",
+        callbackUrl: "/app/settings/security",
+        hasPasskey: false,
+        hasTotp: false,
+        hasRecoveryCodes: true,
+      },
+    });
+    verifyRecoveryChallengeMock.mockResolvedValue({
+      success: true,
+      data: { callbackUrl: "/app/settings/security", codesRemaining: 5 },
+    });
+
+    render(<TwoChallengeForm />);
+
+    expect(await screen.findByText("Recovery code")).toBeInTheDocument();
+    const input = screen.getByLabelText("Recovery code");
+    fireEvent.change(input, { target: { value: "abcd1234abcd1234" } });
+    fireEvent.click(screen.getByRole("button", { name: "Verify" }));
+
+    await waitFor(() => {
+      expect(verifyRecoveryChallengeMock).toHaveBeenCalledWith("abcd1234abcd1234", "/app/settings/security");
+    });
   });
 });

@@ -19,6 +19,18 @@ type MfaFactors = {
   hasRecoveryCodes: boolean;
 };
 
+const NEXT_REDIRECT_CODE = "NEXT_REDIRECT";
+
+function isRedirectError(err: unknown): boolean {
+  if (err instanceof Error && err.digest) {
+    return err.digest.startsWith(NEXT_REDIRECT_CODE);
+  }
+  if (err instanceof Error) {
+    return err.message === NEXT_REDIRECT_CODE;
+  }
+  return false;
+}
+
 export function TwoChallengeForm() {
   const router = useRouter();
   const { refresh, replace } = router;
@@ -34,7 +46,6 @@ export function TwoChallengeForm() {
   const [webauthnSupported, setWebauthnSupported] = useState(true);
   const [passkeyLoading, setPasskeyLoading] = useState(false);
   const [passkeyAttempted, setPasskeyAttempted] = useState(false);
-  const [redirecting, setRedirecting] = useState(false);
 
   useEffect(() => {
     const supportsWebAuthn = browserSupportsWebAuthn();
@@ -89,12 +100,11 @@ export function TwoChallengeForm() {
         setError(result.error);
         return;
       }
-
-      setRedirecting(true);
-      window.location.assign(result.data.callbackUrl);
     } catch (err) {
+      if (isRedirectError(err)) {
+        throw err;
+      }
       setError(getPasskeyErrorMessage(err));
-      setRedirecting(false);
     } finally {
       setPasskeyLoading(false);
     }
@@ -120,9 +130,6 @@ export function TwoChallengeForm() {
         setCode("");
         return;
       }
-
-      setRedirecting(true);
-      window.location.assign(result.data.callbackUrl);
     });
   }
 
@@ -166,7 +173,7 @@ export function TwoChallengeForm() {
               onClick={triggerPasskey}
               disabled={passkeyLoading || isPending}
             >
-              {redirecting ? "Verified. Continuing…" : passkeyLoading ? "Waiting for passkey…" : "Use passkey"}
+              {passkeyLoading ? "Waiting for passkey…" : "Use passkey"}
             </Button>
             {passkeyAttempted && error && (
               <Button

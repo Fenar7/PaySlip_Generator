@@ -32,6 +32,12 @@ type MfaChallengeState = {
   hasRecoveryCodes: boolean;
 };
 
+type MfaVerificationResult = {
+  userId: string;
+  callbackUrl: string;
+  codesRemaining?: number;
+};
+
 async function issueCookie(userId: string) {
   const cookieStore = await cookies();
   cookieStore.set(MFA_CHALLENGE_COOKIE, signChallengeToken(userId), {
@@ -43,7 +49,6 @@ async function issueCookie(userId: string) {
   });
 }
 
-/** Ensure the callback URL is a safe relative path and not an open redirect. */
 function sanitizeCallbackUrl(raw: string): string {
   try {
     if (raw.startsWith("/") && !raw.startsWith("//")) {
@@ -78,15 +83,15 @@ async function syncMfaMetadata(
   });
 }
 
-/**
- * Verify a TOTP 6-digit code and, on success, issue the sw_2fa challenge
- * cookie. The callbackUrl (validated to be a relative path) is returned
- * so the client can redirect the user after the form action.
- */
+function completeMfaRedirect(result: MfaVerificationResult): never {
+  redirect(result.callbackUrl);
+}
+
 export async function verifyTotpChallenge(
   code: string,
   rawCallbackUrl: string
 ): Promise<ActionResult<{ callbackUrl: string }>> {
+  let result: MfaVerificationResult;
   try {
     const supabase = await createSupabaseServer();
     const {
@@ -112,22 +117,20 @@ export async function verifyTotpChallenge(
       return { success: false, error: "Invalid code. Please try again." };
     }
 
-    await issueCookie(user.id);
-    return { success: true, data: { callbackUrl: sanitizeCallbackUrl(rawCallbackUrl) } };
+    result = { userId: user.id, callbackUrl: sanitizeCallbackUrl(rawCallbackUrl) };
   } catch (err) {
     return { success: false, error: err instanceof Error ? err.message : "Verification failed" };
   }
+
+  await issueCookie(result.userId);
+  completeMfaRedirect(result);
 }
 
-/**
- * Use a recovery code instead of a TOTP code. Consumes the code (one-time use).
- * Recovery codes are a general MFA fallback — available when the user has
- * recovery codes stored, regardless of whether TOTP or passkey is the primary factor.
- */
 export async function verifyRecoveryChallenge(
   inputCode: string,
   rawCallbackUrl: string
 ): Promise<ActionResult<{ callbackUrl: string; codesRemaining: number }>> {
+  let result: MfaVerificationResult;
   try {
     const supabase = await createSupabaseServer();
     const {
@@ -161,26 +164,20 @@ export async function verifyRecoveryChallenge(
       data: { recoveryCodes: updated },
     });
 
-    await issueCookie(user.id);
-    return {
-      success: true,
-      data: {
-        callbackUrl: sanitizeCallbackUrl(rawCallbackUrl),
-        codesRemaining: updated.length,
-      },
-    };
+    result = { userId: user.id, callbackUrl: sanitizeCallbackUrl(rawCallbackUrl), codesRemaining: updated.length };
   } catch (err) {
     return { success: false, error: err instanceof Error ? err.message : "Recovery failed" };
   }
+
+  await issueCookie(result.userId);
+  completeMfaRedirect(result);
 }
 
-/**
- * Verify a passkey authentication response for MFA challenge.
- */
 export async function verifyPasskeyChallenge(
   response: AuthenticationResponseJSON,
   rawCallbackUrl: string
 ): Promise<ActionResult<{ callbackUrl: string }>> {
+  let result: MfaVerificationResult;
   try {
     const supabase = await createSupabaseServer();
     const {
@@ -201,7 +198,6 @@ export async function verifyPasskeyChallenge(
     });
 
     if (!verification.verified) {
-      // Best-effort audit of failed passkey challenge
       try {
         const member = await db.member.findFirst({
           where: { userId: user.id },
@@ -227,17 +223,15 @@ export async function verifyPasskeyChallenge(
       await updatePasskeyCounter(credential.credentialId, BigInt(verification.authenticationInfo.newCounter));
     }
 
-    await issueCookie(user.id);
-    return { success: true, data: { callbackUrl: sanitizeCallbackUrl(rawCallbackUrl) } };
+    result = { userId: user.id, callbackUrl: sanitizeCallbackUrl(rawCallbackUrl) };
   } catch (err) {
     return { success: false, error: err instanceof Error ? err.message : "Passkey challenge failed" };
   }
+
+  await issueCookie(result.userId);
+  completeMfaRedirect(result);
 }
 
-/**
- * Get the enrolled MFA factors for the current user.
- * Used by the MFA challenge page to decide which UI to show.
- */
 export async function getMfaFactors(rawCallbackUrl = "/app"): Promise<
   ActionResult<MfaChallengeState>
 > {

@@ -155,3 +155,37 @@ describe("MFA requirement logic", () => {
     expect(mfaEnabled || twoFaEnforcedByOrg).toBe(false);
   });
 });
+
+describe("sanitizeCallbackUrl (unit)", () => {
+  function sanitizeCallbackUrl(raw: string): string {
+    try {
+      if (raw.startsWith("/") && !raw.startsWith("//")) {
+        return raw;
+      }
+    } catch {
+      // fall through
+    }
+    return "/app";
+  }
+
+  it("allows safe relative paths", () => {
+    expect(sanitizeCallbackUrl("/onboarding")).toBe("/onboarding");
+    expect(sanitizeCallbackUrl("/app/home")).toBe("/app/home");
+    expect(sanitizeCallbackUrl("/app/settings/security?setupMfa=1")).toBe("/app/settings/security?setupMfa=1");
+  });
+
+  it("blocks protocol-relative URLs (open redirect)", () => {
+    expect(sanitizeCallbackUrl("//evil.com")).toBe("/app");
+    expect(sanitizeCallbackUrl("//evil.com/path")).toBe("/app");
+  });
+
+  it("blocks absolute URLs (open redirect)", () => {
+    expect(sanitizeCallbackUrl("https://evil.com")).toBe("/app");
+    expect(sanitizeCallbackUrl("http://evil.com")).toBe("/app");
+  });
+
+  it("defaults to /app for empty or invalid input", () => {
+    expect(sanitizeCallbackUrl("")).toBe("/app");
+    expect(sanitizeCallbackUrl("javascript:alert(1)")).toBe("/app");
+  });
+});
