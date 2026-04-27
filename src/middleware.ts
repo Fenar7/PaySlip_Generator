@@ -5,6 +5,11 @@ import {
   verifyChallengeToken,
   MFA_CHALLENGE_COOKIE,
 } from "@/lib/totp/challenge-session";
+import {
+  verifyMfaToken,
+  signMfaCookieEdge,
+  MFA_TOKEN_QUERY_PARAM,
+} from "@/lib/mfa/token";
 
 const PUBLIC_PREFIXES = [
   "/",
@@ -161,6 +166,34 @@ async function checkMfaChallenge(
     loginUrl.searchParams.set("error", "mfa_unavailable");
     loginUrl.searchParams.set("callbackUrl", callbackUrl);
     return NextResponse.redirect(loginUrl);
+  }
+
+  // ── Token-based MFA handoff (bypasses Next.js 16 dev cookie issue) ──
+  // Check for a short-lived mfaToken query param first. If valid, set the
+  // cookie and allow access. This is used when the verify route returns
+  // a token instead of setting a cookie directly.
+  const mfaToken = request.nextUrl.searchParams.get(MFA_TOKEN_QUERY_PARAM);
+  if (mfaToken) {
+    const tokenUserId = await verifyMfaToken(mfaToken, secret);
+    if (tokenUserId === userId) {
+      // Valid token — set the cookie and continue (strip token from URL)
+      const cleanSearch = request.nextUrl.search
+        .replace(/[?&]mfaToken=[^&]+/, "")
+        .replace(/^\?&/, "?")
+        .replace(/^\?$/, "");
+      const response = NextResponse.redirect(
+        new URL(request.nextUrl.pathname + cleanSearch, request.url)
+      );
+      const cookieValue = await signMfaCookieEdge(userId, secret);
+      response.cookies.set(MFA_CHALLENGE_COOKIE, cookieValue, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: "lax",
+        path: "/",
+        maxAge: 12 * 60 * 60, // 12 hours
+      });
+      return response;
+    }
   }
 
   const cookieValue = request.cookies.get(MFA_CHALLENGE_COOKIE)?.value ?? "";

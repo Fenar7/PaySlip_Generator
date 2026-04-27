@@ -6,6 +6,7 @@ import {
   MFA_CHALLENGE_COOKIE,
   MFA_SESSION_DURATION_SECONDS,
 } from "@/lib/totp/challenge-session";
+import { signMfaToken } from "@/lib/mfa/token";
 import { createSupabaseServer } from "@/lib/supabase/server";
 import {
   getPasskeyByCredentialId,
@@ -38,6 +39,20 @@ function issueCookie(userId: string): [string, string, Record<string, unknown>] 
     maxAge: MAX_AGE,
   };
   return [MFA_CHALLENGE_COOKIE, value, options];
+}
+
+function buildSuccessResponse(
+  userId: string,
+  callbackUrl: string,
+  setCookie: boolean
+): NextResponse {
+  const mfaToken = signMfaToken(userId);
+  const response = NextResponse.json({ success: true, callbackUrl, mfaToken });
+  if (setCookie) {
+    const [name, value, options] = issueCookie(userId);
+    response.cookies.set(name, value, options);
+  }
+  return response;
 }
 
 type VerifyRequest =
@@ -103,10 +118,7 @@ export async function POST(request: NextRequest) {
         await updatePasskeyCounter(credential.credentialId, BigInt(verification.authenticationInfo.newCounter));
       }
 
-      const [name, value, options] = issueCookie(user.id);
-      const response = NextResponse.json({ success: true, callbackUrl });
-      response.cookies.set(name, value, options);
-      return response;
+      return buildSuccessResponse(user.id, callbackUrl, true);
     }
 
     if (body.type === "totp") {
@@ -130,10 +142,7 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ success: false, error: "Invalid code. Please try again." }, { status: 400 });
       }
 
-      const [name, value, options] = issueCookie(user.id);
-      const response = NextResponse.json({ success: true, callbackUrl });
-      response.cookies.set(name, value, options);
-      return response;
+      return buildSuccessResponse(user.id, callbackUrl, true);
     }
 
     if (body.type === "recovery") {
@@ -163,10 +172,7 @@ export async function POST(request: NextRequest) {
         data: { recoveryCodes: updated },
       });
 
-      const [name, value, options] = issueCookie(user.id);
-      const response = NextResponse.json({ success: true, callbackUrl });
-      response.cookies.set(name, value, options);
-      return response;
+      return buildSuccessResponse(user.id, callbackUrl, true);
     }
 
     return NextResponse.json({ success: false, error: "Unknown MFA type" }, { status: 400 });

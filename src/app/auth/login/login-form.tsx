@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { AuthCard } from "@/features/auth/components/auth-card";
@@ -13,6 +13,8 @@ import {
   createSupabaseBrowser,
   setBrowserSessionPersistence,
 } from "@/lib/supabase/client";
+import { authenticatePasskey, browserSupportsWebAuthn } from "@/lib/passkey/client";
+
 
 export function LoginForm() {
   const router = useRouter();
@@ -31,6 +33,14 @@ export function LoginForm() {
   const [rememberMe, setRememberMe] = useState(true);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [passkeyLoading, setPasskeyLoading] = useState(false);
+  const [passkeySupported, setPasskeySupported] = useState(true);
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      setPasskeySupported(browserSupportsWebAuthn());
+    }
+  }, []);
 
   const ssoMessages: Record<string, string> = {
     sso_required: "This organization requires SSO. Continue with SSO or use an owner break-glass code.",
@@ -62,6 +72,72 @@ export function LoginForm() {
     const url = new URL(`/api/auth/sso/${encodeURIComponent(slug)}/initiate`, window.location.origin);
     url.searchParams.set("next", destination);
     window.location.assign(url.toString());
+  }
+
+  async function handlePasskeySignIn() {
+    if (!passkeySupported) {
+      setError("Your browser does not support passkeys.");
+      return;
+    }
+    setError("");
+    setPasskeyLoading(true);
+    try {
+      const optionsRes = await fetch("/api/auth/passkey/signin-options", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ callbackUrl: destination }),
+      });
+      const optionsData = (await optionsRes.json()) as {
+        success: boolean;
+        options?: Record<string, unknown>;
+        signinSessionId?: string;
+        callbackUrl?: string;
+        error?: string;
+      };
+
+      if (!optionsData.success || !optionsData.options || !optionsData.signinSessionId) {
+        setError(optionsData.error || "Failed to start passkey sign-in.");
+        return;
+      }
+
+      const response = await authenticatePasskey(
+        optionsData.options as unknown as import("@simplewebauthn/browser").PublicKeyCredentialRequestOptionsJSON
+      );
+
+      const verifyRes = await fetch("/api/auth/passkey/signin", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          response,
+          signinSessionId: optionsData.signinSessionId,
+          callbackUrl: optionsData.callbackUrl ?? destination,
+        }),
+      });
+      const verifyData = (await verifyRes.json()) as {
+        success: boolean;
+        callbackUrl?: string;
+        mfaToken?: string;
+        error?: string;
+      };
+
+      if (!verifyData.success) {
+        setError(verifyData.error || "Passkey sign-in failed.");
+        return;
+      }
+
+      if (verifyData.mfaToken) {
+        const redirectUrl = new URL(verifyData.callbackUrl ?? "/app", window.location.href);
+        redirectUrl.searchParams.set("mfaToken", verifyData.mfaToken);
+        window.location.assign(redirectUrl.toString());
+      } else {
+        window.location.assign(verifyData.callbackUrl ?? "/app");
+      }
+    } catch (err) {
+      console.error("[login] passkey sign-in error:", err);
+      setError("Passkey sign-in failed. Please try again.");
+    } finally {
+      setPasskeyLoading(false);
+    }
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -146,6 +222,19 @@ export function LoginForm() {
         </div>
       </div>
       <GoogleButton />
+      {passkeySupported && (
+        <>
+          <Button
+            type="button"
+            variant="secondary"
+            className="w-full mt-3"
+            onClick={handlePasskeySignIn}
+            disabled={passkeyLoading}
+          >
+            {passkeyLoading ? "Waiting for passkey…" : "Sign in with passkey"}
+          </Button>
+        </>
+      )}
       <AuthDivider />
       <p className="mb-4 rounded-lg border border-blue-100 bg-blue-50 px-3 py-2 text-xs text-blue-800">
         If you enabled a passkey, you may be asked to use it as a second verification step after sign-in.

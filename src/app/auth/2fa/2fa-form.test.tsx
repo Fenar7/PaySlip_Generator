@@ -91,7 +91,7 @@ describe("TwoChallengeForm", () => {
   it("hard-navigates via window.location.href after successful passkey verification", async () => {
     fetchMock.mockResolvedValue({
       ok: true,
-      json: async () => ({ success: true, callbackUrl: "/app/settings/security" }),
+      json: async () => ({ success: true, callbackUrl: "/app/settings/security", mfaToken: "test-mfa-token" }),
     });
 
     render(<TwoChallengeForm />);
@@ -108,7 +108,7 @@ describe("TwoChallengeForm", () => {
           body: expect.stringContaining("\"type\":\"passkey\""),
         })
       );
-      expect(window.location.href).toBe("/app/settings/security");
+      expect(window.location.href).toBe("/app/settings/security?mfaToken=test-mfa-token");
     });
   });
 
@@ -125,7 +125,7 @@ describe("TwoChallengeForm", () => {
     });
     fetchMock.mockResolvedValue({
       ok: true,
-      json: async () => ({ success: true, callbackUrl: "/app/settings/security" }),
+      json: async () => ({ success: true, callbackUrl: "/app/settings/security", mfaToken: "test-mfa-token" }),
     });
 
     render(<TwoChallengeForm />);
@@ -143,7 +143,7 @@ describe("TwoChallengeForm", () => {
           body: expect.stringContaining("\"type\":\"totp\""),
         })
       );
-      expect(window.location.href).toBe("/app/settings/security");
+      expect(window.location.href).toBe("/app/settings/security?mfaToken=test-mfa-token");
     });
   });
 
@@ -160,7 +160,7 @@ describe("TwoChallengeForm", () => {
     });
     fetchMock.mockResolvedValue({
       ok: true,
-      json: async () => ({ success: true, callbackUrl: "/app/settings/security" }),
+      json: async () => ({ success: true, callbackUrl: "/app/settings/security", mfaToken: "test-mfa-token" }),
     });
 
     render(<TwoChallengeForm />);
@@ -178,7 +178,7 @@ describe("TwoChallengeForm", () => {
           body: expect.stringContaining("\"type\":\"recovery\""),
         })
       );
-      expect(window.location.href).toBe("/app/settings/security");
+      expect(window.location.href).toBe("/app/settings/security?mfaToken=test-mfa-token");
     });
   });
 

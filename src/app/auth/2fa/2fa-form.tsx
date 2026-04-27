@@ -22,7 +22,9 @@ type MfaFactors = {
   hasRecoveryCodes: boolean;
 };
 
-type VerifyResult = { success: true; callbackUrl: string } | { success: false; error: string };
+type VerifyResult =
+  | { success: true; callbackUrl: string; mfaToken: string }
+  | { success: false; error: string };
 
 function hardNavigate(url: string) {
   window.location.href = url;
@@ -119,7 +121,10 @@ export function TwoChallengeForm() {
       }
 
       navigatingAway.current = true;
-      hardNavigate(result.callbackUrl);
+      const separator = result.callbackUrl.includes("?") ? "&" : "?";
+      hardNavigate(
+        `${result.callbackUrl}${separator}mfaToken=${encodeURIComponent(result.mfaToken)}`
+      );
     } catch (err) {
       if (navigatingAway.current) return;
       setError(getPasskeyErrorMessage(err));
@@ -155,7 +160,10 @@ export function TwoChallengeForm() {
       }
 
       navigatingAway.current = true;
-      hardNavigate(result.callbackUrl);
+      const separator = result.callbackUrl.includes("?") ? "&" : "?";
+      hardNavigate(
+        `${result.callbackUrl}${separator}mfaToken=${encodeURIComponent(result.mfaToken)}`
+      );
     });
   }
 
