@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition, useEffect } from "react";
+import { useState, useTransition, useEffect, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { verifyTotpChallenge, verifyRecoveryChallenge, verifyPasskeyChallenge, getMfaFactors } from "./actions";
 import { authenticatePasskey, browserSupportsWebAuthn } from "@/lib/passkey/client";
@@ -19,16 +19,8 @@ type MfaFactors = {
   hasRecoveryCodes: boolean;
 };
 
-const NEXT_REDIRECT_CODE = "NEXT_REDIRECT";
-
-function isRedirectError(err: unknown): boolean {
-  if (err instanceof Error && err.digest) {
-    return err.digest.startsWith(NEXT_REDIRECT_CODE);
-  }
-  if (err instanceof Error) {
-    return err.message === NEXT_REDIRECT_CODE;
-  }
-  return false;
+function hardNavigate(url: string) {
+  window.location.href = url;
 }
 
 export function TwoChallengeForm() {
@@ -46,20 +38,23 @@ export function TwoChallengeForm() {
   const [webauthnSupported, setWebauthnSupported] = useState(true);
   const [passkeyLoading, setPasskeyLoading] = useState(false);
   const [passkeyAttempted, setPasskeyAttempted] = useState(false);
+  const navigatingAway = useRef(false);
 
   useEffect(() => {
+    if (navigatingAway.current) return;
     const supportsWebAuthn = browserSupportsWebAuthn();
     setWebauthnSupported(supportsWebAuthn);
     getMfaFactors(callbackUrl).then((res) => {
+      if (navigatingAway.current) return;
       if (res.success) {
         if (res.data.status === "skip") {
-          replace(res.data.callbackUrl);
-          refresh();
+          navigatingAway.current = true;
+          hardNavigate(res.data.callbackUrl);
           return;
         }
         if (res.data.status === "setup") {
-          replace(res.data.setupUrl ?? "/app/settings/security?setupMfa=1");
-          refresh();
+          navigatingAway.current = true;
+          hardNavigate(res.data.setupUrl ?? "/app/settings/security?setupMfa=1");
           return;
         }
         setFactors(res.data);
@@ -76,9 +71,10 @@ export function TwoChallengeForm() {
     }).finally(() => {
       setLoadingFactors(false);
     });
-  }, [callbackUrl, refresh, replace]);
+  }, [callbackUrl]);
 
   async function triggerPasskey() {
+    if (navigatingAway.current) return;
     setError(null);
     setPasskeyLoading(true);
     setPasskeyAttempted(true);
@@ -100,13 +96,16 @@ export function TwoChallengeForm() {
         setError(result.error);
         return;
       }
+
+      navigatingAway.current = true;
+      hardNavigate(result.data.callbackUrl);
     } catch (err) {
-      if (isRedirectError(err)) {
-        throw err;
-      }
+      if (navigatingAway.current) return;
       setError(getPasskeyErrorMessage(err));
     } finally {
-      setPasskeyLoading(false);
+      if (!navigatingAway.current) {
+        setPasskeyLoading(false);
+      }
     }
   }
 
@@ -118,8 +117,10 @@ export function TwoChallengeForm() {
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (navigatingAway.current) return;
     setError(null);
     startTransition(async () => {
+      if (navigatingAway.current) return;
       const result =
         mode === "totp"
           ? await verifyTotpChallenge(code.trim(), callbackUrl)
@@ -130,6 +131,9 @@ export function TwoChallengeForm() {
         setCode("");
         return;
       }
+
+      navigatingAway.current = true;
+      hardNavigate(result.data.callbackUrl);
     });
   }
 

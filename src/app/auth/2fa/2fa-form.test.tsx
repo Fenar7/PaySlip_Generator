@@ -16,6 +16,7 @@ const {
   authenticatePasskeyMock,
   browserSupportsWebAuthnMock,
   signOutSupabaseBrowserMock,
+  locationAssignMock,
 } = vi.hoisted(() => ({
   routerReplaceMock: vi.fn(),
   routerRefreshMock: vi.fn(),
@@ -28,6 +29,7 @@ const {
   authenticatePasskeyMock: vi.fn(),
   browserSupportsWebAuthnMock: vi.fn(),
   signOutSupabaseBrowserMock: vi.fn(),
+  locationAssignMock: vi.fn(),
 }));
 
 vi.mock("next/navigation", () => ({
@@ -90,9 +92,14 @@ describe("TwoChallengeForm", () => {
       data: { callbackUrl: "/app/settings/security" },
     });
     signOutSupabaseBrowserMock.mockResolvedValue(undefined);
+    vi.stubGlobal("location", {
+      ...window.location,
+      href: "",
+      assign: locationAssignMock,
+    });
   });
 
-  it("invokes verifyPasskeyChallenge with credential and callback URL on passkey verification", async () => {
+  it("hard-navigates via window.location.href after successful passkey verification", async () => {
     render(<TwoChallengeForm />);
 
     fireEvent.click(await screen.findByRole("button", { name: "Use passkey" }));
@@ -100,8 +107,67 @@ describe("TwoChallengeForm", () => {
     await waitFor(() => {
       expect(verifyPasskeyChallengeMock).toHaveBeenCalledWith(
         expect.objectContaining({ id: "credential_1" }),
-        "/app/settings/security"
+        "/app/settings/security",
       );
+      expect(window.location.href).toBe("/app/settings/security");
+    });
+  });
+
+  it("hard-navigates via window.location.href after successful TOTP verification", async () => {
+    getMfaFactorsMock.mockResolvedValue({
+      success: true,
+      data: {
+        status: "challenge",
+        callbackUrl: "/app/settings/security",
+        hasPasskey: false,
+        hasTotp: true,
+        hasRecoveryCodes: false,
+      },
+    });
+    verifyTotpChallengeMock.mockResolvedValue({
+      success: true,
+      data: { callbackUrl: "/app/settings/security" },
+    });
+
+    render(<TwoChallengeForm />);
+
+    expect(await screen.findByText("Authenticator code")).toBeInTheDocument();
+    const input = screen.getByLabelText("Authenticator code");
+    fireEvent.change(input, { target: { value: "123456" } });
+    fireEvent.click(screen.getByRole("button", { name: "Verify" }));
+
+    await waitFor(() => {
+      expect(verifyTotpChallengeMock).toHaveBeenCalledWith("123456", "/app/settings/security");
+      expect(window.location.href).toBe("/app/settings/security");
+    });
+  });
+
+  it("hard-navigates via window.location.href after successful recovery code verification", async () => {
+    getMfaFactorsMock.mockResolvedValue({
+      success: true,
+      data: {
+        status: "challenge",
+        callbackUrl: "/app/settings/security",
+        hasPasskey: false,
+        hasTotp: false,
+        hasRecoveryCodes: true,
+      },
+    });
+    verifyRecoveryChallengeMock.mockResolvedValue({
+      success: true,
+      data: { callbackUrl: "/app/settings/security" },
+    });
+
+    render(<TwoChallengeForm />);
+
+    expect(await screen.findByText("Recovery code")).toBeInTheDocument();
+    const input = screen.getByLabelText("Recovery code");
+    fireEvent.change(input, { target: { value: "abcd1234abcd1234" } });
+    fireEvent.click(screen.getByRole("button", { name: "Verify" }));
+
+    await waitFor(() => {
+      expect(verifyRecoveryChallengeMock).toHaveBeenCalledWith("abcd1234abcd1234", "/app/settings/security");
+      expect(window.location.href).toBe("/app/settings/security");
     });
   });
 
@@ -159,7 +225,7 @@ describe("TwoChallengeForm", () => {
     });
   });
 
-  it("redirects to the callback when the server says MFA can be skipped", async () => {
+  it("hard-navigates to callback via window.location.href when MFA can be skipped", async () => {
     getMfaFactorsMock.mockResolvedValue({
       success: true,
       data: {
@@ -174,13 +240,11 @@ describe("TwoChallengeForm", () => {
     render(<TwoChallengeForm />);
 
     await waitFor(() => {
-      expect(routerReplaceMock).toHaveBeenCalledWith("/onboarding");
-      expect(routerRefreshMock).toHaveBeenCalled();
+      expect(window.location.href).toBe("/onboarding");
     });
-    expect(screen.queryByRole("button", { name: "Use passkey" })).not.toBeInTheDocument();
   });
 
-  it("redirects to MFA setup when the server says enrollment is required", async () => {
+  it("hard-navigates to setup URL via window.location.href when enrollment is required", async () => {
     getMfaFactorsMock.mockResolvedValue({
       success: true,
       data: {
@@ -196,10 +260,7 @@ describe("TwoChallengeForm", () => {
     render(<TwoChallengeForm />);
 
     await waitFor(() => {
-      expect(routerReplaceMock).toHaveBeenCalledWith(
-        "/app/settings/security?setupMfa=1&callbackUrl=%2Fapp%2Fhome"
-      );
-      expect(routerRefreshMock).toHaveBeenCalled();
+      expect(window.location.href).toBe("/app/settings/security?setupMfa=1&callbackUrl=%2Fapp%2Fhome");
     });
   });
 
@@ -230,34 +291,6 @@ describe("TwoChallengeForm", () => {
     expect(screen.queryByRole("button", { name: "Use passkey" })).not.toBeInTheDocument();
   });
 
-  it("invokes verifyTotpChallenge with code and callback URL on TOTP submit", async () => {
-    getMfaFactorsMock.mockResolvedValue({
-      success: true,
-      data: {
-        status: "challenge",
-        callbackUrl: "/app/settings/security",
-        hasPasskey: false,
-        hasTotp: true,
-        hasRecoveryCodes: false,
-      },
-    });
-    verifyTotpChallengeMock.mockResolvedValue({
-      success: true,
-      data: { callbackUrl: "/app/settings/security" },
-    });
-
-    render(<TwoChallengeForm />);
-
-    expect(await screen.findByText("Authenticator code")).toBeInTheDocument();
-    const input = screen.getByLabelText("Authenticator code");
-    fireEvent.change(input, { target: { value: "123456" } });
-    fireEvent.click(screen.getByRole("button", { name: "Verify" }));
-
-    await waitFor(() => {
-      expect(verifyTotpChallengeMock).toHaveBeenCalledWith("123456", "/app/settings/security");
-    });
-  });
-
   it("shows error when TOTP code is wrong", async () => {
     getMfaFactorsMock.mockResolvedValue({
       success: true,
@@ -282,33 +315,5 @@ describe("TwoChallengeForm", () => {
     fireEvent.click(screen.getByRole("button", { name: "Verify" }));
 
     expect(await screen.findByText("Invalid code. Please try again.")).toBeInTheDocument();
-  });
-
-  it("invokes verifyRecoveryChallenge with code and callback URL on recovery submit", async () => {
-    getMfaFactorsMock.mockResolvedValue({
-      success: true,
-      data: {
-        status: "challenge",
-        callbackUrl: "/app/settings/security",
-        hasPasskey: false,
-        hasTotp: false,
-        hasRecoveryCodes: true,
-      },
-    });
-    verifyRecoveryChallengeMock.mockResolvedValue({
-      success: true,
-      data: { callbackUrl: "/app/settings/security", codesRemaining: 5 },
-    });
-
-    render(<TwoChallengeForm />);
-
-    expect(await screen.findByText("Recovery code")).toBeInTheDocument();
-    const input = screen.getByLabelText("Recovery code");
-    fireEvent.change(input, { target: { value: "abcd1234abcd1234" } });
-    fireEvent.click(screen.getByRole("button", { name: "Verify" }));
-
-    await waitFor(() => {
-      expect(verifyRecoveryChallengeMock).toHaveBeenCalledWith("abcd1234abcd1234", "/app/settings/security");
-    });
   });
 });

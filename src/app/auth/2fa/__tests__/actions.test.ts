@@ -52,14 +52,6 @@ vi.mock("next/headers", () => ({
   })),
 }));
 
-vi.mock("next/navigation", () => ({
-  redirect: vi.fn((url: string) => {
-    const err = new Error("NEXT_REDIRECT");
-    (err as any).digest = `NEXT_REDIRECT;${url}`;
-    throw err;
-  }),
-}));
-
 import {
   verifyRecoveryChallenge,
   verifyPasskeyChallenge,
@@ -69,12 +61,10 @@ import {
 import { createSupabaseServer } from "@/lib/supabase/server";
 import { createSupabaseAdmin } from "@/lib/supabase/server";
 import { db } from "@/lib/db";
-import { getPasskeysForUser, getPasskeyByCredentialId } from "@/lib/passkey/db";
+import { getPasskeysForUser, getPasskeyByCredentialId, updatePasskeyCounter } from "@/lib/passkey/db";
 import { verifyAuthentication } from "@/lib/passkey/server";
 import { logAudit } from "@/lib/audit";
-import { verifyTotpCode, decryptTotpSecret } from "@/lib/totp";
-import { findRecoveryCodeIndex } from "@/lib/totp";
-import { redirect } from "next/navigation";
+import { verifyTotpCode, decryptTotpSecret, findRecoveryCodeIndex } from "@/lib/totp";
 
 const mockSupabaseServer = vi.mocked(createSupabaseServer);
 const mockSupabaseAdmin = vi.mocked(createSupabaseAdmin);
@@ -101,7 +91,7 @@ beforeEach(() => {
 });
 
 describe("verifyTotpChallenge", () => {
-  it("redirects to callback after successful TOTP verification", async () => {
+  it("returns callback URL after successful TOTP verification", async () => {
     mockUser("user_1");
     vi.mocked(db.profile.findUnique).mockResolvedValue({
       totpEnabled: true,
@@ -110,14 +100,14 @@ describe("verifyTotpChallenge", () => {
     vi.mocked(decryptTotpSecret).mockReturnValue("plain_secret");
     vi.mocked(verifyTotpCode).mockReturnValue(true);
 
-    await expect(
-      verifyTotpChallenge("123456", "/onboarding")
-    ).rejects.toThrow();
-
-    expect(redirect).toHaveBeenCalledWith("/onboarding");
+    const result = await verifyTotpChallenge("123456", "/onboarding");
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.callbackUrl).toBe("/onboarding");
+    }
   });
 
-  it("rejects invalid TOTP code and does not redirect", async () => {
+  it("rejects invalid TOTP code and returns error", async () => {
     mockUser("user_1");
     vi.mocked(db.profile.findUnique).mockResolvedValue({
       totpEnabled: true,
@@ -131,10 +121,9 @@ describe("verifyTotpChallenge", () => {
     if (!result.success) {
       expect(result.error).toBe("Invalid code. Please try again.");
     }
-    expect(redirect).not.toHaveBeenCalled();
   });
 
-  it("rejects when TOTP is not configured and does not redirect", async () => {
+  it("rejects when TOTP is not configured", async () => {
     mockUser("user_1");
     vi.mocked(db.profile.findUnique).mockResolvedValue({
       totpEnabled: false,
@@ -143,10 +132,9 @@ describe("verifyTotpChallenge", () => {
 
     const result = await verifyTotpChallenge("000000", "/onboarding");
     expect(result.success).toBe(false);
-    expect(redirect).not.toHaveBeenCalled();
   });
 
-  it("sanitizes malicious callback URL via redirect", async () => {
+  it("sanitizes malicious callback URL", async () => {
     mockUser("user_1");
     vi.mocked(db.profile.findUnique).mockResolvedValue({
       totpEnabled: true,
@@ -155,11 +143,42 @@ describe("verifyTotpChallenge", () => {
     vi.mocked(decryptTotpSecret).mockReturnValue("plain_secret");
     vi.mocked(verifyTotpCode).mockReturnValue(true);
 
-    await expect(
-      verifyTotpChallenge("123456", "//evil.com")
-    ).rejects.toThrow();
+    const result = await verifyTotpChallenge("123456", "//evil.com");
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.callbackUrl).toBe("/app");
+    }
+  });
 
-    expect(redirect).toHaveBeenCalledWith("/app");
+  it("sets the MFA cookie on success", async () => {
+    const cookieSetFn = vi.fn();
+    vi.mocked(await import("next/headers")).cookies.mockResolvedValue({
+      set: cookieSetFn,
+      delete: vi.fn(),
+      get: vi.fn(),
+      getAll: vi.fn(() => []),
+    } as any);
+
+    mockUser("user_1");
+    vi.mocked(db.profile.findUnique).mockResolvedValue({
+      totpEnabled: true,
+      totpSecret: "encrypted_secret",
+    } as any);
+    vi.mocked(decryptTotpSecret).mockReturnValue("plain_secret");
+    vi.mocked(verifyTotpCode).mockReturnValue(true);
+
+    const result = await verifyTotpChallenge("123456", "/app/home");
+    expect(result.success).toBe(true);
+    expect(cookieSetFn).toHaveBeenCalledWith(
+      "sw_2fa",
+      expect.any(String),
+      expect.objectContaining({
+        httpOnly: true,
+        sameSite: "lax",
+        path: "/",
+        maxAge: 12 * 60 * 60,
+      }),
+    );
   });
 });
 
@@ -167,7 +186,7 @@ describe("verifyRecoveryChallenge", () => {
   const HASHED_CODE_1 = "d570d84da822effb3ed3110581c9ae1f537e1bc3b31fbaee7bc249c9c1fee4fa";
   const HASHED_CODE_2 = "2c26b46b68ffc68ff99b453c1d30413413422d706483bfa0f98a5e886266e7ae";
 
-  it("redirects to callback after successful recovery code verification", async () => {
+  it("returns callback URL after successful recovery code verification", async () => {
     mockUser("user_1");
     vi.mocked(db.profile.findUnique).mockResolvedValue({
       totpEnabled: false,
@@ -176,11 +195,11 @@ describe("verifyRecoveryChallenge", () => {
     } as any);
     vi.mocked(findRecoveryCodeIndex).mockReturnValue(0);
 
-    await expect(
-      verifyRecoveryChallenge("abcd1234abcd1234", "/app/dashboard")
-    ).rejects.toThrow();
-
-    expect(redirect).toHaveBeenCalledWith("/app/dashboard");
+    const result = await verifyRecoveryChallenge("abcd1234abcd1234", "/app/dashboard");
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.callbackUrl).toBe("/app/dashboard");
+    }
   });
 
   it("allows recovery codes for TOTP users", async () => {
@@ -192,11 +211,8 @@ describe("verifyRecoveryChallenge", () => {
     } as any);
     vi.mocked(findRecoveryCodeIndex).mockReturnValue(0);
 
-    await expect(
-      verifyRecoveryChallenge("abcd1234abcd1234", "/app/dashboard")
-    ).rejects.toThrow();
-
-    expect(redirect).toHaveBeenCalledWith("/app/dashboard");
+    const result = await verifyRecoveryChallenge("abcd1234abcd1234", "/app/dashboard");
+    expect(result.success).toBe(true);
   });
 
   it("rejects recovery codes when user has no MFA enabled", async () => {
@@ -206,14 +222,12 @@ describe("verifyRecoveryChallenge", () => {
       passkeyEnabled: false,
       recoveryCodes: [HASHED_CODE_1],
     } as any);
-    vi.mocked(findRecoveryCodeIndex).mockReturnValue(0);
 
     const result = await verifyRecoveryChallenge("abcd1234abcd1234", "/app/dashboard");
     expect(result.success).toBe(false);
     if (!result.success) {
       expect(result.error).toContain("MFA is not enabled");
     }
-    expect(redirect).not.toHaveBeenCalled();
   });
 
   it("rejects when no recovery codes are available", async () => {
@@ -229,10 +243,25 @@ describe("verifyRecoveryChallenge", () => {
     if (!result.success) {
       expect(result.error).toContain("No recovery codes available");
     }
-    expect(redirect).not.toHaveBeenCalled();
   });
 
-  it("sanitizes malicious callback URL in redirect", async () => {
+  it("rejects invalid recovery code", async () => {
+    mockUser("user_1");
+    vi.mocked(db.profile.findUnique).mockResolvedValue({
+      totpEnabled: true,
+      passkeyEnabled: false,
+      recoveryCodes: [HASHED_CODE_1],
+    } as any);
+    vi.mocked(findRecoveryCodeIndex).mockReturnValue(-1);
+
+    const result = await verifyRecoveryChallenge("wrongcode", "/app/dashboard");
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error).toBe("Invalid recovery code");
+    }
+  });
+
+  it("sanitizes malicious callback URL", async () => {
     mockUser("user_1");
     vi.mocked(db.profile.findUnique).mockResolvedValue({
       totpEnabled: true,
@@ -241,16 +270,16 @@ describe("verifyRecoveryChallenge", () => {
     } as any);
     vi.mocked(findRecoveryCodeIndex).mockReturnValue(0);
 
-    await expect(
-      verifyRecoveryChallenge("abcd1234abcd1234", "//evil.com/path")
-    ).rejects.toThrow();
-
-    expect(redirect).toHaveBeenCalledWith("/app");
+    const result = await verifyRecoveryChallenge("abcd1234abcd1234", "//evil.com/path");
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.callbackUrl).toBe("/app");
+    }
   });
 });
 
 describe("verifyPasskeyChallenge", () => {
-  it("redirects to callback after successful passkey verification", async () => {
+  it("returns callback URL after successful passkey verification", async () => {
     mockUser("user_1");
     vi.mocked(getPasskeyByCredentialId).mockResolvedValue({
       id: "pk_1",
@@ -264,20 +293,20 @@ describe("verifyPasskeyChallenge", () => {
       authenticationInfo: { newCounter: 1 },
     } as any);
 
-    await expect(
-      verifyPasskeyChallenge({
-        id: "cred_1",
-        rawId: "raw_1",
-        response: {} as any,
-        clientExtensionResults: {},
-        type: "public-key",
-      }, "/onboarding")
-    ).rejects.toThrow();
-
-    expect(redirect).toHaveBeenCalledWith("/onboarding");
+    const result = await verifyPasskeyChallenge({
+      id: "cred_1",
+      rawId: "raw_1",
+      response: {} as any,
+      clientExtensionResults: {},
+      type: "public-key",
+    }, "/onboarding");
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.callbackUrl).toBe("/onboarding");
+    }
   });
 
-  it("redirects sanitized callback URL after passkey verification", async () => {
+  it("sanitizes malicious callback URL on success", async () => {
     mockUser("user_1");
     vi.mocked(getPasskeyByCredentialId).mockResolvedValue({
       id: "pk_1",
@@ -291,20 +320,45 @@ describe("verifyPasskeyChallenge", () => {
       authenticationInfo: { newCounter: 1 },
     } as any);
 
-    await expect(
-      verifyPasskeyChallenge({
-        id: "cred_1",
-        rawId: "raw_1",
-        response: {} as any,
-        clientExtensionResults: {},
-        type: "public-key",
-      }, "//evil.com")
-    ).rejects.toThrow();
-
-    expect(redirect).toHaveBeenCalledWith("/app");
+    const result = await verifyPasskeyChallenge({
+      id: "cred_1",
+      rawId: "raw_1",
+      response: {} as any,
+      clientExtensionResults: {},
+      type: "public-key",
+    }, "//evil.com");
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.callbackUrl).toBe("/app");
+    }
   });
 
-  it("audits failed passkey challenge and does not redirect", async () => {
+  it("updates passkey counter on success", async () => {
+    mockUser("user_1");
+    vi.mocked(getPasskeyByCredentialId).mockResolvedValue({
+      id: "pk_1",
+      credentialId: "cred_1",
+      publicKey: Buffer.from([1, 2, 3]),
+      counter: BigInt(0),
+      userId: "user_1",
+    } as any);
+    vi.mocked(verifyAuthentication).mockResolvedValue({
+      verified: true,
+      authenticationInfo: { newCounter: 5 },
+    } as any);
+
+    const result = await verifyPasskeyChallenge({
+      id: "cred_1",
+      rawId: "raw_1",
+      response: {} as any,
+      clientExtensionResults: {},
+      type: "public-key",
+    }, "/onboarding");
+    expect(result.success).toBe(true);
+    expect(vi.mocked(updatePasskeyCounter)).toHaveBeenCalledWith("cred_1", BigInt(5));
+  });
+
+  it("audits failed passkey challenge and returns error", async () => {
     mockUser("user_1");
     vi.mocked(getPasskeyByCredentialId).mockResolvedValue({
       id: "pk_1",
@@ -335,12 +389,11 @@ describe("verifyPasskeyChallenge", () => {
         action: "passkey.challenge_failed",
         entityType: "PasskeyCredential",
         entityId: "pk_1",
-      })
+      }),
     );
-    expect(redirect).not.toHaveBeenCalled();
   });
 
-  it("rejects unknown credential and does not redirect", async () => {
+  it("rejects unknown credential", async () => {
     mockUser("user_1");
     vi.mocked(getPasskeyByCredentialId).mockResolvedValue(null);
 
@@ -353,7 +406,9 @@ describe("verifyPasskeyChallenge", () => {
     }, "/app/dashboard");
 
     expect(result.success).toBe(false);
-    expect(redirect).not.toHaveBeenCalled();
+    if (!result.success) {
+      expect(result.error).toBe("Unknown passkey credential");
+    }
   });
 });
 

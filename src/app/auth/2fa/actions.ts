@@ -9,7 +9,6 @@ import {
 } from "@/lib/totp/challenge-session";
 import { createSupabaseAdmin, createSupabaseServer } from "@/lib/supabase/server";
 import { cookies } from "next/headers";
-import { redirect } from "next/navigation";
 import {
   getPasskeysForUser,
   getPasskeyByCredentialId,
@@ -30,12 +29,6 @@ type MfaChallengeState = {
   hasPasskey: boolean;
   hasTotp: boolean;
   hasRecoveryCodes: boolean;
-};
-
-type MfaVerificationResult = {
-  userId: string;
-  callbackUrl: string;
-  codesRemaining?: number;
 };
 
 async function issueCookie(userId: string) {
@@ -83,15 +76,10 @@ async function syncMfaMetadata(
   });
 }
 
-function completeMfaRedirect(result: MfaVerificationResult): never {
-  redirect(result.callbackUrl);
-}
-
 export async function verifyTotpChallenge(
   code: string,
   rawCallbackUrl: string
 ): Promise<ActionResult<{ callbackUrl: string }>> {
-  let result: MfaVerificationResult;
   try {
     const supabase = await createSupabaseServer();
     const {
@@ -117,20 +105,17 @@ export async function verifyTotpChallenge(
       return { success: false, error: "Invalid code. Please try again." };
     }
 
-    result = { userId: user.id, callbackUrl: sanitizeCallbackUrl(rawCallbackUrl) };
+    await issueCookie(user.id);
+    return { success: true, data: { callbackUrl: sanitizeCallbackUrl(rawCallbackUrl) } };
   } catch (err) {
     return { success: false, error: err instanceof Error ? err.message : "Verification failed" };
   }
-
-  await issueCookie(result.userId);
-  completeMfaRedirect(result);
 }
 
 export async function verifyRecoveryChallenge(
   inputCode: string,
   rawCallbackUrl: string
-): Promise<ActionResult<{ callbackUrl: string; codesRemaining: number }>> {
-  let result: MfaVerificationResult;
+): Promise<ActionResult<{ callbackUrl: string }>> {
   try {
     const supabase = await createSupabaseServer();
     const {
@@ -164,20 +149,17 @@ export async function verifyRecoveryChallenge(
       data: { recoveryCodes: updated },
     });
 
-    result = { userId: user.id, callbackUrl: sanitizeCallbackUrl(rawCallbackUrl), codesRemaining: updated.length };
+    await issueCookie(user.id);
+    return { success: true, data: { callbackUrl: sanitizeCallbackUrl(rawCallbackUrl) } };
   } catch (err) {
     return { success: false, error: err instanceof Error ? err.message : "Recovery failed" };
   }
-
-  await issueCookie(result.userId);
-  completeMfaRedirect(result);
 }
 
 export async function verifyPasskeyChallenge(
   response: AuthenticationResponseJSON,
   rawCallbackUrl: string
 ): Promise<ActionResult<{ callbackUrl: string }>> {
-  let result: MfaVerificationResult;
   try {
     const supabase = await createSupabaseServer();
     const {
@@ -223,13 +205,11 @@ export async function verifyPasskeyChallenge(
       await updatePasskeyCounter(credential.credentialId, BigInt(verification.authenticationInfo.newCounter));
     }
 
-    result = { userId: user.id, callbackUrl: sanitizeCallbackUrl(rawCallbackUrl) };
+    await issueCookie(user.id);
+    return { success: true, data: { callbackUrl: sanitizeCallbackUrl(rawCallbackUrl) } };
   } catch (err) {
     return { success: false, error: err instanceof Error ? err.message : "Passkey challenge failed" };
   }
-
-  await issueCookie(result.userId);
-  completeMfaRedirect(result);
 }
 
 export async function getMfaFactors(rawCallbackUrl = "/app"): Promise<
@@ -287,5 +267,3 @@ export async function getMfaFactors(rawCallbackUrl = "/app"): Promise<
     return { success: false, error: err instanceof Error ? err.message : "Failed to load factors" };
   }
 }
-
-export { redirect };
