@@ -108,18 +108,37 @@ describe("createSupabaseBrowser", () => {
     expect(document.cookie).not.toContain("Max-Age");
   });
 
-  it("disables the cached browser singleton so remember-me changes get a fresh client", async () => {
+  it("reuses a singleton browser client across calls", async () => {
     const { createSupabaseBrowser } = await import("@/lib/supabase/client");
 
     createSupabaseBrowser({ rememberSession: false });
     createSupabaseBrowser({ rememberSession: true });
 
-    expect(createBrowserClientMock).toHaveBeenCalledTimes(2);
+    expect(createBrowserClientMock).toHaveBeenCalledTimes(1);
     expect(createBrowserClientMock.mock.calls[0]?.[2]).toEqual(
-      expect.objectContaining({ isSingleton: false }),
+      expect.objectContaining({ isSingleton: true }),
     );
-    expect(createBrowserClientMock.mock.calls[1]?.[2]).toEqual(
-      expect.objectContaining({ isSingleton: false }),
-    );
+  });
+
+  it("applies the current persistence cookie even when the singleton already exists", async () => {
+    const {
+      createSupabaseBrowser,
+      setBrowserSessionPersistence,
+    } = await import("@/lib/supabase/client");
+
+    createSupabaseBrowser({ rememberSession: true });
+    setBrowserSessionPersistence("session");
+
+    const [, , options] = createBrowserClientMock.mock.calls[0];
+    options.cookies.setAll([
+      {
+        name: "sb-demo-auth-token",
+        value: "token",
+        options: { path: "/", maxAge: 10 },
+      },
+    ]);
+
+    expect(document.cookie).toContain("sb-demo-auth-token=token");
+    expect(document.cookie).not.toContain("Max-Age");
   });
 });

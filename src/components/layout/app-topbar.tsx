@@ -13,13 +13,22 @@ import { getNavigationContext } from "./navigation-context";
 
 interface AppTopbarProps {
   orgName?: string;
+  initialUser?: {
+    name?: string | null;
+    email?: string | null;
+    avatarUrl?: string | null;
+  };
 }
 
-export function AppTopbar({ orgName }: AppTopbarProps) {
+export function AppTopbar({ orgName, initialUser }: AppTopbarProps) {
   const { user, isPending } = useSupabaseSession();
   const router = useRouter();
   const pathname = usePathname();
   const { breadcrumbs, pageTitle, suiteLabel, switcherItems } = getNavigationContext(pathname);
+  const resolvedName = user?.user_metadata.name ?? initialUser?.name ?? initialUser?.email ?? undefined;
+  const resolvedAvatar =
+    user?.user_metadata.avatar_url ?? initialUser?.avatarUrl ?? undefined;
+  const hasAuthenticatedUser = Boolean(user || initialUser);
 
   const handleSignOut = async () => {
     await signOutSupabaseBrowser();
@@ -68,15 +77,15 @@ export function AppTopbar({ orgName }: AppTopbarProps) {
             <NotificationBell />
             {isPending ? (
               <div className="h-9 w-9 animate-pulse rounded-full border border-[var(--border-soft)] bg-[var(--surface-soft)]" />
-            ) : user ? (
+            ) : hasAuthenticatedUser ? (
               <div className="flex items-center gap-2">
                 <Avatar
-                  name={user.user_metadata.name ?? undefined}
-                  imageUrl={user.user_metadata.avatar_url ?? undefined}
+                  name={resolvedName}
+                  imageUrl={resolvedAvatar}
                   size="sm"
                 />
                 <span className="hidden text-sm font-medium text-[var(--foreground)] sm:block">
-                  {user.user_metadata.name}
+                  {resolvedName}
                 </span>
                 <button
                   onClick={handleSignOut}

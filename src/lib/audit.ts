@@ -122,6 +122,14 @@ export const AUDIT_ACTION_LABELS: Record<string, string> = {
   "partner.client_assigned": "Client organization assigned to partner",
   "partner.client_revoked": "Client organization removed from partner",
   "partner.client_scope_updated": "Partner client assignment scope updated",
+  "passkey.added": "Added a passkey",
+  "passkey.renamed": "Renamed a passkey",
+  "passkey.removed": "Removed a passkey",
+  "passkey.used": "Used a passkey for MFA",
+  "passkey.challenge_failed": "Passkey challenge failed",
+  "totp.enabled": "Enabled authenticator app 2FA",
+  "totp.disabled": "Disabled authenticator app 2FA",
+  "recovery_code.used": "Used a recovery code",
 };
 export function getAuditCategory(action: string): string {
   if (

@@ -18,7 +18,14 @@ export default async function AppLayout({
   }
 
   return (
-    <AppShell orgName={context.orgName}>
+    <AppShell
+      orgName={context.orgName}
+      initialUser={{
+        name: context.userName,
+        email: context.userEmail,
+        avatarUrl: context.avatarUrl,
+      }}
+    >
       {children}
     </AppShell>
   );
