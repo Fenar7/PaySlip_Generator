@@ -1,12 +1,21 @@
 "use client";
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 import {
   clearSupabaseBrowserSessionStorage,
   createSupabaseBrowser,
   setBrowserSessionPersistence,
 } from "@/lib/supabase/client";
 
-export function GoogleButton({ callbackURL = "/onboarding" }: { callbackURL?: string }) {
+export function GoogleButton({
+  callbackURL = "/onboarding",
+  className,
+  label = "Continue with Google",
+}: {
+  callbackURL?: string;
+  className?: string;
+  label?: string;
+}) {
   const handleGoogleSignIn = async () => {
     await clearSupabaseBrowserSessionStorage();
     setBrowserSessionPersistence("remembered");
@@ -22,7 +31,10 @@ export function GoogleButton({ callbackURL = "/onboarding" }: { callbackURL?: st
   return (
     <Button
       variant="secondary"
-      className="w-full"
+      className={cn(
+        "h-12 w-full justify-center gap-3 rounded-2xl border-[var(--border-soft)] bg-white text-[var(--foreground)] shadow-[0_16px_34px_rgba(34,34,34,0.05)] hover:bg-[var(--surface-soft)]",
+        className
+      )}
       onClick={() => {
         void handleGoogleSignIn();
       }}
@@ -45,7 +57,7 @@ export function GoogleButton({ callbackURL = "/onboarding" }: { callbackURL?: st
           d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
         />
       </svg>
-      Continue with Google
+      {label}
     </Button>
   );
 }

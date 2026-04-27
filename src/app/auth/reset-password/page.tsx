@@ -41,7 +41,11 @@ function ResetPasswordContent() {
   }
 
   return (
-    <AuthCard title="Set new password" subtitle="Choose a strong password for your account">
+    <AuthCard
+      eyebrow="Reset access"
+      title="Set new password"
+      subtitle="Choose a strong password for your account"
+    >
       <form onSubmit={handleSubmit} className="space-y-4">
         <Input
           label="New password"

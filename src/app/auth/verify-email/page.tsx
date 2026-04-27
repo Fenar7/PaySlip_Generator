@@ -33,6 +33,7 @@ function VerifyEmailContent() {
 
   return (
     <AuthCard
+      eyebrow="Email verification"
       title="Check your inbox"
       subtitle={
         email ? `We sent a verification link to ${email}` : "We sent you a verification link"
