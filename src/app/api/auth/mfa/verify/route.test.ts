@@ -42,6 +42,7 @@ import { db } from "@/lib/db";
 import { getPasskeyByCredentialId } from "@/lib/passkey/db";
 import { verifyAuthentication } from "@/lib/passkey/server";
 import { verifyTotpCode, decryptTotpSecret, findRecoveryCodeIndex } from "@/lib/totp";
+import { verifyMfaToken } from "@/lib/mfa/token";
 
 const mockSupabaseServer = vi.mocked(createSupabaseServer);
 
@@ -99,6 +100,13 @@ describe("POST /api/auth/mfa/verify", () => {
     expect(res.status).toBe(200);
     expect(json.success).toBe(true);
     expect(json.callbackUrl).toBe("/onboarding");
+    expect(json.mfaToken).toBeDefined();
+    expect(typeof json.mfaToken).toBe("string");
+    expect(json.mfaToken.length).toBeGreaterThan(0);
+
+    // Prove the token is a valid JWT that middleware can verify
+    const verifiedUserId = await verifyMfaToken(json.mfaToken, process.env.TOTP_SESSION_SECRET!);
+    expect(verifiedUserId).toBe("user_1");
 
     const setCookie = res.headers.getSetCookie?.() ?? [];
     expect(setCookie.length).toBeGreaterThan(0);
@@ -167,6 +175,11 @@ describe("POST /api/auth/mfa/verify", () => {
     expect(res.status).toBe(200);
     expect(json.success).toBe(true);
     expect(json.callbackUrl).toBe("/app/home");
+    expect(json.mfaToken).toBeDefined();
+    expect(typeof json.mfaToken).toBe("string");
+
+    const verifiedUserId = await verifyMfaToken(json.mfaToken, process.env.TOTP_SESSION_SECRET!);
+    expect(verifiedUserId).toBe("user_1");
 
     const setCookie = res.headers.getSetCookie?.() ?? [];
     expect(setCookie.length).toBeGreaterThan(0);
@@ -208,6 +221,11 @@ describe("POST /api/auth/mfa/verify", () => {
     expect(res.status).toBe(200);
     expect(json.success).toBe(true);
     expect(json.callbackUrl).toBe("/app/dashboard");
+    expect(json.mfaToken).toBeDefined();
+    expect(typeof json.mfaToken).toBe("string");
+
+    const verifiedUserId = await verifyMfaToken(json.mfaToken, process.env.TOTP_SESSION_SECRET!);
+    expect(verifiedUserId).toBe("user_1");
 
     const setCookie = res.headers.getSetCookie?.() ?? [];
     expect(setCookie.length).toBeGreaterThan(0);

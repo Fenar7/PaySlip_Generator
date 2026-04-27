@@ -5,7 +5,6 @@ import { getAndConsumeChallenge } from "@/lib/passkey/challenge-store";
 import { getPasskeyByCredentialId, updatePasskeyCounter } from "@/lib/passkey/db";
 import { getRpId, getOrigin } from "@/lib/passkey/server";
 import { createSupabaseAdmin } from "@/lib/supabase/server";
-import { signMfaToken } from "@/lib/mfa/token";
 import { db } from "@/lib/db";
 import { logAudit } from "@/lib/audit";
 import type { AuthenticationResponseJSON } from "@simplewebauthn/browser";
@@ -30,7 +29,8 @@ function sanitizeCallbackUrl(raw: string): string {
  * 2. Looks up the credential by response.id
  * 3. Verifies the WebAuthn response
  * 4. Creates a Supabase session via admin-generated magiclink + verifyOtp
- * 5. Returns callbackUrl + mfaToken for middleware handoff
+ * 5. Sets the sw_2fa MFA cookie directly — the passkey authentication itself
+ *    satisfies the MFA requirement, so no secondary challenge is needed.
  */
 export async function POST(request: NextRequest) {
   let body: {
@@ -187,58 +187,22 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 7. Check if MFA is required
-    const mfaEnabled =
-      profile.totpEnabled === true ||
-      profile.passkeyEnabled === true ||
-      profile.twoFaEnforcedByOrg === true;
+    // 7. The passkey authentication itself satisfies the MFA requirement.
+    // Set the sw_2fa cookie directly on the same response that carries the
+    // Supabase session cookies. This avoids the token-handoff indirection
+    // because the route handler can set cookies deterministically.
+    const { signChallengeToken, MFA_CHALLENGE_COOKIE, MFA_SESSION_DURATION_SECONDS } =
+      await import("@/lib/totp/challenge-session");
+    const mfaCookieValue = signChallengeToken(credential.userId);
+    responseObj.cookies.set(MFA_CHALLENGE_COOKIE, mfaCookieValue, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      path: "/",
+      maxAge: MFA_SESSION_DURATION_SECONDS,
+    });
 
-    if (mfaEnabled) {
-      // For primary passkey sign-in, the passkey IS the authentication.
-      // If the user has passkeyEnabled (which they do, since they just used it),
-      // and no TOTP is required, we can skip the MFA challenge.
-      // But if TOTP is also enabled or org enforces MFA, we still need the cookie.
-      const mfaToken = signMfaToken(credential.userId);
-      // Overwrite the response with mfaToken included
-      const finalResponse = NextResponse.json({
-        success: true,
-        callbackUrl,
-        mfaToken,
-      });
-      // Copy cookies from the session creation
-      responseObj.cookies.getAll().forEach(({ name, value }) => {
-        finalResponse.cookies.set(name, value, {
-          httpOnly: true,
-          secure: process.env.NODE_ENV === "production",
-          sameSite: "lax",
-          path: "/",
-        });
-      });
-
-      // Audit success
-      try {
-        const member = await db.member.findFirst({
-          where: { userId: credential.userId },
-          select: { organizationId: true },
-        });
-        if (member) {
-          await logAudit({
-            orgId: member.organizationId,
-            actorId: credential.userId,
-            action: "passkey.signed_in",
-            entityType: "PasskeyCredential",
-            entityId: credential.id,
-            metadata: { purpose: "primary_signin" },
-          });
-        }
-      } catch {
-        // ignore
-      }
-
-      return finalResponse;
-    }
-
-    // Audit success (no MFA)
+    // Audit success
     try {
       const member = await db.member.findFirst({
         where: { userId: credential.userId },

@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { NextRequest } from "next/server";
 import { verifyChallengeToken } from "@/lib/totp/challenge-session";
+import { signMfaToken, verifyMfaToken, MFA_TOKEN_QUERY_PARAM } from "@/lib/mfa/token";
 
 // Replicate the middleware MFA gating logic for isolated testing.
 // We cannot import middleware.ts directly because it depends on edge-runtime modules.
@@ -30,6 +31,17 @@ async function checkMfaChallenge(
     url.searchParams.set("error", "mfa_unavailable");
     url.searchParams.set("callbackUrl", callbackUrl);
     return { type: "redirect", url: url.toString() };
+  }
+
+  // ── Token-based MFA handoff (matches real middleware.ts) ──
+  const mfaToken = request.nextUrl.searchParams.get(MFA_TOKEN_QUERY_PARAM);
+  if (mfaToken) {
+    const tokenUserId = await verifyMfaToken(mfaToken, secret);
+    if (tokenUserId === userId) {
+      // In the real middleware this sets the cookie and redirects.
+      // For test purposes, returning null means "allow access".
+      return null;
+    }
   }
 
   const cookieValue = request.cookies.get(MFA_CHALLENGE_COOKIE)?.value ?? "";
@@ -121,6 +133,72 @@ describe("checkMfaChallenge", () => {
     expect(result).not.toBeNull();
     expect(result!.url).toContain("/auth/2fa");
     vi.useRealTimers();
+  });
+});
+
+describe("Token-based MFA handoff", () => {
+  it("allows access when a valid mfaToken query param is present", async () => {
+    const token = signMfaToken("user_1");
+    const req = makeRequest(`/app/dashboard?${MFA_TOKEN_QUERY_PARAM}=${encodeURIComponent(token)}`);
+    const result = await checkMfaChallenge(req, "user_1", true);
+    expect(result).toBeNull();
+  });
+
+  it("redirects to /auth/2fa when mfaToken is for a different user", async () => {
+    const token = signMfaToken("other_user");
+    const req = makeRequest(`/app/dashboard?${MFA_TOKEN_QUERY_PARAM}=${encodeURIComponent(token)}`);
+    const result = await checkMfaChallenge(req, "user_1", true);
+    expect(result).not.toBeNull();
+    expect(result!.url).toContain("/auth/2fa");
+  });
+
+  it("redirects to /auth/2fa when mfaToken is expired", async () => {
+    vi.useFakeTimers();
+    const token = signMfaToken("user_1");
+    vi.advanceTimersByTime((5 * 60 + 1) * 1000); // 5 min + 1s
+
+    const req = makeRequest(`/app/dashboard?${MFA_TOKEN_QUERY_PARAM}=${encodeURIComponent(token)}`);
+    const result = await checkMfaChallenge(req, "user_1", true);
+    expect(result).not.toBeNull();
+    expect(result!.url).toContain("/auth/2fa");
+    vi.useRealTimers();
+  });
+
+  it("redirects to /auth/2fa when mfaToken is tampered", async () => {
+    const token = signMfaToken("user_1");
+    const tampered = token.slice(0, -5) + "xxxxx";
+    const req = makeRequest(`/app/dashboard?${MFA_TOKEN_QUERY_PARAM}=${encodeURIComponent(tampered)}`);
+    const result = await checkMfaChallenge(req, "user_1", true);
+    expect(result).not.toBeNull();
+    expect(result!.url).toContain("/auth/2fa");
+  });
+
+  it("redirects to /auth/2fa when mfaToken is missing but cookie is also missing", async () => {
+    const req = makeRequest("/app/dashboard");
+    const result = await checkMfaChallenge(req, "user_1", true);
+    expect(result).not.toBeNull();
+    expect(result!.url).toContain("/auth/2fa");
+  });
+
+  it("prefers mfaToken over cookie when both are present and valid", async () => {
+    const { signChallengeToken } = await import("@/lib/totp/challenge-session");
+    const cookieToken = signChallengeToken("user_1");
+    const queryToken = signMfaToken("user_1");
+    const req = makeRequest(
+      `/app/dashboard?${MFA_TOKEN_QUERY_PARAM}=${encodeURIComponent(queryToken)}`,
+      { [MFA_CHALLENGE_COOKIE]: cookieToken }
+    );
+    const result = await checkMfaChallenge(req, "user_1", true);
+    expect(result).toBeNull();
+  });
+
+  it("does not loop: valid token allows access instead of redirecting to /auth/2fa", async () => {
+    // This is the regression test: a user with a valid mfaToken should NOT
+    // be sent back to /auth/2fa (which would ask for the same factor again).
+    const token = signMfaToken("user_1");
+    const req = makeRequest(`/app/home?${MFA_TOKEN_QUERY_PARAM}=${encodeURIComponent(token)}`);
+    const result = await checkMfaChallenge(req, "user_1", true);
+    expect(result).toBeNull();
   });
 });
 
