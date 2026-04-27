@@ -1,6 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { NextRequest } from "next/server";
 
+const { verifyOtpMock } = vi.hoisted(() => ({
+  verifyOtpMock: vi.fn().mockResolvedValue({ error: null }),
+}));
+
 vi.mock("@/lib/passkey/challenge-store", () => ({
   getAndConsumeChallenge: vi.fn(),
 }));
@@ -41,7 +45,7 @@ vi.mock("@simplewebauthn/server", () => ({
 vi.mock("@supabase/ssr", () => ({
   createServerClient: vi.fn().mockReturnValue({
     auth: {
-      verifyOtp: vi.fn().mockResolvedValue({ error: null }),
+      verifyOtp: verifyOtpMock,
     },
   }),
 }));
@@ -69,6 +73,7 @@ function makeRequest(body: unknown): NextRequest {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  verifyOtpMock.mockResolvedValue({ error: null });
   vi.stubEnv("TOTP_SESSION_SECRET", "test-secret-32-bytes-long-xxxxx");
   vi.stubEnv("NODE_ENV", "test");
   vi.stubEnv("NEXT_PUBLIC_SUPABASE_URL", "http://localhost:54321");
@@ -136,6 +141,10 @@ describe("POST /api/auth/passkey/signin", () => {
     expect(json.callbackUrl).toBe("/app");
     expect(json.mfaToken).toBeDefined();
     expect(typeof json.mfaToken).toBe("string");
+    expect(verifyOtpMock).toHaveBeenCalledWith({
+      token_hash: "magic_token_123",
+      type: "magiclink",
+    });
     const verifiedUserId = await verifyMfaToken(json.mfaToken, process.env.TOTP_SESSION_SECRET!);
     expect(verifiedUserId).toBe("user_1");
 
