@@ -21,7 +21,7 @@ type MfaFactors = {
 
 export function TwoChallengeForm() {
   const router = useRouter();
-  const { push, refresh, replace } = router;
+  const { refresh, replace } = router;
   const searchParams = useSearchParams();
   const callbackUrl = searchParams.get("callbackUrl") ?? "/app";
 
@@ -34,6 +34,7 @@ export function TwoChallengeForm() {
   const [webauthnSupported, setWebauthnSupported] = useState(true);
   const [passkeyLoading, setPasskeyLoading] = useState(false);
   const [passkeyAttempted, setPasskeyAttempted] = useState(false);
+  const [redirecting, setRedirecting] = useState(false);
 
   useEffect(() => {
     const supportsWebAuthn = browserSupportsWebAuthn();
@@ -89,10 +90,11 @@ export function TwoChallengeForm() {
         return;
       }
 
-      replace(result.data.callbackUrl);
-      refresh();
+      setRedirecting(true);
+      window.location.assign(result.data.callbackUrl);
     } catch (err) {
       setError(getPasskeyErrorMessage(err));
+      setRedirecting(false);
     } finally {
       setPasskeyLoading(false);
     }
@@ -119,7 +121,8 @@ export function TwoChallengeForm() {
         return;
       }
 
-      push(result.data.callbackUrl);
+      setRedirecting(true);
+      window.location.assign(result.data.callbackUrl);
     });
   }
 
@@ -163,7 +166,7 @@ export function TwoChallengeForm() {
               onClick={triggerPasskey}
               disabled={passkeyLoading || isPending}
             >
-              {passkeyLoading ? "Waiting for passkey…" : "Use passkey"}
+              {redirecting ? "Verified. Continuing…" : passkeyLoading ? "Waiting for passkey…" : "Use passkey"}
             </Button>
             {passkeyAttempted && error && (
               <Button

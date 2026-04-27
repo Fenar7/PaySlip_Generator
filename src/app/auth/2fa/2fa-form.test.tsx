@@ -16,6 +16,7 @@ const {
   authenticatePasskeyMock,
   browserSupportsWebAuthnMock,
   signOutSupabaseBrowserMock,
+  locationAssignMock,
 } = vi.hoisted(() => ({
   routerReplaceMock: vi.fn(),
   routerRefreshMock: vi.fn(),
@@ -28,6 +29,7 @@ const {
   authenticatePasskeyMock: vi.fn(),
   browserSupportsWebAuthnMock: vi.fn(),
   signOutSupabaseBrowserMock: vi.fn(),
+  locationAssignMock: vi.fn(),
 }));
 
 vi.mock("next/navigation", () => ({
@@ -90,9 +92,13 @@ describe("TwoChallengeForm", () => {
       data: { callbackUrl: "/app/settings/security" },
     });
     signOutSupabaseBrowserMock.mockResolvedValue(undefined);
+    vi.stubGlobal("location", {
+      ...window.location,
+      assign: locationAssignMock,
+    });
   });
 
-  it("redirects with replace and refresh after successful passkey verification", async () => {
+  it("hard redirects after successful passkey verification", async () => {
     render(<TwoChallengeForm />);
 
     fireEvent.click(await screen.findByRole("button", { name: "Use passkey" }));
@@ -102,8 +108,7 @@ describe("TwoChallengeForm", () => {
         expect.objectContaining({ id: "credential_1" }),
         "/app/settings/security"
       );
-      expect(routerReplaceMock).toHaveBeenCalledWith("/app/settings/security");
-      expect(routerRefreshMock).toHaveBeenCalled();
+      expect(locationAssignMock).toHaveBeenCalledWith("/app/settings/security");
     });
   });
 
