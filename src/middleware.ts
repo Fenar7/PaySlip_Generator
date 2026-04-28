@@ -4,8 +4,14 @@ import { updateSession } from "@/lib/supabase/middleware";
 import { rateLimitByIp } from "@/lib/rate-limit";
 import {
   verifyChallengeToken,
-  TOTP_CHALLENGE_COOKIE,
+  MFA_CHALLENGE_COOKIE,
 } from "@/lib/totp/challenge-session";
+import {
+  verifyMfaToken,
+  signMfaCookieEdge,
+  MFA_TOKEN_QUERY_PARAM,
+  sanitizeMfaCallbackUrl,
+} from "@/lib/mfa/token";
 
 const PUBLIC_PREFIXES = [
   "/",
@@ -32,6 +38,17 @@ const PUBLIC_PREFIXES = [
   "/sw.js",
   "/offline",
 ];
+
+function hasSupabaseSessionConfig() {
+  return Boolean(
+    process.env.NEXT_PUBLIC_SUPABASE_URL &&
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+  );
+}
+
+function isPublicPdfStudioRoute(pathname: string) {
+  return pathname === "/pdf-studio" || pathname.startsWith("/pdf-studio/");
+}
 
 // ─── Security Headers ─────────────────────────────────────────────────────────
 
@@ -113,33 +130,34 @@ export function applySecurityHeaders(response: NextResponse): NextResponse {
   return response;
 }
 
-// ─── 2FA challenge enforcement ────────────────────────────────────────────────
+// ─── MFA challenge enforcement ────────────────────────────────────────────────
 
 /**
- * Check whether the current request satisfies the 2FA challenge requirement.
+ * Check whether the current request satisfies the MFA challenge requirement.
  *
- * Reading totpEnabled from Supabase user_metadata means no DB call at the edge.
- * The flag is synced into user_metadata by verify2faSetup / disable2fa server
- * actions, so it is authoritative for middleware purposes.
+ * Reading MFA state from Supabase user_metadata means no DB call at the edge.
+ * The flags are synced into user_metadata by server actions, so they are
+ * authoritative for middleware purposes.
  *
  * The sw_2fa cookie is an HMAC-HS256 JWT signed with TOTP_SESSION_SECRET
  * (falls back to PORTAL_JWT_SECRET). Verified using the Web Crypto API
  * (edge-runtime compatible).
  */
-async function check2faChallenge(
+async function checkMfaChallenge(
   request: NextRequest,
   userId: string,
-  twoFaRequired: boolean,
+  mfaRequired: boolean,
   opts?: { enrollmentRequired?: boolean }
 ): Promise<NextResponse | null> {
-  if (!twoFaRequired) return null;
-
+  if (!mfaRequired) return null;
+  const callbackUrl = sanitizeMfaCallbackUrl(
+    request.nextUrl.pathname + request.nextUrl.search
+  );
   const requestOrigin = getRequestOrigin(request);
-  const callbackUrl = request.nextUrl.pathname + request.nextUrl.search;
 
   if (opts?.enrollmentRequired) {
     const setupUrl = new URL("/app/settings/security", requestOrigin);
-    setupUrl.searchParams.set("setup2fa", "1");
+    setupUrl.searchParams.set("setupMfa", "1");
     setupUrl.searchParams.set("callbackUrl", callbackUrl);
     return NextResponse.redirect(setupUrl);
   }
@@ -149,16 +167,44 @@ async function check2faChallenge(
 
   if (!secret) {
     const loginUrl = new URL("/auth/login", requestOrigin);
-    loginUrl.searchParams.set("error", "2fa_unavailable");
+    loginUrl.searchParams.set("error", "mfa_unavailable");
     loginUrl.searchParams.set("callbackUrl", callbackUrl);
     return NextResponse.redirect(loginUrl);
   }
 
-  const cookieValue = request.cookies.get(TOTP_CHALLENGE_COOKIE)?.value ?? "";
+  // ── Token-based MFA handoff (bypasses Next.js 16 dev cookie issue) ──
+  // Check for a short-lived mfaToken query param first. If valid, set the
+  // cookie and allow access. This is used when the verify route returns
+  // a token instead of setting a cookie directly.
+  const mfaToken = request.nextUrl.searchParams.get(MFA_TOKEN_QUERY_PARAM);
+  if (mfaToken) {
+    const tokenUserId = await verifyMfaToken(mfaToken, secret);
+    if (tokenUserId === userId) {
+      // Valid token — set the cookie and continue (strip token from URL)
+      const cleanSearch = request.nextUrl.search
+        .replace(/[?&]mfaToken=[^&]+/, "")
+        .replace(/^\?&/, "?")
+        .replace(/^\?$/, "");
+      const response = NextResponse.redirect(
+        new URL(request.nextUrl.pathname + cleanSearch, request.url)
+      );
+      const cookieValue = await signMfaCookieEdge(userId, secret);
+      response.cookies.set(MFA_CHALLENGE_COOKIE, cookieValue, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: "lax",
+        path: "/",
+        maxAge: 12 * 60 * 60, // 12 hours
+      });
+      return response;
+    }
+  }
+
+  const cookieValue = request.cookies.get(MFA_CHALLENGE_COOKIE)?.value ?? "";
   const verifiedUserId = await verifyChallengeToken(cookieValue, secret);
 
   if (verifiedUserId === userId) {
-    // Valid challenge cookie — user has already passed 2FA
+    // Valid challenge cookie — user has already passed MFA
     return null;
   }
 
@@ -220,6 +266,10 @@ export async function middleware(request: NextRequest) {
     prefix === "/" ? pathname === "/" : pathname.startsWith(prefix)
   );
 
+  if (isPublicPdfStudioRoute(pathname) && !hasSupabaseSessionConfig()) {
+    return applySecurityHeaders(NextResponse.next({ request }));
+  }
+
   // Always refresh the Supabase session (sets cookies)
   const { user, supabaseResponse } = await updateSession(request);
 
@@ -232,26 +282,39 @@ export async function middleware(request: NextRequest) {
       return NextResponse.redirect(loginUrl);
     }
 
-    // ── 2FA challenge gate ────────────────────────────────────────────────
-    const totpEnabled = user.user_metadata?.totpEnabled === true;
+    // ── MFA challenge gate ────────────────────────────────────────────────
+    const hasExplicitTotp = typeof user.user_metadata?.hasTotp === "boolean";
+    const hasExplicitPasskey = typeof user.user_metadata?.hasPasskey === "boolean";
+    const hasTotp = hasExplicitTotp
+      ? user.user_metadata?.hasTotp === true
+      : user.user_metadata?.totpEnabled === true;
+    const hasPasskey = hasExplicitPasskey
+      ? user.user_metadata?.hasPasskey === true
+      : user.user_metadata?.passkeyEnabled === true;
+    const hasExplicitFactorMetadata = hasExplicitTotp || hasExplicitPasskey;
+    const legacyMfaEnabled = user.user_metadata?.mfaEnabled === true;
+    const mfaEnabled = hasTotp || hasPasskey || (!hasExplicitFactorMetadata && legacyMfaEnabled);
     const twoFaEnforcedByOrg = user.user_metadata?.twoFaEnforcedByOrg === true;
-    const twoFaRequired = totpEnabled || twoFaEnforcedByOrg;
-    const enrollmentRequired = twoFaEnforcedByOrg && !totpEnabled;
-    const is2faEnrollmentPath = pathname === "/app/settings/security";
+    const mfaRequired = mfaEnabled || twoFaEnforcedByOrg;
 
-    if (enrollmentRequired && is2faEnrollmentPath) {
+    // Enrollment is required when org enforces MFA and the user has no factor.
+    const hasFactor = hasTotp || hasPasskey;
+    const enrollmentRequired = twoFaEnforcedByOrg && !hasFactor;
+    const isMfaEnrollmentPath = pathname === "/app/settings/security";
+
+    if (enrollmentRequired && isMfaEnrollmentPath) {
       return applySecurityHeaders(supabaseResponse);
     }
 
     try {
-      const challengeRedirect = await check2faChallenge(request, user.id, twoFaRequired, {
+      const challengeRedirect = await checkMfaChallenge(request, user.id, mfaRequired, {
         enrollmentRequired,
       });
       if (challengeRedirect) return challengeRedirect;
     } catch (err) {
-      console.warn("[middleware] 2FA check error, denying access:", err);
+      console.warn("[middleware] MFA check error, denying access:", err);
       const loginUrl = new URL("/auth/login", requestOrigin);
-      loginUrl.searchParams.set("error", "2fa_check_failed");
+      loginUrl.searchParams.set("error", "mfa_check_failed");
       loginUrl.searchParams.set("callbackUrl", pathname);
       return NextResponse.redirect(loginUrl);
     }

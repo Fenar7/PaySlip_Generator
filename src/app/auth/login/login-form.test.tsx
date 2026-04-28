@@ -26,6 +26,14 @@ vi.mock("next/navigation", () => ({
   }),
 }));
 
+const authenticatePasskeyMock = vi.fn();
+const browserSupportsWebAuthnMock = vi.fn().mockReturnValue(true);
+
+vi.mock("@/lib/passkey/client", () => ({
+  authenticatePasskey: (...args: unknown[]) => authenticatePasskeyMock(...args),
+  browserSupportsWebAuthn: () => browserSupportsWebAuthnMock(),
+}));
+
 describe("LoginForm", () => {
   function getEmailInput() {
     const input = document.querySelector('input[type="email"]');
@@ -64,13 +72,17 @@ describe("LoginForm", () => {
   it("navigates to the redirect destination after a successful password sign-in", async () => {
     render(<LoginForm />);
 
+    expect(
+      screen.getByText(/passkey.*second verification step after sign-in/i)
+    ).toBeInTheDocument();
+
     fireEvent.change(getEmailInput(), {
       target: { value: "user@example.com" },
     });
     fireEvent.change(getPasswordInput(), {
       target: { value: "secret123" },
     });
-    fireEvent.click(screen.getByRole("button", { name: /sign in/i }));
+    fireEvent.click(screen.getByRole("button", { name: /^sign in$/i }));
 
     await waitFor(() => {
       expect(fetchMock).toHaveBeenCalledWith(
@@ -98,7 +110,7 @@ describe("LoginForm", () => {
       target: { value: "secret123" },
     });
     fireEvent.click(screen.getByLabelText(/remember me/i));
-    fireEvent.click(screen.getByRole("button", { name: /sign in/i }));
+    fireEvent.click(screen.getByRole("button", { name: /^sign in$/i }));
 
     await waitFor(() => {
       expect(fetchMock).toHaveBeenCalled();
@@ -161,5 +173,95 @@ describe("LoginForm", () => {
         "/auth/verify-email?email=user%40example.com",
       );
     });
+  });
+
+  it("hard redirects after a successful primary passkey sign-in", async () => {
+    const fetchMock = vi.fn();
+    global.fetch = fetchMock;
+
+    fetchMock
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          success: true,
+          options: { challenge: "challenge_1" },
+          signinSessionId: "session_1",
+          callbackUrl: "/app",
+        }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          success: true,
+          callbackUrl: "/app",
+          mfaToken: "test-mfa-token",
+        }),
+      });
+
+    authenticatePasskeyMock.mockResolvedValue({
+      id: "cred_1",
+      rawId: "cred_1",
+      response: {},
+      clientExtensionResults: {},
+      type: "public-key",
+    });
+
+    render(<LoginForm />);
+
+    const passkeyButton = await screen.findByRole("button", { name: /sign in with passkey/i });
+    fireEvent.click(passkeyButton);
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+      expect(fetchMock).toHaveBeenNthCalledWith(
+        1,
+        "/api/auth/passkey/signin-options",
+        expect.objectContaining({ method: "POST" })
+      );
+      expect(fetchMock).toHaveBeenNthCalledWith(
+        2,
+        "/api/auth/passkey/signin",
+        expect.objectContaining({ method: "POST" })
+      );
+      expect(locationAssignMock).toHaveBeenCalledWith("/app?mfaToken=test-mfa-token");
+    });
+  });
+
+  it("shows error when passkey sign-in fails", async () => {
+    const fetchMock = vi.fn();
+    global.fetch = fetchMock;
+
+    fetchMock.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        success: true,
+        options: { challenge: "challenge_1" },
+        signinSessionId: "session_1",
+        callbackUrl: "/app",
+      }),
+    });
+
+    fetchMock.mockResolvedValueOnce({
+      ok: false,
+      status: 400,
+      json: async () => ({ success: false, error: "Passkey verification failed" }),
+    });
+
+    authenticatePasskeyMock.mockResolvedValue({
+      id: "cred_1",
+      rawId: "cred_1",
+      response: {},
+      clientExtensionResults: {},
+      type: "public-key",
+    });
+
+    render(<LoginForm />);
+
+    const passkeyButton = await screen.findByRole("button", { name: /sign in with passkey/i });
+    fireEvent.click(passkeyButton);
+
+    expect(
+      await screen.findByText("Passkey verification failed")
+    ).toBeInTheDocument();
   });
 });

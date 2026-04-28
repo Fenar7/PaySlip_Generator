@@ -21,6 +21,8 @@ const eslintConfig = defineConfig([
     "tmp-foundation/**",
     "playwright-report/**",
     "test-results/**",
+    // Vendored, minified third-party browser assets.
+    "public/vendor/pdfjs/**",
     // One-off migration/utility scripts
     "patch_schema.js",
     "resolve.js",

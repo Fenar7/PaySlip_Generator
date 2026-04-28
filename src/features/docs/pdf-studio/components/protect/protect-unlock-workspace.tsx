@@ -11,11 +11,19 @@ import {
   destroyPdfJsDocument,
   normalizePdfJsError,
   openPdfJsDocument,
+  type PdfJsFailure,
 } from "@/features/docs/pdf-studio/utils/pdfjs-client";
 import { downloadPdfBytes } from "@/features/docs/pdf-studio/utils/zip-builder";
-import { validatePasswords } from "@/features/docs/pdf-studio/utils/password";
+import {
+  validatePasswordSettings,
+} from "@/features/docs/pdf-studio/utils/password";
 import { PASSWORD_PERMISSION_PRESETS } from "@/features/docs/pdf-studio/constants";
 import type { PdfStudioToolId } from "@/features/docs/pdf-studio/types";
+import {
+  encryptPdfViaApi,
+  PDF_ENCRYPTION_ERROR_MESSAGES,
+  PdfEncryptionError,
+} from "@/features/docs/pdf-studio/utils/pdf-encryptor";
 
 // ── Types ──────────────────────────────────────────────────────────────
 
@@ -42,6 +50,59 @@ interface UnlockState {
   password: string;
   status: "idle" | "detecting" | "unlocking" | "done" | "error";
   error: string | null;
+}
+
+type UnlockDetectionResult =
+  | { kind: "ready"; needsPassword: boolean }
+  | { kind: "error"; failure: PdfJsFailure };
+
+function toPdfJsFailure(error: unknown): PdfJsFailure {
+  return typeof error === "object" &&
+    error !== null &&
+    "code" in error &&
+    "message" in error
+    ? (error as PdfJsFailure)
+    : normalizePdfJsError(error);
+}
+
+async function detectUnlockPasswordRequirement(
+  bytes: Uint8Array,
+): Promise<UnlockDetectionResult> {
+  const detectWithPdfJs = async (): Promise<UnlockDetectionResult> => {
+    let loadingTask: Awaited<ReturnType<typeof openPdfJsDocument>>["loadingTask"] | null =
+      null;
+    let pdf: Awaited<ReturnType<typeof openPdfJsDocument>>["pdf"] | null = null;
+
+    try {
+      const opened = await openPdfJsDocument(bytes);
+      loadingTask = opened.loadingTask;
+      pdf = opened.pdf;
+      return { kind: "ready", needsPassword: false };
+    } catch (error) {
+      const failure = toPdfJsFailure(error);
+      if (failure.code === "password-protected") {
+        return { kind: "ready", needsPassword: true };
+      }
+      return { kind: "error", failure };
+    } finally {
+      if (loadingTask) {
+        await destroyPdfJsDocument(loadingTask, pdf);
+      }
+    }
+  };
+
+  try {
+    await PDFDocument.load(bytes, { ignoreEncryption: true });
+  } catch {
+    return detectWithPdfJs();
+  }
+
+  try {
+    await PDFDocument.load(bytes);
+    return { kind: "ready", needsPassword: false };
+  } catch {
+    return detectWithPdfJs();
+  }
 }
 
 // ── Component ──────────────────────────────────────────────────────────
@@ -115,10 +176,15 @@ export function ProtectUnlockWorkspaceWithOptions(props?: {
   const handleProtect = useCallback(async () => {
     if (!protect.file) return;
 
-    const validation = validatePasswords(
-      protect.userPassword,
-      protect.userPasswordConfirm,
-    );
+    // Sprint 37.1: use centralized validation that covers user, confirm, and owner passwords
+    const validation = validatePasswordSettings({
+      enabled: true,
+      userPassword: protect.userPassword,
+      confirmPassword: protect.userPasswordConfirm,
+      ownerPassword: protect.ownerPassword,
+      permissions: protect.permissions,
+    });
+
     if (!validation.isValid) {
       setProtect((prev) => ({
         ...prev,
@@ -136,41 +202,17 @@ export function ProtectUnlockWorkspaceWithOptions(props?: {
     try {
       const arrayBuffer = await protect.file.arrayBuffer();
       const pdfBytes = new Uint8Array(arrayBuffer);
-
-      const formData = new FormData();
-      formData.append(
-        "pdf",
-        new Blob([pdfBytes], { type: "application/octet-stream" }),
-        "document.pdf",
-      );
-      formData.append(
-        "options",
-        JSON.stringify({
-          userPassword: protect.userPassword,
-          ownerPassword: protect.ownerPassword || undefined,
-          permissions: {
-            printing: protect.permissions.printing,
-            copying: protect.permissions.copying,
-            modifying: protect.permissions.modifying,
-          },
-        }),
-      );
-
-      const response = await fetch("/api/pdf/encrypt", {
-        method: "POST",
-        body: formData,
+      const encryptedBytes = await encryptPdfViaApi(pdfBytes, {
+        enabled: true,
+        userPassword: protect.userPassword,
+        confirmPassword: protect.userPasswordConfirm,
+        ownerPassword: protect.ownerPassword || undefined,
+        permissions: {
+          printing: protect.permissions.printing,
+          copying: protect.permissions.copying,
+          modifying: protect.permissions.modifying,
+        },
       });
-
-      if (!response.ok) {
-        if (response.status === 429)
-          throw new Error("Too many requests. Please wait and try again.");
-        if (response.status === 413)
-          throw new Error("PDF is too large to encrypt.");
-        throw new Error("Encryption failed. Please try again.");
-      }
-
-      const encryptedBuffer = await response.arrayBuffer();
-      const encryptedBytes = new Uint8Array(encryptedBuffer);
       const baseName = protect.file.name.replace(/\.pdf$/i, "");
       downloadPdfBytes(
         encryptedBytes,
@@ -181,25 +223,34 @@ export function ProtectUnlockWorkspaceWithOptions(props?: {
         }),
       );
 
-      setProtect((prev) => ({ ...prev, status: "done" }));
+      // Sprint 37.1: clear password fields after successful protect (security)
+      setProtect((prev) => ({
+        ...prev,
+        status: "done",
+        userPassword: "",
+        userPasswordConfirm: "",
+        ownerPassword: "",
+      }));
       analytics.trackSuccess({
         action: "protect",
         requiresProcessing: true,
       });
     } catch (err) {
       const message =
-        err instanceof Error && err.message === "Too many requests. Please wait and try again."
-          ? "Too many protection requests are already running. Please wait a moment and try again."
-          : err instanceof Error && err.message === "PDF is too large to encrypt."
-            ? "This PDF exceeds the current protection limit."
-            : "Protection failed. Please try again.";
+        err instanceof PdfEncryptionError
+          ? err.message
+          : "Protection failed. Please try again.";
 
       const reason =
-        err instanceof Error && err.message === "Too many requests. Please wait and try again."
-          ? "rate-limited"
-          : err instanceof Error && err.message === "PDF is too large to encrypt."
-            ? "payload-too-large"
-            : "encryption-failed";
+        err instanceof PdfEncryptionError
+          ? err.isNetworkError
+            ? "network-failed"
+            : err.message === PDF_ENCRYPTION_ERROR_MESSAGES.rateLimited
+              ? "rate-limited"
+              : err.message === PDF_ENCRYPTION_ERROR_MESSAGES.payloadTooLarge
+                ? "payload-too-large"
+                : "encryption-failed"
+          : "encryption-failed";
 
       setProtect((prev) => ({ ...prev, status: "error", error: message }));
       analytics.trackFail({
@@ -241,34 +292,27 @@ export function ProtectUnlockWorkspaceWithOptions(props?: {
         const arrayBuffer = await f.arrayBuffer();
         const bytes = new Uint8Array(arrayBuffer);
 
-        // Try loading without password to detect if protected
-        try {
-          await PDFDocument.load(bytes, { ignoreEncryption: true });
-          // If successful, check if it's actually encrypted by trying a proper load
-          try {
-            await PDFDocument.load(bytes);
-            setUnlock((prev) => ({
-              ...prev,
-              pdfBytes: bytes,
-              needsPassword: false,
-              status: "idle",
-            }));
-          } catch {
-            setUnlock((prev) => ({
-              ...prev,
-              pdfBytes: bytes,
-              needsPassword: true,
-              status: "idle",
-            }));
-          }
-        } catch {
+        const detection = await detectUnlockPasswordRequirement(bytes);
+        if (detection.kind === "error") {
           setUnlock((prev) => ({
             ...prev,
-            pdfBytes: bytes,
-            needsPassword: true,
-            status: "idle",
+            status: "error",
+            error: detection.failure.message,
           }));
+          analytics.trackFail({
+            action: "unlock",
+            stage: "upload",
+            reason: detection.failure.code,
+          });
+          return;
         }
+
+        setUnlock((prev) => ({
+          ...prev,
+          pdfBytes: bytes,
+          needsPassword: detection.needsPassword,
+          status: "idle",
+        }));
         analytics.trackUpload({
           action: "unlock",
           fileCount: 1,
@@ -358,14 +402,32 @@ export function ProtectUnlockWorkspaceWithOptions(props?: {
         }),
       );
 
-      setUnlock((prev) => ({ ...prev, status: "done" }));
+      // Sprint 37.1: clear password after successful unlock (security)
+      setUnlock((prev) => ({
+        ...prev,
+        status: "done",
+        password: "",
+      }));
       analytics.trackSuccess({
         action: "unlock",
         outputKind: "image-only-pdf",
       });
-    } catch {
-      const message =
-        "Incorrect password or this PDF cannot be converted with the current image-only unlock fallback.";
+    } catch (err) {
+      // Sprint 37.1: distinguish wrong password from processing failure
+      const normalized =
+        typeof err === "object" &&
+        err !== null &&
+        "code" in err &&
+        "message" in err
+          ? (err as PdfJsFailure)
+          : normalizePdfJsError(err);
+
+      const isWrongPassword = normalized.code === "password-protected";
+
+      const message = isWrongPassword
+        ? "Incorrect password. Please check your password and try again."
+        : "Unlock failed. The PDF could not be rendered. It may be corrupted or use unsupported features.";
+
       setUnlock((prev) => ({
         ...prev,
         status: "error",
@@ -374,7 +436,7 @@ export function ProtectUnlockWorkspaceWithOptions(props?: {
       analytics.trackFail({
         action: "unlock",
         stage: "process",
-        reason: "incorrect-password",
+        reason: isWrongPassword ? "incorrect-password" : "processing-failed",
       });
     } finally {
       if (loadingTask) {
@@ -774,6 +836,12 @@ export function ProtectUnlockWorkspaceWithOptions(props?: {
                 </div>
               )}
 
+              {unlock.error && (
+                <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                  {unlock.error}
+                </div>
+              )}
+
               {unlock.needsPassword && (
                 <>
                   <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
@@ -803,12 +871,6 @@ export function ProtectUnlockWorkspaceWithOptions(props?: {
                       placeholder="PDF password"
                     />
                   </div>
-
-                  {unlock.error && (
-                    <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-                      {unlock.error}
-                    </div>
-                  )}
 
                   {unlock.status === "done" && (
                     <div className="rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">

@@ -5,6 +5,7 @@ vi.mock("@/lib/db", () => ({
     jobLog: {
       findFirst: vi.fn(),
       findMany: vi.fn(),
+      findUniqueOrThrow: vi.fn(),
       update: vi.fn(),
       delete: vi.fn(),
     },
@@ -14,20 +15,32 @@ vi.mock("@/lib/db", () => ({
 vi.mock("@/lib/storage/upload-server", () => ({
   deleteFileServer: vi.fn(),
   downloadFileServer: vi.fn(),
+  fileExistsServer: vi.fn(),
   getSignedUrlServer: vi.fn(),
   uploadFileServer: vi.fn(),
 }));
 
 import { db } from "@/lib/db";
-import { deleteFileServer, getSignedUrlServer } from "@/lib/storage/upload-server";
+import {
+  deleteFileServer,
+  fileExistsServer,
+  getSignedUrlServer,
+} from "@/lib/storage/upload-server";
 import {
   cleanupExpiredPdfStudioConversionArtifacts,
   getPdfStudioConversionJob,
+  listPdfStudioConversionHistory,
+  retryPdfStudioConversionJob,
 } from "@/features/docs/pdf-studio/lib/conversion-jobs";
+
+vi.mock("@/lib/plans/enforcement", () => ({
+  getOrgPlan: vi.fn().mockResolvedValue({ planId: "starter", status: "active" }),
+}));
 
 describe("conversion job lifecycle", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.mocked(fileExistsServer).mockResolvedValue(true);
   });
 
   it("stops issuing download URLs once a completed artifact expires", async () => {
@@ -167,5 +180,276 @@ describe("conversion job lifecycle", () => {
       failureCode: "malformed_pdf",
       canRetry: false,
     });
+  });
+
+  it("marks sourceAvailable false when the source storage key is missing", async () => {
+    vi.mocked(db.jobLog.findFirst).mockResolvedValue({
+      id: "job-missing-source",
+      status: "dead_letter",
+      retryCount: 1,
+      errorMessage: "Missing source.",
+      nextRetryAt: null,
+      payload: {
+        toolId: "pdf-to-word",
+        targetFormat: "docx",
+        sourceFileName: "gone.pdf",
+        sourceStorageKey: undefined,
+        failureCode: "source_unavailable",
+        failureRetryable: true,
+      },
+    } as never);
+
+    const job = await getPdfStudioConversionJob("job-missing-source", "org-1");
+
+    expect(job).toMatchObject({
+      jobId: "job-missing-source",
+      canRetry: false,
+      sourceAvailable: false,
+    });
+    expect(fileExistsServer).not.toHaveBeenCalled();
+  });
+
+  it("marks sourceAvailable false when payload has a storage key but the storage object is gone", async () => {
+    vi.mocked(db.jobLog.findFirst).mockResolvedValue({
+      id: "job-stale-key",
+      status: "dead_letter",
+      retryCount: 1,
+      errorMessage: "Missing source.",
+      nextRetryAt: null,
+      payload: {
+        toolId: "pdf-to-word",
+        targetFormat: "docx",
+        sourceFileName: "gone.pdf",
+        sourceStorageKey: "org-1/pdf-studio/conversions/job-stale-key/source.pdf",
+        failureCode: "source_unavailable",
+        failureRetryable: true,
+      },
+    } as never);
+    vi.mocked(fileExistsServer).mockResolvedValue(false);
+
+    const job = await getPdfStudioConversionJob("job-stale-key", "org-1");
+
+    expect(job).toMatchObject({
+      jobId: "job-stale-key",
+      canRetry: false,
+      sourceAvailable: false,
+    });
+    expect(fileExistsServer).toHaveBeenCalledWith(
+      "attachments",
+      "org-1/pdf-studio/conversions/job-stale-key/source.pdf",
+      { useAdmin: true },
+    );
+  });
+
+  it("marks sourceAvailable true for URL-based jobs even without a storage key", async () => {
+    vi.mocked(db.jobLog.findFirst).mockResolvedValue({
+      id: "job-url",
+      status: "dead_letter",
+      retryCount: 1,
+      errorMessage: "Render failed.",
+      nextRetryAt: null,
+      payload: {
+        toolId: "html-to-pdf",
+        targetFormat: "pdf",
+        sourceUrl: "https://example.com/report",
+        failureCode: "conversion_failed",
+        failureRetryable: true,
+      },
+    } as never);
+
+    const job = await getPdfStudioConversionJob("job-url", "org-1");
+
+    expect(job).toMatchObject({
+      jobId: "job-url",
+      canRetry: true,
+      sourceAvailable: true,
+    });
+    expect(fileExistsServer).not.toHaveBeenCalled();
+  });
+
+  it("lists history with sourceAvailable and canRetry aligned to source state", async () => {
+    vi.mocked(db.jobLog.findMany).mockResolvedValue([
+      {
+        id: "job-1",
+        status: "dead_letter",
+        retryCount: 1,
+        triggeredAt: new Date("2026-04-22T00:00:00.000Z"),
+        completedAt: new Date("2026-04-22T00:01:00.000Z"),
+        errorMessage: "Missing source.",
+        payload: {
+          toolId: "pdf-to-word",
+          targetFormat: "docx",
+          sourceFileName: "gone.pdf",
+          sourceStorageKey: undefined,
+          failureCode: "source_unavailable",
+          failureRetryable: true,
+        },
+      },
+    ] as never);
+
+    const history = await listPdfStudioConversionHistory({ orgId: "org-1", limit: 10 });
+
+    expect(history).toHaveLength(1);
+    expect(history[0]).toMatchObject({
+      jobId: "job-1",
+      status: "dead_letter",
+      canRetry: false,
+      sourceAvailable: false,
+    });
+  });
+
+  it("rejects manual retry when the source storage key is missing", async () => {
+    vi.mocked(db.jobLog.findFirst).mockResolvedValue({
+      id: "job-1",
+      status: "dead_letter",
+      retryCount: 1,
+      errorMessage: "Missing source.",
+      payload: {
+        toolId: "pdf-to-word",
+        targetFormat: "docx",
+        sourceFileName: "gone.pdf",
+        sourceStorageKey: undefined,
+        failureCode: "source_unavailable",
+        failureRetryable: true,
+      },
+    } as never);
+
+    await expect(retryPdfStudioConversionJob("job-1", "org-1")).rejects.toThrow(
+      "The original conversion inputs are no longer available for retry.",
+    );
+    expect(fileExistsServer).not.toHaveBeenCalled();
+  });
+
+  it("rejects manual retry when the storage object no longer exists", async () => {
+    vi.mocked(db.jobLog.findFirst).mockResolvedValue({
+      id: "job-1",
+      status: "dead_letter",
+      retryCount: 2,
+      errorMessage: "Transient error.",
+      payload: {
+        toolId: "pdf-to-word",
+        targetFormat: "docx",
+        sourceFileName: "report.pdf",
+        sourceStorageKey: "org-1/pdf-studio/conversions/job-1/source.pdf",
+        failureCode: "storage_error",
+        failureRetryable: true,
+      },
+    } as never);
+    vi.mocked(fileExistsServer).mockResolvedValue(false);
+
+    await expect(retryPdfStudioConversionJob("job-1", "org-1")).rejects.toThrow(
+      "The original conversion inputs are no longer available for retry.",
+    );
+    expect(fileExistsServer).toHaveBeenCalledWith(
+      "attachments",
+      "org-1/pdf-studio/conversions/job-1/source.pdf",
+      { useAdmin: true },
+    );
+  });
+
+  it("allows manual retry when the source storage key is present and the object exists", async () => {
+    vi.mocked(db.jobLog.findFirst)
+      .mockResolvedValueOnce({
+        id: "job-1",
+        status: "dead_letter",
+        retryCount: 2,
+        errorMessage: "Transient error.",
+        payload: {
+          toolId: "pdf-to-word",
+          targetFormat: "docx",
+          sourceFileName: "report.pdf",
+          sourceStorageKey: "org-1/pdf-studio/conversions/job-1/source.pdf",
+          failureCode: "storage_error",
+          failureRetryable: true,
+        },
+      } as never)
+      .mockResolvedValueOnce({
+        id: "job-1",
+        status: "pending",
+        retryCount: 2,
+        errorMessage: null,
+        nextRetryAt: null,
+        payload: {
+          toolId: "pdf-to-word",
+          targetFormat: "docx",
+          sourceFileName: "report.pdf",
+          sourceStorageKey: "org-1/pdf-studio/conversions/job-1/source.pdf",
+        },
+      } as never);
+    vi.mocked(db.jobLog.update).mockResolvedValue({ id: "job-1" } as never);
+
+    const result = await retryPdfStudioConversionJob("job-1", "org-1");
+
+    expect(fileExistsServer).toHaveBeenCalledWith(
+      "attachments",
+      "org-1/pdf-studio/conversions/job-1/source.pdf",
+      { useAdmin: true },
+    );
+    expect(db.jobLog.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: "job-1" },
+        data: expect.objectContaining({ status: "pending" }),
+      }),
+    );
+    expect(result?.status).toBe("pending");
+  });
+});
+
+describe("markPdfStudioConversionComplete invariant", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("throws when output count does not match totalItems", async () => {
+    vi.mocked(db.jobLog.findUniqueOrThrow).mockResolvedValue({
+      id: "job-batch",
+      orgId: "org-1",
+      payload: {
+        toolId: "pdf-to-word",
+        targetFormat: "docx",
+        totalItems: 3,
+        sources: [
+          {
+            index: 0,
+            storageKey: "org-1/pdf-studio/conversions/job-batch/sources/01.pdf",
+            fileName: "alpha.pdf",
+            mimeType: "application/pdf",
+            sizeBytes: 100,
+          },
+          {
+            index: 1,
+            storageKey: "org-1/pdf-studio/conversions/job-batch/sources/02.pdf",
+            fileName: "beta.pdf",
+            mimeType: "application/pdf",
+            sizeBytes: 120,
+          },
+          {
+            index: 2,
+            storageKey: "org-1/pdf-studio/conversions/job-batch/sources/03.pdf",
+            fileName: "gamma.pdf",
+            mimeType: "application/pdf",
+            sizeBytes: 130,
+          },
+        ],
+        outputs: [
+          {
+            index: 0,
+            storageKey: "org-1/pdf-studio/conversions/job-batch/outputs/01-alpha.docx",
+            sourceFileName: "alpha.pdf",
+            fileName: "alpha-batch-01.docx",
+            mimeType:
+              "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+          },
+        ],
+      },
+    } as never);
+
+    const { markPdfStudioConversionComplete } = await import(
+      "@/features/docs/pdf-studio/lib/conversion-jobs"
+    );
+
+    await expect(markPdfStudioConversionComplete({ jobId: "job-batch" })).rejects.toThrow(
+      "expected 3 outputs but found 1",
+    );
   });
 });

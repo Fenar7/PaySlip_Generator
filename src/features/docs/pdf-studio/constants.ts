@@ -5,6 +5,7 @@ import type {
 } from "@/features/docs/pdf-studio/types";
 
 export const PDF_STUDIO_MAX_IMAGES = 30;
+export const PDF_STUDIO_OCR_LOW_CONFIDENCE_THRESHOLD = 70;
 
 export const PDF_STUDIO_SESSION_STORAGE_KEY = "pdf-studio-session-v1";
 

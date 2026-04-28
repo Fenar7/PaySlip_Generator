@@ -1,10 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const getDocument = vi.fn();
-const workerOptions = { workerSrc: "" };
+const workerOptions = Object.assign(function GlobalWorkerOptions() {}, {
+  workerSrc: "",
+  workerPort: null as Worker | null,
+});
 const mockImportShape = vi.hoisted(() => ({ mode: "direct" as "direct" | "default" }));
 
-vi.mock("pdfjs-dist", () => {
+vi.mock("pdfjs-dist/build/pdf.mjs", () => {
   const runtimeModule = {
     GlobalWorkerOptions: workerOptions,
     OPS: {},
@@ -22,20 +25,18 @@ describe("pdfjs client", () => {
   beforeEach(() => {
     getDocument.mockReset();
     workerOptions.workerSrc = "";
+    workerOptions.workerPort = null;
     mockImportShape.mode = "direct";
     vi.resetModules();
   });
 
-  it("configures the webpack-resolved worker URL before opening a document", async () => {
+  it("configures the public worker URL before opening a document", async () => {
     const { getPdfJsClient } = await import("@/features/docs/pdf-studio/utils/pdfjs-client");
 
     const pdfjs = await getPdfJsClient();
 
     expect(pdfjs.getDocument).toBe(getDocument);
-    // In vitest (jsdom), import.meta.url is a file:// URL, so the resolved
-    // worker URL starts with the test environment base rather than a public path.
-    // We verify it is non-empty and contains the expected worker filename.
-    expect(workerOptions.workerSrc).toMatch(/pdf\.worker\.min\.mjs/);
+    expect(workerOptions.workerSrc).toBe("/vendor/pdfjs/pdf.worker.min.mjs");
   });
 
   it("accepts a default-wrapped pdfjs module namespace", async () => {
@@ -45,7 +46,7 @@ describe("pdfjs client", () => {
     const pdfjs = await getPdfJsClient();
 
     expect(pdfjs.getDocument).toBe(getDocument);
-    expect(workerOptions.workerSrc).toMatch(/pdf\.worker\.min\.mjs/);
+    expect(workerOptions.workerSrc).toBe("/vendor/pdfjs/pdf.worker.min.mjs");
   });
 
   it("cleans up loading tasks through the shared destroy helper", async () => {
@@ -78,6 +79,30 @@ describe("pdfjs client", () => {
     );
   });
 
+  it("clears a stale workerPort on the primary worker-backed open path", async () => {
+    workerOptions.workerPort = {} as Worker;
+    const observedWorkerPorts: Array<Worker | null> = [];
+    getDocument.mockImplementation(() => {
+      observedWorkerPorts.push(workerOptions.workerPort);
+      return {
+        promise: Promise.resolve({ numPages: 1 }),
+        destroy: vi.fn(),
+      };
+    });
+
+    const { openPdfJsDocument } = await import("@/features/docs/pdf-studio/utils/pdfjs-client");
+    await openPdfJsDocument(new Uint8Array([1, 2, 3]));
+
+    expect(getDocument).toHaveBeenCalledTimes(1);
+    expect(observedWorkerPorts).toEqual([null]);
+    expect(workerOptions.workerPort).toBeNull();
+    expect(getDocument).toHaveBeenCalledWith(
+      expect.not.objectContaining({
+        disableWorker: true,
+      }),
+    );
+  });
+
   it("classifies worker/bootstrap failures separately from malformed PDFs", async () => {
     getDocument.mockImplementation(() => {
       throw new Error("Unable to load wasm data at: /vendor/pdfjs/wasm/openjpeg.wasm");
@@ -92,32 +117,53 @@ describe("pdfjs client", () => {
     });
   });
 
-  it("falls back to a no-worker open when worker bootstrap keeps failing", async () => {
+  it("falls back once to a no-worker open after a runtime bootstrap failure", async () => {
+    workerOptions.workerPort = {} as Worker;
+    const callModes: boolean[] = [];
+    const observedWorkerPorts: Array<Worker | null> = [];
     getDocument
-      .mockImplementationOnce(() => {
+      .mockImplementationOnce((params: { disableWorker?: boolean }) => {
+        callModes.push(Boolean(params.disableWorker));
+        observedWorkerPorts.push(workerOptions.workerPort);
         throw new Error("Setting up worker failed");
       })
-      .mockImplementationOnce(() => {
-        throw new Error("Setting up worker failed");
-      })
-      .mockImplementationOnce(() => {
-        throw new Error("Setting up worker failed");
-      })
-      .mockImplementationOnce(() => ({
+      .mockImplementationOnce((params: { disableWorker?: boolean }) => {
+        callModes.push(Boolean(params.disableWorker));
+        observedWorkerPorts.push(workerOptions.workerPort);
+        return {
         promise: Promise.resolve({ numPages: 1 }),
         destroy: vi.fn(),
-      }));
+      };
+      });
 
     const { openPdfJsDocument } = await import("@/features/docs/pdf-studio/utils/pdfjs-client");
     const opened = await openPdfJsDocument(new Uint8Array([1, 2, 3]));
 
     expect(opened.pdf.numPages).toBe(1);
-    expect(getDocument).toHaveBeenCalledTimes(4);
+    expect(getDocument).toHaveBeenCalledTimes(2);
+    expect(callModes).toEqual([false, true]);
+    expect(observedWorkerPorts).toEqual([null, null]);
     expect(getDocument).toHaveBeenLastCalledWith(
       expect.objectContaining({
         disableWorker: true,
       }),
     );
+    expect(workerOptions.workerPort).toBeNull();
+  });
+
+  it("does not retry malformed-pdf failures with the same runtime state", async () => {
+    getDocument.mockReturnValue({
+      promise: Promise.reject(new Error("Invalid PDF structure")),
+      destroy: vi.fn(),
+    });
+
+    const { openPdfJsDocument } = await import("@/features/docs/pdf-studio/utils/pdfjs-client");
+
+    await expect(openPdfJsDocument(new Uint8Array([1, 2, 3]))).rejects.toMatchObject({
+      code: "pdf-read-failed",
+      message: "This PDF appears malformed or unsupported.",
+    });
+    expect(getDocument).toHaveBeenCalledTimes(1);
   });
 
   it("classifies defineProperty bootstrap crashes as runtime failures", async () => {

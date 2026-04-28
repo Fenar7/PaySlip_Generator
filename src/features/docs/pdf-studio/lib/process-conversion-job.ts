@@ -12,7 +12,7 @@ import {
   type PdfStudioConversionSourceManifest,
   type PdfStudioConversionPayload,
 } from "@/features/docs/pdf-studio/lib/conversion-jobs";
-import { toPdfStudioConversionError } from "@/features/docs/pdf-studio/lib/conversion-errors";
+import { PdfStudioConversionError, toPdfStudioConversionError } from "@/features/docs/pdf-studio/lib/conversion-errors";
 import { runServerConversion } from "@/features/docs/pdf-studio/lib/server-converters";
 
 export async function processPdfStudioConversionJob(jobId: string, orgId?: string) {
@@ -28,11 +28,23 @@ export async function processPdfStudioConversionJob(jobId: string, orgId?: strin
 
   try {
     if (!payload.toolId || !payload.targetFormat) {
-      throw new Error("The queued conversion job is missing its conversion target.");
+      throw new PdfStudioConversionError({
+        code: "conversion_failed",
+        message: "The queued conversion job is missing its conversion target.",
+        retryable: false,
+      });
     }
 
     const sources = getPendingSources(payload);
     if (sources.length === 0) {
+      if (!payload.sourceStorageKey && !payload.sourceUrl) {
+        throw new PdfStudioConversionError({
+          code: "source_unavailable",
+          message: "The original conversion source is no longer available.",
+          retryable: false,
+        });
+      }
+
       const result = await runServerConversion({
         toolId: payload.toolId,
         sourceStorageKey: payload.sourceStorageKey,
@@ -52,6 +64,15 @@ export async function processPdfStudioConversionJob(jobId: string, orgId?: strin
         mimeType: result.mimeType,
       });
     } else {
+      const missingSources = sources.filter((source) => !source.storageKey);
+      if (missingSources.length > 0) {
+        throw new PdfStudioConversionError({
+          code: "source_unavailable",
+          message: `The original conversion sources are no longer available for ${missingSources.map((s) => s.fileName).join(", ")}.`,
+          retryable: false,
+        });
+      }
+
       for (const source of sources) {
         const result = await runServerConversion({
           toolId: payload.toolId,

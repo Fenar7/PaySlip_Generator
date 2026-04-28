@@ -1,7 +1,6 @@
 import {
   destroyPdfJsDocument,
-  getPdfJsClient,
-  PDFJS_PUBLIC_WASM_URL,
+  openPdfJsDocument,
   type PdfJsDocumentProxy,
   type PdfJsLoadingTask,
 } from "@/features/docs/pdf-studio/utils/pdfjs-client";
@@ -114,12 +113,9 @@ async function validateRecoveredPdf(bytes: Uint8Array): Promise<number> {
   let doc: PdfJsDocumentProxy | null = null;
 
   try {
-    const pdfjsLib = await getPdfJsClient();
-    loadingTask = pdfjsLib.getDocument({
-      data: bytes.slice(),
-      wasmUrl: PDFJS_PUBLIC_WASM_URL,
-    });
-    doc = await loadingTask.promise;
+    const opened = await openPdfJsDocument(bytes.slice());
+    loadingTask = opened.loadingTask;
+    doc = opened.pdf;
     const pdfjsCount = doc.numPages;
     if (pdfjsCount !== pdfLibCount) {
       return 0;
@@ -158,12 +154,9 @@ async function attemptRasterSalvage(
   recoveredPages: number;
   failedPages: number[];
 }> {
-  const pdfjsLib = await getPdfJsClient();
-  const loadingTask = pdfjsLib.getDocument({
-    data: bytes.slice(),
-    wasmUrl: PDFJS_PUBLIC_WASM_URL,
-  });
-  const sourcePdf = await loadingTask.promise;
+  const opened = await openPdfJsDocument(bytes.slice());
+  const loadingTask = opened.loadingTask;
+  const sourcePdf = opened.pdf;
   const { PDFDocument } = await import("pdf-lib");
   const outputPdf = await PDFDocument.create();
   const failedPages: number[] = [];

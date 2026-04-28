@@ -321,11 +321,17 @@ export default async function PdfStudioReadinessPage() {
                   </div>
 
                   <div className="mt-3 flex flex-wrap items-center gap-2">
-                    <span className="inline-flex items-center rounded-full bg-white px-2.5 py-1 text-[11px] font-medium text-gray-700">
-                      {issue.status === "retry_pending"
-                        ? "Retry queued"
-                        : "Failed"}
-                    </span>
+                    {issue.recoveryState ? (
+                      <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-medium ${issue.recoveryState.tone === "warning" ? "bg-amber-50 text-amber-700" : "bg-red-50 text-red-700"}`}>
+                        {issue.recoveryState.label}
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center rounded-full bg-white px-2.5 py-1 text-[11px] font-medium text-gray-700">
+                        {issue.status === "retry_pending"
+                          ? "Retry queued"
+                          : "Failed"}
+                      </span>
+                    )}
                     {issue.failureCode ? (
                       <span className="inline-flex items-center rounded-full bg-red-50 px-2.5 py-1 text-[11px] font-medium text-red-700">
                         {getPdfStudioFailureLabel(issue.failureCode)}
@@ -337,6 +343,11 @@ export default async function PdfStudioReadinessPage() {
                     <p className="mt-3 text-sm text-red-700">{issue.error}</p>
                   ) : null}
                   <p className="mt-2 text-sm text-gray-600">{issue.recoveryHint}</p>
+                  {issue.recoveryState?.kind === "source_repair" ? (
+                    <p className="mt-2 text-xs text-red-700">
+                      The original source file was removed or expired. Re-upload it and start a new conversion.
+                    </p>
+                  ) : null}
                   {issue.nextRetryAt ? (
                     <p className="mt-2 text-xs text-amber-700">
                       Retry scheduled for {new Date(issue.nextRetryAt).toLocaleString()}.

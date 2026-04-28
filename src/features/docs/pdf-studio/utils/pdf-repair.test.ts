@@ -1,11 +1,44 @@
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+const {
+  destroyPdfJsDocumentMock,
+  openPdfJsDocumentMock,
+  pdfDocumentCreateMock,
+  pdfDocumentLoadMock,
+} = vi.hoisted(() => ({
+  destroyPdfJsDocumentMock: vi.fn(),
+  openPdfJsDocumentMock: vi.fn(),
+  pdfDocumentCreateMock: vi.fn(),
+  pdfDocumentLoadMock: vi.fn(),
+}));
+
+vi.mock("@/features/docs/pdf-studio/utils/pdfjs-client", () => ({
+  destroyPdfJsDocument: destroyPdfJsDocumentMock,
+  openPdfJsDocument: openPdfJsDocumentMock,
+}));
+
+vi.mock("pdf-lib", () => ({
+  PDFDocument: {
+    create: pdfDocumentCreateMock,
+    load: pdfDocumentLoadMock,
+  },
+}));
+
 import {
   analyzePdfDamage,
   buildRepairLog,
+  repairPdfDocument,
   type PdfRepairResult,
 } from "@/features/docs/pdf-studio/utils/pdf-repair";
 
 describe("pdf repair utilities", () => {
+  beforeEach(() => {
+    destroyPdfJsDocumentMock.mockReset();
+    openPdfJsDocumentMock.mockReset();
+    pdfDocumentCreateMock.mockReset();
+    pdfDocumentLoadMock.mockReset();
+  });
+
   it("flags missing structure markers on truncated input", () => {
     const bytes = new TextEncoder().encode("%PDF-1.7\n1 0 obj\n<< /Type /Catalog >>");
     const analysis = analyzePdfDamage(bytes);
@@ -79,5 +112,40 @@ describe("pdf repair utilities", () => {
     expect(repairedResult.filename).toBe("doc-repaired");
     expect(partialResult.filename).toBe("doc-partial-recovery");
     expect(repairedResult.filename).not.toBe(partialResult.filename);
+  });
+
+  it("uses the shared pdf opener when validating a repaired file", async () => {
+    pdfDocumentLoadMock
+      .mockResolvedValueOnce({
+        save: vi.fn().mockResolvedValue(new Uint8Array([4, 5, 6])),
+      })
+      .mockResolvedValueOnce({
+        getPageCount: () => 1,
+      });
+    openPdfJsDocumentMock.mockResolvedValue({
+      pdfjsLib: {
+        GlobalWorkerOptions: { workerSrc: "", workerPort: null },
+        OPS: {},
+        getDocument: vi.fn(),
+      },
+      loadingTask: {
+        destroy: vi.fn(),
+      },
+      pdf: {
+        cleanup: vi.fn(),
+        numPages: 1,
+      },
+    });
+    destroyPdfJsDocumentMock.mockResolvedValue(undefined);
+
+    const file = new File([new Uint8Array([1, 2, 3])], "broken.pdf", {
+      type: "application/pdf",
+    });
+    const result = await repairPdfDocument(file, new Uint8Array([1, 2, 3]));
+
+    expect(openPdfJsDocumentMock).toHaveBeenCalledTimes(1);
+    expect(openPdfJsDocumentMock).toHaveBeenCalledWith(expect.any(Uint8Array));
+    expect(destroyPdfJsDocumentMock).toHaveBeenCalledTimes(1);
+    expect(result.status).toBe("repaired");
   });
 });

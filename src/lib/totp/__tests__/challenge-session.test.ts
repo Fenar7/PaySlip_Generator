@@ -2,7 +2,11 @@ import { describe, it, expect, beforeEach, vi } from "vitest";
 import {
   signChallengeToken,
   verifyChallengeToken,
+  MFA_SESSION_DURATION_SECONDS,
+  MFA_CHALLENGE_COOKIE,
+  // Legacy aliases should still work
   TOTP_SESSION_DURATION_SECONDS,
+  TOTP_CHALLENGE_COOKIE,
 } from "../challenge-session";
 
 // Set a test secret so the module doesn't throw on missing env
@@ -62,7 +66,7 @@ describe("signChallengeToken / verifyChallengeToken", () => {
     expect(result).toBeNull();
   });
 
-  it("sets expiry to TOTP_SESSION_DURATION_SECONDS from now", () => {
+  it("sets expiry to MFA_SESSION_DURATION_SECONDS from now", () => {
     const before = Math.floor(Date.now() / 1000);
     const token = signChallengeToken(USER_ID);
     const after = Math.floor(Date.now() / 1000);
@@ -72,8 +76,20 @@ describe("signChallengeToken / verifyChallengeToken", () => {
     ) as { exp: number; iat: number; sub: string };
 
     expect(body.sub).toBe(USER_ID);
-    expect(body.exp - body.iat).toBe(TOTP_SESSION_DURATION_SECONDS);
-    expect(body.exp).toBeGreaterThanOrEqual(before + TOTP_SESSION_DURATION_SECONDS);
-    expect(body.exp).toBeLessThanOrEqual(after + TOTP_SESSION_DURATION_SECONDS + 1);
+    expect(body.exp - body.iat).toBe(MFA_SESSION_DURATION_SECONDS);
+    expect(body.exp).toBeGreaterThanOrEqual(before + MFA_SESSION_DURATION_SECONDS);
+    expect(body.exp).toBeLessThanOrEqual(after + MFA_SESSION_DURATION_SECONDS + 1);
+  });
+});
+
+describe("MFA generalized constants", () => {
+  it("MFA_CHALLENGE_COOKIE equals legacy TOTP_CHALLENGE_COOKIE", () => {
+    expect(MFA_CHALLENGE_COOKIE).toBe(TOTP_CHALLENGE_COOKIE);
+    expect(MFA_CHALLENGE_COOKIE).toBe("sw_2fa");
+  });
+
+  it("MFA_SESSION_DURATION_SECONDS equals legacy TOTP_SESSION_DURATION_SECONDS", () => {
+    expect(MFA_SESSION_DURATION_SECONDS).toBe(TOTP_SESSION_DURATION_SECONDS);
+    expect(MFA_SESSION_DURATION_SECONDS).toBe(12 * 60 * 60);
   });
 });

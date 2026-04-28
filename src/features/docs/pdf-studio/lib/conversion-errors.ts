@@ -12,6 +12,7 @@ export type PdfStudioConversionFailureCode =
   | "html_asset_blocked"
   | "html_render_timeout"
   | "storage_error"
+  | "source_unavailable"
   | "conversion_failed";
 
 export class PdfStudioConversionError extends Error {

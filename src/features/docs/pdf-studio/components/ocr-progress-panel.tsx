@@ -1,11 +1,14 @@
 "use client";
 
 import type { ImageItem } from "@/features/docs/pdf-studio/types";
+import { OCR_LANGUAGES } from "@/features/docs/pdf-studio/components/ocr-enhancement-panel";
 import { useMemo } from "react";
 
 type OcrProgressPanelProps = {
   images: ImageItem[];
   isOcrUnavailable?: boolean;
+  language?: string;
+  lowConfidenceThreshold?: number;
   onRetry?: (imageId: string) => void;
   onRetryAll?: () => void;
   onCancelOcr?: () => void;
@@ -20,8 +23,30 @@ function LoadingSpinner() {
   );
 }
 
-export function OcrProgressPanel({ images, isOcrUnavailable, onRetry, onRetryAll, onCancelOcr }: OcrProgressPanelProps) {
-  const { pending, processing, complete, error, cancelled, errorImages, cancelledImages } = useMemo(() => {
+function getLanguageLabel(code: string): string {
+  return OCR_LANGUAGES.find((l) => l.code === code)?.label ?? code;
+}
+
+export function OcrProgressPanel({
+  images,
+  isOcrUnavailable,
+  language = "eng",
+  lowConfidenceThreshold = 70,
+  onRetry,
+  onRetryAll,
+  onCancelOcr,
+}: OcrProgressPanelProps) {
+  const {
+    pending,
+    processing,
+    complete,
+    error,
+    cancelled,
+    errorImages,
+    cancelledImages,
+    lowConfidence,
+    lowConfidenceImages,
+  } = useMemo(() => {
     const counts = {
       pending: 0,
       processing: 0,
@@ -30,12 +55,22 @@ export function OcrProgressPanel({ images, isOcrUnavailable, onRetry, onRetryAll
       cancelled: 0,
       errorImages: [] as ImageItem[],
       cancelledImages: [] as ImageItem[],
+      lowConfidence: 0,
+      lowConfidenceImages: [] as ImageItem[],
     };
     images.forEach((item) => {
       if (item.ocrStatus === "pending") counts.pending++;
       else if (item.ocrStatus === "processing") counts.processing++;
-      else if (item.ocrStatus === "complete") counts.complete++;
-      else if (item.ocrStatus === "error") {
+      else if (item.ocrStatus === "complete") {
+        counts.complete++;
+        if (
+          typeof item.ocrConfidence === "number" &&
+          item.ocrConfidence < lowConfidenceThreshold
+        ) {
+          counts.lowConfidence++;
+          counts.lowConfidenceImages.push(item);
+        }
+      } else if (item.ocrStatus === "error") {
         counts.error++;
         counts.errorImages.push(item);
       } else if (item.ocrStatus === "cancelled") {
@@ -44,12 +79,12 @@ export function OcrProgressPanel({ images, isOcrUnavailable, onRetry, onRetryAll
       }
     });
     return counts;
-  }, [images]);
+  }, [images, lowConfidenceThreshold]);
 
   const total = images.length;
   const inProgress = pending + processing;
-  const retryableCount = error + cancelled;
-  const retryableImages = [...errorImages, ...cancelledImages];
+  const retryableCount = error + cancelled + lowConfidence;
+  const retryableImages = [...errorImages, ...cancelledImages, ...lowConfidenceImages];
 
   // Show unavailable banner regardless of image state
   if (isOcrUnavailable) {
@@ -66,6 +101,8 @@ export function OcrProgressPanel({ images, isOcrUnavailable, onRetry, onRetryAll
   if (total === 0 || (inProgress === 0 && retryableCount === 0)) {
     return null;
   }
+
+  const languageLabel = getLanguageLabel(language);
 
   return (
     <div className="space-y-2">
@@ -91,12 +128,15 @@ export function OcrProgressPanel({ images, isOcrUnavailable, onRetry, onRetryAll
             {complete > 0 && (
               <span className="text-emerald-600">{complete} Complete</span>
             )}
+            {lowConfidence > 0 && (
+              <span className="text-amber-700">{lowConfidence} Low confidence</span>
+            )}
           </div>
         </div>
         <div className="mt-2 flex flex-wrap items-center gap-2">
           {inProgress > 0 && (
             <p className="flex-1 text-[0.72rem] text-[var(--muted-foreground)]">
-              English OCR runs locally in your browser. Large images may take longer.
+              {languageLabel} OCR runs locally in your browser. Large images may take longer.
             </p>
           )}
           {inProgress > 0 && onCancelOcr && (
@@ -111,7 +151,7 @@ export function OcrProgressPanel({ images, isOcrUnavailable, onRetry, onRetryAll
         </div>
       </div>
 
-      {/* Per-image retry for failed / cancelled OCR */}
+      {/* Per-image retry for failed / cancelled / low-confidence OCR */}
       {retryableCount > 0 && (
         <div className="rounded-[1.2rem] border border-red-100 bg-red-50/60 px-4 py-3 text-sm">
           <div className="mb-2 flex items-center justify-between gap-2">
@@ -132,8 +172,13 @@ export function OcrProgressPanel({ images, isOcrUnavailable, onRetry, onRetryAll
             <ul className="space-y-1.5">
               {retryableImages.map((img) => (
                 <li key={img.id} className="flex items-center justify-between gap-2">
-                  <span className="truncate text-[0.78rem] text-red-600" title={img.ocrErrorMessage ?? (img.ocrStatus === "cancelled" ? "OCR was cancelled" : "OCR failed")}>
-                    {img.name} — {img.ocrStatus === "cancelled" ? "Cancelled" : (img.ocrErrorMessage ?? "OCR failed")}
+                  <span className="truncate text-[0.78rem] text-red-600" title={img.ocrErrorMessage ?? (img.ocrStatus === "cancelled" ? "OCR was cancelled" : img.ocrStatus === "complete" ? `Low confidence (${Math.round(img.ocrConfidence ?? 0)}%)` : "OCR failed")}>
+                    {img.name} —{" "}
+                    {img.ocrStatus === "cancelled"
+                      ? "Cancelled"
+                      : img.ocrStatus === "complete"
+                        ? `Low confidence (${Math.round(img.ocrConfidence ?? 0)}%)`
+                        : (img.ocrErrorMessage ?? "OCR failed")}
                   </span>
                   <button
                     type="button"

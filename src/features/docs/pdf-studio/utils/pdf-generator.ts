@@ -1,6 +1,6 @@
 "use client";
 
-import type { ImageItem, PageSettings, WatermarkSettings, PageNumberFormat, WatermarkPosition, PageDimensions } from "@/features/docs/pdf-studio/types";
+import type { ImageItem, PageSettings, WatermarkSettings, PageNumberFormat, WatermarkPosition, PageDimensions, ImagePlacement } from "@/features/docs/pdf-studio/types";
 import {
   getEffectivePageDimensions,
   calculateImagePlacement,
@@ -105,7 +105,7 @@ export async function generatePdfFromImages(
     });
 
     if (settings.enableOcr && item.ocrText) {
-      await embedInvisibleOcrText(page, item.ocrText, pageDimensions, pageNumberFont);
+      await embedInvisibleOcrText(page, item.ocrText, pageDimensions, placement, pageNumberFont);
     }
 
     // Apply watermark using the new enhanced system
@@ -128,49 +128,234 @@ export async function generatePdfFromImages(
 }
 
 /**
+ * Compute a font size for invisible OCR text that scales with the image
+ * placement so it remains indexable without overflowing the image bounds.
+ */
+export function computeOcrFontSize(placementHeight: number): number {
+  return Math.max(6, Math.min(14, placementHeight / 40));
+}
+
+function wrapOcrWord(word: string, font: PDFFont, fontSize: number, maxWidth: number): string[] {
+  if (!word) {
+    return [];
+  }
+
+  if (font.widthOfTextAtSize(word, fontSize) <= maxWidth) {
+    return [word];
+  }
+
+  const parts: string[] = [];
+  let current = "";
+
+  for (const char of word) {
+    const candidate = `${current}${char}`;
+    if (!current || font.widthOfTextAtSize(candidate, fontSize) <= maxWidth) {
+      current = candidate;
+      continue;
+    }
+
+    parts.push(current);
+    current = char;
+  }
+
+  if (current) {
+    parts.push(current);
+  }
+
+  return parts;
+}
+
+export function wrapOcrTextLines(
+  text: string,
+  font: PDFFont,
+  fontSize: number,
+  maxWidth: number,
+): string[] {
+  const wrappedLines: string[] = [];
+
+  for (const rawLine of text.split("\n")) {
+    const line = rawLine.trim();
+    if (!line) {
+      wrappedLines.push("");
+      continue;
+    }
+
+    let currentLine = "";
+    for (const word of line.split(/\s+/)) {
+      const segments = wrapOcrWord(word, font, fontSize, maxWidth);
+
+      for (const segment of segments) {
+        const candidate = currentLine ? `${currentLine} ${segment}` : segment;
+        if (!currentLine || font.widthOfTextAtSize(candidate, fontSize) <= maxWidth) {
+          currentLine = candidate;
+          continue;
+        }
+
+        wrappedLines.push(currentLine);
+        currentLine = segment;
+      }
+    }
+
+    if (currentLine) {
+      wrappedLines.push(currentLine);
+    }
+  }
+
+  return wrappedLines;
+}
+
+export function buildOcrTextLayout(
+  text: string,
+  font: PDFFont,
+  placement: ImagePlacement,
+): { fontSize: number; lineHeight: number; lines: string[] } {
+  const targetFontSize = computeOcrFontSize(placement.height);
+
+  for (let fontSize = targetFontSize; fontSize >= 1; fontSize -= 1) {
+    const lineHeight = Math.max(fontSize * 1.2, fontSize + 0.5);
+    const lines = wrapOcrTextLines(text, font, fontSize, placement.width);
+    if (lines.length * lineHeight <= placement.height) {
+      return { fontSize, lineHeight, lines };
+    }
+  }
+
+  return {
+    fontSize: 1,
+    lineHeight: 1.5,
+    lines: wrapOcrTextLines(text, font, 1, placement.width),
+  };
+}
+
+/**
+ * Draw a single line of OCR text character-by-character so that one
+ * unsupported glyph does not discard the entire page's searchable layer.
+ */
+export function drawOcrLineSafely(
+  page: PDFPage,
+  line: string,
+  startX: number,
+  startY: number,
+  font: PDFFont,
+  fontSize: number,
+  color: import("pdf-lib").RGB,
+  maxWidth: number,
+): void {
+  let x = startX;
+  const y = startY;
+  const spaceWidth = font.widthOfTextAtSize(" ", fontSize);
+
+  // Split into words so we can skip whole words that don't fit
+  const words = line.split(" ");
+
+  for (let wi = 0; wi < words.length; wi++) {
+    const word = words[wi];
+    if (!word) continue;
+
+    const wordWidth = font.widthOfTextAtSize(word, fontSize);
+
+    // Try drawing the whole word at once (fast path)
+    try {
+      if (x + wordWidth <= startX + maxWidth) {
+        page.drawText(word, {
+          x,
+          y,
+          font,
+          size: fontSize,
+          color,
+          opacity: 0,
+        });
+        x += wordWidth;
+      }
+    } catch {
+      // Whole-word failed (mixed scripts) — fall back to character-by-character
+      for (const char of word) {
+        const charWidth = font.widthOfTextAtSize(char, fontSize);
+        if (x + charWidth > startX + maxWidth) break;
+        try {
+          page.drawText(char, {
+            x,
+            y,
+            font,
+            size: fontSize,
+            color,
+            opacity: 0,
+          });
+          x += charWidth;
+        } catch {
+          // Unsupported character — skip silently
+        }
+      }
+    }
+
+    // Add space after word (except last)
+    if (wi < words.length - 1) {
+      x += spaceWidth;
+    }
+  }
+}
+
+/**
  * Embed normalized OCR text as an invisible searchable text layer.
  *
  * Goals:
  * - text must be invisible (opacity 0) but still indexed by PDF readers
- * - text spans the image area at a very small font size so it doesn't overflow
+ * - text is placed within the image placement area, not the page edge
+ * - line breaks from the OCR result are preserved for readable selection
+ * - unsupported characters are skipped gracefully (not the whole page)
  * - empty/whitespace-only text is silently skipped
  *
  * This approach gives "searchable PDF" behavior without attempting
  * bounding-box layout reconstruction (out of scope for v1).
  */
-async function embedInvisibleOcrText(
+export async function embedInvisibleOcrText(
   page: PDFPage,
   ocrText: string,
   pageDimensions: PageDimensions,
+  placement: ImagePlacement,
   font: PDFFont,
 ): Promise<void> {
-  // Normalize and skip empty text
+  // Normalize whitespace but preserve single line breaks
   const normalized = ocrText
-    .replace(/[\r\n]+/g, " ")
-    .replace(/[ \t]{2,}/g, " ")
+    .replace(/\r\n/g, "\n")
+    .replace(/\r/g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .replace(/[ \t]+/g, " ")
     .trim();
 
   if (!normalized) return;
 
   const { rgb } = await import("pdf-lib");
+  const color = rgb(0, 0, 0);
 
-  // Use very small font (1pt) so even long text stays within page bounds
-  const INVISIBLE_FONT_SIZE = 1;
+  const { fontSize, lineHeight, lines } = buildOcrTextLayout(normalized, font, placement);
 
-  try {
-    page.drawText(normalized, {
-      x: 0,
-      y: pageDimensions.heightPt - INVISIBLE_FONT_SIZE,
-      font,
-      size: INVISIBLE_FONT_SIZE,
-      maxWidth: pageDimensions.widthPt,
-      lineHeight: INVISIBLE_FONT_SIZE,
-      color: rgb(0, 0, 0),
-      opacity: 0,
-    });
-  } catch {
-    // If text embedding fails (e.g. unsupported characters), skip silently
-    // to ensure export never fails due to OCR text rendering issues
+  // Place text starting at the top-left of the image placement area.
+  // PDF coordinates: origin is bottom-left, y increases upward.
+  // placement.y is the top offset from the page top, so:
+  //   imageTop    = pageDimensions.heightPt - placement.y
+  //   imageBottom = imageTop - placement.height
+  const imageTop = pageDimensions.heightPt - placement.y;
+  const imageLeft = placement.x;
+  const maxWidth = placement.width;
+
+  let currentY = imageTop - fontSize;
+
+  for (const line of lines) {
+    const trimmedLine = line.trim();
+    if (trimmedLine) {
+      drawOcrLineSafely(
+        page,
+        trimmedLine,
+        imageLeft,
+        currentY,
+        font,
+        fontSize,
+        color,
+        maxWidth,
+      );
+    }
+
+    currentY -= lineHeight;
   }
 }
 

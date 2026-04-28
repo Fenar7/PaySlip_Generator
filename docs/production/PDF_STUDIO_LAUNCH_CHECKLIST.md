@@ -1,40 +1,87 @@
 # PDF Studio Launch Checklist
 
-Use this checklist before calling Phase 34 ready for sign-off.
+**Version:** Phase 38 in progress  
+**Date:** 2026-04-25  
+**Previous version:** Phase 34 checklist (superseded)
 
-## 1. Branch and review stack
+Use this checklist before calling PDF Studio ready for release sign-off. This checklist reflects the current state on `feature/pdf-studio-phase-38`.
 
-| Item | Required state |
-| --- | --- |
-| Sprint 34.1 | Open/merged with batch mode and job history verified |
-| Sprint 34.2 | Open/merged with plan gates, activity panel, and public SEO verified |
-| Sprint 34.3 | Support diagnostics, runbooks, and help content reviewed |
+---
 
-## 2. Operational readiness
+## 1. Sprint Completion Stack
 
-| Item | Required state |
-| --- | --- |
-| Error capture | Worker-backed conversion failures are captured with job/tool context, and browser-first runtime/export failures emit sanitized support telemetry |
-| Failure codes | Job status/history surfaces expose failure codes and recovery guidance for worker-backed tools |
-| Diagnostics surface | `/app/docs/pdf-studio/readiness` distinguishes worker diagnostics from browser-first support coverage |
-| Help content | Help Center includes suite-level PDF Studio recovery guidance plus the worker job guide |
-| Runbook | Support runbook published in `docs/production/PDF_STUDIO_SUPPORT_RUNBOOK.md` |
+| Sprint | Current state |
+|---|---|
+| Sprint 38.1 | ✅ Merged into `feature/pdf-studio-phase-38` — full suite QA matrix with automated invariants and route verification |
+| Sprint 38.2 | ✅ Merged into `feature/pdf-studio-phase-38` — documentation reconciled, runbook current, workflow documented |
+| Sprint 38.3 | Open PR (#195) — release sign-off and production closure |
 
-## 3. Product readiness
+---
 
-| Item | Required state |
-| --- | --- |
-| Recovery paths | Browser-first tools expose the suite recovery path, and worker-backed failures show the job recovery guide plus diagnostics link |
-| Job IDs | Support-facing surfaces preserve job IDs for worker-backed tools only; browser-first support stays telemetry-based and honest about that limit |
-| Public SEO | Public hub/tool pages keep the structured-data and metadata work from Sprint 34.2 |
-| Retention messaging | UI copy matches plan-aware retention behavior |
+## 2. Operational Readiness
 
-## 4. Verification
+| Item | Current state | Evidence |
+|---|---|---|
+| Error capture | ✅ Ready | Worker-backed failures use `PdfStudioConversionFailureCode` with job/tool context; browser-first failures map to `PdfStudioFailureReason` with sanitized hints |
+| Failure codes | ✅ Ready | 15 distinct failure codes in `src/features/docs/pdf-studio/lib/support.ts` with recovery hints |
+| Diagnostics surface | ✅ Ready | `/app/docs/pdf-studio/readiness` page exists; `buildPdfStudioReadinessChecklist` and `buildPdfStudioSupportDiagnostics` implemented |
+| Help content | ✅ Ready | `PDF_STUDIO_SUPPORT_GUIDE` and `PDF_STUDIO_JOB_SUPPORT_GUIDE` defined in `support-links.ts`; referenced throughout UI |
+| Runbook | ✅ Ready | `docs/production/PDF_STUDIO_SUPPORT_RUNBOOK.md` updated to list all 37 tools by lane |
+| QA handbook | ✅ Ready | `docs/PDF studio/pdf-studio-qa-handbook.md` delivered by Sprint 38.1 |
 
-| Command | Must pass |
-| --- | --- |
-| Focused Vitest suite for support/diagnostics helpers and routes | Yes |
-| Focused ESLint on touched PDF Studio files | Yes |
-| Full build | Known unrelated Prisma-client blocker remains documented until fixed outside PDF Studio |
+---
 
-Phase 34 is **not ready** until browser-first recovery guidance, worker diagnostics, help content, and support handoff data are all available together.
+## 3. Product Readiness
+
+| Item | Current state | Evidence |
+|---|---|---|
+| Live tool catalog | ✅ Ready | 37 tools in `PDF_STUDIO_TOOL_REGISTRY` with routes and components |
+| Public/workspace parity | ✅ Ready | Every tool has `publicPath` and `workspacePath`; no hidden routes |
+| Execution mode honesty | ✅ Ready | 30 browser, 5 processing, 2 hybrid; badges and descriptions match registry |
+| Recovery paths | ✅ Ready | Browser-first → suite guide; worker-backed → job guide + diagnostics; hybrid → both |
+| Job IDs | ✅ Ready | Only worker-backed tools expose job IDs; browser-first stays telemetry-based |
+| Public SEO | ✅ Ready | Canonical metadata, OpenGraph, structured data in `route-metadata.ts` |
+| Retention messaging | ✅ Ready | Plan-aware labels in `plan-gates.ts`: free/starter 24h, pro 72h, enterprise 168h |
+| Plan gates | ✅ Ready | Free/workspace/pro tiers correctly gate public interactivity and workspace features |
+
+---
+
+## 4. Verification Commands
+
+| Command | Result |
+|---|---|
+| `npm run test -- src/features/docs/pdf-studio/` | 354 passed, 0 failed (49 files) |
+| Focused ESLint on PDF Studio files | 0 errors, 15 pre-existing warnings |
+| Full build | Fails on pre-existing `Decimal` TS error in `books/reports/export` (unrelated) |
+
+---
+
+## 5. Release Sign-Off Gate
+
+PDF Studio is **not ready for release** until:
+
+- [ ] Sprint 38.3 PR #195 is merged into `feature/pdf-studio-phase-38`
+- [ ] Representative heavy workflows are verified by runtime execution (not just code inspection)
+- [ ] `feature/pdf-studio-phase-38` is merged into `pdf-studio-continuation`
+- [ ] Phase 38 acceptance criteria are satisfied (see PRD section 8.4)
+- [ ] Product, engineering, and QA agree the suite is operationally complete
+
+---
+
+## 6. Manual Route and Support-Path Verification
+
+Verified on `feature/pdf-studio-phase-38-sprint-38-3` by source inspection:
+
+| Path | Source location | Status |
+|---|---|---|
+| `/pdf-studio` | `src/app/pdf-studio/page.tsx` | ✅ Verified |
+| `/pdf-studio/{tool}` | `src/app/pdf-studio/[tool]/page.tsx` | ✅ Verified |
+| `/app/docs/pdf-studio` | `src/app/app/docs/pdf-studio/page.tsx` | ✅ Verified |
+| `/app/docs/pdf-studio/readiness` | `src/app/app/docs/pdf-studio/readiness/page.tsx` | ✅ Verified |
+| `/help/troubleshooting/pdf-studio-support` | `src/features/docs/pdf-studio/lib/support-links.ts` | ✅ Verified |
+| `/help/troubleshooting/pdf-studio-jobs` | `src/features/docs/pdf-studio/lib/support-links.ts` | ✅ Verified |
+
+---
+
+*For suite state, see `docs/PDF studio/pdf-studio-engineering-handoff.md`.*  
+*For support procedures, see `docs/production/PDF_STUDIO_SUPPORT_RUNBOOK.md`.*

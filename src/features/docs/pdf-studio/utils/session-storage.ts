@@ -86,7 +86,14 @@ function sanitizeImages(images: unknown): ImageItem[] {
       sizeBytes: item.sizeBytes,
       // Restore completed OCR state — no file needed to use existing ocrText
       ...(item.ocrStatus === "complete" && typeof item.ocrText === "string" && item.ocrText
-        ? { ocrText: item.ocrText, ocrStatus: "complete" as const }
+        ? {
+            ocrText: item.ocrText,
+            ocrConfidence:
+              typeof item.ocrConfidence === "number"
+                ? Math.max(0, Math.min(100, item.ocrConfidence))
+                : undefined,
+            ocrStatus: "complete" as const,
+          }
         : {}),
     }));
 }
@@ -252,7 +259,7 @@ function sanitizeSettings(settings: unknown): PageSettings {
   };
 }
 
-export function loadPdfStudioSession(scope?: string): PdfStudioSession | null {
+export function loadPdfStudioSession(scope?: string): (PdfStudioSession & { _ocrCompleteCount?: number; _ocrDroppedCount?: number }) | null {
   if (typeof window === "undefined") {
     return null;
   }
@@ -263,13 +270,19 @@ export function loadPdfStudioSession(scope?: string): PdfStudioSession | null {
       return null;
     }
 
-    const rawParsed = JSON.parse(raw) as Partial<PdfStudioSession> & { _hadImageWatermark?: boolean };
+    const rawParsed = JSON.parse(raw) as Partial<PdfStudioSession> & {
+      _hadImageWatermark?: boolean;
+      _ocrCompleteCount?: number;
+      _ocrDroppedCount?: number;
+    };
 
     return {
       images: sanitizeImages(rawParsed.images),
       settings: sanitizeSettings(rawParsed.settings),
       savedAt: typeof rawParsed.savedAt === "string" ? rawParsed.savedAt : new Date().toISOString(),
       watermarkImageCleared: rawParsed._hadImageWatermark === true,
+      _ocrCompleteCount: typeof rawParsed._ocrCompleteCount === "number" ? rawParsed._ocrCompleteCount : undefined,
+      _ocrDroppedCount: typeof rawParsed._ocrDroppedCount === "number" ? rawParsed._ocrDroppedCount : undefined,
     };
   } catch {
     return null;
@@ -299,8 +312,11 @@ export function savePdfStudioSession(images: ImageItem[], settings: PageSettings
     }
   }
 
-  const payload: PdfStudioSession & { _hadImageWatermark?: boolean } = {
-    images: images.map(({ id, previewUrl, rotation, crop, name, sizeBytes, ocrText, ocrStatus }) => ({
+  const ocrCompleteCount = images.filter((img) => img.ocrStatus === "complete" && img.ocrText).length;
+  const ocrDroppedCount = images.filter((img) => img.ocrStatus && img.ocrStatus !== "complete").length;
+
+  const payload: PdfStudioSession & { _hadImageWatermark?: boolean; _ocrCompleteCount?: number; _ocrDroppedCount?: number } = {
+    images: images.map(({ id, previewUrl, rotation, crop, name, sizeBytes, ocrText, ocrConfidence, ocrStatus }) => ({
       id,
       previewUrl,
       rotation,
@@ -308,7 +324,9 @@ export function savePdfStudioSession(images: ImageItem[], settings: PageSettings
       name,
       sizeBytes,
       // Only persist completed OCR — other states require the source file to re-run
-      ...(ocrStatus === "complete" && ocrText ? { ocrText, ocrStatus: "complete" as const } : {}),
+      ...(ocrStatus === "complete" && ocrText
+        ? { ocrText, ocrConfidence, ocrStatus: "complete" as const }
+        : {}),
     })),
     settings: {
       ...settings,
@@ -322,6 +340,8 @@ export function savePdfStudioSession(images: ImageItem[], settings: PageSettings
       },
     },
     _hadImageWatermark: settings.watermark.type === "image" && safeWatermark.type === "none",
+    _ocrCompleteCount: ocrCompleteCount,
+    _ocrDroppedCount: ocrDroppedCount,
     savedAt: new Date().toISOString(),
   };
 
@@ -339,4 +359,128 @@ export function clearPdfStudioSession(scope?: string): void {
   }
 
   window.localStorage.removeItem(scopedSessionStorageKey(scope));
+}
+
+// ───────────────────────────────────────────────────────────────────────────
+// OCR Workspace session storage (separate from main PDF Studio session)
+// ───────────────────────────────────────────────────────────────────────────
+
+export const PDF_STUDIO_OCR_SESSION_STORAGE_KEY = "pdf-studio-ocr-session-v1";
+
+type OcrWorkspaceRestoreCounts = {
+  completeCount: number;
+  rerunRequiredCount: number;
+};
+
+function scopedOcrSessionStorageKey(scope?: string): string {
+  const normalizedScope = scope?.trim().replace(/[^a-zA-Z0-9_-]/g, "_") || "anonymous";
+  return `${PDF_STUDIO_OCR_SESSION_STORAGE_KEY}:${normalizedScope}`;
+}
+
+export type OcrWorkspaceSession = {
+  images: ImageItem[];
+  language?: string;
+  mode?: "fast" | "accurate";
+  confidenceThreshold?: number;
+  restoreCounts?: OcrWorkspaceRestoreCounts;
+  savedAt: string;
+};
+
+function sanitizeOcrImages(images: unknown): ImageItem[] {
+  return sanitizeImages(images).map((img) => ({
+    ...img,
+    // OCR workspace stores full OCR state including text for export
+    ...(img.ocrStatus === "complete" && img.ocrText
+      ? { ocrText: img.ocrText, ocrConfidence: img.ocrConfidence, ocrStatus: "complete" as const }
+      : {}),
+  }));
+}
+
+export function loadOcrWorkspaceSession(scope?: string): OcrWorkspaceSession | null {
+  if (typeof window === "undefined") {
+    return null;
+  }
+
+  try {
+    const raw = window.localStorage.getItem(scopedOcrSessionStorageKey(scope));
+    if (!raw) {
+      return null;
+    }
+
+    const parsed = JSON.parse(raw) as Partial<OcrWorkspaceSession>;
+
+    return {
+      images: sanitizeOcrImages(parsed.images),
+      language: typeof parsed.language === "string" ? parsed.language : undefined,
+      mode: parsed.mode === "fast" || parsed.mode === "accurate" ? parsed.mode : undefined,
+      confidenceThreshold:
+        typeof parsed.confidenceThreshold === "number"
+          ? Math.max(0, Math.min(100, parsed.confidenceThreshold))
+          : undefined,
+      restoreCounts:
+        parsed.restoreCounts &&
+        typeof parsed.restoreCounts === "object" &&
+        typeof parsed.restoreCounts.completeCount === "number" &&
+        typeof parsed.restoreCounts.rerunRequiredCount === "number"
+          ? {
+              completeCount: Math.max(0, Math.round(parsed.restoreCounts.completeCount)),
+              rerunRequiredCount: Math.max(0, Math.round(parsed.restoreCounts.rerunRequiredCount)),
+            }
+          : undefined,
+      savedAt: typeof parsed.savedAt === "string" ? parsed.savedAt : new Date().toISOString(),
+    };
+  } catch {
+    return null;
+  }
+}
+
+export function saveOcrWorkspaceSession(
+  images: ImageItem[],
+  language?: string,
+  mode?: "fast" | "accurate",
+  confidenceThreshold?: number,
+  scope?: string,
+): boolean {
+  if (typeof window === "undefined") {
+    return false;
+  }
+
+  const payload: OcrWorkspaceSession = {
+    images: images.map(({ id, previewUrl, rotation, crop, name, sizeBytes, ocrText, ocrConfidence, ocrStatus }) => ({
+      id,
+      previewUrl,
+      rotation,
+      crop,
+      name,
+      sizeBytes,
+      ...(ocrStatus === "complete" && ocrText
+        ? { ocrText, ocrConfidence, ocrStatus: "complete" as const }
+        : {}),
+    })),
+    language,
+    mode,
+    confidenceThreshold,
+    restoreCounts: {
+      completeCount: images.filter((img) => img.ocrStatus === "complete" && !!img.ocrText).length,
+      rerunRequiredCount: images.filter(
+        (img) => img.ocrStatus === "error" || img.ocrStatus === "cancelled",
+      ).length,
+    },
+    savedAt: new Date().toISOString(),
+  };
+
+  try {
+    window.localStorage.setItem(scopedOcrSessionStorageKey(scope), JSON.stringify(payload));
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export function clearOcrWorkspaceSession(scope?: string): void {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  window.localStorage.removeItem(scopedOcrSessionStorageKey(scope));
 }
