@@ -111,6 +111,7 @@ export default async function PaymentRunsPage({ searchParams }: PaymentRunsPageP
                   "COMPLETED",
                   "FAILED",
                   "CANCELLED",
+                  "REJECTED",
                 ].map((status) => (
                   <option key={status} value={status}>
                     {status.replaceAll("_", " ")}

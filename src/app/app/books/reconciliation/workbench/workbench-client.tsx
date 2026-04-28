@@ -4,7 +4,7 @@ import { useState, useTransition } from "react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import {
   confirmBooksReconciliationMatch,
   rejectBooksReconciliationMatch,
@@ -62,12 +62,10 @@ function formatDate(date: Date | string): string {
 
 function MatchRow({
   match,
-  bankTxnId,
   onConfirm,
   onReject,
 }: {
   match: EnrichedMatch;
-  bankTxnId: string;
   onConfirm: (matchId: string) => void;
   onReject: (matchId: string) => void;
 }) {
@@ -149,10 +147,13 @@ function TxnCard({
   }
 
   function handleConfirm(matchId: string) {
+    const reason = window.prompt("Optional reconciliation note for the audit trail", "") ?? "";
+
     startTransition(async () => {
       const result = await confirmBooksReconciliationMatch({
         bankTransactionId: txn.id,
         matchId,
+        reason: reason.trim() || undefined,
       });
       if (result.success) {
         toast.success("Match confirmed");
@@ -228,7 +229,6 @@ function TxnCard({
                 <MatchRow
                   key={m.matchId}
                   match={m}
-                  bankTxnId={txn.id}
                   onConfirm={handleConfirm}
                   onReject={handleReject}
                 />

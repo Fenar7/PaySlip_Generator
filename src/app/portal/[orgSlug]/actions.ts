@@ -2,6 +2,7 @@
 
 import { redirect } from "next/navigation";
 import { db } from "@/lib/db";
+import { formatIsoDate, toAccountingNumber } from "@/lib/accounting/utils";
 import {
   getPortalSession,
   requestMagicLink,
@@ -81,7 +82,14 @@ export async function getPortalInvoices(orgSlug: string) {
     },
   });
 
-  return invoices;
+  return invoices.map((invoice) => ({
+    ...invoice,
+    invoiceDate: formatIsoDate(invoice.invoiceDate),
+    dueDate: invoice.dueDate ? formatIsoDate(invoice.dueDate) : null,
+    totalAmount: toAccountingNumber(invoice.totalAmount),
+    amountPaid: toAccountingNumber(invoice.amountPaid),
+    remainingAmount: toAccountingNumber(invoice.remainingAmount),
+  }));
 }
 
 // ─── 3. Get Single Invoice Detail (with IDOR check) ───────────────────────────
@@ -167,8 +175,12 @@ export async function generatePortalStatement(
     select: { totalAmount: true, amountPaid: true },
   });
 
-  const totalInvoiced = invoices.reduce((s, i) => s + i.totalAmount, 0);
-  const totalReceived = invoices.reduce((s, i) => s + i.amountPaid, 0);
+  const totalInvoiced = invoices.reduce((sum, invoice) => {
+    return sum + toAccountingNumber(invoice.totalAmount);
+  }, 0);
+  const totalReceived = invoices.reduce((sum, invoice) => {
+    return sum + toAccountingNumber(invoice.amountPaid);
+  }, 0);
 
   // Opening balance: sum of remaining amounts for invoices BEFORE the period
   const olderInvoices = await db.invoice.findMany({
@@ -180,10 +192,9 @@ export async function generatePortalStatement(
     },
     select: { remainingAmount: true },
   });
-  const openingBalance = olderInvoices.reduce(
-    (s, i) => s + i.remainingAmount,
-    0,
-  );
+  const openingBalance = olderInvoices.reduce((sum, invoice) => {
+    return sum + toAccountingNumber(invoice.remainingAmount);
+  }, 0);
   const closingBalance = openingBalance + totalInvoiced - totalReceived;
 
   const statement = await db.customerStatement.create({
@@ -360,7 +371,13 @@ export async function getPortalQuotes(
       action: "list_quotes",
     });
 
-    return { success: true, data: quotes };
+    return {
+      success: true,
+      data: quotes.map((quote) => ({
+        ...quote,
+        totalAmount: toAccountingNumber(quote.totalAmount),
+      })),
+    };
   } catch (err) {
     return { success: false, error: err instanceof Error ? err.message : "Failed to load quotes" };
   }
@@ -406,6 +423,16 @@ export async function getPortalQuoteDetail(orgSlug: string, quoteId: string) {
       success: true as const,
       data: {
         ...quote,
+        subtotal: toAccountingNumber(quote.subtotal),
+        discountAmount: toAccountingNumber(quote.discountAmount),
+        taxAmount: toAccountingNumber(quote.taxAmount),
+        totalAmount: toAccountingNumber(quote.totalAmount),
+        lineItems: quote.lineItems.map((item) => ({
+          ...item,
+          unitPrice: toAccountingNumber(item.unitPrice),
+          taxRate: toAccountingNumber(item.taxRate),
+          amount: toAccountingNumber(item.amount),
+        })),
         canRespond:
           (orgDefaults?.portalQuoteAcceptanceEnabled ?? false) &&
           quote.status === "SENT" &&

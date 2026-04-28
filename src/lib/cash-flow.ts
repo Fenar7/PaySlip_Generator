@@ -1,6 +1,7 @@
 import "server-only";
 
 import { db } from "@/lib/db";
+import { toAccountingNumber } from "@/lib/accounting/utils";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -104,10 +105,10 @@ export async function getCashFlowSnapshot(
   const dsoResult = await calculateDSO(orgId);
 
   return {
-    totalOutstanding: outstandingAgg._sum.remainingAmount || 0,
-    totalOverdue: overdueAgg._sum.remainingAmount || 0,
-    expectedThisMonth: expectedAgg._sum.remainingAmount || 0,
-    receivedThisMonth: receivedAgg._sum.amount || 0,
+    totalOutstanding: toAccountingNumber(outstandingAgg._sum.remainingAmount ?? 0),
+    totalOverdue: toAccountingNumber(overdueAgg._sum.remainingAmount ?? 0),
+    expectedThisMonth: toAccountingNumber(expectedAgg._sum.remainingAmount ?? 0),
+    receivedThisMonth: toAccountingNumber(receivedAgg._sum.amount ?? 0),
     dso: dsoResult.dso,
   };
 }
@@ -168,12 +169,12 @@ export async function calculateDSO(
       }),
     ]);
 
-  const ar = currentAR._sum.remainingAmount || 0;
-  const sales = currentSales._sum.totalAmount || 0;
+  const ar = toAccountingNumber(currentAR._sum.remainingAmount ?? 0);
+  const sales = toAccountingNumber(currentSales._sum.totalAmount ?? 0);
   const dso = sales > 0 ? Math.round((ar / sales) * periodDays) : 0;
 
-  const prevAr = previousAR._sum.remainingAmount || 0;
-  const prevSales = previousSales._sum.totalAmount || 0;
+  const prevAr = toAccountingNumber(previousAR._sum.remainingAmount ?? 0);
+  const prevSales = toAccountingNumber(previousSales._sum.totalAmount ?? 0);
   const previousDso =
     prevSales > 0 ? Math.round((prevAr / prevSales) * periodDays) : 0;
 
@@ -216,7 +217,7 @@ export async function getAgingReport(orgId: string): Promise<AgingBucket[]> {
     if (!inv.dueDate) {
       // No due date → treat as current
       buckets[0].count++;
-      buckets[0].total += inv.remainingAmount;
+      buckets[0].total += toAccountingNumber(inv.remainingAmount);
       continue;
     }
 
@@ -228,7 +229,7 @@ export async function getAgingReport(orgId: string): Promise<AgingBucket[]> {
     );
     if (bucket) {
       bucket.count++;
-      bucket.total += inv.remainingAmount;
+      bucket.total += toAccountingNumber(inv.remainingAmount);
     }
   }
 
@@ -292,7 +293,7 @@ export async function getCustomerHealthSummary(
         name: c.name,
         email: c.email,
         score: c.paymentHealthScore,
-        outstandingAmount: outstanding._sum.remainingAmount || 0,
+        outstandingAmount: toAccountingNumber(outstanding._sum.remainingAmount ?? 0),
       };
     }),
   );
@@ -330,8 +331,8 @@ export async function getCashFlowForecast(
     }),
   ]);
 
-  const invoicedAmount = totalInvoiced._sum.totalAmount || 0;
-  const collectedAmount = totalCollected._sum.amount || 0;
+  const invoicedAmount = toAccountingNumber(totalInvoiced._sum.totalAmount ?? 0);
+  const collectedAmount = toAccountingNumber(totalCollected._sum.amount ?? 0);
   const collectionRate =
     invoicedAmount > 0
       ? Math.min(collectedAmount / invoicedAmount, 1)
@@ -372,8 +373,8 @@ export async function getCashFlowForecast(
       }),
     ]);
 
-    const expectedInflow = invoiceDue._sum.remainingAmount || 0;
-    const arrangementsDue = arrangementInstallments._sum.amount || 0;
+    const expectedInflow = toAccountingNumber(invoiceDue._sum.remainingAmount ?? 0);
+    const arrangementsDue = toAccountingNumber(arrangementInstallments._sum.amount ?? 0);
 
     forecasts.push({
       month: monthLabel,

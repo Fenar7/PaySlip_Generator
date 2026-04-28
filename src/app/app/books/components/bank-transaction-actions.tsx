@@ -68,11 +68,14 @@ export function BankTransactionActions({
       return;
     }
 
+    const reason = window.prompt("Optional reconciliation note for the audit trail", "") ?? "";
+
     startTransition(async () => {
       const result = await confirmBooksReconciliationMatch({
         bankTransactionId: transactionId,
         matchId,
         matchedAmount,
+        reason: reason.trim() || undefined,
       });
 
       if (!result.success) {

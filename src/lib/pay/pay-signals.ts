@@ -6,6 +6,7 @@
 import { db } from "@/lib/db";
 import { upsertInsight } from "@/lib/intel/insights";
 import { InvoiceStatus } from "@/generated/prisma/client";
+import { toAccountingNumber } from "@/lib/accounting/utils";
 
 const UNPAID_STATUSES: InvoiceStatus[] = [
   InvoiceStatus.ISSUED,
@@ -56,19 +57,20 @@ async function checkCriticalOverdue(orgId: string): Promise<void> {
     },
     _sum: { remainingAmount: true },
   });
+  const totalOutstanding = toAccountingNumber(total._sum.remainingAmount ?? 0);
 
   await upsertInsight({
     orgId,
     category: "RECEIVABLES",
     severity: "HIGH",
     title: `${criticalCount} invoices critically overdue (90+ days)`,
-    summary: `₹${Math.round(total._sum.remainingAmount ?? 0).toLocaleString("en-IN")} is outstanding across ${criticalCount} invoices that are more than 90 days past due. Escalate collection efforts.`,
+    summary: `₹${Math.round(totalOutstanding).toLocaleString("en-IN")} is outstanding across ${criticalCount} invoices that are more than 90 days past due. Escalate collection efforts.`,
     sourceType: "RULE",
     sourceRecordType: "invoice_aging",
     recommendedActionType: "ESCALATE_COLLECTIONS",
     assignedRole: "admin",
     dedupeKey: `pay:critical-overdue:${orgId}`,
-    evidence: { count: criticalCount, totalAmount: total._sum.remainingAmount },
+    evidence: { count: criticalCount, totalAmount: totalOutstanding },
   });
 }
 

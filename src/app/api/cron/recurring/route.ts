@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { validateCronSecret, calculateNextRunAt } from "@/lib/cron";
 import { nextDocumentNumber } from "@/lib/docs";
 import type { Prisma } from "@/generated/prisma/client";
+import { parseAccountingDate } from "@/lib/accounting/utils";
 
 export const dynamic = "force-dynamic";
 
@@ -34,13 +35,14 @@ export async function GET(request: Request) {
         const invoiceNumber = await nextDocumentNumber(rule.orgId, "invoice");
         const now = new Date();
         const todayStr = now.toISOString().split("T")[0];
+        const invoiceDate = parseAccountingDate(todayStr);
 
         const newInvoice = await db.invoice.create({
           data: {
             organizationId: rule.orgId,
             customerId: base.customerId,
             invoiceNumber,
-            invoiceDate: todayStr,
+            invoiceDate,
             dueDate: base.dueDate || null,
             status: "DRAFT",
             formData: base.formData as Prisma.InputJsonValue,

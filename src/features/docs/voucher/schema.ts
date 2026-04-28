@@ -3,10 +3,15 @@ import type { VoucherFormValues } from "@/features/docs/voucher/types";
 import { voucherDefaultValues } from "@/features/docs/voucher/constants";
 
 const lineItemSchema = z.object({
-  description: z.string(),
+  description: z.string().trim().min(1, "Line description is required."),
   date: z.string(),
   time: z.string(),
-  amount: z.string(),
+  amount: z
+    .string()
+    .trim()
+    .min(1, "Amount is required.")
+    .refine((value) => Number.isFinite(Number(value)), "Enter a valid amount.")
+    .refine((value) => Number(value) > 0, "Amount must be greater than zero."),
   category: z.string(),
 });
 
@@ -58,30 +63,40 @@ export const voucherExportRequestSchema = z.object({
   document: voucherDocumentSchema,
 });
 
-export const voucherFormSchema = z.object({
-  templateId: z.enum(["minimal-office", "traditional-ledger", "modern-card", "formal-bordered", "compact-receipt"]),
-  voucherType: z.enum(["payment", "receipt"]),
-  branding: brandingSchema,
-  voucherNumber: z.string().trim().min(1, "Voucher number is required."),
-  date: z.string().trim().min(1, "Date is required."),
-  counterpartyName: z.string().trim().min(1, "Counterparty is required."),
-  amount: z
-    .string()
-    .trim()
-    .min(1, "Amount is required.")
-    .refine((value) => Number.isFinite(Number(value)), "Enter a valid amount.")
-    .refine((value) => Number(value) > 0, "Amount must be greater than zero."),
-  paymentMode: z.string().trim(),
-  referenceNumber: z.string().trim(),
-  purpose: z.string().trim().min(1, "Purpose or narration is required."),
-  notes: z.string().trim(),
-  approvedBy: z.string().trim(),
-  receivedBy: z.string().trim(),
-  visibility: visibilitySchema,
-  vendorId: z.string().optional(),
-  isMultiLine: z.boolean().optional(),
-  lineItems: z.array(lineItemSchema).optional(),
-});
+export const voucherFormSchema = z
+  .object({
+    templateId: z.enum(["minimal-office", "traditional-ledger", "modern-card", "formal-bordered", "compact-receipt"]),
+    voucherType: z.enum(["payment", "receipt"]),
+    branding: brandingSchema,
+    voucherNumber: z.string().trim().min(1, "Voucher number is required."),
+    date: z.string().trim().min(1, "Date is required."),
+    counterpartyName: z.string().trim().min(1, "Counterparty is required."),
+    amount: z
+      .string()
+      .trim()
+      .min(1, "Amount is required.")
+      .refine((value) => Number.isFinite(Number(value)), "Enter a valid amount.")
+      .refine((value) => Number(value) > 0, "Amount must be greater than zero."),
+    paymentMode: z.string().trim(),
+    referenceNumber: z.string().trim(),
+    purpose: z.string().trim().min(1, "Purpose or narration is required."),
+    notes: z.string().trim(),
+    approvedBy: z.string().trim(),
+    receivedBy: z.string().trim(),
+    visibility: visibilitySchema,
+    vendorId: z.string().optional(),
+    isMultiLine: z.boolean().optional(),
+    lineItems: z.array(lineItemSchema).optional(),
+  })
+  .superRefine((values, context) => {
+    if (values.isMultiLine && (!values.lineItems || values.lineItems.length === 0)) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["lineItems"],
+        message: "Add at least one voucher line item.",
+      });
+    }
+  });
 
 export type VoucherFormSchema = z.infer<typeof voucherFormSchema>;
 

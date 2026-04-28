@@ -28,6 +28,7 @@ export default async function PaymentRunDetailPage({ params }: PaymentRunDetailP
   }
 
   const run = result.data;
+  const canExportPayoutCsv = ["APPROVED", "PROCESSING", "COMPLETED"].includes(run.status);
 
   return (
     <div className="mx-auto max-w-7xl space-y-6">
@@ -51,7 +52,7 @@ export default async function PaymentRunDetailPage({ params }: PaymentRunDetailP
             report="payment-run-payout"
             filenamePrefix={`payment-run-${run.runNumber.toLowerCase()}`}
             paymentRunId={run.id}
-            disabled={run.items.length === 0}
+            disabled={run.items.length === 0 || !canExportPayoutCsv}
             label="Export Payout CSV"
           />
           <PaymentRunDetailActions paymentRunId={run.id} status={run.status} />
@@ -80,10 +81,10 @@ export default async function PaymentRunDetailPage({ params }: PaymentRunDetailP
         <CardHeader>
           <h2 className="text-lg font-semibold text-slate-900">Batch summary</h2>
           <p className="mt-1 text-sm text-slate-500">
-            Approval state, execution timestamps, and payout notes for this batch.
+            Approval state, rejection context, execution timestamps, and payout notes for this batch.
           </p>
         </CardHeader>
-        <CardContent className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <CardContent className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
           <div>
             <p className="text-xs uppercase tracking-[0.18em] text-slate-500">Requested</p>
             <p className="mt-1 text-sm text-slate-900">{formatBooksDate(run.createdAt)}</p>
@@ -97,10 +98,20 @@ export default async function PaymentRunDetailPage({ params }: PaymentRunDetailP
             <p className="mt-1 text-sm text-slate-900">{formatBooksDate(run.executedAt)}</p>
           </div>
           <div>
+            <p className="text-xs uppercase tracking-[0.18em] text-slate-500">Rejected</p>
+            <p className="mt-1 text-sm text-slate-900">{formatBooksDate(run.rejectedAt)}</p>
+          </div>
+          <div>
             <p className="text-xs uppercase tracking-[0.18em] text-slate-500">Notes</p>
             <p className="mt-1 text-sm text-slate-900">{run.notes || "—"}</p>
           </div>
         </CardContent>
+        {run.rejectionReason && (
+          <CardContent className="border-t border-slate-200 pt-4">
+            <p className="text-xs uppercase tracking-[0.18em] text-slate-500">Rejection reason</p>
+            <p className="mt-1 text-sm text-slate-900">{run.rejectionReason}</p>
+          </CardContent>
+        )}
       </Card>
 
       <Card>
@@ -167,8 +178,11 @@ export default async function PaymentRunDetailPage({ params }: PaymentRunDetailP
 
       <Card>
         <CardHeader>
-          <h2 className="text-lg font-semibold text-slate-900">Executed payments</h2>
-          <p className="mt-1 text-sm text-slate-500">Payout evidence recorded against this run.</p>
+          <h2 className="text-lg font-semibold text-slate-900">Recorded payment entries</h2>
+          <p className="mt-1 text-sm text-slate-500">
+            Internal payout records captured against this run. Bank settlement must still be
+            confirmed separately.
+          </p>
         </CardHeader>
         <CardContent className="px-0 py-0">
           <div className="overflow-x-auto">
@@ -178,13 +192,14 @@ export default async function PaymentRunDetailPage({ params }: PaymentRunDetailP
                   <th className="px-6 py-3">Paid At</th>
                   <th className="px-6 py-3">Amount</th>
                   <th className="px-6 py-3">Method</th>
+                  <th className="px-6 py-3">Status</th>
                   <th className="px-6 py-3">Reference</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200">
                 {run.payments.length === 0 ? (
                   <tr>
-                    <td colSpan={4} className="px-6 py-10 text-center text-sm text-slate-500">
+                    <td colSpan={5} className="px-6 py-10 text-center text-sm text-slate-500">
                       No payments have been executed for this run yet.
                     </td>
                   </tr>
@@ -194,6 +209,7 @@ export default async function PaymentRunDetailPage({ params }: PaymentRunDetailP
                       <td className="px-6 py-4 text-sm text-slate-700">{formatBooksDate(payment.paidAt)}</td>
                       <td className="px-6 py-4 text-sm text-slate-700">{formatBooksMoney(payment.amount)}</td>
                       <td className="px-6 py-4 text-sm text-slate-700">{payment.method ?? "—"}</td>
+                      <td className="px-6 py-4 text-sm text-slate-700">{payment.status}</td>
                       <td className="px-6 py-4 text-sm text-slate-700">
                         {payment.externalReferenceId ?? payment.externalPaymentId ?? "—"}
                       </td>

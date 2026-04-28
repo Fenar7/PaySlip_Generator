@@ -48,8 +48,8 @@ export default async function ClosePage({ searchParams }: ClosePageProps) {
         <div>
           <h1 className="text-2xl font-semibold text-slate-900">Financial Close Center</h1>
           <p className="mt-1 text-sm text-slate-500">
-            Track close blockers, review reconciliations, and reopen periods only through a direct
-            admin action with reason capture and audit logging.
+            Track close blockers, review reconciliations, and route any period reopen through an
+            approval workflow with reason capture and audit logging.
           </p>
         </div>
 

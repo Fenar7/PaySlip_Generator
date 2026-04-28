@@ -2,6 +2,7 @@
 
 import { db } from "@/lib/db";
 import { requireRole } from "@/lib/auth";
+import { formatIsoDate, toAccountingNumber } from "@/lib/accounting/utils";
 import { requireFeature } from "@/lib/plans/enforcement";
 import { logAudit } from "@/lib/audit";
 import {
@@ -43,8 +44,8 @@ export async function generateOptimizationPlanAction(): Promise<
   const billInputs: BillInput[] = bills.map((b) => ({
     vendorBillId: b.id,
     vendorName: b.vendor?.name ?? "Unknown Vendor",
-    amountDue: b.remainingAmount,
-    dueDate: b.dueDate ?? "2099-12-31",
+    amountDue: toAccountingNumber(b.remainingAmount),
+    dueDate: b.dueDate ? formatIsoDate(b.dueDate) : "2099-12-31",
     discountPct: 0,
     discountDeadline: null,
   }));
@@ -54,7 +55,7 @@ export async function generateOptimizationPlanAction(): Promise<
     where: { orgId },
     orderBy: { txnDate: "desc" },
   });
-  const currentBalance = latestTxn?.runningBalance ?? 0;
+  const currentBalance = toAccountingNumber(latestTxn?.runningBalance ?? 0);
 
   // Get projected inflows from latest forecast snapshot
   const latestForecast = await db.forecastSnapshot.findFirst({
@@ -89,8 +90,8 @@ export async function generateOptimizationPlanAction(): Promise<
     },
     _sum: { amount: true },
   });
-  const monthlyOutflow = recentOutflow._sum.amount ?? 0;
-  const liquidityTarget = (Number(monthlyOutflow) * liquidityTargetPct) / 100;
+  const monthlyOutflow = toAccountingNumber(recentOutflow._sum.amount ?? 0);
+  const liquidityTarget = (monthlyOutflow * liquidityTargetPct) / 100;
 
   const plan = computeOptimizationPlan(
     orgId,
@@ -176,7 +177,7 @@ export async function getCustomerBehaviorScoresAction(): Promise<
         invoiceId: inv.id,
         issuedAt: inv.issuedAt ?? inv.createdAt,
         paidAt: firstPayment?.paidAt ?? null,
-        totalAmount: inv.totalAmount,
+        totalAmount: toAccountingNumber(inv.totalAmount),
         daysToPayTerms,
       };
     });
@@ -231,7 +232,7 @@ export async function getDSOAction(): Promise<ActionResult<DSOResult>> {
     },
     _sum: { remainingAmount: true },
   });
-  const accountsReceivable = arResult._sum.remainingAmount ?? 0;
+  const accountsReceivable = toAccountingNumber(arResult._sum.remainingAmount ?? 0);
 
   // Revenue in last 30 days
   const thirtyDaysAgo = new Date();
@@ -244,7 +245,7 @@ export async function getDSOAction(): Promise<ActionResult<DSOResult>> {
     },
     _sum: { amount: true },
   });
-  const revenueInPeriod = revenueResult._sum.amount ?? 0;
+  const revenueInPeriod = toAccountingNumber(revenueResult._sum.amount ?? 0);
 
   return {
     success: true,
@@ -265,7 +266,7 @@ export async function evaluateCashFlowAlertsAction(): Promise<
     where: { orgId },
     orderBy: { txnDate: "desc" },
   });
-  const currentBalance = latestTxn?.runningBalance ?? 0;
+  const currentBalance = toAccountingNumber(latestTxn?.runningBalance ?? 0);
 
   // Monthly outflow for liquidity target
   const thirtyDaysAgo = new Date();
@@ -274,7 +275,7 @@ export async function evaluateCashFlowAlertsAction(): Promise<
     where: { orgId, status: "SETTLED", paidAt: { gte: thirtyDaysAgo } },
     _sum: { amount: true },
   });
-  const monthlyOutflow = Number(recentOutflow._sum.amount ?? 0);
+  const monthlyOutflow = toAccountingNumber(recentOutflow._sum.amount ?? 0);
 
   const alertConfig = await db.cashFlowAlertConfig.findUnique({
     where: { orgId },
@@ -287,7 +288,7 @@ export async function evaluateCashFlowAlertsAction(): Promise<
     where: { orgId, status: "SETTLED", paidAt: { gte: thirtyDaysAgo } },
     _sum: { amount: true },
   });
-  const actualInflow30d = inflowResult._sum.amount ?? 0;
+  const actualInflow30d = toAccountingNumber(inflowResult._sum.amount ?? 0);
 
   // Forecasted inflow
   const latestForecast = await db.forecastSnapshot.findFirst({
@@ -317,8 +318,8 @@ export async function evaluateCashFlowAlertsAction(): Promise<
   const bills = unpaidBills.map((b) => ({
     vendorBillId: b.id,
     vendorName: b.vendor?.name ?? "Unknown",
-    totalAmount: b.remainingAmount,
-    dueDate: b.dueDate ?? "2099-12-31",
+    totalAmount: toAccountingNumber(b.remainingAmount),
+    dueDate: b.dueDate ? formatIsoDate(b.dueDate) : "2099-12-31",
     discountDeadline: null as string | null,
     discountPct: 0,
   }));
@@ -332,7 +333,7 @@ export async function evaluateCashFlowAlertsAction(): Promise<
     },
     _sum: { remainingAmount: true },
   });
-  const ar = arResult._sum.remainingAmount ?? 0;
+  const ar = toAccountingNumber(arResult._sum.remainingAmount ?? 0);
   const revenue30d = actualInflow30d;
   const dsoCurrent = revenue30d > 0 ? (ar / revenue30d) * 30 : 0;
 
@@ -347,7 +348,7 @@ export async function evaluateCashFlowAlertsAction(): Promise<
     },
     _sum: { amount: true },
   });
-  const priorRevenue = priorInflowResult._sum.amount ?? 0;
+  const priorRevenue = toAccountingNumber(priorInflowResult._sum.amount ?? 0);
   const dsoPriorMonth = priorRevenue > 0 ? (ar / priorRevenue) * 30 : 0;
 
   // Days since last payment received

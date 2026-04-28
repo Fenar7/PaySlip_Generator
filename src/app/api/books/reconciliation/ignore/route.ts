@@ -1,6 +1,5 @@
 import { NextRequest } from "next/server";
 import { ignoreBankTransaction } from "@/lib/accounting";
-import { logAudit } from "@/lib/audit";
 import {
   BooksApiError,
   BooksApiErrorCode,
@@ -33,14 +32,6 @@ export async function POST(request: NextRequest) {
       orgId,
       actorId: userId,
       bankTransactionId,
-    });
-
-    await logAudit({
-      orgId,
-      actorId: userId,
-      action: "books.reconciliation_ignored",
-      entityType: "BankTransaction",
-      entityId: bankTransactionId,
     });
 
     return booksApiResponse({ id: bankTransactionId });

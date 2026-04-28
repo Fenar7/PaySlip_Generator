@@ -14,6 +14,7 @@ import { buildOptOutUrl } from "@/lib/dunning-opt-out";
 import { createInvoicePaymentLink } from "@/lib/payment-links";
 import { createNotification } from "@/lib/notifications";
 import { logAudit } from "@/lib/audit";
+import { toAccountingNumber } from "@/lib/accounting/utils";
 
 // ─── Types ──────────────────────────────────────────────────────────────────────
 
@@ -224,12 +225,15 @@ export async function fireDunningStep(params: FireStepParams): Promise<void> {
   const payNowLink = await resolvePaymentLink(invoice);
 
   const orgDefaults = invoice.organization.defaults;
+  const invoiceTotalAmount = toAccountingNumber(invoice.totalAmount);
+  const invoiceRemainingAmount = toAccountingNumber(invoice.remainingAmount);
+  const invoiceAmountPaid = toAccountingNumber(invoice.amountPaid);
   const templateVars: DunningTemplateVars = {
     customer_name: invoice.customer!.name,
     invoice_number: invoice.invoiceNumber,
-    invoice_amount: formatIndianCurrency(invoice.totalAmount),
-    amount_due: formatIndianCurrency(invoice.remainingAmount),
-    amount_paid: formatIndianCurrency(invoice.amountPaid),
+    invoice_amount: formatIndianCurrency(invoiceTotalAmount),
+    amount_due: formatIndianCurrency(invoiceRemainingAmount),
+    amount_paid: formatIndianCurrency(invoiceAmountPaid),
     due_date: formatDateIndian(invoice.dueDate!),
     days_overdue: daysOverdue,
     pay_now_link: payNowLink,
@@ -271,7 +275,7 @@ export async function fireDunningStep(params: FireStepParams): Promise<void> {
           orgId: invoice.organizationId,
           type: "dunning.escalation",
           title: `Dunning escalation: ${invoice.invoiceNumber}`,
-          body: `Invoice ${invoice.invoiceNumber} (${formatIndianCurrency(invoice.remainingAmount)} outstanding) is ${daysOverdue} days overdue. Step ${step.stepNumber} of "${sequence.name}" has been sent.`,
+          body: `Invoice ${invoice.invoiceNumber} (${formatIndianCurrency(invoiceRemainingAmount)} outstanding) is ${daysOverdue} days overdue. Step ${step.stepNumber} of "${sequence.name}" has been sent.`,
           link: `/invoices/${invoice.id}`,
         });
       }
@@ -367,6 +371,7 @@ async function sendDunningSms(
   sequence: FireStepParams["sequence"],
   vars: DunningTemplateVars
 ): Promise<void> {
+  const invoiceRemainingAmount = toAccountingNumber(invoice.remainingAmount);
   const customerPhone = invoice.customer?.phone;
   if (!customerPhone) {
     await db.dunningLog.create({
@@ -386,7 +391,7 @@ async function sendDunningSms(
 
   const smsText = step.smsBody
     ? renderDunningTemplate(step.smsBody, vars)
-    : `Invoice ${invoice.invoiceNumber} (${formatIndianCurrency(invoice.remainingAmount)}) from ${invoice.organization.name} is overdue. Pay: ${vars.pay_now_link}`;
+    : `Invoice ${invoice.invoiceNumber} (${formatIndianCurrency(invoiceRemainingAmount)}) from ${invoice.organization.name} is overdue. Pay: ${vars.pay_now_link}`;
 
   const smsResult = await sendSms({
     phone: customerPhone,
@@ -395,7 +400,7 @@ async function sendDunningSms(
     templateVars: step.smsTemplateId
       ? {
           invoice_number: invoice.invoiceNumber,
-          amount_due: formatIndianCurrency(invoice.remainingAmount),
+          amount_due: formatIndianCurrency(invoiceRemainingAmount),
           pay_now_link: vars.pay_now_link,
           org_name: invoice.organization.name,
         }
@@ -534,22 +539,25 @@ export async function retryFailedSteps(): Promise<{
 
       result.retried++;
 
-      const dueDate = log.invoice.dueDate
-        ? new Date(log.invoice.dueDate)
-        : null;
+        const dueDate = log.invoice.dueDate
+          ? new Date(log.invoice.dueDate)
+          : null;
       const daysOverdue = dueDate
         ? Math.floor((Date.now() - dueDate.getTime()) / MS_PER_DAY)
         : 0;
 
       const payNowLink = await resolvePaymentLink(log.invoice);
       const orgDefaults = log.invoice.organization.defaults;
+      const invoiceTotalAmount = toAccountingNumber(log.invoice.totalAmount);
+      const invoiceRemainingAmount = toAccountingNumber(log.invoice.remainingAmount);
+      const invoiceAmountPaid = toAccountingNumber(log.invoice.amountPaid);
 
       const vars: DunningTemplateVars = {
         customer_name: log.invoice.customer.name,
         invoice_number: log.invoice.invoiceNumber,
-        invoice_amount: formatIndianCurrency(log.invoice.totalAmount),
-        amount_due: formatIndianCurrency(log.invoice.remainingAmount),
-        amount_paid: formatIndianCurrency(log.invoice.amountPaid),
+        invoice_amount: formatIndianCurrency(invoiceTotalAmount),
+        amount_due: formatIndianCurrency(invoiceRemainingAmount),
+        amount_paid: formatIndianCurrency(invoiceAmountPaid),
         due_date: log.invoice.dueDate
           ? formatDateIndian(log.invoice.dueDate)
           : "",
@@ -586,7 +594,7 @@ export async function retryFailedSteps(): Promise<{
         if (customerPhone) {
           const smsText = step.smsBody
             ? renderDunningTemplate(step.smsBody, vars)
-            : `Invoice ${log.invoice.invoiceNumber} (${formatIndianCurrency(log.invoice.remainingAmount)}) from ${log.invoice.organization.name} is overdue. Pay: ${vars.pay_now_link}`;
+            : `Invoice ${log.invoice.invoiceNumber} (${formatIndianCurrency(invoiceRemainingAmount)}) from ${log.invoice.organization.name} is overdue. Pay: ${vars.pay_now_link}`;
           const smsResult = await sendSms({
             phone: customerPhone,
             message: smsText,

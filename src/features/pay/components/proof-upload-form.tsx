@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useRef, type FormEvent } from "react";
+import { useState, useRef, type ChangeEvent, type FormEvent } from "react";
+import { useRouter } from "next/navigation";
 import { MAX_PAYMENT_PROOF_BYTES } from "@/features/pay/lib/payment-proof";
 
 const PAYMENT_METHODS = [
@@ -20,6 +21,7 @@ export function ProofUploadForm({
   invoiceTotal: number;
   remainingAmount?: number;
 }) {
+  const router = useRouter();
   const effectiveMax = remainingAmount !== undefined && remainingAmount > 0 ? remainingAmount : invoiceTotal;
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
@@ -37,6 +39,9 @@ export function ProofUploadForm({
     if (amount > effectiveMax) errs.amount = `Amount cannot exceed the remaining balance (${new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", minimumFractionDigits: 0 }).format(effectiveMax)})`;
     if (!form.get("paymentDate")) errs.paymentDate = "Select a payment date";
     if (!form.get("paymentMethod")) errs.paymentMethod = "Select a payment method";
+    if (amount > 0 && amount < effectiveMax && !String(form.get("plannedNextPaymentDate") ?? "").trim()) {
+      errs.plannedNextPaymentDate = "Select the next payment date for a partial payment";
+    }
     if (!selectedFile) errs.file = "Upload a proof file";
     if (selectedFile && selectedFile.size > MAX_PAYMENT_PROOF_BYTES) errs.file = "File must be under 5MB";
     return errs;
@@ -63,6 +68,10 @@ export function ProofUploadForm({
       if (response.ok && result.success) {
         setSuccess(true);
         setSelectedFile(null);
+        if (fileRef.current) {
+          fileRef.current.value = "";
+        }
+        router.refresh();
       } else {
         setErrors({ form: result.error ?? "Failed to upload payment proof." });
       }
@@ -73,7 +82,7 @@ export function ProofUploadForm({
     }
   }
 
-  function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+  function handleFileChange(e: ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0] ?? null;
     if (file && file.size > MAX_PAYMENT_PROOF_BYTES) {
       setErrors((prev) => ({ ...prev, file: "File must be under 5MB" }));
@@ -84,6 +93,18 @@ export function ProofUploadForm({
     setErrors((prev) => {
       const next = { ...prev };
       delete next.file;
+      return next;
+    });
+  }
+
+  function handleAmountChange(e: ChangeEvent<HTMLInputElement>) {
+    const nextAmount = Number(e.target.value);
+    setAmountEntered(nextAmount);
+    setErrors((prev) => {
+      const next = { ...prev };
+      delete next.amount;
+      delete next.form;
+      delete next.plannedNextPaymentDate;
       return next;
     });
   }
@@ -103,7 +124,7 @@ export function ProofUploadForm({
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-5">
+    <form onSubmit={handleSubmit} noValidate className="space-y-5">
       {errors.form && (
         <div className="rounded-lg bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700">
           {errors.form}
@@ -124,7 +145,7 @@ export function ProofUploadForm({
             min="0.01"
             max={effectiveMax}
             defaultValue={effectiveMax}
-            onChange={(e) => setAmountEntered(Number(e.target.value))}
+            onChange={handleAmountChange}
             className={`w-full rounded-lg border px-3 py-2 text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 ${
               errors.amount ? "border-red-300" : "border-slate-200"
             }`}
@@ -184,8 +205,13 @@ export function ProofUploadForm({
             id="plannedNextPaymentDate"
             name="plannedNextPaymentDate"
             min={new Date().toISOString().split("T")[0]}
-            className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className={`w-full rounded-lg border px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+              errors.plannedNextPaymentDate ? "border-red-300" : "border-slate-200"
+            }`}
           />
+          {errors.plannedNextPaymentDate && (
+            <p className="mt-1 text-xs text-red-600">{errors.plannedNextPaymentDate}</p>
+          )}
         </div>
       )}
 

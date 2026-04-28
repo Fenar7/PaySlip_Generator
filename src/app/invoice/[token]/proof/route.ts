@@ -3,10 +3,12 @@ import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
 import { isUploadedFile } from "@/lib/server/form-data";
 import { deleteFileServer } from "@/lib/storage/upload-server";
+import { notifyOrgAdmins } from "@/lib/notifications";
 import {
   validatePaymentProofFile,
 } from "@/features/pay/lib/payment-proof";
 import { uploadPaymentProofFile } from "@/features/pay/server/payment-proof-storage";
+import { resolvePublicInvoicePaymentProofEligibility } from "../payment-proof-eligibility";
 
 const PAYMENT_METHODS = new Set(["bank_transfer", "upi", "cash", "cheque", "other"]);
 
@@ -62,7 +64,9 @@ export async function POST(
         invoice: {
           select: {
             id: true,
+            invoiceNumber: true,
             totalAmount: true,
+            amountPaid: true,
             remainingAmount: true,
             status: true,
             organizationId: true,
@@ -80,22 +84,28 @@ export async function POST(
     }
 
     const invoice = tokenRecord.invoice;
-    if (invoice.status === "CANCELLED" || invoice.status === "DISPUTED") {
-      return errorResponse(`Cannot upload proof for a ${invoice.status.toLowerCase()} invoice.`, 409);
-    }
-
-    if (invoice.status === "PAID" || invoice.remainingAmount <= 0) {
-      return errorResponse("This invoice no longer accepts payment proofs.", 409);
-    }
-
-    if (amount > invoice.remainingAmount + 0.01) {
+    const paymentProof = await resolvePublicInvoicePaymentProofEligibility({
+      id: invoice.id,
+      status: invoice.status,
+      totalAmount: invoice.totalAmount,
+      amountPaid: invoice.amountPaid,
+      remainingAmount: invoice.remainingAmount,
+    });
+    if (!paymentProof.canUpload) {
       return errorResponse(
-        `Amount exceeds the remaining balance of ${invoice.remainingAmount.toFixed(2)}.`,
+        paymentProof.blockedReason ?? "This invoice no longer accepts payment proofs.",
+        409
+      );
+    }
+
+    if (amount > paymentProof.remainingAmount + 0.01) {
+      return errorResponse(
+        `Amount exceeds the remaining balance of ${paymentProof.remainingAmount.toFixed(2)}.`,
         400,
       );
     }
 
-    const isPartial = amount < invoice.remainingAmount - 0.01;
+    const isPartial = amount < paymentProof.remainingAmount - 0.01;
     if (isPartial) {
       if (!plannedNextPaymentDate) {
         return errorResponse("A planned next payment date is required for partial payments.", 400);
@@ -168,6 +178,17 @@ export async function POST(
 
     revalidatePath(`/invoice/${token}`);
     revalidatePath("/app/pay/proofs");
+    revalidatePath("/app/docs/invoices");
+
+    await notifyOrgAdmins({
+      orgId: invoice.organizationId,
+      type: "proof_uploaded",
+      title: "New payment proof submitted",
+      body: `A payment proof was submitted for invoice ${invoice.invoiceNumber}.`,
+      link: `/app/pay/proofs/${proof.id}`,
+    }).catch((error) => {
+      console.error("public proof upload notification error:", error);
+    });
 
     return NextResponse.json({
       success: true,

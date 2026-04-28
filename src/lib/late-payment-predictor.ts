@@ -1,6 +1,7 @@
 import "server-only";
 
 import { db } from "@/lib/db";
+import { toAccountingNumber } from "@/lib/accounting/utils";
 
 export interface PaymentHistoryResult {
   customerId: string;
@@ -75,7 +76,7 @@ export async function getPaymentHistory(
   let paidInvoices = 0;
 
   for (const inv of invoices) {
-    totalPaid += inv.totalAmount;
+    totalPaid += toAccountingNumber(inv.totalAmount);
 
     if (inv.paidAt) {
       paidInvoices++;

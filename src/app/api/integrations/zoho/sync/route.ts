@@ -1,15 +1,15 @@
 import { NextResponse } from "next/server";
-import { getOrgContext } from "@/lib/auth";
 import { syncInvoices } from "@/lib/integrations/zoho";
+import { requireIntegrationAdminRoute } from "../../_auth";
 
 export async function POST() {
   try {
-    const ctx = await getOrgContext();
-    if (!ctx) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const auth = await requireIntegrationAdminRoute();
+    if (!auth.ok) {
+      return auth.response;
     }
 
-    const result = await syncInvoices(ctx.orgId);
+    const result = await syncInvoices(auth.ctx.orgId);
     return NextResponse.json(result);
   } catch (error) {
     console.error("Zoho sync failed:", error);

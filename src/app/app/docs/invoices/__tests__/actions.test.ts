@@ -6,6 +6,8 @@ vi.mock("@/lib/db", () => ({
     invoice: {
       findFirst: vi.fn(),
       findUnique: vi.fn(),
+      findMany: vi.fn(),
+      count: vi.fn(),
       update: vi.fn(),
       create: vi.fn(),
     },
@@ -37,7 +39,7 @@ vi.mock("@/lib/docs", () => ({
 
 vi.mock("@/lib/prisma-errors", () => ({
   getSchemaDriftActionMessage: vi.fn(),
-  isModelMissingTableError: vi.fn().mockReturnValue(false),
+  isSchemaDriftError: vi.fn().mockReturnValue(false),
 }));
 
 vi.mock("next/cache", () => ({
@@ -59,6 +61,14 @@ vi.mock("@/lib/docs-vault", () => ({
   syncInvoiceToIndex: vi.fn().mockResolvedValue(undefined),
 }));
 
+vi.mock("@/lib/flow/workflow-engine", () => ({
+  fireWorkflowTrigger: vi.fn().mockResolvedValue(undefined),
+}));
+
+vi.mock("@/lib/usage-metering", () => ({
+  checkUsageLimit: vi.fn(),
+}));
+
 vi.mock("@/lib/inventory/stock-events", () => ({
   getOutboundUnitCostTx: vi.fn().mockResolvedValue(125),
   recordStockEventTx: vi.fn().mockResolvedValue(undefined),
@@ -69,7 +79,8 @@ import { db } from "@/lib/db";
 import { nextDocumentNumber } from "@/lib/docs";
 import { reverseJournalEntryTx } from "@/lib/accounting";
 import { recordStockEventTx } from "@/lib/inventory/stock-events";
-import { cancelInvoice, reissueInvoice } from "../actions";
+import { checkUsageLimit } from "@/lib/usage-metering";
+import { cancelInvoice, listInvoices, reissueInvoice, saveInvoice } from "../actions";
 
 const ORG_ID = "org-1";
 const USER_ID = "user-1";
@@ -87,6 +98,93 @@ describe("invoice accounting transitions", () => {
       userId: USER_ID,
       role: "admin",
     });
+    vi.mocked(checkUsageLimit).mockResolvedValue({
+      allowed: true,
+      current: 0,
+      limit: 999,
+    });
+  });
+
+  it("normalizes date-only strings before creating an invoice", async () => {
+    vi.mocked(nextDocumentNumber).mockResolvedValue("INV-001");
+    vi.mocked(db.invoice.create).mockResolvedValue({
+      id: "inv-1",
+      invoiceNumber: "INV-001",
+      status: "DRAFT",
+      customerId: null,
+      totalAmount: 1000,
+    } as any);
+
+    const result = await saveInvoice(
+      {
+        invoiceDate: "2026-04-23",
+        dueDate: "2026-05-07",
+        formData: { source: "test" },
+        lineItems: [
+          {
+            description: "Consulting",
+            quantity: 1,
+            unitPrice: 1000,
+            taxRate: 0,
+            discount: 0,
+          },
+        ],
+      },
+      "DRAFT",
+    );
+
+    expect(result.success).toBe(true);
+    expect(db.invoice.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        invoiceDate: expect.any(Date),
+        dueDate: expect.any(Date),
+      }),
+    });
+  });
+
+  it("loads pending proof and active ticket activity for invoice vault rows", async () => {
+    vi.mocked(db.invoice.findMany).mockResolvedValue([
+      {
+        id: "inv-1",
+        invoiceNumber: "INV-001",
+        status: "VIEWED",
+        invoiceDate: new Date("2026-03-26T00:00:00Z"),
+        dueDate: new Date("2026-04-02T00:00:00Z"),
+        totalAmount: 53100,
+        customer: { name: "Axis PeopleX" },
+        publicTokens: [{ token: "pub-1" }],
+        proofs: [{ id: "proof-1", createdAt: new Date("2026-04-23T10:00:00Z") }],
+        tickets: [
+          {
+            id: "ticket-1",
+            status: "OPEN",
+            category: "BILLING_QUERY",
+            createdAt: new Date("2026-04-23T11:00:00Z"),
+          },
+        ],
+      },
+    ] as any);
+    vi.mocked(db.invoice.count).mockResolvedValue(1);
+
+    const result = await listInvoices({ page: 1, limit: 20 });
+
+    expect(result.invoices).toHaveLength(1);
+    expect(db.invoice.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        include: expect.objectContaining({
+          proofs: expect.objectContaining({
+            where: { reviewStatus: "PENDING" },
+            take: 2,
+          }),
+          tickets: expect.objectContaining({
+            where: { status: { in: ["OPEN", "IN_PROGRESS"] } },
+            take: 2,
+          }),
+        }),
+      }),
+    );
+    expect(result.invoices[0]?.proofs?.[0]?.id).toBe("proof-1");
+    expect(result.invoices[0]?.tickets?.[0]?.id).toBe("ticket-1");
   });
 
   it("reverses the posted issue journal when cancelling an unpaid posted invoice", async () => {

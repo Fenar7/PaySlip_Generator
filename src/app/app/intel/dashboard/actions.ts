@@ -2,6 +2,7 @@
 
 import { db } from "@/lib/db";
 import { requireOrgContext } from "@/lib/auth";
+import { toAccountingNumber } from "@/lib/accounting/utils";
 
 // ── Types ──────────────────────────────────────────────────────────────
 
@@ -206,25 +207,25 @@ export async function getDashboardKPIs(
     ]);
 
     return {
-      success: true,
-      data: {
-        pay: {
-          invoicesIssued,
-          totalDue: totalDue._sum.totalAmount ?? 0,
-          overdue: overdue._sum.totalAmount ?? 0,
-          paidThisMonth: paidThisMonth._sum.totalAmount ?? 0,
+        success: true,
+        data: {
+          pay: {
+            invoicesIssued,
+            totalDue: toAccountingNumber(totalDue._sum.totalAmount ?? 0),
+            overdue: toAccountingNumber(overdue._sum.totalAmount ?? 0),
+            paidThisMonth: toAccountingNumber(paidThisMonth._sum.totalAmount ?? 0),
+          },
+          voucher: {
+            voucherSpend: toAccountingNumber(voucherSpend._sum.totalAmount ?? 0),
+            voucherCount,
+            receiptTotal: toAccountingNumber(receiptTotal._sum.totalAmount ?? 0),
+          },
+          salary: {
+            pendingTotal: toAccountingNumber(pendingTotal._sum.netPay ?? 0),
+            released: toAccountingNumber(released._sum.netPay ?? 0),
+            headcount: headcount.length,
+          },
         },
-        voucher: {
-          voucherSpend: voucherSpend._sum.totalAmount ?? 0,
-          voucherCount,
-          receiptTotal: receiptTotal._sum.totalAmount ?? 0,
-        },
-        salary: {
-          pendingTotal: pendingTotal._sum.netPay ?? 0,
-          released: released._sum.netPay ?? 0,
-          headcount: headcount.length,
-        },
-      },
     };
   } catch (error) {
     console.error("[getDashboardKPIs]", error);
@@ -273,8 +274,8 @@ export async function getRevenueTrendData(): Promise<
             _sum: { totalAmount: true },
           }),
         ]).then(([invoiced, paid]) => {
-          months[idx].invoiced = invoiced._sum.totalAmount ?? 0;
-          months[idx].paid = paid._sum.totalAmount ?? 0;
+          months[idx].invoiced = toAccountingNumber(invoiced._sum.totalAmount ?? 0);
+          months[idx].paid = toAccountingNumber(paid._sum.totalAmount ?? 0);
         })
       );
     }

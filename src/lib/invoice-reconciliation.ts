@@ -1,6 +1,7 @@
 import "server-only";
 import { db } from "@/lib/db";
 import type { Prisma } from "@/generated/prisma/client";
+import { toAccountingNumber } from "@/lib/accounting/utils";
 import { fromMinorUnits, sumMinorUnits, toMinorUnits } from "@/lib/money";
 
 // ─── Invoice Reconciliation Service ──────────────────────────────────────────
@@ -62,8 +63,11 @@ export async function reconcileInvoicePayment(
   });
 
   // Compute settled totals
-  const amountPaidMinor = sumMinorUnits(invoice.payments.map((payment) => payment.amount));
-  const totalAmountMinor = toMinorUnits(invoice.totalAmount);
+  const amountPaidMinor = sumMinorUnits(
+    invoice.payments.map((payment) => toAccountingNumber(payment.amount)),
+  );
+  const totalAmount = toAccountingNumber(invoice.totalAmount);
+  const totalAmountMinor = toMinorUnits(totalAmount);
   const remainingAmountMinor = Math.max(totalAmountMinor - amountPaidMinor, 0);
   const amountPaid = fromMinorUnits(amountPaidMinor);
   const remainingAmount = fromMinorUnits(remainingAmountMinor);
@@ -133,7 +137,7 @@ export async function reconcileInvoicePayment(
         metadata: {
           amountPaid,
           remainingAmount,
-          totalAmount: invoice.totalAmount,
+          totalAmount,
         } as Prisma.InputJsonValue,
       },
     });
@@ -173,19 +177,24 @@ export async function validatePaymentAmount(
   }
 
   if (amount <= 0) {
-    return { valid: false, remaining: invoice.remainingAmount, error: "Amount must be greater than zero" };
+    return {
+      valid: false,
+      remaining: toAccountingNumber(invoice.remainingAmount),
+      error: "Amount must be greater than zero",
+    };
   }
 
   const amountMinor = toMinorUnits(amount);
-  const remainingMinor = toMinorUnits(invoice.remainingAmount);
+  const remainingAmount = toAccountingNumber(invoice.remainingAmount);
+  const remainingMinor = toMinorUnits(remainingAmount);
 
   if (amountMinor > remainingMinor) {
     return {
       valid: false,
-      remaining: invoice.remainingAmount,
-      error: `Amount (${amount}) exceeds remaining balance (${invoice.remainingAmount.toFixed(2)})`,
+      remaining: remainingAmount,
+      error: `Amount (${amount}) exceeds remaining balance (${remainingAmount.toFixed(2)})`,
     };
   }
 
-  return { valid: true, remaining: invoice.remainingAmount };
+  return { valid: true, remaining: remainingAmount };
 }

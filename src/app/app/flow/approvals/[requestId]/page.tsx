@@ -19,6 +19,7 @@ const DOC_TYPE_BADGE: Record<string, string> = {
   "salary-slip": "bg-green-100 text-green-700",
   "vendor-bill": "bg-purple-100 text-purple-700",
   "payment-run": "bg-indigo-100 text-indigo-700",
+  "fiscal-period-reopen": "bg-rose-100 text-rose-700",
 };
 
 function docTypeLabel(docType: string): string {
@@ -33,6 +34,8 @@ function docTypeLabel(docType: string): string {
       return "Vendor Bill";
     case "payment-run":
       return "Payment Run";
+    case "fiscal-period-reopen":
+      return "Fiscal Period Reopen";
     default:
       return docType;
   }
@@ -179,6 +182,13 @@ export default async function ApprovalDetailPage({ params }: PageProps) {
             </dl>
           </div>
 
+          {detail.docType === "fiscal-period-reopen" && detail.note && (
+            <div className="rounded-xl border border-amber-200 bg-amber-50 p-6">
+              <h3 className="mb-4 text-lg font-semibold text-amber-900">Reopen reason</h3>
+              <p className="text-sm text-amber-950">{detail.note}</p>
+            </div>
+          )}
+
           {/* Document Summary */}
           {detail.document && (
             <div className="rounded-xl border border-slate-200 bg-white p-6">
@@ -194,9 +204,11 @@ export default async function ApprovalDetailPage({ params }: PageProps) {
                         ? "Voucher Number"
                         : detail.docType === "vendor-bill"
                           ? "Bill Number"
-                          : detail.docType === "payment-run"
+                      : detail.docType === "payment-run"
                             ? "Run Number"
-                            : "Slip Number"}
+                            : detail.docType === "fiscal-period-reopen"
+                              ? "Period Label"
+                             : "Slip Number"}
                   </dt>
                   <dd className="mt-1 text-sm font-medium text-slate-900">
                     {detail.document.number}
@@ -210,22 +222,26 @@ export default async function ApprovalDetailPage({ params }: PageProps) {
                         ? "Vendor"
                         : detail.docType === "vendor-bill"
                           ? "Vendor"
-                          : detail.docType === "payment-run"
-                            ? "Payment Run"
-                            : "Employee"}
+                      : detail.docType === "payment-run"
+                             ? "Payment Run"
+                             : detail.docType === "fiscal-period-reopen"
+                               ? "Workflow"
+                             : "Employee"}
                   </dt>
                   <dd className="mt-1 text-sm text-slate-900">
                     {detail.document.entityName ?? "—"}
                   </dd>
                 </div>
-                <div>
-                  <dt className="text-xs font-medium uppercase tracking-wider text-slate-500">
-                    {detail.docType === "salary-slip" ? "Net Pay" : detail.docType === "payment-run" ? "Total Amount" : "Amount"}
-                  </dt>
-                  <dd className="mt-1 text-sm font-medium text-slate-900">
-                    {formatCurrency(detail.document.amount)}
-                  </dd>
-                </div>
+                {detail.docType !== "fiscal-period-reopen" && (
+                  <div>
+                    <dt className="text-xs font-medium uppercase tracking-wider text-slate-500">
+                      {detail.docType === "salary-slip" ? "Net Pay" : detail.docType === "payment-run" ? "Total Amount" : "Amount"}
+                    </dt>
+                    <dd className="mt-1 text-sm font-medium text-slate-900">
+                      {formatCurrency(detail.document.amount)}
+                    </dd>
+                  </div>
+                )}
                 <div>
                   <dt className="text-xs font-medium uppercase tracking-wider text-slate-500">
                     {detail.docType === "salary-slip"
@@ -241,6 +257,60 @@ export default async function ApprovalDetailPage({ params }: PageProps) {
                   </dd>
                 </div>
               </dl>
+            </div>
+          )}
+
+          {detail.reopenImpact && (
+            <div className="rounded-xl border border-slate-200 bg-white p-6">
+              <h3 className="mb-4 text-lg font-semibold text-slate-900">Reopen impact</h3>
+              <dl className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <div>
+                  <dt className="text-xs font-medium uppercase tracking-wider text-slate-500">Journals in period</dt>
+                  <dd className="mt-1 text-sm font-medium text-slate-900">{detail.reopenImpact.journalCount}</dd>
+                </div>
+                <div>
+                  <dt className="text-xs font-medium uppercase tracking-wider text-slate-500">Posted / draft</dt>
+                  <dd className="mt-1 text-sm text-slate-900">
+                    {detail.reopenImpact.postedJournalCount} / {detail.reopenImpact.draftJournalCount}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-xs font-medium uppercase tracking-wider text-slate-500">Affected accounts</dt>
+                  <dd className="mt-1 text-sm text-slate-900">{detail.reopenImpact.affectedAccountCount}</dd>
+                </div>
+                <div>
+                  <dt className="text-xs font-medium uppercase tracking-wider text-slate-500">Close completed at</dt>
+                  <dd className="mt-1 text-sm text-slate-900">
+                    {detail.reopenImpact.closeCompletedAt ? formatDate(new Date(detail.reopenImpact.closeCompletedAt)) : "Not recorded"}
+                  </dd>
+                </div>
+              </dl>
+              {detail.reopenImpact.affectedAccounts.length > 0 && (
+                <div className="mt-4">
+                  <p className="text-xs font-medium uppercase tracking-wider text-slate-500">Sample affected accounts</p>
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    {detail.reopenImpact.affectedAccounts.map((account) => (
+                      <span key={account.id} className="rounded-full bg-slate-100 px-3 py-1 text-xs text-slate-700">
+                        {account.code} - {account.name}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {detail.reopenImpact.sampleEntries.length > 0 && (
+                <div className="mt-4 rounded-lg bg-slate-50 p-4">
+                  <p className="text-xs font-medium uppercase tracking-wider text-slate-500">Recent affected journals</p>
+                  <div className="mt-2 space-y-2">
+                    {detail.reopenImpact.sampleEntries.map((entry) => (
+                      <div key={entry.id} className="flex flex-wrap items-center justify-between gap-2 text-sm text-slate-700">
+                        <span className="font-medium text-slate-900">{entry.entryNumber}</span>
+                        <span>{entry.source}</span>
+                        <span>{new Date(entry.entryDate).toLocaleDateString("en-US")}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
@@ -281,7 +351,7 @@ export default async function ApprovalDetailPage({ params }: PageProps) {
                     {detail.decidedAt ? formatDate(detail.decidedAt) : "—"}
                   </dd>
                 </div>
-                {detail.note && (
+                {detail.note && detail.docType !== "fiscal-period-reopen" && (
                   <div className="sm:col-span-2">
                     <dt className="text-xs font-medium uppercase tracking-wider text-slate-500">
                       Note

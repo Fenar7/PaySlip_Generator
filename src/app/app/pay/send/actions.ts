@@ -2,6 +2,7 @@
 
 import { db } from "@/lib/db";
 import { requireOrgContext } from "@/lib/auth";
+import { formatIsoDate, toAccountingNumber } from "@/lib/accounting/utils";
 import { sendEmail } from "@/lib/email";
 import { invoiceEmailHtml } from "@/lib/email-templates/invoice-email";
 import { revalidatePath } from "next/cache";
@@ -53,16 +54,15 @@ export async function sendInvoiceEmail(
       });
     }
 
-    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.VERCEL_URL
-      ? `https://${process.env.VERCEL_URL}`
-      : "http://localhost:3000";
+    const baseUrl = process.env.NEXT_PUBLIC_APP_URL
+      ?? (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "http://localhost:3000");
     const viewUrl = `${baseUrl}/invoice/${publicToken.token}`;
 
     const html = invoiceEmailHtml({
       invoiceNumber: invoice.invoiceNumber,
       customerName: invoice.customer?.name || recipientEmail,
-      totalAmount: formatCurrency(invoice.totalAmount),
-      dueDate: invoice.dueDate || "",
+      totalAmount: formatCurrency(toAccountingNumber(invoice.totalAmount)),
+      dueDate: invoice.dueDate ? formatIsoDate(invoice.dueDate) : "",
       viewUrl,
     });
 

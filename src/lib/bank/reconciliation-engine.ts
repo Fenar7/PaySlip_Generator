@@ -3,6 +3,7 @@ import "server-only";
 import { db } from "@/lib/db";
 import { confirmBankTransactionMatch, refreshReconciliationSuggestions } from "@/lib/accounting";
 import type { MatchEntityType } from "@/generated/prisma/client";
+import { formatIsoDate, toAccountingNumber } from "@/lib/accounting/utils";
 import {
   scoreMatch,
   getDisposition,
@@ -86,7 +87,11 @@ export async function runAutoMatchForImport(params: {
     }
 
     // Re-score using the PRD-spec scorer for the final auto-confirm decision.
-    const candidate = await resolveCandidateForScoring(params.orgId, topMatch);
+    const candidate = await resolveCandidateForScoring(params.orgId, {
+      entityType: topMatch.entityType,
+      entityId: topMatch.entityId,
+      matchedAmount: toAccountingNumber(topMatch.matchedAmount),
+    });
     if (!candidate) {
       result.suggested++;
       continue;
@@ -94,7 +99,7 @@ export async function runAutoMatchForImport(params: {
 
     const scored = scoreMatch(
       {
-        bankAmount: txn.amount,
+        bankAmount: toAccountingNumber(txn.amount),
         bankDate: txn.txnDate,
         bankReference: txn.reference,
         bankNormalizedPayee: txn.normalizedPayee,
@@ -240,7 +245,7 @@ export async function getEnrichedSuggestedMatches(
         matchId: m.id,
         entityType: m.entityType,
         entityId: m.entityId,
-        matchedAmount: m.matchedAmount,
+        matchedAmount: toAccountingNumber(m.matchedAmount),
         confidenceScore: m.confidenceScore,
         disposition: getDisposition(m.confidenceScore ?? 0),
         status: m.status,
@@ -270,7 +275,7 @@ async function resolveEntityLabel(
         return {
           label: inv.invoiceNumber,
           subLabel: inv.customer?.name ?? null,
-          documentDate: inv.invoiceDate,
+          documentDate: formatIsoDate(inv.invoiceDate),
         };
       }
     }
@@ -287,7 +292,7 @@ async function resolveEntityLabel(
         return {
           label: bill.billNumber,
           subLabel: bill.vendor?.name ?? null,
-          documentDate: bill.billDate,
+          documentDate: formatIsoDate(bill.billDate),
         };
       }
     }
@@ -300,7 +305,7 @@ async function resolveEntityLabel(
         return {
           label: voucher.voucherNumber,
           subLabel: "Voucher",
-          documentDate: voucher.voucherDate,
+          documentDate: formatIsoDate(voucher.voucherDate),
         };
       }
     }

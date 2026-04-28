@@ -1,6 +1,17 @@
+import { networkInterfaces } from "node:os";
 import type { NextConfig } from "next";
+import { collectAllowedDevOrigins } from "./src/lib/allowed-dev-origins";
 
 const nextConfig: NextConfig = {
+  // Accessing next dev from a phone/tablet uses the laptop's LAN IP rather than
+  // localhost. Next 16 blocks dev-only assets/HMR from non-allowlisted hosts by
+  // default, which can prevent hydration on mobile unless those LAN origins are
+  // permitted here.
+  allowedDevOrigins: collectAllowedDevOrigins({
+    appUrl: process.env.NEXT_PUBLIC_APP_URL,
+    extraOrigins: process.env.ALLOWED_DEV_ORIGINS,
+    networkInterfaces: networkInterfaces(),
+  }),
   output: "standalone",
   serverExternalPackages: ["@sparticuz/chromium", "playwright-core", "ioredis"],
 

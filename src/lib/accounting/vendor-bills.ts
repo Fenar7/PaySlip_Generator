@@ -10,7 +10,7 @@ import { db } from "@/lib/db";
 import { nextDocumentNumberTx } from "@/lib/docs";
 import { ensureBooksSetup } from "./accounts";
 import { postVendorBillPaymentTx, postVendorBillTx } from "./posting";
-import { cleanText, roundMoney } from "./utils";
+import { cleanText, formatIsoDate, roundMoney, toAccountingNumber } from "./utils";
 import { fireWorkflowTrigger } from "../flow/workflow-engine";
 
 type TxClient = Prisma.TransactionClient;
@@ -271,7 +271,11 @@ async function createVendorBillPaymentTx(
     throw new Error("Payment amount must be greater than zero.");
   }
 
-  if (amount > bill.remainingAmount + MONEY_TOLERANCE) {
+  const billTotalAmount = toAccountingNumber(bill.totalAmount);
+  const billAmountPaid = toAccountingNumber(bill.amountPaid);
+  const billRemainingAmount = toAccountingNumber(bill.remainingAmount);
+
+  if (amount > billRemainingAmount + MONEY_TOLERANCE) {
     throw new Error("Payment amount exceeds the remaining vendor bill balance.");
   }
 
@@ -296,8 +300,8 @@ async function createVendorBillPaymentTx(
     actorId: input.actorId,
   });
 
-  const nextAmountPaid = roundMoney(bill.amountPaid + amount);
-  const nextRemainingAmount = roundMoney(Math.max(0, bill.totalAmount - nextAmountPaid));
+  const nextAmountPaid = roundMoney(billAmountPaid + amount);
+  const nextRemainingAmount = roundMoney(Math.max(0, billTotalAmount - nextAmountPaid));
 
   await tx.vendorBill.update({
     where: { id: bill.id },
@@ -305,9 +309,9 @@ async function createVendorBillPaymentTx(
       amountPaid: nextAmountPaid,
       remainingAmount: nextRemainingAmount,
       status: deriveVendorBillLifecycleStatus({
-        totalAmount: bill.totalAmount,
+        totalAmount: billTotalAmount,
         amountPaid: nextAmountPaid,
-        dueDate: bill.dueDate,
+        dueDate: bill.dueDate ? formatIsoDate(bill.dueDate) : null,
       }),
     },
   });
@@ -425,7 +429,7 @@ export async function createVendorBill(input: SaveVendorBillInput) {
     actorId: input.actorId,
     payload: {
       billNumber: bill.billNumber,
-      totalAmount: bill.totalAmount,
+      totalAmount: roundMoney(toAccountingNumber(bill.totalAmount)),
       vendorId: bill.vendorId,
     },
   });
@@ -478,11 +482,14 @@ export async function updateVendorBill(
       ? roundMoney(subtotalAmount + taxTotals.taxAmount)
       : undefined;
     const requestedStatus = input.status ?? existing.status;
-    const nextAmountPaid = totalAmount === undefined ? existing.amountPaid : Math.min(existing.amountPaid, totalAmount);
+    const existingAmountPaid = toAccountingNumber(existing.amountPaid);
+    const existingTotalAmount = toAccountingNumber(existing.totalAmount);
+    const nextAmountPaid =
+      totalAmount === undefined ? existingAmountPaid : Math.min(existingAmountPaid, totalAmount);
     const nextRemainingAmount =
       totalAmount === undefined ? undefined : roundMoney(Math.max(0, totalAmount - nextAmountPaid));
-    const resolvedTotalAmount = totalAmount ?? existing.totalAmount;
-    const resolvedDueDate = input.dueDate ?? existing.dueDate;
+    const resolvedTotalAmount = totalAmount ?? existingTotalAmount;
+    const resolvedDueDate = input.dueDate ?? (existing.dueDate ? formatIsoDate(existing.dueDate) : null);
     const nextStatus =
       requestedStatus === "APPROVED" ||
       requestedStatus === "OVERDUE" ||
@@ -591,7 +598,7 @@ export async function getVendorBill(orgId: string, vendorBillId: string) {
   await ensureBooksSetup(orgId);
   await refreshVendorBillOverdueStates(orgId);
 
-  return db.vendorBill.findFirst({
+  const bill = await db.vendorBill.findFirst({
     where: {
       id: vendorBillId,
       orgId,
@@ -629,6 +636,29 @@ export async function getVendorBill(orgId: string, vendorBillId: string) {
       },
     },
   });
+
+  if (!bill) {
+    return null;
+  }
+
+  return {
+    ...bill,
+    billDate: formatIsoDate(bill.billDate),
+    dueDate: bill.dueDate ? formatIsoDate(bill.dueDate) : null,
+    subtotalAmount: roundMoney(bill.subtotalAmount),
+    taxAmount: roundMoney(bill.taxAmount),
+    totalAmount: roundMoney(bill.totalAmount),
+    amountPaid: roundMoney(bill.amountPaid),
+    remainingAmount: roundMoney(bill.remainingAmount),
+    gstTotalCgst: roundMoney(bill.gstTotalCgst),
+    gstTotalSgst: roundMoney(bill.gstTotalSgst),
+    gstTotalIgst: roundMoney(bill.gstTotalIgst),
+    gstTotalCess: roundMoney(bill.gstTotalCess),
+    payments: bill.payments.map((payment) => ({
+      ...payment,
+      amount: roundMoney(payment.amount),
+    })),
+  };
 }
 
 export async function listVendorBills(
@@ -687,7 +717,20 @@ export async function listVendorBills(
   ]);
 
   return {
-    bills,
+    bills: bills.map((bill) => ({
+      ...bill,
+      billDate: formatIsoDate(bill.billDate),
+      dueDate: bill.dueDate ? formatIsoDate(bill.dueDate) : null,
+      subtotalAmount: roundMoney(bill.subtotalAmount),
+      taxAmount: roundMoney(bill.taxAmount),
+      totalAmount: roundMoney(bill.totalAmount),
+      amountPaid: roundMoney(bill.amountPaid),
+      remainingAmount: roundMoney(bill.remainingAmount),
+      gstTotalCgst: roundMoney(bill.gstTotalCgst),
+      gstTotalSgst: roundMoney(bill.gstTotalSgst),
+      gstTotalIgst: roundMoney(bill.gstTotalIgst),
+      gstTotalCess: roundMoney(bill.gstTotalCess),
+    })),
     total,
     page,
     totalPages: Math.ceil(total / limit),
@@ -787,7 +830,7 @@ export async function createPaymentRun(input: CreatePaymentRunInput) {
       if (amount <= 0) {
         throw new Error(`Payment amount for ${bill.billNumber} must be greater than zero.`);
       }
-      if (amount > bill.remainingAmount + MONEY_TOLERANCE) {
+      if (amount > toAccountingNumber(bill.remainingAmount) + MONEY_TOLERANCE) {
         throw new Error(`Payment amount exceeds the remaining balance for ${bill.billNumber}.`);
       }
       return {
@@ -846,51 +889,63 @@ export async function approvePaymentRun(
 ) {
   await ensureBooksSetup(orgId);
 
-  return db.$transaction(async (tx) => {
-    const run = await tx.paymentRun.findFirst({
-      where: {
-        id: paymentRunId,
-        orgId,
-      },
-      select: {
-        id: true,
-        runNumber: true,
-        status: true,
-      },
-    });
+  return db.$transaction((tx) => approvePaymentRunTx(tx, orgId, paymentRunId, actorId));
+}
 
-    if (!run) {
-      throw new Error("Payment run not found.");
-    }
-
-    if (run.status === "CANCELLED" || run.status === "COMPLETED") {
-      throw new Error("This payment run can no longer be approved.");
-    }
-
-    const updated = await tx.paymentRun.update({
-      where: { id: paymentRunId },
-      data: {
-        status: "APPROVED",
-        approvedAt: new Date(),
-        approvedByUserId: actorId,
-      },
-    });
-
-    await tx.auditLog.create({
-      data: {
-        orgId,
-        actorId,
-        action: "books.payment_run.approved",
-        entityType: "payment_run",
-        entityId: paymentRunId,
-        metadata: {
-          runNumber: run.runNumber,
-        },
-      },
-    });
-
-    return updated;
+export async function approvePaymentRunTx(
+  tx: TxClient,
+  orgId: string,
+  paymentRunId: string,
+  actorId: string,
+) {
+  const run = await tx.paymentRun.findFirst({
+    where: {
+      id: paymentRunId,
+      orgId,
+    },
+    select: {
+      id: true,
+      runNumber: true,
+      status: true,
+      requestedByUserId: true,
+    },
   });
+
+  if (!run) {
+    throw new Error("Payment run not found.");
+  }
+
+  if (run.status !== "PENDING_APPROVAL") {
+    throw new Error("Only payment runs awaiting approval can be approved.");
+  }
+
+  if (run.requestedByUserId && run.requestedByUserId === actorId) {
+    throw new Error("You cannot approve a payment run that you requested.");
+  }
+
+  const updated = await tx.paymentRun.update({
+    where: { id: paymentRunId },
+    data: {
+      status: "APPROVED",
+      approvedAt: new Date(),
+      approvedByUserId: actorId,
+    },
+  });
+
+  await tx.auditLog.create({
+    data: {
+      orgId,
+      actorId,
+      action: "books.payment_run.approved",
+      entityType: "payment_run",
+      entityId: paymentRunId,
+      metadata: {
+        runNumber: run.runNumber,
+      },
+    },
+  });
+
+  return updated;
 }
 
 export async function executePaymentRun(input: {
@@ -926,6 +981,10 @@ export async function executePaymentRun(input: {
         throw new Error("This payment run is still awaiting approval.");
       }
 
+      if (run.status === "DRAFT" || run.status === "REJECTED" || run.status === "FAILED") {
+        throw new Error("Only approved payment runs can be executed.");
+      }
+
       if (run.status === "COMPLETED") {
         throw new Error("This payment run has already been executed.");
       }
@@ -938,17 +997,26 @@ export async function executePaymentRun(input: {
         throw new Error("This payment run has no pending items to execute.");
       }
 
+      if (run.requestedByUserId && run.requestedByUserId === input.actorId) {
+        throw new Error("The requester must be different from the payment executor.");
+      }
+
+      if (run.approvedByUserId && run.approvedByUserId === input.actorId) {
+        throw new Error("The approver must be different from the payment executor.");
+      }
+
       await tx.paymentRun.update({
         where: { id: run.id },
         data: { status: "PROCESSING" },
       });
 
       for (const item of run.items) {
+        const executionAmount = roundMoney(toAccountingNumber(item.approvedAmount ?? item.proposedAmount));
         const payment = await createVendorBillPaymentTx(tx, {
           orgId: input.orgId,
           actorId: input.actorId,
           vendorBillId: item.vendorBillId,
-          amount: item.approvedAmount ?? item.proposedAmount,
+          amount: executionAmount,
           paidAt: input.paidAt,
           method: input.method,
           note: cleanText(input.note) ?? `Payment run ${run.runNumber}`,
@@ -960,7 +1028,7 @@ export async function executePaymentRun(input: {
           where: { id: item.id },
           data: {
             status: "PAID",
-            approvedAmount: item.approvedAmount ?? item.proposedAmount,
+            approvedAmount: executionAmount,
             executedPaymentId: payment.id,
           },
         });
@@ -1029,7 +1097,7 @@ export async function executePaymentRun(input: {
 export async function getPaymentRun(orgId: string, paymentRunId: string) {
   await ensureBooksSetup(orgId);
 
-  return db.paymentRun.findFirst({
+  const run = await db.paymentRun.findFirst({
     where: {
       id: paymentRunId,
       orgId,
@@ -1064,6 +1132,36 @@ export async function getPaymentRun(orgId: string, paymentRunId: string) {
       },
     },
   });
+
+  if (!run) {
+    return null;
+  }
+
+  return {
+    ...run,
+    totalAmount: roundMoney(run.totalAmount),
+    items: run.items.map((item) => ({
+      ...item,
+      proposedAmount: roundMoney(item.proposedAmount),
+      approvedAmount: item.approvedAmount === null ? null : roundMoney(item.approvedAmount),
+      vendorBill: {
+        ...item.vendorBill,
+        dueDate: item.vendorBill.dueDate ? formatIsoDate(item.vendorBill.dueDate) : null,
+        totalAmount: roundMoney(item.vendorBill.totalAmount),
+        remainingAmount: roundMoney(item.vendorBill.remainingAmount),
+      },
+      executedPayment: item.executedPayment
+        ? {
+            ...item.executedPayment,
+            amount: roundMoney(item.executedPayment.amount),
+          }
+        : null,
+    })),
+    payments: run.payments.map((payment) => ({
+      ...payment,
+      amount: roundMoney(payment.amount),
+    })),
+  };
 }
 
 export async function listPaymentRuns(
@@ -1111,7 +1209,15 @@ export async function listPaymentRuns(
   ]);
 
   return {
-    runs,
+    runs: runs.map((run) => ({
+      ...run,
+      totalAmount: roundMoney(run.totalAmount),
+      items: run.items.map((item) => ({
+        ...item,
+        proposedAmount: roundMoney(item.proposedAmount),
+        approvedAmount: item.approvedAmount === null ? null : roundMoney(item.approvedAmount),
+      })),
+    })),
     total,
     page,
     totalPages: Math.ceil(total / limit),
@@ -1136,7 +1242,7 @@ export async function rejectPaymentRun(input: {
   return db.$transaction(async (tx) => {
     const run = await tx.paymentRun.findFirst({
       where: { id: input.paymentRunId, orgId: input.orgId },
-      select: { id: true, runNumber: true, status: true },
+      select: { id: true, runNumber: true, status: true, requestedByUserId: true },
     });
 
     if (!run) {
@@ -1145,6 +1251,10 @@ export async function rejectPaymentRun(input: {
 
     if (run.status !== "PENDING_APPROVAL") {
       throw new Error("Only pending approval runs can be rejected");
+    }
+
+    if (run.requestedByUserId && run.requestedByUserId === input.actorId) {
+      throw new Error("You cannot reject a payment run that you requested.");
     }
 
     const updated = await tx.paymentRun.update({
@@ -1190,7 +1300,7 @@ export async function resubmitPaymentRun(input: {
   return db.$transaction(async (tx) => {
     const run = await tx.paymentRun.findFirst({
       where: { id: input.paymentRunId, orgId: input.orgId },
-      select: { id: true, runNumber: true, status: true },
+      select: { id: true, runNumber: true, status: true, requestedByUserId: true },
     });
 
     if (!run) {
@@ -1199,6 +1309,10 @@ export async function resubmitPaymentRun(input: {
 
     if (run.status !== "REJECTED") {
       throw new Error("Only rejected runs can be resubmitted");
+    }
+
+    if (run.requestedByUserId && run.requestedByUserId !== input.actorId) {
+      throw new Error("Only the original requester can resubmit this payment run.");
     }
 
     const updated = await tx.paymentRun.update({

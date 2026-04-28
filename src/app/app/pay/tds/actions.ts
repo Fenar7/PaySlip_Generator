@@ -2,6 +2,7 @@
 
 import { db } from "@/lib/db";
 import { requireOrgContext, requireRole } from "@/lib/auth";
+import { formatIsoDate, toAccountingNumber } from "@/lib/accounting/utils";
 import { checkFeature } from "@/lib/plans/enforcement";
 import { revalidatePath } from "next/cache";
 import { postTdsRecordTx } from "@/lib/accounting";
@@ -56,7 +57,8 @@ export async function createTdsRecord(
       return { success: false, error: "Invoice not found" };
     }
 
-    const tdsAmount = invoice.totalAmount * (input.tdsRate / 100);
+    const invoiceTotalAmount = toAccountingNumber(invoice.totalAmount);
+    const tdsAmount = invoiceTotalAmount * (input.tdsRate / 100);
 
     const validSections = Object.keys(TDS_SECTIONS);
     if (!validSections.includes(input.tdsSection)) {
@@ -289,11 +291,11 @@ export async function getTdsRecords(params: {
         id: r.id,
         invoiceId: r.invoiceId,
         invoiceNumber: r.invoice.invoiceNumber,
-        invoiceDate: r.invoice.invoiceDate,
-        invoiceAmount: r.invoice.totalAmount,
+        invoiceDate: formatIsoDate(r.invoice.invoiceDate),
+        invoiceAmount: toAccountingNumber(r.invoice.totalAmount),
         tdsSection: r.tdsSection,
         tdsRate: r.tdsRate,
-        tdsAmount: r.tdsAmount,
+        tdsAmount: toAccountingNumber(r.tdsAmount),
         certStatus: r.certStatus,
         certNumber: r.certNumber,
         certDate: r.certDate,
@@ -352,11 +354,11 @@ export async function exportTdsCsv(params: {
     const rows = records.map((r) =>
       [
         r.invoice.invoiceNumber,
-        r.invoice.invoiceDate,
-        r.invoice.totalAmount.toFixed(2),
+        formatIsoDate(r.invoice.invoiceDate),
+        toAccountingNumber(r.invoice.totalAmount).toFixed(2),
         r.tdsSection,
         r.tdsRate.toFixed(2),
-        r.tdsAmount.toFixed(2),
+        toAccountingNumber(r.tdsAmount).toFixed(2),
         r.certStatus,
         r.certNumber ?? "",
       ].join(","),
