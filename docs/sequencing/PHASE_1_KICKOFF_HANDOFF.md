@@ -35,7 +35,7 @@ Phase 0 did not write product code. It produced the decision and workflow founda
 ### Branches created
 - `feature/sequence-platform` — root feature branch (from `master`)
 - `feature/sequence-platform-phase-0-delivery` — Phase 0 branch
-- `feature/sequence-platform-phase-0-sprint-0-1-delivery-setup` — Sprint 0.1 branch (merged into phase branch)
+- `feature/sequence-platform-phase-0-sprint-0-1-delivery-setup` — Sprint 0.1 branch (already merged into phase branch via merge commit)
 
 ---
 
@@ -145,8 +145,7 @@ Phase 1 is complete when ALL of the following are true:
 
 ## 6. Immediate Next Action
 
-1. Review the Phase 0 PRs (Sprint 0.1 → Phase 0 → root feature branch)
-2. Approve and merge `feature/sequence-platform-phase-0-sprint-0-1-delivery-setup` into `feature/sequence-platform-phase-0-delivery`
-3. Approve and merge `feature/sequence-platform-phase-0-delivery` into `feature/sequence-platform`
-4. Create `feature/sequence-platform-phase-1-foundation` from `feature/sequence-platform`
-5. Begin Sprint 1.1: `feature/sequence-platform-phase-1-sprint-1-1-schema-foundation`
+1. Review PR #200 (`feature/sequence-platform-phase-0-delivery` → `feature/sequence-platform`)
+2. Approve and merge PR #200
+3. Create `feature/sequence-platform-phase-1-foundation` from `feature/sequence-platform`
+4. Begin Sprint 1.1: `feature/sequence-platform-phase-1-sprint-1-1-schema-foundation`
