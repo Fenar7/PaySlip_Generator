@@ -8,7 +8,7 @@
 - Audience: Product, engineering, QA, DevOps, support, implementation agents
 - Scope: Production-grade implementation for invoices and vouchers only
 
-This PRD defines a full sequencing platform for invoice and voucher numbers. It replaces the current simple `PREFIX-COUNTER` logic with a versioned, owner-governed, scope-aware numbering system that supports onboarding setup, advanced formats, legal-entity-specific active series, reset rules, historical imports, immutable history, and vault grouping by old and current sequence generations.
+This PRD defines a full sequencing platform for invoice and voucher numbers. It replaces the current simple `PREFIX-COUNTER` logic with a versioned, owner-governed, scope-aware numbering system that supports onboarding setup, advanced formats, reset rules, historical imports, immutable history, and vault grouping by old and current sequence generations. The schema reserves `scopeType` and `scopeId` columns so that legal-entity-scoped parallel series can be added in a future release without requiring a migration.
 
 This is not a surface-level enhancement. It is financial document identity infrastructure and must be treated as such across schema, lifecycle, audit, permissions, migration, and operational support.
 
@@ -68,7 +68,6 @@ The feature is successful when:
 - owners can activate a new sequence later without affecting historical documents
 - old and new document groups remain visible in the vault
 - imported historical numbers prevent reuse collisions
-- legal-entity-scoped parallel series can run without overlap
 - reset rules work predictably and are auditable
 - non-owner users cannot mutate numbering configuration
 
@@ -77,7 +76,7 @@ The feature is successful when:
 This release does not include:
 
 - extending the new engine to salary slips, quotes, vendor bills, purchase orders, or GRN
-- branch/location scope inside a single org unless modeled through legal entity
+- branch/location scope inside a single org
 - arbitrary regex-style custom grammars
 - renumbering already-issued historical documents
 - loose admin editing by non-owner roles
@@ -184,15 +183,18 @@ Supported token types in v1:
 - short month text
 - day
 - financial year label
-- legal entity code
 - separators such as `-`, `/`, `_`
+
+Reserved for future phases:
+
+- legal entity code
 
 Examples:
 
 - `INV-001`
 - `INV-2026-001`
 - `FY26-27/INV/00021`
-- `LE01/VCH/APR/2026/0008`
+- `VCH-REC-2026-00041`
 
 Rules:
 
@@ -558,8 +560,7 @@ Create:
 For invoices and vouchers independently:
 
 - define sequence format
-- define scope type
-- optionally define legal-entity-specific configuration
+- preview the next generated number
 - provide latest already-used number or start-from seed
 - preview the next generated number
 - validate before activation
@@ -745,7 +746,6 @@ The feature is acceptable only when:
 - future sequence changes do not affect past documents
 - vault grouping shows active and retired sequence history
 - imported historical numbers prevent reuse
-- legal-entity-scoped parallel active sequences work safely
 - reset rules function correctly and idempotently
 - non-owner mutation attempts are blocked
 - all sequence changes are audit logged
@@ -929,13 +929,7 @@ Ship advanced-first enterprise sequencing requirements.
 - financial-year reset
 - preview and reset history
 
-#### Sprint 6.2: Legal-entity scoped parallel series
-
-- multiple active scoped series
-- scope resolution rules
-- validation for missing or ambiguous scope
-
-#### Sprint 6.3: Vault history grouping
+#### Sprint 6.2: Vault history grouping
 
 - historical sequence grouping in invoice and voucher vaults
 - exact search across active and retired groups
@@ -1045,7 +1039,7 @@ Mitigation:
 - voucher numbers assigned on approval only
 - historical numbers immutable forever
 - future sequence changes apply only to future documents
-- legal-entity scoped parallel series supported in v1
+- legal-entity scoped parallel series deferred to future release (schema columns reserved)
 - periodic reset policies supported in v1
 - imported historical continuity supported in v1
 - vault grouping by sequence history supported in v1
