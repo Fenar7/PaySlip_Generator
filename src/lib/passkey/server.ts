@@ -132,7 +132,7 @@ export async function verifyAuthentication(
     expectedRPID: RP_ID,
     credential: {
       id: credential.credentialId,
-      publicKey: credential.publicKey as any,
+      publicKey: new Uint8Array(credential.publicKey),
       counter: Number(credential.counter),
     },
     requireUserVerification: true,
