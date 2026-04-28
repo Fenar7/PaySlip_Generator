@@ -89,8 +89,6 @@ export async function signOutSupabaseBrowser() {
 }
 
 export function createSupabaseBrowser(_options: { rememberSession?: boolean } = {}) {
-  void _options;
-
   if (typeof window === "undefined") {
     return createBrowserClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -123,8 +121,13 @@ export function createSupabaseBrowser(_options: { rememberSession?: boolean } = 
           }));
         },
         setAll(cookiesToSet) {
-          const persistenceMode = readBrowserPersistenceMode();
           cookiesToSet.forEach(({ name, value, options }) => {
+            const persistenceMode =
+              _options.rememberSession === undefined
+                ? readBrowserPersistenceMode()
+                : _options.rememberSession
+                  ? "remembered"
+                  : "session";
             const cookieOptions =
               value === ""
                 ? options

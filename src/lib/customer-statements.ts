@@ -1,6 +1,7 @@
 import "server-only";
 
 import { db } from "@/lib/db";
+import { formatIsoDate, roundMoney, toAccountingNumber } from "@/lib/accounting/utils";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -42,7 +43,7 @@ export async function generateStatement(params: {
     select: { id: true, name: true },
   });
 
-  // Fetch invoices in the date range (using invoiceDate string field in YYYY-MM-DD format)
+  // Fetch invoices in the date range
   const fromDateStr = fromDate.toISOString().split("T")[0];
   const toDateStr = toDate.toISOString().split("T")[0];
 
@@ -79,8 +80,8 @@ export async function generateStatement(params: {
 
   let openingBalance = 0;
   for (const inv of priorInvoices) {
-    const totalPaid = inv.payments.reduce((sum, p) => sum + p.amount, 0);
-    openingBalance += inv.totalAmount - totalPaid;
+    const totalPaid = inv.payments.reduce((sum, p) => sum + toAccountingNumber(p.amount), 0);
+    openingBalance = roundMoney(openingBalance + toAccountingNumber(inv.totalAmount) - totalPaid);
   }
 
   // Build line items chronologically
@@ -96,28 +97,31 @@ export async function generateStatement(params: {
   let totalReceived = 0;
 
   for (const inv of invoices) {
+    const invoiceDate = formatIsoDate(inv.invoiceDate);
+    const invoiceTotalAmount = toAccountingNumber(inv.totalAmount);
     events.push({
-      date: inv.invoiceDate,
+      date: invoiceDate,
       description: `Invoice ${inv.invoiceNumber}`,
-      debit: inv.totalAmount,
+      debit: invoiceTotalAmount,
       credit: 0,
-      sortKey: `${inv.invoiceDate}_0_${inv.invoiceNumber}`,
+      sortKey: `${invoiceDate}_0_${inv.invoiceNumber}`,
     });
-    totalInvoiced += inv.totalAmount;
+    totalInvoiced = roundMoney(totalInvoiced + invoiceTotalAmount);
 
     for (const payment of inv.payments) {
       const paidDate = payment.paidAt.toISOString().split("T")[0];
       // Only include payments within the date range
       if (paidDate >= fromDateStr && paidDate <= toDateStr) {
+        const paymentAmount = toAccountingNumber(payment.amount);
         const methodLabel = payment.method ? ` (${payment.method})` : "";
         events.push({
           date: paidDate,
           description: `Payment — ${inv.invoiceNumber}${methodLabel}`,
           debit: 0,
-          credit: payment.amount,
+          credit: paymentAmount,
           sortKey: `${paidDate}_1_${inv.invoiceNumber}_${payment.id}`,
         });
-        totalReceived += payment.amount;
+        totalReceived = roundMoney(totalReceived + paymentAmount);
       }
     }
   }
@@ -127,15 +131,16 @@ export async function generateStatement(params: {
     for (const payment of inv.payments) {
       const paidDate = payment.paidAt.toISOString().split("T")[0];
       if (paidDate >= fromDateStr && paidDate <= toDateStr) {
+        const paymentAmount = toAccountingNumber(payment.amount);
         const methodLabel = payment.method ? ` (${payment.method})` : "";
         events.push({
           date: paidDate,
           description: `Payment — ${inv.invoiceNumber}${methodLabel}`,
           debit: 0,
-          credit: payment.amount,
+          credit: paymentAmount,
           sortKey: `${paidDate}_1_${inv.invoiceNumber}_${payment.id}`,
         });
-        totalReceived += payment.amount;
+        totalReceived = roundMoney(totalReceived + paymentAmount);
       }
     }
   }
@@ -146,7 +151,7 @@ export async function generateStatement(params: {
   const lineItems: StatementLineItem[] = [];
 
   for (const evt of events) {
-    runningBalance += evt.debit - evt.credit;
+    runningBalance = roundMoney(runningBalance + evt.debit - evt.credit);
     lineItems.push({
       date: evt.date,
       description: evt.description,
@@ -214,7 +219,7 @@ export async function getStatementHistory(
     generatedAt: Date;
   }>
 > {
-  return db.customerStatement.findMany({
+  const statements = await db.customerStatement.findMany({
     where: { orgId, customerId },
     orderBy: { generatedAt: "desc" },
     select: {
@@ -229,6 +234,14 @@ export async function getStatementHistory(
       generatedAt: true,
     },
   });
+
+  return statements.map((statement) => ({
+    ...statement,
+    openingBalance: toAccountingNumber(statement.openingBalance),
+    closingBalance: toAccountingNumber(statement.closingBalance),
+    totalInvoiced: toAccountingNumber(statement.totalInvoiced),
+    totalReceived: toAccountingNumber(statement.totalReceived),
+  }));
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────

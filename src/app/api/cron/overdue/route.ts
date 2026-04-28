@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { validateCronSecret } from "@/lib/cron";
 import { fireWorkflowTrigger } from "@/lib/flow/workflow-engine";
+import { formatIsoDate, toAccountingNumber } from "@/lib/accounting/utils";
 
 export const dynamic = "force-dynamic";
 
@@ -54,8 +55,8 @@ export async function GET(request: Request) {
         actorId: "system",
         payload: {
           invoiceNumber: inv.invoiceNumber,
-          totalAmount: inv.totalAmount,
-          dueDate: inv.dueDate,
+          totalAmount: toAccountingNumber(inv.totalAmount),
+          dueDate: inv.dueDate ? formatIsoDate(inv.dueDate) : null,
         },
       });
 

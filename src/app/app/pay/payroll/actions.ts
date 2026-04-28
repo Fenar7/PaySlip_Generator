@@ -80,6 +80,28 @@ function toCalculatorPtSlabs(
   }));
 }
 
+function buildPayrollSalarySlipComponents(item: {
+  basicPay: Prisma.Decimal | number;
+  hra: Prisma.Decimal | number;
+  specialAllowance: Prisma.Decimal | number;
+  pfEmployee: Prisma.Decimal | number;
+  esiEmployee: Prisma.Decimal | number;
+  tdsDeduction: Prisma.Decimal | number;
+  professionalTax: Prisma.Decimal | number;
+}) {
+  return [
+    { label: "Basic Pay", amount: Number(item.basicPay), type: "earning" as const },
+    { label: "HRA", amount: Number(item.hra), type: "earning" as const },
+    { label: "Special Allowance", amount: Number(item.specialAllowance), type: "earning" as const },
+    { label: "Employee PF", amount: Number(item.pfEmployee), type: "deduction" as const },
+    { label: "Employee ESI", amount: Number(item.esiEmployee), type: "deduction" as const },
+    { label: "TDS", amount: Number(item.tdsDeduction), type: "deduction" as const },
+    { label: "Professional Tax", amount: Number(item.professionalTax), type: "deduction" as const },
+  ]
+    .filter((component) => component.amount > 0)
+    .map((component, index) => ({ ...component, sortOrder: index }));
+}
+
 export async function processPayrollRun(
   runId: string
 ): Promise<ActionResult<{ computed: number; skipped: number }>> {
@@ -371,6 +393,7 @@ export async function finalizePayrollRun(
 
   for (const item of run.runItems) {
     const slipNumber = await nextDocumentNumber(orgId, "salarySlip");
+    const components = buildPayrollSalarySlipComponents(item);
     const slip = await db.salarySlip.create({
       data: {
         organizationId: orgId,
@@ -394,6 +417,13 @@ export async function finalizePayrollRun(
           pfEmployer: Number(item.pfEmployer),
           esiEmployer: Number(item.esiEmployer),
         },
+        ...(components.length > 0
+          ? {
+              components: {
+                create: components,
+              },
+            }
+          : {}),
       },
       select: { id: true },
     });

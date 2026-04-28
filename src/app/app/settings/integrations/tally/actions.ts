@@ -3,6 +3,7 @@
 import { requireOrgContext, requireRole } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { Prisma, InvoiceStatus } from "@/generated/prisma/client";
+import { formatIsoDate, parseAccountingDate } from "@/lib/accounting/utils";
 
 function dateToStr(d: Date): string {
   return d.toISOString().split("T")[0];
@@ -69,7 +70,7 @@ export async function exportTallyData(
       invoiceData = invoices.map((inv) => ({
         id: inv.id,
         invoiceNumber: inv.invoiceNumber,
-        invoiceDate: inv.invoiceDate,
+        invoiceDate: formatIsoDate(inv.invoiceDate),
         totalAmount: Number(inv.totalAmount),
         notes: inv.notes,
         formData: (inv.formData as Record<string, unknown>) ?? {},
@@ -244,7 +245,9 @@ export async function confirmTallyImport(
         data: {
           organizationId: orgId,
           invoiceNumber: sv.voucherNumber,
-          invoiceDate: `${String(year)}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`,
+          invoiceDate: parseAccountingDate(
+            `${String(year)}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`,
+          ),
           totalAmount: sv.totalAmount,
           status: InvoiceStatus.ISSUED,
           formData: {
@@ -335,7 +338,7 @@ function buildCombinedXml(
   // Import both in a single envelope
   const invoiceXml = invoices.map((inv) => {
     const partyName = inv.customer?.name ?? "Cash";
-    const tallyDate = inv.invoiceDate.replace(/-/g, "");
+    const tallyDate = formatIsoDate(inv.invoiceDate).replace(/-/g, "");
     return [
       `        <TALLYMESSAGE xmlns:UDF="TallyUDF">`,
       `          <VOUCHER VCHTYPE="Sales" ACTION="Create">`,

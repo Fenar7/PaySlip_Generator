@@ -2,6 +2,7 @@ import "server-only";
 
 import { db } from "@/lib/db";
 import type { ForecastTrigger } from "@/generated/prisma/client";
+import { toAccountingNumber } from "@/lib/accounting/utils";
 import {
   type MonthlyAggregate,
   type ForecastMonth,
@@ -94,12 +95,12 @@ async function aggregateHistoricalData(
 
   for (const p of invoicePayments) {
     const key = toMonthKey(p.paidAt!);
-    ensureBucket(key).inflow += p.amount;
+    ensureBucket(key).inflow += toAccountingNumber(p.amount);
   }
 
   for (const p of vendorPayments) {
     const key = toMonthKey(p.paidAt!);
-    ensureBucket(key).outflow += p.amount;
+    ensureBucket(key).outflow += toAccountingNumber(p.amount);
   }
 
   for (const r of payrollRuns) {

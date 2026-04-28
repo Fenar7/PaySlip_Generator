@@ -6,39 +6,24 @@ import { LoginForm } from "./login-form";
 
 const {
   routerPushMock,
+  routerReplaceMock,
   routerRefreshMock,
-  signInWithPasswordMock,
-  resendMock,
-  signOutMock,
-  clearSupabaseBrowserSessionStorageMock,
-  setBrowserSessionPersistenceMock,
-  createSupabaseBrowserMock,
   locationAssignMock,
+  fetchMock,
 } = vi.hoisted(() => ({
   routerPushMock: vi.fn(),
+  routerReplaceMock: vi.fn(),
   routerRefreshMock: vi.fn(),
-  signInWithPasswordMock: vi.fn(),
-  resendMock: vi.fn(),
-  signOutMock: vi.fn(),
-  clearSupabaseBrowserSessionStorageMock: vi.fn(),
-  setBrowserSessionPersistenceMock: vi.fn(),
-  createSupabaseBrowserMock: vi.fn(),
   locationAssignMock: vi.fn(),
+  fetchMock: vi.fn(),
 }));
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({
     push: routerPushMock,
+    replace: routerReplaceMock,
     refresh: routerRefreshMock,
   }),
-  useSearchParams: () =>
-    new URLSearchParams(),
-}));
-
-vi.mock("@/lib/supabase/client", () => ({
-  clearSupabaseBrowserSessionStorage: clearSupabaseBrowserSessionStorageMock,
-  createSupabaseBrowser: createSupabaseBrowserMock,
-  setBrowserSessionPersistence: setBrowserSessionPersistenceMock,
 }));
 
 const authenticatePasskeyMock = vi.fn();
@@ -68,25 +53,14 @@ describe("LoginForm", () => {
 
   beforeEach(() => {
     routerPushMock.mockReset();
+    routerReplaceMock.mockReset();
     routerRefreshMock.mockReset();
-    signInWithPasswordMock.mockReset();
-    resendMock.mockReset();
-    signOutMock.mockReset();
-    clearSupabaseBrowserSessionStorageMock.mockReset();
-    setBrowserSessionPersistenceMock.mockReset();
-    createSupabaseBrowserMock.mockReset();
-
-    clearSupabaseBrowserSessionStorageMock.mockResolvedValue(undefined);
-    signInWithPasswordMock.mockResolvedValue({ error: null });
-    resendMock.mockResolvedValue({ error: null });
-    signOutMock.mockResolvedValue(undefined);
-    createSupabaseBrowserMock.mockReturnValue({
-      auth: {
-        signInWithPassword: signInWithPasswordMock,
-        resend: resendMock,
-        signOut: signOutMock,
-      },
+    fetchMock.mockReset();
+    fetchMock.mockResolvedValue({
+      ok: true,
+      json: vi.fn().mockResolvedValue({ redirectTo: "/onboarding" }),
     });
+    vi.stubGlobal("fetch", fetchMock);
 
     vi.stubGlobal("location", {
       ...window.location,
@@ -95,7 +69,7 @@ describe("LoginForm", () => {
     });
   });
 
-  it("hard redirects after a successful password sign-in", async () => {
+  it("navigates to the redirect destination after a successful password sign-in", async () => {
     render(<LoginForm />);
 
     fireEvent.change(getEmailInput(), {
@@ -107,16 +81,18 @@ describe("LoginForm", () => {
     fireEvent.click(screen.getByRole("button", { name: /^sign in$/i }));
 
     await waitFor(() => {
-      expect(clearSupabaseBrowserSessionStorageMock).toHaveBeenCalled();
-      expect(setBrowserSessionPersistenceMock).toHaveBeenCalledWith("remembered");
-      expect(signInWithPasswordMock).toHaveBeenCalledWith({
-        email: "user@example.com",
-        password: "secret123",
-      });
+      expect(fetchMock).toHaveBeenCalledWith(
+        "/api/auth/password-login",
+        expect.objectContaining({
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+        }),
+      );
       expect(locationAssignMock).toHaveBeenCalledWith("/onboarding");
     });
 
     expect(routerPushMock).not.toHaveBeenCalled();
+    expect(routerReplaceMock).not.toHaveBeenCalled();
     expect(routerRefreshMock).not.toHaveBeenCalled();
   });
 
@@ -133,10 +109,65 @@ describe("LoginForm", () => {
     fireEvent.click(screen.getByRole("button", { name: /^sign in$/i }));
 
     await waitFor(() => {
-      expect(setBrowserSessionPersistenceMock).toHaveBeenCalledWith("session");
-      expect(createSupabaseBrowserMock).toHaveBeenCalledWith({
-        rememberSession: false,
-      });
+      expect(fetchMock).toHaveBeenCalled();
+    });
+
+    const [, options] = fetchMock.mock.calls[0] ?? [];
+    expect(options?.body).toContain('"rememberMe":false');
+  });
+
+  it("shows inline API errors and does not navigate", async () => {
+    fetchMock.mockResolvedValueOnce({
+      ok: false,
+      json: vi.fn().mockResolvedValue({ error: "Invalid email or password" }),
+    });
+
+    render(<LoginForm />);
+
+    fireEvent.change(getEmailInput(), {
+      target: { value: "user@example.com" },
+    });
+    fireEvent.change(getPasswordInput(), {
+      target: { value: "wrong" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /^sign in$/i }));
+
+    await screen.findByText("Invalid email or password");
+    expect(routerReplaceMock).not.toHaveBeenCalled();
+  });
+
+  it("renders server-returned login errors and preserves the submitted email", async () => {
+    render(
+      <LoginForm
+        initialError="Invalid email or password"
+        initialEmail="user@example.com"
+      />,
+    );
+
+    expect(screen.getByDisplayValue("user@example.com")).toBeInTheDocument();
+    expect(screen.getByText("Invalid email or password")).toBeInTheDocument();
+  });
+
+  it("routes unconfirmed users to verify email", async () => {
+    fetchMock.mockResolvedValueOnce({
+      ok: false,
+      json: vi.fn().mockResolvedValue({ code: "email_not_confirmed" }),
+    });
+
+    render(<LoginForm />);
+
+    fireEvent.change(getEmailInput(), {
+      target: { value: "user@example.com" },
+    });
+    fireEvent.change(getPasswordInput(), {
+      target: { value: "secret123" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /^sign in$/i }));
+
+    await waitFor(() => {
+      expect(routerPushMock).toHaveBeenCalledWith(
+        "/auth/verify-email?email=user%40example.com",
+      );
     });
   });
 

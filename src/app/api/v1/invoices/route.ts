@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { incrementUsage } from "@/lib/plans/usage";
 import { checkLimit } from "@/lib/plans/enforcement";
 import { dispatchEvent } from "@/lib/webhook/deliver";
+import { parseAccountingDate } from "@/lib/accounting/utils";
 import {
   authenticateApiRequest,
   requireScope,
@@ -100,12 +101,22 @@ export async function POST(request: NextRequest) {
       throw new ApiError(ErrorCode.VALIDATION_ERROR, "invoiceNumber and invoiceDate are required.", 422);
     }
 
+    let normalizedInvoiceDate: Date;
+    let normalizedDueDate: Date | null = null;
+
+    try {
+      normalizedInvoiceDate = parseAccountingDate(invoiceDate);
+      normalizedDueDate = dueDate ? parseAccountingDate(dueDate) : null;
+    } catch {
+      throw new ApiError(ErrorCode.VALIDATION_ERROR, "invoiceDate and dueDate must be valid dates.", 422);
+    }
+
     const invoice = await db.invoice.create({
       data: {
         organizationId: auth.orgId,
         invoiceNumber,
-        invoiceDate,
-        dueDate: dueDate ?? null,
+        invoiceDate: normalizedInvoiceDate,
+        dueDate: normalizedDueDate,
         customerId: customerId ?? null,
         notes: notes ?? null,
         formData: formData ?? {},

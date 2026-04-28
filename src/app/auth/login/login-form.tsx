@@ -1,37 +1,42 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { KeyRound } from "lucide-react";
 import { AuthCard } from "@/features/auth/components/auth-card";
 import { GoogleButton } from "@/features/auth/components/google-button";
 import { AuthDivider } from "@/features/auth/components/auth-divider";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import {
-  clearSupabaseBrowserSessionStorage,
-  createSupabaseBrowser,
-  setBrowserSessionPersistence,
-} from "@/lib/supabase/client";
 import { authenticatePasskey, browserSupportsWebAuthn } from "@/lib/passkey/client";
 
-export function LoginForm() {
+type LoginFormProps = {
+  initialError?: string;
+  initialEmail?: string;
+  initialOrgSlug?: string;
+  callbackUrl?: string | null;
+  ssoRequired?: boolean;
+  ssoErrorCode?: string | null;
+};
+
+export function LoginForm({
+  initialError = "",
+  initialEmail = "",
+  initialOrgSlug = "",
+  callbackUrl = null,
+  ssoRequired = false,
+  ssoErrorCode = null,
+}: LoginFormProps) {
   const router = useRouter();
-  const searchParams = useSearchParams();
-  const callbackUrl = searchParams.get("callbackUrl");
   const destination = callbackUrl?.startsWith("/") ? callbackUrl : "/onboarding";
-  const initialEmail = searchParams.get("sso_email") ?? "";
-  const initialOrgSlug = searchParams.get("org") ?? "";
-  const ssoErrorCode = searchParams.get("sso_error");
-  const ssoRequired = searchParams.get("sso_required") === "1";
 
   const [email, setEmail] = useState(initialEmail);
   const [password, setPassword] = useState("");
   const [orgSlug, setOrgSlug] = useState(initialOrgSlug);
   const [breakGlassCode, setBreakGlassCode] = useState("");
   const [rememberMe, setRememberMe] = useState(true);
-  const [error, setError] = useState("");
+  const [error, setError] = useState(initialError);
   const [loading, setLoading] = useState(false);
   const [passkeyLoading, setPasskeyLoading] = useState(false);
   const [passkeySupported, setPasskeySupported] = useState(true);
@@ -81,8 +86,10 @@ export function LoginForm() {
       setError("Your browser does not support passkeys.");
       return;
     }
+
     setError("");
     setPasskeyLoading(true);
+
     try {
       const optionsRes = await fetch("/api/auth/passkey/signin-options", {
         method: "POST",
@@ -149,55 +156,43 @@ export function LoginForm() {
     e.preventDefault();
     setError("");
     setLoading(true);
+
     try {
-      await clearSupabaseBrowserSessionStorage();
-      setBrowserSessionPersistence(rememberMe ? "remembered" : "session");
-      const supabase = createSupabaseBrowser({ rememberSession: rememberMe });
-      const { error: signInError } = await supabase.auth.signInWithPassword({ email, password });
-       if (signInError) {
-         console.error("[login] signIn error:", signInError.message, signInError.code);
-         if (signInError.code === "email_not_confirmed") {
-           await supabase.auth.resend({ type: "signup", email });
-           router.push("/auth/verify-email?email=" + encodeURIComponent(email));
-           return;
-         }
-         setError(signInError.message ?? "Invalid email or password");
-         return;
-       }
+      const response = await fetch("/api/auth/password-login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email,
+          password,
+          callbackUrl,
+          rememberMe,
+          orgSlug: orgSlug.trim() || undefined,
+          breakGlassCode: breakGlassCode.trim() || undefined,
+        }),
+      });
 
-       if (breakGlassCode.trim()) {
-         if (!orgSlug.trim()) {
-           await supabase.auth.signOut();
-           setError("Enter your organization slug to redeem a break-glass code.");
-           return;
-         }
+      const data = (await response.json().catch(() => ({}))) as {
+        error?: string;
+        code?: string | null;
+        redirectTo?: string;
+      };
 
-         const response = await fetch("/api/auth/sso/break-glass/redeem", {
-           method: "POST",
-           headers: { "Content-Type": "application/json" },
-           body: JSON.stringify({
-             email,
-             orgSlug: orgSlug.trim(),
-             code: breakGlassCode.trim(),
-           }),
-         });
+      if (!response.ok) {
+        if (data.code === "email_not_confirmed") {
+          router.push("/auth/verify-email?email=" + encodeURIComponent(email));
+          return;
+        }
 
-         if (!response.ok) {
-           await supabase.auth.signOut();
-           const data = await response.json().catch(() => ({ error: "" }));
-           setError(data.error || "Break-glass code was rejected.");
-           return;
-         }
-       }
-
-        console.log("[login] signed in successfully");
-        window.location.assign(destination);
+        setError(data.error ?? "Invalid email or password");
         return;
-      } catch (err) {
-        console.error("[login] unexpected error:", err);
-        setError("Something went wrong. Please try again.");
-      } finally {
-        setLoading(false);
+      }
+
+      window.location.assign(data.redirectTo || destination);
+    } catch (err) {
+      console.error("[login] unexpected error:", err);
+      setError("Could not reach login service. Make sure local auth is reachable from this device.");
+    } finally {
+      setLoading(false);
     }
   }
 
@@ -227,9 +222,21 @@ export function LoginForm() {
 
       <AuthDivider text="or" />
 
-      <form onSubmit={handleSubmit} className="space-y-4">
+      <p className="mt-4 rounded-lg border border-blue-100 bg-blue-50 px-4 py-3 text-xs text-blue-800">
+        If you enabled a passkey, you may be asked to use it as a second verification step after sign-in.
+      </p>
+
+      <form
+        action="/api/auth/password-login"
+        method="post"
+        onSubmit={handleSubmit}
+        className="mt-4 space-y-4"
+      >
+        <input type="hidden" name="callbackUrl" value={callbackUrl ?? ""} />
+        <input type="hidden" name="orgSlug" value={orgSlug} />
         <Input
           label="Email"
+          name="email"
           type="email"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
@@ -238,6 +245,7 @@ export function LoginForm() {
         />
         <Input
           label="Password"
+          name="password"
           type="password"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
@@ -248,6 +256,8 @@ export function LoginForm() {
           <label className="flex items-center gap-2 text-sm text-gray-600">
             <input
               type="checkbox"
+              name="rememberMe"
+              value="true"
               checked={rememberMe}
               onChange={(e) => setRememberMe(e.target.checked)}
               className="h-4 w-4 rounded border-gray-300 text-[#dc2626] focus:ring-[#dc2626]"
@@ -261,6 +271,7 @@ export function LoginForm() {
             Forgot password?
           </Link>
         </div>
+        {!rememberMe ? <input type="hidden" name="rememberMe" value="false" /> : null}
 
         {error && (
           <p className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
@@ -325,7 +336,7 @@ export function LoginForm() {
         ) : (
           <div className="space-y-2 text-left">
             <p className="text-sm font-medium text-gray-700">Break-glass recovery</p>
-            {!orgSlug && (
+            {!orgSlug ? (
               <Input
                 label="Organization slug"
                 value={orgSlug}
@@ -333,9 +344,10 @@ export function LoginForm() {
                 placeholder="acme"
                 autoComplete="organization"
               />
-            )}
+            ) : null}
             <Input
               label="Break-glass code"
+              name="breakGlassCode"
               value={breakGlassCode}
               onChange={(e) => setBreakGlassCode(e.target.value)}
               placeholder="ABCD-EFGH-IJKL-MNOP"

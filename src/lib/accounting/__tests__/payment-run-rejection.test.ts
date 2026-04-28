@@ -1,10 +1,8 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { db } from "@/lib/db";
 import {
-  createPaymentRun,
   rejectPaymentRun,
   resubmitPaymentRun,
-  getPaymentRun,
 } from "../vendor-bills";
 
 vi.mock("@/lib/accounting/accounts", () => ({
@@ -97,6 +95,24 @@ describe("Payment Run Rejection Flow", () => {
     ).rejects.toThrow("Only pending approval runs can be rejected");
   });
 
+  it("blocks self-rejection by the original requester", async () => {
+    vi.mocked(db.paymentRun.findFirst).mockResolvedValue({
+      id: "run-1",
+      runNumber: "PR-001",
+      status: "PENDING_APPROVAL",
+      requestedByUserId: "user-1",
+    } as any);
+
+    await expect(
+      rejectPaymentRun({
+        orgId: "org-1",
+        paymentRunId: "run-1",
+        reason: "Test",
+        actorId: "user-1",
+      }),
+    ).rejects.toThrow("You cannot reject a payment run that you requested.");
+  });
+
   it("resubmits rejected payment run back to DRAFT", async () => {
     const mockRun = {
       id: "run-1",
@@ -150,6 +166,23 @@ describe("Payment Run Rejection Flow", () => {
         actorId: "user-1",
       })
     ).rejects.toThrow("Only rejected runs can be resubmitted");
+  });
+
+  it("blocks resubmission by anyone except the original requester", async () => {
+    vi.mocked(db.paymentRun.findFirst).mockResolvedValue({
+      id: "run-1",
+      runNumber: "PR-001",
+      status: "REJECTED",
+      requestedByUserId: "requester-1",
+    } as any);
+
+    await expect(
+      resubmitPaymentRun({
+        orgId: "org-1",
+        paymentRunId: "run-1",
+        actorId: "other-user",
+      }),
+    ).rejects.toThrow("Only the original requester can resubmit this payment run.");
   });
 
   it("completes full reject-resubmit-approve cycle", async () => {

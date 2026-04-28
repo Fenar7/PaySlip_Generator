@@ -1,6 +1,11 @@
-import { notFound, redirect } from "next/navigation";
+import { redirect } from "next/navigation";
 import Link from "next/link";
-import { getProofDetail, acceptProof, rejectProof } from "../actions";
+import {
+  getProofDetail,
+  acceptProof,
+  rejectProof,
+} from "../actions";
+import { PROOF_LOAD_ERROR, PROOF_NOT_FOUND_ERROR } from "../errors";
 
 function formatCurrency(amount: number) {
   return new Intl.NumberFormat("en-IN", {
@@ -29,7 +34,46 @@ export default async function ProofDetailPage({
   const result = await getProofDetail(proofId);
 
   if (!result.success) {
-    notFound();
+    const isMissing = result.error === PROOF_NOT_FOUND_ERROR;
+
+    return (
+      <div className="min-h-screen bg-slate-50">
+        <div className="mx-auto max-w-3xl px-4 py-10">
+          <div className="rounded-xl border border-slate-200 bg-white p-8 shadow-sm">
+            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-400">
+              Payment Proof
+            </p>
+            <h1 className="mt-3 text-2xl font-semibold text-slate-900">
+              {isMissing ? "This proof is no longer available." : "We could not load this proof right now."}
+            </h1>
+            <p className="mt-3 max-w-2xl text-sm leading-7 text-slate-600">
+              {isMissing
+                ? "The proof may have been removed, moved to another workspace, or the direct link is stale. Open the proof queue from the current workspace to continue the review."
+                : "The proof record exists, but a supporting dependency such as storage URL generation failed. Use the queue link below and try again after the dependency issue is resolved."}
+            </p>
+            <div className="mt-6 flex flex-wrap gap-3">
+              <Link
+                href="/app/pay/proofs"
+                className="inline-flex items-center rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700"
+              >
+                Open Payment Proofs
+              </Link>
+              <Link
+                href="/app/docs/invoices"
+                className="inline-flex items-center rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+              >
+                Back to Invoice Vault
+              </Link>
+            </div>
+            {!isMissing && result.error === PROOF_LOAD_ERROR && (
+              <p className="mt-4 text-xs text-slate-400">
+                If this keeps happening, check the proof storage configuration for the current environment.
+              </p>
+            )}
+          </div>
+        </div>
+      </div>
+    );
   }
 
   const proof = result.data;

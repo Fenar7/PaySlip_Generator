@@ -3,6 +3,7 @@ import "server-only";
 import { db } from "@/lib/db";
 import { runTrackedAiJob, safeParseAiJson } from "@/lib/ai/jobs";
 import { nextDocumentNumberTx } from "@/lib/docs/numbering";
+import { parseAccountingDate } from "@/lib/accounting/utils";
 import type { ExtractionReviewStatus } from "@/generated/prisma/client";
 
 export type { ExtractionReviewStatus };
@@ -349,7 +350,7 @@ export async function promoteExtractionToDraft(
         data: {
           organizationId: orgId,
           invoiceNumber,
-          invoiceDate,
+          invoiceDate: parseAccountingDate(invoiceDate),
           status: "DRAFT",
           totalAmount,
           formData: {

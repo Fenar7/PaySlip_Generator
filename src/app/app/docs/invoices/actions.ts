@@ -3,7 +3,7 @@
 import { db } from "@/lib/db";
 import { requireOrgContext } from "@/lib/auth";
 import { nextDocumentNumber } from "@/lib/docs";
-import { getSchemaDriftActionMessage, isModelMissingTableError } from "@/lib/prisma-errors";
+import { getSchemaDriftActionMessage, isSchemaDriftError } from "@/lib/prisma-errors";
 import { revalidatePath } from "next/cache";
 import type { Prisma } from "@/generated/prisma/client";
 import { StockEventType } from "@/generated/prisma/client";
@@ -22,6 +22,7 @@ import {
   sumMinorUnits,
   toMinorUnits,
 } from "@/lib/money";
+import { formatIsoDate, parseAccountingDate, toAccountingNumber } from "@/lib/accounting/utils";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -147,6 +148,25 @@ function normalizeInvoiceLineItems(
   };
 }
 
+function normalizeInvoiceDateInput(value: Date | string, fieldLabel: string): Date {
+  try {
+    return parseAccountingDate(value);
+  } catch {
+    throw new Error(`${fieldLabel} must be a valid date.`);
+  }
+}
+
+function normalizeOptionalInvoiceDateInput(
+  value: Date | string | null | undefined,
+  fieldLabel: string,
+): Date | null {
+  if (!value) {
+    return null;
+  }
+
+  return normalizeInvoiceDateInput(value, fieldLabel);
+}
+
 async function syncInvoiceRecordToIndex(orgId: string, invoiceId: string): Promise<void> {
   const invoice = await db.invoice.findFirst({
     where: { id: invoiceId, organizationId: orgId },
@@ -157,12 +177,20 @@ async function syncInvoiceRecordToIndex(orgId: string, invoiceId: string): Promi
     return;
   }
 
+  let invoiceDate: string;
+  try {
+    invoiceDate = formatIsoDate(invoice.invoiceDate);
+  } catch (error) {
+    console.warn(`Skipping invoice index sync for ${invoiceId}: invalid invoice date`, error);
+    return;
+  }
+
   await syncInvoiceToIndex(orgId, {
     id: invoice.id,
     invoiceNumber: invoice.invoiceNumber,
     status: invoice.status,
-    invoiceDate: invoice.invoiceDate,
-    totalAmount: invoice.totalAmount,
+    invoiceDate,
+    totalAmount: toAccountingNumber(invoice.totalAmount),
     displayCurrency: invoice.displayCurrency,
     archivedAt: invoice.archivedAt,
     customer: invoice.customer ?? undefined,
@@ -284,6 +312,8 @@ export async function saveInvoice(
     const invoiceNumber = await nextDocumentNumber(orgId, "invoice");
 
     const normalizedInvoice = normalizeInvoiceLineItems(input.lineItems);
+    const invoiceDate = normalizeInvoiceDateInput(input.invoiceDate, "Invoice date");
+    const dueDate = normalizeOptionalInvoiceDateInput(input.dueDate, "Due date");
 
     const invoice = await db.$transaction(async (tx) => {
       const created = await tx.invoice.create({
@@ -291,8 +321,8 @@ export async function saveInvoice(
           organizationId: orgId,
           customerId: input.customerId || null,
           invoiceNumber,
-          invoiceDate: input.invoiceDate,
-          dueDate: input.dueDate || null,
+          invoiceDate,
+          dueDate,
           status,
           notes: input.notes || null,
           formData: input.formData as Prisma.InputJsonValue,
@@ -390,9 +420,9 @@ export async function saveInvoice(
     revalidatePath("/app/docs/invoices");
     return { success: true, data: { id: invoice.id, invoiceNumber } };
   } catch (error) {
-    if (isModelMissingTableError(error, "Invoice")) {
+    if (isSchemaDriftError(error, "Invoice")) {
       console.warn(
-        "saveInvoice failed because the invoice table is missing; the local database is behind the Prisma schema.",
+        "saveInvoice failed because the local database schema is behind the Prisma schema.",
       );
       return {
         success: false,
@@ -432,8 +462,12 @@ export async function updateInvoice(
         where: { id },
         data: {
           customerId: input.customerId,
-          invoiceDate: input.invoiceDate,
-          dueDate: input.dueDate,
+          ...(input.invoiceDate !== undefined
+            ? { invoiceDate: normalizeInvoiceDateInput(input.invoiceDate, "Invoice date") }
+            : {}),
+          ...(input.dueDate !== undefined
+            ? { dueDate: normalizeOptionalInvoiceDateInput(input.dueDate, "Due date") }
+            : {}),
           notes: input.notes,
           formData: input.formData as Prisma.InputJsonValue | undefined,
           totalAmount: normalizedInvoice?.totalAmount ?? existing.totalAmount,
@@ -462,12 +496,12 @@ export async function updateInvoice(
     await syncInvoiceRecordToIndex(orgId, id);
 
     revalidatePath("/app/docs/invoices");
-    revalidatePath(`/app/docs/invoices/${id}`);
-    return { success: true, data: { id } };
+      revalidatePath(`/app/docs/invoices/${id}`);
+      return { success: true, data: { id } };
   } catch (error) {
-    if (isModelMissingTableError(error, "Invoice")) {
+    if (isSchemaDriftError(error, "Invoice")) {
       console.warn(
-        "updateInvoice failed because the invoice table is missing; the local database is behind the Prisma schema.",
+        "updateInvoice failed because the local database schema is behind the Prisma schema.",
       );
       return {
         success: false,
@@ -537,7 +571,7 @@ export async function duplicateInvoice(
         organizationId: orgId,
         customerId: existing.customerId,
         invoiceNumber: newNumber,
-        invoiceDate: new Date().toISOString().split("T")[0],
+        invoiceDate: parseAccountingDate(new Date()),
         dueDate: existing.dueDate,
         status: "DRAFT",
         notes: existing.notes,
@@ -605,13 +639,31 @@ export async function deleteInvoice(id: string): Promise<ActionResult<void>> {
 export async function getInvoice(id: string) {
   const { orgId } = await requireOrgContext();
 
-  return db.invoice.findFirst({
+  const invoice = await db.invoice.findFirst({
     where: { id, organizationId: orgId, archivedAt: null },
     include: {
       lineItems: { orderBy: { sortOrder: "asc" } },
       customer: true,
     },
   });
+
+  if (!invoice) {
+    return null;
+  }
+
+  return {
+    ...invoice,
+    invoiceDate: formatIsoDate(invoice.invoiceDate),
+    dueDate: invoice.dueDate ? formatIsoDate(invoice.dueDate) : null,
+    totalAmount: toAccountingNumber(invoice.totalAmount),
+    amountPaid: toAccountingNumber(invoice.amountPaid),
+    remainingAmount: toAccountingNumber(invoice.remainingAmount),
+    paymentPromiseDate: invoice.paymentPromiseDate ? formatIsoDate(invoice.paymentPromiseDate) : null,
+    lineItems: invoice.lineItems.map((lineItem) => ({
+      ...lineItem,
+      amount: toAccountingNumber(lineItem.amount),
+    })),
+  };
 }
 
 export async function listInvoices(params?: {
@@ -644,13 +696,46 @@ export async function listInvoices(params?: {
       skip,
       take: limit,
       orderBy: { createdAt: "desc" },
-      include: { customer: true, publicTokens: true },
+      include: {
+        customer: true,
+        publicTokens: true,
+        proofs: {
+          where: { reviewStatus: "PENDING" },
+          orderBy: { createdAt: "desc" },
+          take: 2,
+          select: {
+            id: true,
+            createdAt: true,
+          },
+        },
+        tickets: {
+          where: { status: { in: ["OPEN", "IN_PROGRESS"] } },
+          orderBy: { createdAt: "desc" },
+          take: 2,
+          select: {
+            id: true,
+            status: true,
+            category: true,
+            createdAt: true,
+          },
+        },
+      },
     }),
     db.invoice.count({ where }),
   ]);
 
   return {
-    invoices,
+    invoices: invoices.map((invoice) => ({
+      ...invoice,
+      invoiceDate: formatIsoDate(invoice.invoiceDate),
+      dueDate: invoice.dueDate ? formatIsoDate(invoice.dueDate) : null,
+      totalAmount: toAccountingNumber(invoice.totalAmount),
+      amountPaid: toAccountingNumber(invoice.amountPaid),
+      remainingAmount: toAccountingNumber(invoice.remainingAmount),
+      paymentPromiseDate: invoice.paymentPromiseDate
+        ? formatIsoDate(invoice.paymentPromiseDate)
+        : null,
+    })),
     total,
     page,
     totalPages: Math.ceil(total / limit),
@@ -792,7 +877,11 @@ export async function markInvoicePaid(id: string): Promise<ActionResult<void>> {
     // Backwards-compat: compute remaining from totalAmount - amountPaid so that
     // legacy records (where remainingAmount column still holds the default 0) work correctly.
     const remaining = fromMinorUnits(
-      Math.max(toMinorUnits(existing.totalAmount) - toMinorUnits(existing.amountPaid), 0),
+      Math.max(
+        toMinorUnits(toAccountingNumber(existing.totalAmount)) -
+          toMinorUnits(toAccountingNumber(existing.amountPaid)),
+        0,
+      ),
     );
 
     if (remaining <= 0) {
@@ -1117,7 +1206,13 @@ export async function cancelInvoice(
       const reversalJournalId = await reverseInvoicePostingIfNeededTx(tx, {
         orgId,
         actorId: userId,
-        invoice: existing,
+        invoice: {
+          id: existing.id,
+          invoiceNumber: existing.invoiceNumber,
+          amountPaid: toAccountingNumber(existing.amountPaid),
+          postedJournalEntryId: existing.postedJournalEntryId,
+          accountingStatus: existing.accountingStatus,
+        },
         reason,
         action: "cancel",
       });
@@ -1200,7 +1295,13 @@ export async function reissueInvoice(
       const reversalJournalId = await reverseInvoicePostingIfNeededTx(tx, {
         orgId,
         actorId: userId,
-        invoice: existing,
+        invoice: {
+          id: existing.id,
+          invoiceNumber: existing.invoiceNumber,
+          amountPaid: toAccountingNumber(existing.amountPaid),
+          postedJournalEntryId: existing.postedJournalEntryId,
+          accountingStatus: existing.accountingStatus,
+        },
         reason,
         action: "reissue",
       });
@@ -1210,7 +1311,7 @@ export async function reissueInvoice(
           organizationId: orgId,
           customerId: existing.customerId,
           invoiceNumber: newNumber,
-          invoiceDate: new Date().toISOString().split("T")[0],
+          invoiceDate: parseAccountingDate(new Date()),
           dueDate: existing.dueDate,
           status: "DRAFT",
           notes: existing.notes,
@@ -1291,10 +1392,18 @@ export async function reissueInvoice(
 
 export async function getInvoicePayments(invoiceId: string) {
   const { orgId } = await requireOrgContext();
-  return db.invoicePayment.findMany({
+  const payments = await db.invoicePayment.findMany({
     where: { invoiceId, invoice: { organizationId: orgId } },
     orderBy: { paidAt: "desc" },
   });
+
+  return payments.map((payment) => ({
+    ...payment,
+    amount: toAccountingNumber(payment.amount),
+    plannedNextPaymentDate: payment.plannedNextPaymentDate
+      ? formatIsoDate(payment.plannedNextPaymentDate)
+      : null,
+  }));
 }
 
 // ─── Timeline & Tokens ───────────────────────────────────────────────────────

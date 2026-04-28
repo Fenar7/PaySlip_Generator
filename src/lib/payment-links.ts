@@ -6,6 +6,7 @@ import type { Prisma } from "@/generated/prisma/client";
 import { postInvoicePaymentTx } from "@/lib/accounting";
 import { fromMinorUnits, toMinorUnits } from "@/lib/money";
 import { logAudit } from "@/lib/audit";
+import { toAccountingNumber } from "@/lib/accounting/utils";
 
 type ActionResult<T> =
   | { success: true; data: T }
@@ -37,7 +38,7 @@ export async function createInvoicePaymentLink(
   }
 
   // Use remainingAmount so returning customers pay only the outstanding balance
-  const amountPaise = toMinorUnits(invoice.remainingAmount);
+  const amountPaise = toMinorUnits(toAccountingNumber(invoice.remainingAmount));
   if (amountPaise <= 0) {
     return { success: false, error: "Invoice amount must be greater than zero" };
   }
@@ -114,7 +115,10 @@ export async function handlePaymentLinkPaid(
   });
 
   // If invoice is already fully paid, record an OVERPAID_REVIEW ledger row — do NOT reconcile
-  if (toMinorUnits(invoice.amountPaid) >= toMinorUnits(invoice.totalAmount)) {
+  if (
+    toMinorUnits(toAccountingNumber(invoice.amountPaid)) >=
+    toMinorUnits(toAccountingNumber(invoice.totalAmount))
+  ) {
     console.warn(
       `[PaymentLinks] Received payment ${paymentId} for already-PAID invoice ${invoice.id} — recording as OVERPAID_REVIEW`
     );

@@ -3,6 +3,7 @@ import "server-only";
 import { NextResponse } from "next/server";
 import { getOrgContext, type OrgContext } from "@/lib/auth";
 import { canReadBooks, canWriteBooks } from "@/lib/books-permissions";
+import { toAccountingNumber, type AccountingNumeric } from "@/lib/accounting/utils";
 import { checkFeature } from "@/lib/plans";
 
 const FEATURE_MESSAGES = {
@@ -211,6 +212,6 @@ export function formatCsvDate(value: Date | string | null | undefined): string {
   return Number.isNaN(date.getTime()) ? String(value) : date.toISOString().slice(0, 10);
 }
 
-export function formatCsvNumber(value: number): string {
-  return value.toFixed(2);
+export function formatCsvNumber(value: AccountingNumeric): string {
+  return toAccountingNumber(value).toFixed(2);
 }

@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
 import { db } from "@/lib/db";
+import { toAccountingNumber } from "@/lib/accounting/utils";
 import {
   authenticateApiRequest,
   requireScope,
@@ -37,6 +38,8 @@ export async function POST(request: NextRequest, context: RouteContext) {
       throw new ApiError(ErrorCode.INTERNAL_ERROR, "Payment gateway not configured.", 500);
     }
 
+    const invoiceTotal = toAccountingNumber(invoice.totalAmount);
+
     // Create Razorpay payment link via API
     const razorpayAuth = Buffer.from(
       `${process.env.RAZORPAY_KEY_ID}:${process.env.RAZORPAY_KEY_SECRET}`
@@ -49,7 +52,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
         Authorization: `Basic ${razorpayAuth}`,
       },
       body: JSON.stringify({
-        amount: Math.round(invoice.totalAmount * 100), // paise
+        amount: Math.round(invoiceTotal * 100), // paise
         currency: "INR",
         description: `Invoice ${invoice.invoiceNumber}`,
         customer: invoice.customer
@@ -91,7 +94,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
       paymentLinkId: rpData.id,
       paymentLinkUrl: rpData.short_url,
       invoiceId: id,
-      amount: invoice.totalAmount,
+      amount: invoiceTotal,
     });
     logApiRequest(auth.orgId, auth.apiKeyId, "POST", `/api/v1/invoices/${id}/payment-link`, 200, Date.now() - start, getClientIp(request));
     return resp;

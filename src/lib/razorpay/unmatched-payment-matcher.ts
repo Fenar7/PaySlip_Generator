@@ -1,6 +1,7 @@
 import "server-only";
 import { db } from "@/lib/db";
 import { fromMinorUnits, toMinorUnits } from "@/lib/money";
+import { toAccountingNumber } from "@/lib/accounting/utils";
 
 export type MatchMode = "AUTO_EXACT" | "SUGGESTED" | "MANUALLY_MATCHED";
 
@@ -38,7 +39,7 @@ export async function tryAutoMatchUnmatchedPayment(
   const receivedPaise = Number(payment.amountPaise);
 
   // Find open invoices for this customer with a remaining balance
-  const openInvoices = await db.invoice.findMany({
+  const openInvoiceRows = await db.invoice.findMany({
     where: {
       organizationId: payment.orgId,
       customerId: va.customerId,
@@ -51,6 +52,10 @@ export async function tryAutoMatchUnmatchedPayment(
     },
     orderBy: { remainingAmount: "asc" },
   });
+  const openInvoices = openInvoiceRows.map((invoice) => ({
+    ...invoice,
+    remainingAmount: toAccountingNumber(invoice.remainingAmount),
+  }));
 
   if (openInvoices.length === 0) return null;
 

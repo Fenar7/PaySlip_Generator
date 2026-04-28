@@ -15,7 +15,7 @@ export function ReopenClosedPeriodButton({ periodId }: ReopenClosedPeriodButtonP
 
   function reopen() {
     const reason = prompt(
-      "Reason for reopening this fiscal period. This direct admin action is audit logged.",
+      "Reason for reopening this fiscal period. This will create an approval request for an owner or admin.",
     );
     if (!reason?.trim()) {
       return;
@@ -27,13 +27,14 @@ export function ReopenClosedPeriodButton({ periodId }: ReopenClosedPeriodButtonP
         alert(result.error);
         return;
       }
+      alert("Reopen approval requested. Review and approval now happen in Flow > Approvals.");
       router.refresh();
     });
   }
 
   return (
     <Button type="button" variant="danger" onClick={reopen} disabled={isPending}>
-      {isPending ? "Reopening..." : "Reopen Period"}
+      {isPending ? "Requesting..." : "Request Reopen"}
     </Button>
   );
 }

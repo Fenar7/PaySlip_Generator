@@ -8,6 +8,8 @@ import { markNotificationRead, markAllRead } from "./actions";
 
 const TYPE_ICONS: Record<string, string> = {
   proof_uploaded: "📎",
+  proof_accepted: "✅",
+  proof_rejected: "❌",
   ticket_opened: "🎫",
   ticket_reply: "💬",
   approval_requested: "✋",

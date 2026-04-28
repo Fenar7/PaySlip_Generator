@@ -2,10 +2,13 @@
 
 import { db } from "@/lib/db";
 import { requireOrgContext } from "@/lib/auth";
+import { toAccountingNumber } from "@/lib/accounting/utils";
 import { revalidatePath } from "next/cache";
 import { reconcileInvoicePayment } from "@/lib/invoice-reconciliation";
 import { postInvoicePaymentTx } from "@/lib/accounting";
 import { resolvePaymentProofUrl } from "@/features/pay/server/payment-proof-storage";
+import { notifyOrgAdmins } from "@/lib/notifications";
+import { PROOF_LOAD_ERROR, PROOF_NOT_FOUND_ERROR } from "./errors";
 
 export type ActionResult<T> =
   | { success: true; data: T }
@@ -64,15 +67,15 @@ export async function listProofs(params?: {
 
     return {
       success: true,
-      data: {
-        proofs: proofs.map((p) => ({
-          id: p.id,
-          invoiceNumber: p.invoice.invoiceNumber,
-          customerName: p.invoice.customer?.name || "—",
-          amount: p.amount,
-          paymentDate: p.paymentDate,
-          paymentMethod: p.paymentMethod,
-          reviewStatus: p.reviewStatus,
+        data: {
+          proofs: proofs.map((p) => ({
+            id: p.id,
+            invoiceNumber: p.invoice.invoiceNumber,
+            customerName: p.invoice.customer?.name || "—",
+            amount: toAccountingNumber(p.amount),
+            paymentDate: p.paymentDate,
+            paymentMethod: p.paymentMethod,
+            reviewStatus: p.reviewStatus,
           createdAt: p.createdAt.toISOString(),
           fileName: p.fileName,
         })),
@@ -132,17 +135,19 @@ export async function getProofDetail(proofId: string): Promise<
     });
 
     if (!proof) {
-      return { success: false, error: "Proof not found" };
+      return { success: false, error: PROOF_NOT_FOUND_ERROR };
     }
 
     // Effective remaining: for legacy invoices where remainingAmount hasn't been
     // reconciled yet, fall back to totalAmount - amountPaid.
-    const effectiveRemaining = proof.invoice.remainingAmount > 0
-      ? proof.invoice.remainingAmount
-      : Math.max(proof.invoice.totalAmount - proof.invoice.amountPaid, 0);
+    const remainingAmount = toAccountingNumber(proof.invoice.remainingAmount);
+    const totalAmount = toAccountingNumber(proof.invoice.totalAmount);
+    const amountPaid = toAccountingNumber(proof.invoice.amountPaid);
+    const proofAmount = toAccountingNumber(proof.amount);
+    const effectiveRemaining = remainingAmount > 0 ? remainingAmount : Math.max(totalAmount - amountPaid, 0);
 
     const resultingStatus: "PAID" | "PARTIALLY_PAID" =
-      proof.amount >= effectiveRemaining ? "PAID" : "PARTIALLY_PAID";
+      proofAmount >= effectiveRemaining ? "PAID" : "PARTIALLY_PAID";
 
     const fileUrl = await resolvePaymentProofUrl(proof.fileUrl);
 
@@ -152,7 +157,7 @@ export async function getProofDetail(proofId: string): Promise<
         id: proof.id,
         fileUrl,
         fileName: proof.fileName,
-        amount: proof.amount,
+        amount: proofAmount,
         paymentDate: proof.paymentDate,
         paymentMethod: proof.paymentMethod,
         plannedNextPaymentDate: proof.plannedNextPaymentDate ?? null,
@@ -163,9 +168,9 @@ export async function getProofDetail(proofId: string): Promise<
         invoice: {
           id: proof.invoice.id,
           invoiceNumber: proof.invoice.invoiceNumber,
-          totalAmount: proof.invoice.totalAmount,
-          amountPaid: proof.invoice.amountPaid,
-          remainingAmount: proof.invoice.remainingAmount,
+          totalAmount,
+          amountPaid,
+          remainingAmount,
           status: proof.invoice.status,
           customerName: proof.invoice.customer?.name || "—",
         },
@@ -174,7 +179,7 @@ export async function getProofDetail(proofId: string): Promise<
     };
   } catch (error) {
     console.error("getProofDetail error:", error);
-    return { success: false, error: "Failed to load proof" };
+    return { success: false, error: PROOF_LOAD_ERROR };
   }
 }
 
@@ -185,7 +190,7 @@ export async function acceptProof(proofId: string): Promise<ActionResult<void>> 
     const proof = await db.invoiceProof.findFirst({
       where: { id: proofId, invoice: { organizationId: orgId } },
       include: {
-        invoice: { select: { id: true, status: true } },
+        invoice: { select: { id: true, invoiceNumber: true, status: true } },
         invoicePayment: true,
       },
     });
@@ -252,8 +257,20 @@ export async function acceptProof(proofId: string): Promise<ActionResult<void>> 
 
     await reconcileInvoicePayment(invoiceId, userId);
 
+    await notifyOrgAdmins({
+      orgId,
+      type: "proof_accepted",
+      title: "Payment proof accepted",
+      body: `Payment proof for invoice ${proof.invoice.invoiceNumber} was accepted.`,
+      link: `/app/pay/proofs/${proofId}`,
+      excludeUserId: userId,
+    }).catch((error) => {
+      console.error("acceptProof notification error:", error);
+    });
+
     revalidatePath("/app/pay/proofs");
     revalidatePath("/app/pay/receivables");
+    revalidatePath("/app/docs/invoices");
     return { success: true, data: undefined };
   } catch (error) {
     console.error("acceptProof error:", error);
@@ -271,7 +288,7 @@ export async function rejectProof(
     const proof = await db.invoiceProof.findFirst({
       where: { id: proofId, invoice: { organizationId: orgId } },
       include: {
-        invoice: { select: { id: true, status: true } },
+        invoice: { select: { id: true, invoiceNumber: true, status: true } },
         invoicePayment: { select: { id: true } },
       },
     });
@@ -307,8 +324,20 @@ export async function rejectProof(
     // rather than blindly resetting to ISSUED.
     await reconcileInvoicePayment(proof.invoice.id, userId);
 
+    await notifyOrgAdmins({
+      orgId,
+      type: "proof_rejected",
+      title: "Payment proof rejected",
+      body: `Payment proof for invoice ${proof.invoice.invoiceNumber} was rejected.`,
+      link: `/app/pay/proofs/${proofId}`,
+      excludeUserId: userId,
+    }).catch((error) => {
+      console.error("rejectProof notification error:", error);
+    });
+
     revalidatePath("/app/pay/proofs");
     revalidatePath("/app/pay/receivables");
+    revalidatePath("/app/docs/invoices");
     return { success: true, data: undefined };
   } catch (error) {
     console.error("rejectProof error:", error);

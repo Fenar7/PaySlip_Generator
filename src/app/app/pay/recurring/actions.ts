@@ -2,6 +2,7 @@
 
 import { db } from "@/lib/db";
 import { requireOrgContext } from "@/lib/auth";
+import { toAccountingNumber } from "@/lib/accounting/utils";
 import { revalidatePath } from "next/cache";
 import { calculateNextRunAt } from "@/lib/cron";
 
@@ -184,7 +185,7 @@ export async function deleteRecurringRule(
 
 export async function listInvoicesForSelect() {
   const { orgId } = await requireOrgContext();
-  return db.invoice.findMany({
+  const invoices = await db.invoice.findMany({
     where: {
       organizationId: orgId,
       archivedAt: null,
@@ -194,4 +195,8 @@ export async function listInvoicesForSelect() {
     orderBy: { createdAt: "desc" },
     take: 100,
   });
+  return invoices.map((invoice) => ({
+    ...invoice,
+    totalAmount: toAccountingNumber(invoice.totalAmount),
+  }));
 }

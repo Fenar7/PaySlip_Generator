@@ -1,15 +1,15 @@
 import { NextResponse } from "next/server";
-import { getOrgContext } from "@/lib/auth";
 import { disconnect } from "@/lib/integrations/quickbooks";
+import { requireIntegrationAdminRoute } from "../../_auth";
 
 export async function DELETE() {
   try {
-    const ctx = await getOrgContext();
-    if (!ctx) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const auth = await requireIntegrationAdminRoute();
+    if (!auth.ok) {
+      return auth.response;
     }
 
-    await disconnect(ctx.orgId);
+    await disconnect(auth.ctx.orgId);
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error("QuickBooks disconnect failed:", error);

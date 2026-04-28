@@ -5,6 +5,7 @@ import { db } from "@/lib/db";
 import { logAudit } from "@/lib/audit";
 import { sendEmail } from "@/lib/email";
 import type { Prisma } from "@/generated/prisma/client";
+import { parseAccountingDate } from "@/lib/accounting/utils";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -455,7 +456,7 @@ export async function convertQuoteToInvoice(quoteId: string, orgId: string, user
         organizationId: orgId,
         customerId: quote.customerId,
         invoiceNumber,
-        invoiceDate: new Date().toISOString().split("T")[0],
+        invoiceDate: parseAccountingDate(new Date()),
         status: "DRAFT",
         totalAmount: quote.totalAmount,
         notes: quote.notes,

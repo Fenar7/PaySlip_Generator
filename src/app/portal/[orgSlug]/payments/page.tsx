@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import { getPortalSession } from "@/lib/portal-auth";
 import { db } from "@/lib/db";
+import { formatIsoDate, toAccountingNumber } from "@/lib/accounting/utils";
 
 const METHOD_LABELS: Record<string, string> = {
   card: "Card",
@@ -83,12 +84,29 @@ export default async function PortalPaymentsPage({
     }),
   ]);
 
-  const totalPaid = payments
-    .filter((p) => p.status === "SETTLED")
-    .reduce((sum, p) => sum + p.amount, 0);
+  const paymentRows = payments.map((payment) => ({
+    ...payment,
+    amount: toAccountingNumber(payment.amount),
+    invoice: payment.invoice
+      ? {
+          ...payment.invoice,
+          totalAmount: toAccountingNumber(payment.invoice.totalAmount),
+        }
+      : null,
+  }));
+  const unpaidInvoiceRows = unpaidInvoices.map((invoice) => ({
+    ...invoice,
+    totalAmount: toAccountingNumber(invoice.totalAmount),
+    remainingAmount: toAccountingNumber(invoice.remainingAmount),
+    dueDate: invoice.dueDate ? formatIsoDate(invoice.dueDate) : null,
+  }));
 
-  const totalOutstanding = unpaidInvoices.reduce(
-    (sum, inv) => sum + (inv.remainingAmount || inv.totalAmount),
+  const totalPaid = paymentRows
+    .filter((payment) => payment.status === "SETTLED")
+    .reduce((sum, payment) => sum + payment.amount, 0);
+
+  const totalOutstanding = unpaidInvoiceRows.reduce(
+    (sum, invoice) => sum + (invoice.remainingAmount || invoice.totalAmount),
     0
   );
 
@@ -112,13 +130,13 @@ export default async function PortalPaymentsPage({
       </div>
 
       {/* Outstanding invoices with Pay Now */}
-      {unpaidInvoices.length > 0 && (
+      {unpaidInvoiceRows.length > 0 && (
         <div className="rounded-xl border border-slate-200 bg-white overflow-hidden">
           <div className="border-b border-slate-100 px-6 py-4">
             <h2 className="text-sm font-semibold text-slate-900">Outstanding Invoices</h2>
           </div>
           <div className="divide-y divide-slate-100">
-            {unpaidInvoices.map((inv) => {
+            {unpaidInvoiceRows.map((inv) => {
               const hasActiveLink =
                 inv.razorpayPaymentLinkUrl &&
                 inv.paymentLinkStatus &&
@@ -131,7 +149,7 @@ export default async function PortalPaymentsPage({
                     <p className="text-sm font-medium text-slate-900">#{inv.invoiceNumber}</p>
                     {inv.dueDate && (
                       <p className="text-xs text-slate-400">
-                        Due: {new Date(inv.dueDate).toLocaleDateString("en-IN")}
+                        Due: {inv.dueDate}
                       </p>
                     )}
                   </div>
@@ -169,13 +187,13 @@ export default async function PortalPaymentsPage({
         <div className="border-b border-slate-100 px-6 py-4">
           <h2 className="text-sm font-semibold text-slate-900">Payment History</h2>
         </div>
-        {payments.length === 0 ? (
+        {paymentRows.length === 0 ? (
           <div className="px-6 py-12 text-center">
             <p className="text-sm text-slate-400">No payments recorded yet.</p>
           </div>
         ) : (
           <div className="divide-y divide-slate-100">
-            {payments.map((payment) => (
+            {paymentRows.map((payment) => (
               <div key={payment.id} className="flex items-center justify-between gap-4 px-6 py-4">
                 <div className="min-w-0">
                   <div className="flex items-center gap-2">
