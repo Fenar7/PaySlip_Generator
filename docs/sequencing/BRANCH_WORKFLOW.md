@@ -13,31 +13,31 @@
 master
 └── feature/sequence-platform                    [root feature branch]
     ├── feature/sequence-platform-phase-0-delivery
-    │   └── feature/sequence-platform-phase-0-sprint-0.1-delivery-setup
+    │   └── feature/sequence-platform-phase-0-sprint-0-1-delivery-setup
     ├── feature/sequence-platform-phase-1-foundation
-    │   ├── feature/sequence-platform-phase-1-sprint-1.1-schema-foundation
-    │   ├── feature/sequence-platform-phase-1-sprint-1.2-format-engine
-    │   └── feature/sequence-platform-phase-1-sprint-1.3-migration-scaffolding
+    │   ├── feature/sequence-platform-phase-1-sprint-1-1-schema-foundation
+    │   ├── feature/sequence-platform-phase-1-sprint-1-2-format-engine
+    │   └── feature/sequence-platform-phase-1-sprint-1-3-migration-scaffolding
     ├── feature/sequence-platform-phase-2-governance
-    │   ├── feature/sequence-platform-phase-2-sprint-2.1-owner-governance
-    │   ├── feature/sequence-platform-phase-2-sprint-2.2-settings-console
-    │   └── feature/sequence-platform-phase-2-sprint-2.3-continuity-history
+    │   ├── feature/sequence-platform-phase-2-sprint-2-1-owner-governance
+    │   ├── feature/sequence-platform-phase-2-sprint-2-2-settings-console
+    │   └── feature/sequence-platform-phase-2-sprint-2-3-continuity-history
     ├── feature/sequence-platform-phase-3-onboarding
-    │   ├── feature/sequence-platform-phase-3-sprint-3.1-onboarding-step
-    │   ├── feature/sequence-platform-phase-3-sprint-3.2-custom-format-setup
-    │   └── feature/sequence-platform-phase-3-sprint-3.3-recovery-fallback
+    │   ├── feature/sequence-platform-phase-3-sprint-3-1-onboarding-step
+    │   ├── feature/sequence-platform-phase-3-sprint-3-2-custom-format-setup
+    │   └── feature/sequence-platform-phase-3-sprint-3-3-recovery-fallback
     ├── feature/sequence-platform-phase-4-draft-stop-consuming
-    │   ├── feature/sequence-platform-phase-4-sprint-4.1-drafts-stop-consuming
-    │   ├── feature/sequence-platform-phase-4-sprint-4.2-issue-time-numbering
-    │   └── feature/sequence-platform-phase-4-sprint-4.3-invoice-compat
+    │   ├── feature/sequence-platform-phase-4-sprint-4-1-drafts-stop-consuming
+    │   ├── feature/sequence-platform-phase-4-sprint-4-2-issue-time-numbering
+    │   └── feature/sequence-platform-phase-4-sprint-4-3-invoice-compat
     ├── feature/sequence-platform-phase-5-approval-numbering
-    │   ├── feature/sequence-platform-phase-5-sprint-5.1-drafts-stop-consuming
-    │   ├── feature/sequence-platform-phase-5-sprint-5.2-approval-time-numbering
-    │   └── feature/sequence-platform-phase-5-sprint-5.3-voucher-compat
+    │   ├── feature/sequence-platform-phase-5-sprint-5-1-drafts-stop-consuming
+    │   ├── feature/sequence-platform-phase-5-sprint-5-2-approval-time-numbering
+    │   └── feature/sequence-platform-phase-5-sprint-5-3-voucher-compat
     ├── feature/sequence-platform-phase-6-resequence
-    │   ├── feature/sequence-platform-phase-6-sprint-6.1-resequence-preview
-    │   ├── feature/sequence-platform-phase-6-sprint-6.2-open-period-apply
-    │   └── feature/sequence-platform-phase-6-sprint-6.3-gap-detection
+    │   ├── feature/sequence-platform-phase-6-sprint-6-1-resequence-preview
+    │   ├── feature/sequence-platform-phase-6-sprint-6-2-open-period-apply
+    │   └── feature/sequence-platform-phase-6-sprint-6-3-gap-detection
     └── feature/sequence-platform-phase-7-hardening
         ├── feature/sequence-platform-phase-7-sprint-7.1-concurrency-hardening
         ├── feature/sequence-platform-phase-7-sprint-7.2-diagnostics
@@ -50,15 +50,15 @@ master
 |-------|---------|---------|
 | Root feature | `feature/sequence-platform` | `feature/sequence-platform` |
 | Phase | `feature/sequence-platform-phase-N-{theme}` | `feature/sequence-platform-phase-1-foundation` |
-| Sprint | `feature/sequence-platform-phase-N-sprint-M.{K}-{theme}` | `feature/sequence-platform-phase-1-sprint-1.2-format-engine` |
+| Sprint | `feature/sequence-platform-phase-N-sprint-M-K-{theme}` | `feature/sequence-platform-phase-1-sprint-1-2-format-engine` |
 | Emergency | `feature/sequence-platform-phase-N-{theme}-hotfix-{YYYYMMDD}-{slug}` | `feature/sequence-platform-phase-4-draft-stop-consuming-hotfix-20260428-race-condition` |
 
 **Rules:**
 - Use lowercase kebab-case only.
 - `N` = phase number (0–7).
-- `M.K` = sprint number (`M` = phase prefix, `K` = sprint within phase).
+- `M-K` = sprint number (`M` = phase prefix, `K` = sprint within phase).
 - `{theme}` = 2–4 word kebab-case summary of sprint/phase purpose.
-- No underscores, no dots except in sprint version.
+- No underscores, no dots. Use hyphens only.
 
 ---
 
@@ -81,7 +81,7 @@ git checkout -b feature/sequence-platform-phase-2-governance
 # Sprint branch
 git checkout feature/sequence-platform-phase-2-governance
 git pull origin feature/sequence-platform-phase-2-governance
-git checkout -b feature/sequence-platform-phase-2-sprint-2.1-owner-governance
+git checkout -b feature/sequence-platform-phase-2-sprint-2-1-owner-governance
 ```
 
 ### 2.2 Review & Merge
@@ -175,7 +175,7 @@ feat(engine): add format template resolution for invoice sequences
 Implements pattern-based format resolution with fallback to default.
 Adds integration tests for cross-tenant isolation.
 
-Refs: phase-4-sprint-4.3
+Refs: phase-4-sprint-4-3
 ```
 
 ```
@@ -184,7 +184,7 @@ migration(schema): add sequence_registry table with tenant isolation
 Includes index on (tenant_id, document_type, fiscal_year).
 Backfill script in /scripts/backfill-sequence-registry.ts.
 
-Refs: phase-1-sprint-1.1
+Refs: phase-1-sprint-1-1
 ```
 
 ### 4.4 Atomic Commits
@@ -349,14 +349,14 @@ feature/sequence-platform-phase-7-hardening                                    �
 
 ## 8. Phase 0 Specific Workflow
 
-Phase 0 is unique: it contains **only one sprint** (Sprint 0.1 — delivery setup).
+Phase 0 is unique: it contains **only one sprint** (Sprint 0-1 — delivery setup).
 
 ### 8.1 Branch Structure
 
 ```
 feature/sequence-platform
 └── feature/sequence-platform-phase-0-delivery
-    └── feature/sequence-platform-phase-0-sprint-0.1-delivery-setup
+    └── feature/sequence-platform-phase-0-sprint-0-1-delivery-setup
 ```
 
 ### 8.2 Workflow
@@ -364,7 +364,7 @@ feature/sequence-platform
 | Step | Action | Owner |
 |------|--------|-------|
 | 1 | Create `feature/sequence-platform-phase-0-delivery` from `feature/sequence-platform` | Tech Lead |
-| 2 | Create `feature/sequence-platform-phase-0-sprint-0.1-delivery-setup` from phase-0-setup | Sprint Lead |
+| 2 | Create `feature/sequence-platform-phase-0-sprint-0-1-delivery-setup` from phase-0-delivery | Sprint Lead |
 | 3 | Deliver CI pipeline, lint rules, base test harness, branch protections, this document | All workstreams |
 | 4 | Open PR: sprint branch → phase branch | Sprint Lead |
 | 5 | Review and merge sprint branch into phase branch | Tech Lead |
@@ -477,7 +477,7 @@ Every PR at every level must satisfy the following before merge:
 | Action | Command |
 |--------|---------|
 | Start phase branch | `git checkout feature/sequence-platform && git pull && git checkout -b feature/sequence-platform-phase-N-theme` |
-| Start sprint branch | `git checkout feature/sequence-platform-phase-N-theme && git pull && git checkout -b feature/sequence-platform-phase-N-sprint-M.K-theme` |
+| Start sprint branch | `git checkout feature/sequence-platform-phase-N-theme && git pull && git checkout -b feature/sequence-platform-phase-N-sprint-M-K-theme` |
 | Update sprint branch from phase | `git fetch origin && git rebase origin/feature/sequence-platform-phase-N-theme` |
 | Open PR | Use GitHub CLI: `gh pr create --template sequence_platform.md` |
 
