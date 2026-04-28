@@ -158,13 +158,15 @@ Invoice and voucher numbering is financial document identity infrastructure. A w
 **Exact branch names for upcoming work:**
 ```
 feature/sequence-platform
-├── feature/sequence-platform/phase-1-foundation
-│   ├── feature/sequence-platform/phase-1-sprint-1-schema-foundation
-│   ├── feature/sequence-platform/phase-1-sprint-2-format-engine
-│   └── feature/sequence-platform/phase-1-sprint-3-migration-scaffolding
-├── feature/sequence-platform/phase-2-governance
+├── feature/sequence-platform-phase-1-foundation
+│   ├── feature/sequence-platform-phase-1-sprint-1-schema
+│   ├── feature/sequence-platform-phase-1-sprint-2-format-engine
+│   └── feature/sequence-platform-phase-1-sprint-3-migration
+├── feature/sequence-platform-phase-2-governance
 ...
 ```
+
+> **Note:** The PRD originally proposed slash-separated nesting (`feature/sequence-platform/phase-1/...`). Git's ref storage model does not allow both a branch and branches nested under the same prefix to coexist. We use dash-separated phase/sprint suffixes to avoid this limitation while preserving readability.
 
 **Merge order and discipline:**
 1. Sprint PRs merge into phase branches via squash or merge commit (team preference: **merge commit** to preserve sprint history).
@@ -229,14 +231,14 @@ feature/sequence-platform
 ```
 master
 └── feature/sequence-platform                    ← root feature branch
-    ├── feature/sequence-platform/phase-1-foundation
-    │   ├── feature/sequence-platform/phase-1-sprint-1-schema-foundation
-    │   ├── feature/sequence-platform/phase-1-sprint-2-format-engine
-    │   └── feature/sequence-platform/phase-1-sprint-3-migration-scaffolding
-    ├── feature/sequence-platform/phase-2-governance
-    │   ├── feature/sequence-platform/phase-2-sprint-1-permissions-audit
-    │   ├── feature/sequence-platform/phase-2-sprint-2-settings-ui
-    │   └── feature/sequence-platform/phase-2-sprint-3-import-tools
+    ├── feature/sequence-platform-phase-1-foundation
+    │   ├── feature/sequence-platform-phase-1-sprint-1-schema
+    │   ├── feature/sequence-platform-phase-1-sprint-2-format-engine
+    │   └── feature/sequence-platform-phase-1-sprint-3-migration
+    ├── feature/sequence-platform-phase-2-governance
+    │   ├── feature/sequence-platform-phase-2-sprint-1-permissions-audit
+    │   ├── feature/sequence-platform-phase-2-sprint-2-settings-ui
+    │   └── feature/sequence-platform-phase-2-sprint-3-import-tools
     ...
 ```
 
@@ -477,12 +479,12 @@ git checkout -b feature/sequence-platform
 git push -u origin feature/sequence-platform
 
 # 3. Create Phase 1 foundation branch
-git checkout -b feature/sequence-platform/phase-1-foundation
-git push -u origin feature/sequence-platform/phase-1-foundation
+git checkout -b feature/sequence-platform-phase-1-foundation
+git push -u origin feature/sequence-platform-phase-1-foundation
 
 # 4. Create Sprint 1.1 branch and hand to Schema Agent
-git checkout -b feature/sequence-platform/phase-1-sprint-1-schema-foundation
-git push -u origin feature/sequence-platform/phase-1-sprint-1-schema-foundation
+git checkout -b feature/sequence-platform-phase-1-sprint-1-schema
+git push -u origin feature/sequence-platform-phase-1-sprint-1-schema
 
 # 5. Schema Agent begins implementation
 ```
