@@ -66,11 +66,13 @@ describe("pdf studio conversion job processor", () => {
     expect(claimPdfStudioConversionJob).not.toHaveBeenCalled();
   });
 
-  it("records an actionable failure when the queued payload is incomplete", async () => {
+  it("records a non-retryable failure when the queued payload is incomplete", async () => {
     vi.mocked(claimPdfStudioConversionJob).mockResolvedValue(true);
     vi.mocked(db.jobLog.findUniqueOrThrow).mockResolvedValue({
       id: "job-1",
       payload: {},
+      retryCount: 0,
+      maxRetries: 3,
     } as never);
 
     const result = await processPdfStudioConversionJob("job-1");
@@ -80,7 +82,141 @@ describe("pdf studio conversion job processor", () => {
       jobId: "job-1",
       code: "conversion_failed",
       message: "The queued conversion job is missing its conversion target.",
-      retryable: true,
+      retryable: false,
+    });
+    expect(captureError).toHaveBeenCalledWith(
+      expect.any(PdfStudioConversionError),
+      expect.objectContaining({
+        feature: "pdf-studio",
+        operation: "process-conversion-job",
+        jobId: "job-1",
+        failureCode: "conversion_failed",
+      }),
+    );
+  });
+
+  it("records a non-retryable failure when the single source storage key is missing", async () => {
+    vi.mocked(claimPdfStudioConversionJob).mockResolvedValue(true);
+    vi.mocked(db.jobLog.findUniqueOrThrow).mockResolvedValue({
+      id: "job-1",
+      payload: {
+        toolId: "pdf-to-word",
+        targetFormat: "docx",
+        sourceFileName: "report.pdf",
+      },
+      retryCount: 0,
+      maxRetries: 3,
+    } as never);
+
+    const result = await processPdfStudioConversionJob("job-1");
+
+    expect(result).toEqual({ processed: true, success: false });
+    expect(markPdfStudioConversionFailed).toHaveBeenCalledWith({
+      jobId: "job-1",
+      code: "source_unavailable",
+      message: "The original conversion sources are no longer available for report.pdf.",
+      retryable: false,
+    });
+  });
+
+  it("records a non-retryable failure when all batch source storage keys are missing", async () => {
+    vi.mocked(claimPdfStudioConversionJob).mockResolvedValue(true);
+    vi.mocked(db.jobLog.findUniqueOrThrow).mockResolvedValue({
+      id: "job-batch",
+      payload: {
+        toolId: "pdf-to-word",
+        targetFormat: "docx",
+        totalItems: 2,
+        sources: [
+          {
+            index: 0,
+            storageKey: undefined,
+            fileName: "alpha.pdf",
+            mimeType: "application/pdf",
+            sizeBytes: 100,
+          },
+          {
+            index: 1,
+            storageKey: undefined,
+            fileName: "beta.pdf",
+            mimeType: "application/pdf",
+            sizeBytes: 120,
+          },
+        ],
+        outputs: [],
+      },
+      retryCount: 0,
+      maxRetries: 3,
+    } as never);
+
+    const result = await processPdfStudioConversionJob("job-batch");
+
+    expect(result).toEqual({ processed: true, success: false });
+    expect(markPdfStudioConversionFailed).toHaveBeenCalledWith({
+      jobId: "job-batch",
+      code: "source_unavailable",
+      message: "The original conversion sources are no longer available for alpha.pdf, beta.pdf.",
+      retryable: false,
+    });
+  });
+
+  it("fails a batch job when some pending sources are missing rather than silently skipping them", async () => {
+    vi.mocked(claimPdfStudioConversionJob).mockResolvedValue(true);
+    vi.mocked(db.jobLog.findUniqueOrThrow).mockResolvedValue({
+      id: "job-batch",
+      payload: {
+        toolId: "pdf-to-word",
+        targetFormat: "docx",
+        totalItems: 3,
+        sources: [
+          {
+            index: 0,
+            storageKey: "org/job-batch/sources/01.pdf",
+            fileName: "alpha.pdf",
+            mimeType: "application/pdf",
+            sizeBytes: 100,
+          },
+          {
+            index: 1,
+            storageKey: "org/job-batch/sources/02.pdf",
+            fileName: "beta.pdf",
+            mimeType: "application/pdf",
+            sizeBytes: 120,
+          },
+          {
+            index: 2,
+            storageKey: undefined,
+            fileName: "gamma.pdf",
+            mimeType: "application/pdf",
+            sizeBytes: 130,
+          },
+        ],
+        outputs: [
+          {
+            index: 0,
+            storageKey: "org/job-batch/outputs/01-alpha.docx",
+            sourceFileName: "alpha.pdf",
+            fileName: "alpha-batch-01.docx",
+            mimeType:
+              "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+          },
+        ],
+      },
+      retryCount: 0,
+      maxRetries: 3,
+    } as never);
+
+    const result = await processPdfStudioConversionJob("job-batch");
+
+    expect(result).toEqual({ processed: true, success: false });
+    expect(runServerConversion).not.toHaveBeenCalled();
+    expect(appendPdfStudioConversionOutput).not.toHaveBeenCalled();
+    expect(markPdfStudioConversionComplete).not.toHaveBeenCalled();
+    expect(markPdfStudioConversionFailed).toHaveBeenCalledWith({
+      jobId: "job-batch",
+      code: "source_unavailable",
+      message: "The original conversion sources are no longer available for gamma.pdf.",
+      retryable: false,
     });
   });
 
@@ -91,12 +227,15 @@ describe("pdf studio conversion job processor", () => {
       payload: {
         toolId: "html-to-pdf",
         targetFormat: "pdf",
+        sourceUrl: "https://example.com/report",
         options: {
           pageSize: "A4",
           margin: "12mm",
           preferPrintCss: true,
         },
       },
+      retryCount: 0,
+      maxRetries: 3,
     } as never);
     vi.mocked(runServerConversion).mockResolvedValue({
       bytes: new Uint8Array([1, 2, 3]),
@@ -109,7 +248,7 @@ describe("pdf studio conversion job processor", () => {
     expect(runServerConversion).toHaveBeenCalledWith({
       toolId: "html-to-pdf",
       sourceStorageKey: undefined,
-      sourceUrl: undefined,
+      sourceUrl: "https://example.com/report",
       options: {
         pageSize: "A4",
         margin: "12mm",
@@ -121,7 +260,7 @@ describe("pdf studio conversion job processor", () => {
       toolId: "html-to-pdf",
       targetFormat: "pdf",
       sourceIndex: 0,
-      sourceFileName: "document",
+      sourceFileName: "example.com",
       outputBytes: new Uint8Array([1, 2, 3]),
       mimeType: "application/pdf",
     });
@@ -138,6 +277,8 @@ describe("pdf studio conversion job processor", () => {
         sourceStorageKey: "org/job-1/source.docx",
         sourceFileName: "broken.docx",
       },
+      retryCount: 0,
+      maxRetries: 3,
     } as never);
     vi.mocked(runServerConversion).mockRejectedValue(
       new PdfStudioConversionError({
@@ -183,6 +324,8 @@ describe("pdf studio conversion job processor", () => {
           sourceStorageKey: "org/job-success/source.pdf",
           sourceFileName: "source.pdf",
         },
+        retryCount: 0,
+        maxRetries: 3,
       } as never)
       .mockResolvedValueOnce({
         id: "job-failure",
@@ -192,6 +335,8 @@ describe("pdf studio conversion job processor", () => {
           sourceStorageKey: "org/job-failure/source.pdf",
           sourceFileName: "source.pdf",
         },
+        retryCount: 0,
+        maxRetries: 3,
       } as never);
     vi.mocked(runServerConversion)
       .mockResolvedValueOnce({
@@ -259,6 +404,8 @@ describe("pdf studio conversion job processor", () => {
           },
         ],
       },
+      retryCount: 0,
+      maxRetries: 3,
     } as never);
     vi.mocked(runServerConversion).mockResolvedValue({
       bytes: new Uint8Array([7, 8, 9]),

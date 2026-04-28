@@ -1,9 +1,8 @@
 import { validatePdfStudioPageCount } from "@/features/docs/pdf-studio/lib/ingestion";
 import {
   destroyPdfJsDocument,
-  getPdfJsClient,
   normalizePdfJsError,
-  PDFJS_PUBLIC_WASM_URL,
+  openPdfJsDocument,
   type PdfJsDocumentProxy,
   type PdfJsLoadingTask,
 } from "@/features/docs/pdf-studio/utils/pdfjs-client";
@@ -31,12 +30,10 @@ export async function extractImagesFromPdf(
   let pdf: PdfJsDocumentProxy | null = null;
 
   try {
-    const pdfjsLib = await getPdfJsClient();
-    loadingTask = pdfjsLib.getDocument({
-      data: pdfBytes,
-      wasmUrl: PDFJS_PUBLIC_WASM_URL,
-    });
-    pdf = await loadingTask.promise;
+    const opened = await openPdfJsDocument(pdfBytes);
+    const pdfjsLib = opened.pdfjsLib;
+    loadingTask = opened.loadingTask;
+    pdf = opened.pdf;
     const pageValidation = validatePdfStudioPageCount("extract-images", pdf.numPages);
     if (!pageValidation.ok) {
       return { ok: false, error: pageValidation.error };

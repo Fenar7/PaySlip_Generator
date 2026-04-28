@@ -11,6 +11,7 @@ import { Button, Badge } from "@/components/ui";
 import { cn } from "@/lib/utils";
 import { useActiveOrg } from "@/hooks/use-active-org";
 import { usePdfStudioAnalytics } from "@/features/docs/pdf-studio/lib/analytics";
+import { usePdfStudioSurface } from "@/features/docs/pdf-studio/lib/surface";
 import {
   validatePdfStudioFiles,
   validatePdfStudioPageCount,
@@ -52,12 +53,20 @@ type PlacingMode =
   | { type: "initials" }
   | { type: "date" };
 
+interface FillSignWorkspaceContentProps {
+  orgScope: string;
+  isOrgLoading: boolean;
+}
+
+export const PUBLIC_FILL_SIGN_SCOPE = "anonymous-browser";
+
 // ── Component ──────────────────────────────────────────────────────────
 
-export function FillSignWorkspace() {
+function FillSignWorkspaceContent({
+  orgScope,
+  isOrgLoading,
+}: FillSignWorkspaceContentProps) {
   const analytics = usePdfStudioAnalytics("fill-sign");
-  const { activeOrg, isLoading: isOrgLoading } = useActiveOrg();
-  const orgScope = activeOrg?.id ?? "anonymous";
   // PDF state
   const [file, setFile] = useState<File | null>(null);
   const [pdfBytes, setPdfBytes] = useState<Uint8Array | null>(null);
@@ -868,4 +877,30 @@ export function FillSignWorkspace() {
       </div>
     </div>
   );
+}
+
+function FillSignWorkspacePublic() {
+  return (
+    <FillSignWorkspaceContent
+      orgScope={PUBLIC_FILL_SIGN_SCOPE}
+      isOrgLoading={false}
+    />
+  );
+}
+
+function FillSignWorkspaceWorkspace() {
+  const { activeOrg, isLoading: isOrgLoading } = useActiveOrg();
+
+  return (
+    <FillSignWorkspaceContent
+      orgScope={activeOrg?.id ?? "anonymous"}
+      isOrgLoading={isOrgLoading}
+    />
+  );
+}
+
+export function FillSignWorkspace() {
+  const { isPublic } = usePdfStudioSurface();
+
+  return isPublic ? <FillSignWorkspacePublic /> : <FillSignWorkspaceWorkspace />;
 }
