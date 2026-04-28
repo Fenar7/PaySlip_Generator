@@ -44,7 +44,7 @@ Phase 0 did not write product code. It produced the decision and workflow founda
 Phase 1 has three sprints. They must execute in order.
 
 ### Sprint 1.1 — Schema Foundation
-**Goal:** Add sequence domain models and prepare document nullability.
+**Goal:** Add sequence domain models and the new linkage fields needed for later cutover, without changing current create-time numbering behavior.
 
 Start here:
 1. Read `docs/sequencing/PHASE_1_READINESS.md` §2
@@ -55,10 +55,9 @@ Start here:
 6. Add TypeScript domain types and Zod schemas
 
 **Acceptance criteria:**
-- `Sequence`, `SequencePeriod`, `SequenceAuditEvent` models exist
-- `Invoice.officialNumber` and `Voucher.officialNumber` are nullable
-- Linkage fields (`sequenceId`, `periodId`) exist on both document models
-- Legacy `number` columns are preserved unchanged
+- `Sequence`, `SequenceFormat`, and `SequencePeriod` models exist
+- NEW linkage fields (`sequenceId`, `sequencePeriodId`, `sequenceNumber`) exist on both document models
+- Existing `invoiceNumber` and `voucherNumber` columns remain unchanged in Phase 1
 - Migration is reversible
 
 ### Sprint 1.2 — Format Engine and Validation
@@ -105,10 +104,10 @@ Start here:
 
 | Workstream | Lead Focus in Phase 1 | Primary Files |
 |------------|----------------------|---------------|
-| A — Schema and Migration | Sprint 1.1 schema, Sprint 1.3 migration | `prisma/schema.prisma`, `prisma/migrations/`, `scripts/migrate-legacy-sequences.ts`, `scripts/check-sequence-health.ts` |
-| B — Core Sequence Engine | Sprint 1.2 format engine | `src/lib/sequences/token-engine.ts`, `src/lib/sequences/periodicity.ts`, `src/lib/sequences/preview.ts`, `src/lib/sequences/continuity-seed.ts` |
-| C — Lifecycle Integration | Sprint 1.1 nullability impact analysis, Sprint 1.3 backfill review | `src/lib/docs/numbering.ts`, invoice/voucher creation and finalize flows |
-| D — Governance and UI | Sprint 1.1 audit model review, Sprint 1.2 validation rule review | `src/lib/sequences/audit.ts` (conceptual), settings/onboarding planning |
+| A — Schema and Migration | Sprint 1.1 schema, Sprint 1.3 migration | `prisma/schema.prisma`, `prisma/migrations/`, `scripts/migrate-sequences.ts`, `scripts/check-sequence-health.ts` |
+| B — Core Sequence Engine | Sprint 1.2 format engine | `src/features/sequences/engine/`, `src/features/sequences/services/sequence-engine.ts` |
+| C — Lifecycle Integration | Sprint 1.3 backfill review and Phase 4–5 prep only | `src/lib/docs/numbering.ts`, invoice/voucher creation and finalize flows |
+| D — Governance and UI | Audit/logging model review, future settings/onboarding planning | settings/onboarding planning only; no Phase 1 UI delivery |
 
 Cross-workstream changes require approval from both workstream leads.
 
@@ -118,8 +117,8 @@ Cross-workstream changes require approval from both workstream leads.
 
 | Risk | Impact | Mitigation |
 |------|--------|------------|
-| Nullable official numbers break downstream reports | High | Preserve `number` column; add `COALESCE` fallback; test all report queries |
-| Partial unique index on `officialNumber` conflicts with legacy data | High | Backfill before index creation; use filtered unique index |
+| New linkage fields conflict with existing invoice/voucher indexes | High | Review generated migration SQL carefully; keep additive-only schema changes in Phase 1 |
+| Partial unique index on `sequenceNumber` / `sequencePeriodId` conflicts during backfill | High | Backfill before enforcing uniqueness; use filtered unique index or staged index creation |
 | Token engine regex/parser complexity | Medium | Start with strict v1 grammar; reject unsupported tokens explicitly |
 | Migration script runs too long on large orgs | Medium | Batch backfill; add progress logging; test on production-size clone |
 | Period auto-creation logic race conditions | Medium | Use database-level locking or atomic upsert for period creation |

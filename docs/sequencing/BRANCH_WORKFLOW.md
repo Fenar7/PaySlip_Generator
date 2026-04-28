@@ -39,9 +39,9 @@ master
     │   ├── feature/sequence-platform-phase-6-sprint-6-2-open-period-apply
     │   └── feature/sequence-platform-phase-6-sprint-6-3-gap-detection
     └── feature/sequence-platform-phase-7-hardening
-        ├── feature/sequence-platform-phase-7-sprint-7.1-concurrency-hardening
-        ├── feature/sequence-platform-phase-7-sprint-7.2-diagnostics
-        └── feature/sequence-platform-phase-7-sprint-7.3-final-regression-rollout
+        ├── feature/sequence-platform-phase-7-sprint-7-1-concurrency-hardening
+        ├── feature/sequence-platform-phase-7-sprint-7-2-diagnostics
+        └── feature/sequence-platform-phase-7-sprint-7-3-final-regression-rollout
 ```
 
 ### 1.2 Pattern Reference
@@ -294,42 +294,42 @@ Refs: phase-1-sprint-1-1
 
 ```
 feature/sequence-platform-phase-0-delivery
-└── feature/sequence-platform-phase-0-sprint-0.1-delivery-setup ─────────────────┐
+└── feature/sequence-platform-phase-0-sprint-0-1-delivery-setup ─────────────────┐
                                                                                  │
 feature/sequence-platform-phase-1-foundation                                         │
-├── feature/sequence-platform-phase-1-sprint-1.1-schema-foundation ────────────┐ │
-├── feature/sequence-platform-phase-1-sprint-1.2-format-engine ────────────────┤ │
-└── feature/sequence-platform-phase-1-sprint-1.3-migration-scaffolding ────────┤ │
+├── feature/sequence-platform-phase-1-sprint-1-1-schema-foundation ────────────┐ │
+├── feature/sequence-platform-phase-1-sprint-1-2-format-engine ────────────────┤ │
+└── feature/sequence-platform-phase-1-sprint-1-3-migration-scaffolding ────────┤ │
                                                                                │ │
 feature/sequence-platform-phase-2-governance                                   │ │
-├── feature/sequence-platform-phase-2-sprint-2.1-owner-governance ─────────────┤ │
-├── feature/sequence-platform-phase-2-sprint-2.2-settings-console ─────────────┤ │
-└── feature/sequence-platform-phase-2-sprint-2.3-continuity-history ───────────┤ │
+├── feature/sequence-platform-phase-2-sprint-2-1-owner-governance ─────────────┤ │
+├── feature/sequence-platform-phase-2-sprint-2-2-settings-console ─────────────┤ │
+└── feature/sequence-platform-phase-2-sprint-2-3-continuity-history ───────────┤ │
                                                                                │ │
 feature/sequence-platform-phase-3-onboarding                                   │ │
-├── feature/sequence-platform-phase-3-sprint-3.1-onboarding-step ──────────────┤ │
-├── feature/sequence-platform-phase-3-sprint-3.2-custom-format-setup ──────────┤ │
-└── feature/sequence-platform-phase-3-sprint-3.3-recovery-fallback ────────────┤ │
+├── feature/sequence-platform-phase-3-sprint-3-1-onboarding-step ──────────────┤ │
+├── feature/sequence-platform-phase-3-sprint-3-2-custom-format-setup ──────────┤ │
+└── feature/sequence-platform-phase-3-sprint-3-3-recovery-fallback ────────────┤ │
                                                                                │ │
 feature/sequence-platform-phase-4-draft-stop-consuming                         │ │
-├── feature/sequence-platform-phase-4-sprint-4.1-drafts-stop-consuming ────────┤ │
-├── feature/sequence-platform-phase-4-sprint-4.2-issue-time-numbering ─────────┤ │
-└── feature/sequence-platform-phase-4-sprint-4.3-invoice-compat ───────────────┤ │
+├── feature/sequence-platform-phase-4-sprint-4-1-drafts-stop-consuming ────────┤ │
+├── feature/sequence-platform-phase-4-sprint-4-2-issue-time-numbering ─────────┤ │
+└── feature/sequence-platform-phase-4-sprint-4-3-invoice-compat ───────────────┤ │
                                                                                │ │
 feature/sequence-platform-phase-5-approval-numbering                           │ │
-├── feature/sequence-platform-phase-5-sprint-5.1-drafts-stop-consuming ────────┤ │
-├── feature/sequence-platform-phase-5-sprint-5.2-approval-time-numbering ──────┤ │
-└── feature/sequence-platform-phase-5-sprint-5.3-voucher-compat ───────────────┤ │
+├── feature/sequence-platform-phase-5-sprint-5-1-drafts-stop-consuming ────────┤ │
+├── feature/sequence-platform-phase-5-sprint-5-2-approval-time-numbering ──────┤ │
+└── feature/sequence-platform-phase-5-sprint-5-3-voucher-compat ───────────────┤ │
                                                                                │ │
 feature/sequence-platform-phase-6-resequence                                   │ │
-├── feature/sequence-platform-phase-6-sprint-6.1-resequence-preview ───────────┤ │
-├── feature/sequence-platform-phase-6-sprint-6.2-open-period-apply ────────────┤ │
-└── feature/sequence-platform-phase-6-sprint-6.3-gap-detection ────────────────┤ │
+├── feature/sequence-platform-phase-6-sprint-6-1-resequence-preview ───────────┤ │
+├── feature/sequence-platform-phase-6-sprint-6-2-open-period-apply ────────────┤ │
+└── feature/sequence-platform-phase-6-sprint-6-3-gap-detection ────────────────┤ │
                                                                                │ │
 feature/sequence-platform-phase-7-hardening                                    │ │
-├── feature/sequence-platform-phase-7-sprint-7.1-concurrency-hardening ────────┤ │
-├── feature/sequence-platform-phase-7-sprint-7.2-diagnostics ──────────────────┤ │
-└── feature/sequence-platform-phase-7-sprint-7.3-final-regression-rollout ─────┘ │
+├── feature/sequence-platform-phase-7-sprint-7-1-concurrency-hardening ────────┤ │
+├── feature/sequence-platform-phase-7-sprint-7-2-diagnostics ──────────────────┤ │
+└── feature/sequence-platform-phase-7-sprint-7-3-final-regression-rollout ─────┘ │
                                                                                  │
                               feature/sequence-platform ◄────────────────────────┘
                                          │
