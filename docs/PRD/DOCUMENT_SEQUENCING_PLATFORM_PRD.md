@@ -95,7 +95,7 @@ The current repo behavior relevant to this PRD:
 - invoice lifecycle already has a later `issueInvoice(id)` path
 - onboarding exists as a multi-step client flow in `src/app/onboarding/onboarding-page-client.tsx`
 - unified vault listing is powered by `DocumentIndex` through `src/lib/docs-vault.ts`
-- repo already has multi-entity constructs that can support legal-entity-scoped parallel series
+- repo has `EntityGroup` for multi-org consolidation, but no first-class legal-entity model within a single org; `organizationId` is the sole document boundary
 
 This feature replaces invoice/voucher numbering as a dedicated subsystem while leaving other document types on the old engine for now.
 
@@ -205,18 +205,21 @@ Rules:
 
 ### 9.4 Sequence scope model
 
-Parallel active series must be supported when separated by scope.
+v1 supports org-wide scope only. The schema reserves `scopeType` and `scopeId` columns to avoid a future migration when legal-entity scope is introduced.
 
 Supported scopes in v1:
 
-- org-wide
-- legal-entity-specific
+- `org-wide`
 
-This means:
+Reserved for future phases (requires a first-class `LegalEntity` model or org-level subsidiary linking):
 
-- one org can have multiple active invoice sequences if each belongs to a different legal entity scope
-- one org can have multiple active voucher sequences if each belongs to a different legal entity scope
-- for a given `docType + scope`, only one sequence may be active at a time
+- `legal-entity-specific`
+
+v1 rules:
+
+- one org has exactly one active invoice sequence and one active voucher sequence at a time
+- for a given `docType + scopeType + scopeId`, only one sequence may be active at a time
+- `scopeType` defaults to `org-wide` and `scopeId` defaults to `organizationId`
 
 ### 9.5 Reset policies
 
@@ -266,7 +269,7 @@ Imported history must:
 
 - be stored for duplicate prevention
 - be validated against sequence format
-- be scoped correctly to doc type and legal entity, where applicable
+- be scoped correctly to doc type and organization
 
 ### 9.8 Onboarding support
 
@@ -288,8 +291,8 @@ Create:
 
 For invoices and vouchers separately, the owner can:
 
-- choose format
-- choose org-wide or legal-entity scope
+- choose format tokens and padding
+- preview the next generated number
 - provide latest already-used number or start fresh
 - preview next generated number
 - validate and save
@@ -701,7 +704,7 @@ The implementation must explicitly handle:
 - two vouchers are approved concurrently
 - reset boundary executes twice because of retry
 - active sequence missing at issue/approval time
-- legal entity scope is ambiguous or missing
+- scope type is missing or corrupted in sequence record
 - owner changes sequence months later
 - historical documents exist but were imported from external systems
 - migration finds null or inconsistent values
@@ -762,12 +765,12 @@ Implementation must follow a branch-first, phase-based workflow suitable for mul
 
 ### Branch naming convention
 
-Examples:
+Examples (dash-separated; slash-nesting conflicts with Git refs):
 
 - `feature/sequence-platform`
-- `feature/sequence-platform/phase-1-foundation`
-- `feature/sequence-platform/phase-1-sprint-1-schema-foundation`
-- `feature/sequence-platform/phase-1-sprint-2-format-engine`
+- `feature/sequence-platform-phase-1-foundation`
+- `feature/sequence-platform-phase-1-sprint-1-schema`
+- `feature/sequence-platform-phase-1-sprint-2-format-engine`
 
 ## 25. Phase Breakdown
 

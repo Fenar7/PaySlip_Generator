@@ -3,7 +3,7 @@
 ## Slipwise | Sprint 0.1: Delivery Setup
 
 **Status:** Complete  
-**Branch:** `feature/sequence-platform/phase-0-delivery-setup`  
+**Branch:** `feature/sequence-platform-phase-0-delivery`  
 **Initiative:** Document Sequencing Platform (Invoice & Voucher)  
 **Source PRD:** `docs/PRD/DOCUMENT_SEQUENCING_PLATFORM_PRD.md`
 
@@ -34,7 +34,7 @@ Invoice and voucher numbering is financial document identity infrastructure. A w
 | **Owner-only governance** | `requireRole("owner")` for all sequence mutations. Server-side enforcement; UI hiding is never sufficient. | Matches existing auth pattern (`src/lib/auth/require-org.ts` role levels) |
 | **Legacy vs new engine cutover** | Migration creates one `DocumentSequenceScheme` per org from existing `OrgDefaults` prefix/counter. Historical documents backfilled with `schemeId`. New code paths read from sequence engine; old `OrgDefaults` fields frozen. | Preserves continuity without renumbering |
 | **Migration strategy** | Phase 1.3 backfills in this order: (1) create schemes, (2) backfill invoice/voucher `schemeId`, (3) backfill `DocumentIndex`, (4) validation diagnostics | Schema must exist before backfill; backfill must be idempotent |
-| **Scope model** | v1 supports `org-wide` and `legal-entity-specific`. Parallel active series allowed when `(docType, scopeType, scopeId)` is unique. | `EntityGroup` exists but legal entity is modeled via org-level constructs; `scopeId` can point to org or future legal entity id |
+| **Scope model** | v1 is `org-wide` only. Schema reserves `scopeType` and `scopeId` for future legal-entity scoping, but the repo has no first-class legal-entity model within a single org. Each org gets one active invoice sequence and one active voucher sequence. | `organizationId` is the sole document boundary today. `EntityGroup` groups separate orgs for consolidation, not for scoping documents within one org. Parallel active series within one org requires a `LegalEntity` model that does not exist. |
 | **Service layer ownership** | New `src/lib/sequences/` directory owns: format engine, allocation TX, reset logic, import validation, audit emission. Invoice/voucher actions call `assignDocumentNumberTx` at issue/approval time only. | Keeps sequencing domain isolated; prevents duplication across document types |
 | **Draft numbering behavior** | Drafts receive `NULL` official number. UI shows placeholder text (`Assigned on issue` / `Assigned on approval`). No temporary or fake numbers. | Prevents number consumption and user confusion |
 | **Vault/history behavior** | `DocumentIndex` gains sequence metadata columns. Vault query supports optional `sequenceGroupLabel` grouping. Retired sequences remain visible and searchable. | Read layer stays backward compatible; grouping is additive |
@@ -129,7 +129,7 @@ Invoice and voucher numbering is financial document identity infrastructure. A w
   3. Alter `Voucher.voucherNumber` → `String?`
   4. Add `documentSequenceSchemeId`, `sequenceScopeType`, `sequenceScopeId`, `sequenceVersion` to `Invoice` and `Voucher`
   5. Add `documentSequenceSchemeId`, `sequenceGroupLabel`, `sequenceVersion`, `sequenceScopeType`, `sequenceScopeId` to `DocumentIndex`
-- **Nullability transition:** Existing invoices/vouchers all have numbers, so the migration is safe. New drafts created after schema change will have `NULL` numbers.
+- **Nullability transition:** Existing invoices/vouchers all have numbers, so the migration is safe. Schema-only changes do NOT create NULL drafts; the create flows in `invoices/actions.ts` and `vouchers/actions.ts` still call `nextDocumentNumber` until Sprint 4.1 and 5.1 remove those calls. NULL drafts only appear after lifecycle changes deploy. |
 - **Index strategy:** Add `@@index([organizationId, docType, scopeType, scopeId, isActive])` on `DocumentSequenceScheme` for fast active-sequence lookup.
 - **Compatibility:** `OrgDefaults` prefix/counter columns are NOT dropped. They are frozen in place.
 
@@ -139,7 +139,7 @@ Invoice and voucher numbering is financial document identity infrastructure. A w
 - Nullability risk assessment: low (all existing rows populated)
 
 **Unresolved risks:**
-- Concurrent invoice creation during migration window could create drafts with `NULL` numbers before backfill scripts run. **Mitigation:** Migration + backfill happens in a single maintenance window or feature-flagged deploy.
+- Sprint 1.1 makes number fields nullable, but the existing create flows still assign numbers via `nextDocumentNumber`. No NULL drafts will appear until Sprint 4.1/5.1 change the lifecycle. The real risk is a concurrent schema drift: if another PR modifies `Invoice`/`Voucher`/`DocumentIndex` while the schema agent is working, migration ordering conflicts may occur. **Mitigation:** Coordinate with other initiatives touching these models; merge schema changes atomically.
 
 **Dependencies:** Workstream A (boundary confirmation), Workstream D (rollback plan).
 
@@ -150,9 +150,9 @@ Invoice and voucher numbering is financial document identity infrastructure. A w
 **Objective:** Define the exact Git workflow for parallel agent execution.
 
 **Decisions:**
-- **Root branch:** `feature/sequence-platform` (cut from `master` after PR #197 merges)
-- **Phase branches:** `feature/sequence-platform/phase-N-<name>`
-- **Sprint branches:** `feature/sequence-platform/phase-N-sprint-M-<name>`
+- **Root branch:** `feature/sequence-platform` (cut from `master`)
+- **Phase branches:** `feature/sequence-platform-phase-N-<name>`
+- **Sprint branches:** `feature/sequence-platform-phase-N-sprint-M-<name>`
 - **PR flow:** Sprint branch → Phase branch → Feature branch → `master`
 
 **Exact branch names for upcoming work:**
@@ -181,7 +181,7 @@ feature/sequence-platform
   - Unit tests for new pure functions
   - At least one integration test for the sprint's primary flow
   - `scripts/check-phaseX-health.ts` style diagnostics if migrations are involved
-  - Updated `AGENTS.md` if conventions change
+  - Updated `docs/sequencing/` or `docs/PRD/` docs if conventions change
 
 **Exact outputs produced:**
 - Branch naming convention
@@ -248,7 +248,7 @@ master
 |------|--------|
 | **Cut branch from** | Phase branches cut from `feature/sequence-platform`. Sprint branches cut from their phase branch. |
 | **Rebase vs merge** | Rebase sprint branches onto phase branch tip before opening PR. Merge phase branches into feature branch. Merge feature branch into `master`. |
-| **PR size** | Max ~400 lines changed per sprint PR. If larger, split into two sprints. |
+| **PR size** | Target ~400 lines changed per sprint PR for readability. Schema + migration sprints may exceed this; use judgment and add review time rather than artificial splitting. |
 | **Required in every sprint PR** | 1) Code changes 2) Migration (if schema touched) 3) Unit tests 4) At least one integration test 5) Diagnostic script (if migration) 6) Passing CI |
 | **Review discipline** | One approving review required. Owner agent cannot self-merge without second agent sign-off. |
 | **Conflict avoidance** | Agents must declare their write scopes in the PR description. No two agents may edit the same file in the same sprint without explicit coordination. |
@@ -378,9 +378,10 @@ UI Agent can run in parallel with Engine Agent using stubbed service interfaces.
 - [ ] Reset runs capture: previousCounter, newCounter, periodKey, executedAt
 
 ### Rollback Boundaries
-- [ ] Rollback before Sprint 4.1 (invoice lifecycle change) is safe: revert schema + delete new tables
-- [ ] Rollback after Sprint 4.1/5.1 requires data repair: draft documents may have `NULL` numbers that old code cannot handle
-- [ ] Final rollback boundary: once Sprint 4.1 deploys to production, rollback requires a forward-fix, not a revert
+- [ ] Rollback after Sprint 1.1 (schema) only: safe. Revert migration + delete new tables. Existing invoices/vouchers still have numbers; old `numbering.ts` paths are untouched.
+- [ ] Rollback after Sprint 1.3 (migration backfill): requires orphan cleanup. New tables contain production data. Revert without forward-migration leaves invoices/vouchers without sequence metadata, which breaks vault grouping but does not break core flows.
+- [ ] Rollback after Sprint 2.x (governance/settings): data-destructive if settings UI wrote sequence configs that would be lost. Prefer forward-fix.
+- [ ] Rollback after Sprint 4.1/5.1 (lifecycle changes): **not safe**. Draft documents with `NULL` numbers cannot be handled by old code. Only forward-fix is viable. |
 
 ### Staged Rollout Safeguards
 - [ ] Feature flag `SEQUENCE_PLATFORM_ENABLED` gates new code paths (recommended: use existing feature flag system or env var)
@@ -436,9 +437,9 @@ Phase 0 is complete. All architectural contracts are locked. The repo has been a
 - A multi-agent plan with non-overlapping write scopes
 
 **Immediate next actions:**
-1. Ensure PR #197 (`pdf-studio-continuation` → `master`) is merged
+1. Ensure `master` is green and CI passes
 2. Cut `feature/sequence-platform` from `master`
-3. Cut `feature/sequence-platform/phase-1-foundation` from root
+3. Cut `feature/sequence-platform-phase-1-foundation` from root
 4. Assign Schema Agent to Sprint 1.1 branch
 
 ### Kickoff Note for Phase 1 Team
@@ -463,14 +464,14 @@ You are building the foundation of financial document identity infrastructure. E
 **Yes.** All contracts are locked. The repo is audited. The branch tree is defined.
 
 ### What must be verified before Phase 1 branch creation?
-1. **PR #197 merged to `master`.** The current branch is `merge/pdf-studio-continuation-to-master`. The root feature branch must cut from a clean `master`.
-2. **CI passes on `master`.** Ensure the baseline is green before branching.
-3. **Staging DB is cloneable.** Sprint 1.3 requires a production-like dataset for migration rehearsal.
+1. **CI passes on `master`.** Ensure the baseline is green before branching.
+2. **Staging DB is cloneable.** Sprint 1.3 requires a production-like dataset for migration rehearsal.
+3. **No open conflicting PRs.** Ensure no other initiative is modifying `Invoice`, `Voucher`, `DocumentIndex`, or `OrgDefaults` simultaneously.
 
 ### Exact recommended next command/action for the engineering team
 
 ```bash
-# 1. Ensure master is clean and PR #197 is merged
+# 1. Ensure master is clean and CI is green
 git checkout master
 git pull origin master
 
