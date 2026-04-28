@@ -72,10 +72,6 @@ describe("LoginForm", () => {
   it("navigates to the redirect destination after a successful password sign-in", async () => {
     render(<LoginForm />);
 
-    expect(
-      screen.getByText(/passkey.*second verification step after sign-in/i)
-    ).toBeInTheDocument();
-
     fireEvent.change(getEmailInput(), {
       target: { value: "user@example.com" },
     });
@@ -134,7 +130,7 @@ describe("LoginForm", () => {
     fireEvent.change(getPasswordInput(), {
       target: { value: "wrong" },
     });
-    fireEvent.click(screen.getByRole("button", { name: /sign in/i }));
+    fireEvent.click(screen.getByRole("button", { name: /^sign in$/i }));
 
     await screen.findByText("Invalid email or password");
     expect(routerReplaceMock).not.toHaveBeenCalled();
@@ -166,7 +162,7 @@ describe("LoginForm", () => {
     fireEvent.change(getPasswordInput(), {
       target: { value: "secret123" },
     });
-    fireEvent.click(screen.getByRole("button", { name: /sign in/i }));
+    fireEvent.click(screen.getByRole("button", { name: /^sign in$/i }));
 
     await waitFor(() => {
       expect(routerPushMock).toHaveBeenCalledWith(

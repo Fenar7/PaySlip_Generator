@@ -172,7 +172,7 @@ export function TwoChallengeForm() {
   const showRecovery = factors?.hasRecoveryCodes;
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-[var(--surface)] px-4">
+    <div className="min-h-screen flex items-center justify-center bg-[#f5f6f7] px-4">
       <div className="w-full max-w-sm space-y-6">
         <div className="text-center">
           <h1 className="text-2xl font-semibold tracking-tight">Multi-factor authentication</h1>

@@ -1,8 +1,9 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { KeyRound } from "lucide-react";
 import { AuthCard } from "@/features/auth/components/auth-card";
 import { GoogleButton } from "@/features/auth/components/google-button";
 import { AuthDivider } from "@/features/auth/components/auth-divider";
@@ -39,6 +40,8 @@ export function LoginForm({
   const [loading, setLoading] = useState(false);
   const [passkeyLoading, setPasskeyLoading] = useState(false);
   const [passkeySupported, setPasskeySupported] = useState(true);
+  const [ssoOpen, setSsoOpen] = useState(ssoRequired || Boolean(initialOrgSlug));
+  const [breakGlassOpen, setBreakGlassOpen] = useState(false);
 
   useEffect(() => {
     if (typeof window !== "undefined") {
@@ -83,8 +86,10 @@ export function LoginForm({
       setError("Your browser does not support passkeys.");
       return;
     }
+
     setError("");
     setPasskeyLoading(true);
+
     try {
       const optionsRes = await fetch("/api/auth/passkey/signin-options", {
         method: "POST",
@@ -151,6 +156,7 @@ export function LoginForm({
     e.preventDefault();
     setError("");
     setLoading(true);
+
     try {
       const response = await fetch("/api/auth/password-login", {
         method: "POST",
@@ -182,7 +188,6 @@ export function LoginForm({
       }
 
       window.location.assign(data.redirectTo || destination);
-      return;
     } catch (err) {
       console.error("[login] unexpected error:", err);
       setError("Could not reach login service. Make sure local auth is reachable from this device.");
@@ -194,53 +199,41 @@ export function LoginForm({
   return (
     <AuthCard title="Welcome back" subtitle="Sign in to your Slipwise account">
       {ssoMessage && (
-        <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+        <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
           {ssoMessage}
         </div>
       )}
-      <div className="mb-4 rounded-lg border border-[var(--border-soft)] bg-[var(--surface-soft)] p-4">
-        <p className="text-sm font-semibold text-[#1a1a1a]">Enterprise SSO</p>
-        <p className="mt-1 text-xs text-[#666]">
-          Enter your organization slug to continue with SAML SSO.
-        </p>
-        <div className="mt-3 flex flex-col gap-3">
-          <Input
-            label="Organization slug"
-            value={orgSlug}
-            onChange={(e) => setOrgSlug(e.target.value)}
-            placeholder="acme"
-            autoComplete="organization"
-          />
-          <Button type="button" variant="secondary" onClick={handleStartSso}>
-            Continue with SSO
-          </Button>
-        </div>
-      </div>
-      <GoogleButton />
-      {passkeySupported && (
-        <>
+
+      <div className="space-y-3">
+        <GoogleButton callbackURL={destination} />
+        {passkeySupported && (
           <Button
             type="button"
-            variant="secondary"
-            className="w-full mt-3"
+            variant="outline"
+            className="h-10 w-full justify-center gap-2 border-gray-300 bg-white text-sm text-gray-700 hover:bg-gray-50"
             onClick={handlePasskeySignIn}
             disabled={passkeyLoading}
           >
+            <KeyRound className="h-4 w-4 text-gray-500" />
             {passkeyLoading ? "Waiting for passkey…" : "Sign in with passkey"}
           </Button>
-        </>
-      )}
-      <AuthDivider />
-      <p className="mb-4 rounded-lg border border-blue-100 bg-blue-50 px-3 py-2 text-xs text-blue-800">
+        )}
+      </div>
+
+      <AuthDivider text="or" />
+
+      <p className="mt-4 rounded-lg border border-blue-100 bg-blue-50 px-4 py-3 text-xs text-blue-800">
         If you enabled a passkey, you may be asked to use it as a second verification step after sign-in.
       </p>
+
       <form
         action="/api/auth/password-login"
         method="post"
         onSubmit={handleSubmit}
-        className="space-y-4"
+        className="mt-4 space-y-4"
       >
         <input type="hidden" name="callbackUrl" value={callbackUrl ?? ""} />
+        <input type="hidden" name="orgSlug" value={orgSlug} />
         <Input
           label="Email"
           name="email"
@@ -250,61 +243,130 @@ export function LoginForm({
           required
           autoComplete="email"
         />
-        <div>
-          <Input
-            label="Password"
-            name="password"
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            required
-            autoComplete="current-password"
-          />
-          <div className="text-right mt-1">
-            <Link href="/auth/forgot-password" className="text-xs text-[#dc2626] hover:underline">
-              Forgot password?
-            </Link>
-          </div>
+        <Input
+          label="Password"
+          name="password"
+          type="password"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          required
+          autoComplete="current-password"
+        />
+        <div className="flex items-center justify-between">
+          <label className="flex items-center gap-2 text-sm text-gray-600">
+            <input
+              type="checkbox"
+              name="rememberMe"
+              value="true"
+              checked={rememberMe}
+              onChange={(e) => setRememberMe(e.target.checked)}
+              className="h-4 w-4 rounded border-gray-300 text-[#dc2626] focus:ring-[#dc2626]"
+            />
+            Remember me
+          </label>
+          <Link
+            href="/auth/forgot-password"
+            className="text-sm text-[#dc2626] hover:underline"
+          >
+            Forgot password?
+          </Link>
         </div>
-        <label className="flex items-center gap-2 text-sm text-[#666]">
-          <input
-            type="checkbox"
-            name="rememberMe"
-            value="true"
-            checked={rememberMe}
-            onChange={(e) => setRememberMe(e.target.checked)}
-            className="h-4 w-4 rounded border-[var(--border-strong)] text-[#dc2626] focus:ring-[#dc2626]"
-          />
-          <span>Remember me</span>
-        </label>
         {!rememberMe ? <input type="hidden" name="rememberMe" value="false" /> : null}
-        <div className="rounded-lg border border-[var(--border-soft)] bg-[var(--surface-soft)] p-4">
-          <p className="text-sm font-semibold text-[#1a1a1a]">
-            Break-glass sign-in
+
+        {error && (
+          <p className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+            {error}
           </p>
-          <p className="mt-1 text-xs text-[#666]">
-            Owners can use a one-time emergency code here after password sign-in.
-          </p>
-          <div className="mt-3">
+        )}
+
+        <Button
+          type="submit"
+          className="h-10 w-full bg-[#dc2626] text-white hover:bg-[#b91c1c]"
+          disabled={loading}
+        >
+          {loading ? "Signing in…" : "Sign in"}
+        </Button>
+      </form>
+
+      <div className="mt-4 space-y-2 border-t border-gray-100 pt-4 text-center">
+        {!ssoOpen ? (
+          <button
+            type="button"
+            onClick={() => setSsoOpen(true)}
+            className="block w-full text-sm text-gray-500 hover:text-gray-700"
+          >
+            Sign in with SSO →
+          </button>
+        ) : (
+          <div className="space-y-2 text-left">
+            <p className="text-sm font-medium text-gray-700">Enterprise SSO</p>
             <Input
-              label="Break-glass code (optional)"
+              label="Organization slug"
+              value={orgSlug}
+              onChange={(e) => setOrgSlug(e.target.value)}
+              placeholder="acme"
+              autoComplete="organization"
+            />
+            <Button
+              type="button"
+              variant="outline"
+              className="h-9 w-full border-gray-300 text-sm"
+              onClick={handleStartSso}
+            >
+              Continue with SSO
+            </Button>
+            <button
+              type="button"
+              onClick={() => setSsoOpen(false)}
+              className="block text-xs text-gray-400 hover:text-gray-600"
+            >
+              Cancel
+            </button>
+          </div>
+        )}
+
+        {!breakGlassOpen ? (
+          <button
+            type="button"
+            onClick={() => setBreakGlassOpen(true)}
+            className="block w-full text-sm text-gray-500 hover:text-gray-700"
+          >
+            Use break-glass code →
+          </button>
+        ) : (
+          <div className="space-y-2 text-left">
+            <p className="text-sm font-medium text-gray-700">Break-glass recovery</p>
+            {!orgSlug ? (
+              <Input
+                label="Organization slug"
+                value={orgSlug}
+                onChange={(e) => setOrgSlug(e.target.value)}
+                placeholder="acme"
+                autoComplete="organization"
+              />
+            ) : null}
+            <Input
+              label="Break-glass code"
               name="breakGlassCode"
               value={breakGlassCode}
               onChange={(e) => setBreakGlassCode(e.target.value)}
               placeholder="ABCD-EFGH-IJKL-MNOP"
               autoComplete="one-time-code"
             />
+            <button
+              type="button"
+              onClick={() => setBreakGlassOpen(false)}
+              className="block text-xs text-gray-400 hover:text-gray-600"
+            >
+              Cancel
+            </button>
           </div>
-        </div>
-        <input type="hidden" name="orgSlug" value={orgSlug} />
-        {error && <p className="text-sm text-red-600">{error}</p>}
-        <Button type="submit" className="w-full" disabled={loading}>
-          {loading ? "Signing in…" : "Sign in"}
-        </Button>
-      </form>
-      <p className="text-center text-sm text-[#666] mt-4">
+        )}
+      </div>
+
+      <p className="mt-4 text-center text-sm text-gray-500">
         Don&apos;t have an account?{" "}
-        <Link href="/auth/signup" className="text-[#dc2626] font-medium hover:underline">
+        <Link href="/auth/signup" className="font-medium text-[#dc2626] hover:underline">
           Sign up
         </Link>
       </p>
