@@ -1,15 +1,13 @@
 import { describe, expect, it, vi } from "vitest";
 
 const mockGetSequenceConfig = vi.fn();
-const mockUpdateSequenceFormat = vi.fn();
-const mockUpdateSequencePeriodicity = vi.fn();
+const mockUpdateSequenceSettingsAtomic = vi.fn();
 const mockPreviewSequenceNumber = vi.fn();
 const mockGetSequenceAuditHistory = vi.fn();
 
 vi.mock("@/features/sequences/services/sequence-admin", () => ({
   getSequenceConfig: (...args: unknown[]) => mockGetSequenceConfig(...args),
-  updateSequenceFormat: (...args: unknown[]) => mockUpdateSequenceFormat(...args),
-  updateSequencePeriodicity: (...args: unknown[]) => mockUpdateSequencePeriodicity(...args),
+  updateSequenceSettingsAtomic: (...args: unknown[]) => mockUpdateSequenceSettingsAtomic(...args),
   getSequenceAuditHistory: (...args: unknown[]) => mockGetSequenceAuditHistory(...args),
 }));
 
@@ -61,9 +59,8 @@ describe("sequence settings actions", () => {
     expect(result.voucher?.periodicity).toBe("MONTHLY");
   });
 
-  it("updateSequenceSettings calls format and periodicity updates", async () => {
-    mockUpdateSequenceFormat.mockResolvedValue({ success: true });
-    mockUpdateSequencePeriodicity.mockResolvedValue({ success: true });
+  it("updateSequenceSettings delegates atomically to the service", async () => {
+    mockUpdateSequenceSettingsAtomic.mockResolvedValue({ success: true });
 
     const result = await updateSequenceSettings("org-1", {
       documentType: "INVOICE",
@@ -72,14 +69,10 @@ describe("sequence settings actions", () => {
     });
 
     expect(result.success).toBe(true);
-    expect(mockUpdateSequenceFormat).toHaveBeenCalledWith({
+    expect(mockUpdateSequenceSettingsAtomic).toHaveBeenCalledWith({
       orgId: "org-1",
       documentType: "INVOICE",
       formatString: "REC/{YYYY}/{NNNNN}",
-    });
-    expect(mockUpdateSequencePeriodicity).toHaveBeenCalledWith({
-      orgId: "org-1",
-      documentType: "INVOICE",
       periodicity: "MONTHLY",
     });
   });

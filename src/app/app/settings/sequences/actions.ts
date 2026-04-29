@@ -2,8 +2,7 @@
 
 import {
   getSequenceConfig,
-  updateSequenceFormat,
-  updateSequencePeriodicity,
+  updateSequenceSettingsAtomic,
   seedSequenceContinuity,
   getSequenceAuditHistory,
 } from "@/features/sequences/services/sequence-admin";
@@ -86,19 +85,12 @@ export async function updateSequenceSettings(
     periodicity: SequencePeriodicity;
   }
 ) {
-  await updateSequenceFormat({
+  return updateSequenceSettingsAtomic({
     orgId,
     documentType: params.documentType,
     formatString: params.formatString,
-  });
-
-  await updateSequencePeriodicity({
-    orgId,
-    documentType: params.documentType,
     periodicity: params.periodicity,
   });
-
-  return { success: true };
 }
 
 export async function previewSequenceSetting(

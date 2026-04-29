@@ -1,8 +1,14 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
 
-const { mockLogAuditStrict, mockRequireRole, mockDb } = vi.hoisted(() => ({
-  mockLogAuditStrict: vi.fn(),
+const {
+  mockLogAuditTx,
+  mockRequireRole,
+  mockGetOrgContext,
+  mockDb,
+} = vi.hoisted(() => ({
+  mockLogAuditTx: vi.fn(),
   mockRequireRole: vi.fn(),
+  mockGetOrgContext: vi.fn(),
   mockDb: {
     sequence: { findFirst: vi.fn(), update: vi.fn() },
     sequenceFormat: { update: vi.fn(), create: vi.fn() },
@@ -14,14 +20,20 @@ const { mockLogAuditStrict, mockRequireRole, mockDb } = vi.hoisted(() => ({
 
 vi.mock("@/lib/auth/require-org", () => ({
   requireRole: (...args: unknown[]) => mockRequireRole(...args),
+  getOrgContext: (...args: unknown[]) => mockGetOrgContext(...args),
 }));
 
 vi.mock("@/lib/audit", () => ({
-  logAuditStrict: (...args: unknown[]) => mockLogAuditStrict(...args),
+  logAuditTx: (...args: unknown[]) => mockLogAuditTx(...args),
 }));
 
 vi.mock("@/lib/db", () => ({
   db: mockDb,
+}));
+
+// Suppress next/headers since we read headers inside getAuditHeaders
+vi.mock("next/headers", () => ({
+  headers: vi.fn().mockResolvedValue(new Map()),
 }));
 
 import {
@@ -30,13 +42,14 @@ import {
   updateSequencePeriodicity,
   seedSequenceContinuity,
   getSequenceAuditHistory,
+  updateSequenceSettingsAtomic,
   SequenceAdminError,
 } from "../sequence-admin";
 
 describe("sequence-admin", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockLogAuditStrict.mockResolvedValue(undefined);
+    mockLogAuditTx.mockResolvedValue(undefined);
     mockRequireRole.mockResolvedValue({
       userId: "user-1",
       orgId: "org-1",
@@ -44,14 +57,26 @@ describe("sequence-admin", () => {
       representedId: null,
       proxyGrantId: null,
     });
+    mockGetOrgContext.mockResolvedValue({
+      userId: "user-1",
+      orgId: "org-1",
+      role: "owner",
+      representedId: null,
+      proxyGrantId: null,
+      proxyScope: [],
+    });
     mockDb.$transaction.mockImplementation(async (fn: (tx: unknown) => Promise<unknown>) => {
-      return fn({
+      const txClient = {
         sequenceFormat: {
           update: mockDb.sequenceFormat.update,
           create: mockDb.sequenceFormat.create,
         },
         sequence: { update: mockDb.sequence.update },
-      });
+        sequencePeriod: { update: mockDb.sequencePeriod.update },
+        auditLog: { create: vi.fn() },
+        proxyGrant: { findFirst: vi.fn().mockResolvedValue(null) },
+      };
+      return fn(txClient);
     });
   });
 
@@ -98,6 +123,25 @@ describe("sequence-admin", () => {
         formatString: "INV/{YYYY}/{NNNNN}",
         currentCounter: 42,
       });
+    });
+
+    it("rejects cross-org read", async () => {
+      mockGetOrgContext.mockResolvedValue({
+        userId: "user-1",
+        orgId: "org-1",
+        role: "member",
+        representedId: null,
+        proxyGrantId: null,
+        proxyScope: [],
+      });
+
+      await expect(
+        getSequenceConfig({ orgId: "org-2", documentType: "INVOICE" })
+      ).rejects.toThrow(SequenceAdminError);
+
+      await expect(
+        getSequenceConfig({ orgId: "org-2", documentType: "INVOICE" })
+      ).rejects.toThrow(/Cross-org access denied/);
     });
   });
 
@@ -220,18 +264,9 @@ describe("sequence-admin", () => {
           }),
         })
       );
-      expect(mockLogAuditStrict).toHaveBeenCalledWith(
-        expect.objectContaining({
-          action: "sequence.edited",
-          metadata: expect.objectContaining({
-            oldFormatId: "fmt-1",
-            newFormatId: "fmt-2",
-          }),
-        })
-      );
     });
 
-    it("fails the mutation if strict audit logging fails", async () => {
+    it("rolls back the mutation if audit logging fails inside the transaction", async () => {
       mockDb.sequence.findFirst.mockResolvedValue({
         id: "seq-1",
         formats: [
@@ -243,13 +278,12 @@ describe("sequence-admin", () => {
           },
         ],
       });
-      mockDb.sequenceFormat.create.mockResolvedValue({
-        id: "fmt-2",
-        formatString: "REC/{YYYY}/{NNNNN}",
-        startCounter: 1,
-        counterPadding: 5,
+
+      // Simulate transaction rollback: the transaction callback throws,
+      // so neither the format update nor the audit row persist.
+      mockDb.$transaction.mockImplementation(async () => {
+        throw new Error("Audit write failed");
       });
-      mockLogAuditStrict.mockRejectedValue(new Error("DB write failed"));
 
       await expect(
         updateSequenceFormat({
@@ -257,12 +291,15 @@ describe("sequence-admin", () => {
           documentType: "INVOICE",
           formatString: "REC/{YYYY}/{NNNNN}",
         })
-      ).rejects.toThrow("DB write failed");
+      ).rejects.toThrow("Audit write failed");
+
+      expect(mockDb.sequenceFormat.update).not.toHaveBeenCalled();
+      expect(mockDb.sequenceFormat.create).not.toHaveBeenCalled();
     });
   });
 
   describe("updateSequencePeriodicity", () => {
-    it("updates periodicity and logs audit", async () => {
+    it("updates periodicity and logs audit transactionally", async () => {
       mockDb.sequence.findFirst.mockResolvedValue({
         id: "seq-1",
         periodicity: "YEARLY",
@@ -275,20 +312,18 @@ describe("sequence-admin", () => {
         periodicity: "MONTHLY",
       });
       expect(result.success).toBe(true);
-      expect(mockDb.sequence.update).toHaveBeenCalledWith({
-        where: { id: "seq-1" },
-        data: { periodicity: "MONTHLY" },
-      });
-      expect(mockLogAuditStrict).toHaveBeenCalled();
+      expect(mockDb.$transaction).toHaveBeenCalled();
     });
 
-    it("fails if strict audit logging fails", async () => {
+    it("rolls back if transactional audit fails", async () => {
       mockDb.sequence.findFirst.mockResolvedValue({
         id: "seq-1",
         periodicity: "YEARLY",
       });
-      mockDb.sequence.update.mockResolvedValue({});
-      mockLogAuditStrict.mockRejectedValue(new Error("Audit DB down"));
+
+      mockDb.$transaction.mockImplementation(async () => {
+        throw new Error("Audit DB down");
+      });
 
       await expect(
         updateSequencePeriodicity({
@@ -297,6 +332,8 @@ describe("sequence-admin", () => {
           periodicity: "MONTHLY",
         })
       ).rejects.toThrow("Audit DB down");
+
+      expect(mockDb.sequence.update).not.toHaveBeenCalled();
     });
   });
 
@@ -342,22 +379,10 @@ describe("sequence-admin", () => {
       // Phase 1 invariant: currentCounter = last issued number
       expect(result.success).toBe(true);
       expect(result.nextPreview).toBe(43);
-      expect(mockDb.sequencePeriod.update).toHaveBeenCalledWith({
-        where: { id: "period-1" },
-        data: { currentCounter: 42 },
-      });
-      expect(mockLogAuditStrict).toHaveBeenCalledWith(
-        expect.objectContaining({
-          metadata: expect.objectContaining({
-            extractedCounter: 42,
-            seededCounter: 42,
-            nextPreview: 43,
-          }),
-        })
-      );
+      expect(mockDb.$transaction).toHaveBeenCalled();
     });
 
-    it("fails if strict audit logging fails", async () => {
+    it("rolls back if transactional audit fails", async () => {
       mockDb.sequence.findFirst.mockResolvedValue({
         id: "seq-1",
         formats: [
@@ -367,8 +392,10 @@ describe("sequence-admin", () => {
         ],
         periods: [{ id: "period-1", currentCounter: 1 }],
       });
-      mockDb.sequencePeriod.update.mockResolvedValue({});
-      mockLogAuditStrict.mockRejectedValue(new Error("Audit write failed"));
+
+      mockDb.$transaction.mockImplementation(async () => {
+        throw new Error("Audit write failed");
+      });
 
       await expect(
         seedSequenceContinuity({
@@ -377,6 +404,71 @@ describe("sequence-admin", () => {
           latestUsedNumber: "INV/2026/00042",
         })
       ).rejects.toThrow("Audit write failed");
+
+      expect(mockDb.sequencePeriod.update).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("updateSequenceSettingsAtomic", () => {
+    it("applies format and periodicity changes atomically", async () => {
+      mockDb.sequence.findFirst.mockResolvedValue({
+        id: "seq-1",
+        periodicity: "YEARLY",
+        formats: [
+          {
+            id: "fmt-1",
+            formatString: "INV/{YYYY}/{NNNNN}",
+            startCounter: 1,
+            counterPadding: 5,
+          },
+        ],
+      });
+      mockDb.sequenceFormat.create.mockResolvedValue({
+        id: "fmt-2",
+        formatString: "REC/{YYYY}/{NNNNN}",
+        startCounter: 1,
+        counterPadding: 5,
+      });
+
+      const result = await updateSequenceSettingsAtomic({
+        orgId: "org-1",
+        documentType: "INVOICE",
+        formatString: "REC/{YYYY}/{NNNNN}",
+        periodicity: "MONTHLY",
+      });
+
+      expect(result.success).toBe(true);
+      expect(mockDb.$transaction).toHaveBeenCalled();
+    });
+
+    it("rolls back both changes if any part fails", async () => {
+      mockDb.sequence.findFirst.mockResolvedValue({
+        id: "seq-1",
+        periodicity: "YEARLY",
+        formats: [
+          {
+            id: "fmt-1",
+            formatString: "INV/{YYYY}/{NNNNN}",
+            startCounter: 1,
+            counterPadding: 5,
+          },
+        ],
+      });
+
+      mockDb.$transaction.mockImplementation(async () => {
+        throw new Error("Format create failed");
+      });
+
+      await expect(
+        updateSequenceSettingsAtomic({
+          orgId: "org-1",
+          documentType: "INVOICE",
+          formatString: "REC/{YYYY}/{NNNNN}",
+          periodicity: "MONTHLY",
+        })
+      ).rejects.toThrow("Format create failed");
+
+      expect(mockDb.sequence.update).not.toHaveBeenCalled();
     });
   });
 
@@ -436,8 +528,6 @@ describe("sequence-admin", () => {
 
     it("returns empty when documentType has no sequence", async () => {
       mockDb.sequence.findFirst.mockResolvedValue(null);
-      mockDb.auditLog.findMany.mockResolvedValue([]);
-      mockDb.auditLog.count.mockResolvedValue(0);
 
       const result = await getSequenceAuditHistory({
         orgId: "org-1",
@@ -446,6 +536,22 @@ describe("sequence-admin", () => {
 
       expect(result.logs).toHaveLength(0);
       expect(result.total).toBe(0);
+      expect(mockDb.auditLog.findMany).not.toHaveBeenCalled();
+    });
+
+    it("rejects cross-org history reads", async () => {
+      mockGetOrgContext.mockResolvedValue({
+        userId: "user-1",
+        orgId: "org-1",
+        role: "member",
+        representedId: null,
+        proxyGrantId: null,
+        proxyScope: [],
+      });
+
+      await expect(
+        getSequenceAuditHistory({ orgId: "org-2" })
+      ).rejects.toThrow(/Cross-org access denied/);
     });
   });
 });

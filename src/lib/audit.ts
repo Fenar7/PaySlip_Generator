@@ -12,6 +12,9 @@ interface AuditParams {
   entityType?: string;
   entityId?: string;
   metadata?: Record<string, unknown>;
+  /** Optional: when calling from inside a transaction, read headers before tx and pass them in. */
+  ipAddress?: string | null;
+  userAgent?: string | null;
 }
 
 export async function logAudit(params: AuditParams): Promise<void> {
@@ -34,9 +37,9 @@ export async function logAuditStrict(params: AuditParams): Promise<void> {
 
 async function logAuditUnsafe(params: AuditParams): Promise<void> {
   const hdrs = await headers();
-  const ipAddress =
-    hdrs.get("x-forwarded-for") || hdrs.get("x-real-ip") || null;
-  const userAgent = hdrs.get("user-agent") || null;
+  const ipAddress = params.ipAddress ??
+    (hdrs.get("x-forwarded-for") || hdrs.get("x-real-ip") || null);
+  const userAgent = params.userAgent ?? hdrs.get("user-agent") || null;
   const activeProxy =
     params.representedId || params.proxyGrantId
       ? null
@@ -68,6 +71,50 @@ async function logAuditUnsafe(params: AuditParams): Promise<void> {
         (params.metadata as Prisma.InputJsonValue) ?? Prisma.DbNull,
       ipAddress,
       userAgent,
+    },
+  });
+}
+
+/**
+ * Transactional strict audit logging.
+ * Use inside db.$transaction() so the audit row commits atomically with the mutation.
+ * Read request headers BEFORE entering the transaction and pass them via ipAddress/userAgent.
+ */
+export async function logAuditTx(
+  tx: Prisma.TransactionClient,
+  params: AuditParams
+): Promise<void> {
+  const activeProxy =
+    params.representedId || params.proxyGrantId
+      ? null
+      : await tx.proxyGrant.findFirst({
+          where: {
+            orgId: params.orgId,
+            actorId: params.actorId,
+            status: "ACTIVE",
+            expiresAt: { gt: new Date() },
+          },
+          orderBy: { createdAt: "desc" },
+          select: {
+            id: true,
+            representedId: true,
+          },
+        });
+
+  await tx.auditLog.create({
+    data: {
+      orgId: params.orgId,
+      actorId: params.actorId,
+      representedId:
+        params.representedId ?? activeProxy?.representedId ?? null,
+      proxyGrantId: params.proxyGrantId ?? activeProxy?.id ?? null,
+      action: params.action,
+      entityType: params.entityType ?? null,
+      entityId: params.entityId ?? null,
+      metadata:
+        (params.metadata as Prisma.InputJsonValue) ?? Prisma.DbNull,
+      ipAddress: params.ipAddress ?? null,
+      userAgent: params.userAgent ?? null,
     },
   });
 }
