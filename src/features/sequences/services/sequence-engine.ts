@@ -6,9 +6,8 @@ import type {
   SequencePeriodicity,
   PreviewResult,
   ConsumeResult,
-  SequenceConfig,
 } from "../types";
-import { tokenize, validateFormat, getRunningNumberPadding } from "../engine/tokenizer";
+import { tokenize, validateFormat } from "../engine/tokenizer";
 import { render, buildRenderContext } from "../engine/renderer";
 import { calculatePeriodBoundaries } from "../engine/periodicity";
 

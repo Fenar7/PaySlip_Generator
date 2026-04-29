@@ -70,7 +70,7 @@ export function validateFormat(formatString: string): FormatValidationResult {
   const tokens = tokenize(formatString);
   const parsedTokens: Token[] = [];
   let runningNumberCount = 0;
-  let unclosedBrace = false;
+  const unclosedBrace = false;
 
   for (const token of tokens) {
     if (token.type === "literal") {

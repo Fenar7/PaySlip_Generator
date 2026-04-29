@@ -1,4 +1,4 @@
-import type { Token, RenderContext } from "../types";
+import type { RenderContext } from "../types";
 
 /**
  * Render a format string by substituting tokens with values from context.

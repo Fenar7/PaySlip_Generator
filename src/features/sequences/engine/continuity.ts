@@ -1,4 +1,4 @@
-import type { SequencePeriodicity, ContinuitySeedResult } from "../types";
+import type { ContinuitySeedResult } from "../types";
 
 export interface LegacyOrgDefaults {
   invoicePrefix?: string;
@@ -25,7 +25,7 @@ export interface LegacyOrgDefaults {
 export function parseContinuitySeed(
   prefix: string,
   counter: number,
-  documentType: "INVOICE" | "VOUCHER"
+  _documentType: "INVOICE" | "VOUCHER"
 ): ContinuitySeedResult {
   const sanitizedPrefix = prefix
     .toUpperCase()
