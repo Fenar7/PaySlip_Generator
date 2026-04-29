@@ -8,6 +8,7 @@ import {
   saveOnboardingBranding,
   saveOnboardingFinancials,
   saveOnboardingTemplates,
+  saveOnboardingSequences,
 } from "./actions";
 
 function slugify(str: string) {
@@ -44,6 +45,9 @@ export function OnboardingPageClient() {
   const [invoiceTemplate, setInvoiceTemplate] = useState("minimal");
   const [slipTemplate, setSlipTemplate] = useState("modern-premium");
   const [voucherTemplate, setVoucherTemplate] = useState("minimal-office");
+
+  // Step 5 — Document Numbering
+  const [sequenceMode, setSequenceMode] = useState<"defaults" | "custom">("defaults");
 
   const slug = slugify(orgName);
 
@@ -134,6 +138,26 @@ export function OnboardingPageClient() {
     }
   }
 
+  async function handleStep5() {
+    setError("");
+    setLoading(true);
+    try {
+      if (orgId) {
+        if (sequenceMode === "defaults") {
+          await saveOnboardingSequences({ organizationId: orgId });
+        }
+        // Custom mode save is deferred to Sprint 3.2
+      }
+      setStep(6);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      setError(msg || "Could not save document numbering. Please try again.");
+      console.error("[saveOnboardingSequences error]", err);
+    } finally {
+      setLoading(false);
+    }
+  }
+
   return (
     <div className="min-h-screen flex flex-col items-center justify-center px-4 py-12">
       <div className="mb-8 text-center">
@@ -145,16 +169,16 @@ export function OnboardingPageClient() {
         </span>
       </div>
 
-      {step < 5 && (
+      {step < 6 && (
         <div className="w-full max-w-[480px] mb-6">
           <div className="flex justify-between text-xs text-[#999] mb-2">
-            <span>Step {step} of 4</span>
-            <span>{["Org Setup", "Branding", "Financials", "Templates"][step - 1]}</span>
+            <span>Step {step} of 5</span>
+            <span>{["Org Setup", "Branding", "Financials", "Templates", "Numbering"][step - 1]}</span>
           </div>
           <div className="h-1 bg-[#e5e5e5] rounded-full">
             <div
               className="h-1 bg-[#dc2626] rounded-full transition-all duration-300"
-              style={{ width: `${step * 25}%` }}
+              style={{ width: `${step * 20}%` }}
             />
           </div>
         </div>
@@ -332,13 +356,103 @@ export function OnboardingPageClient() {
                 ← Back
               </Button>
               <Button className="flex-1" onClick={handleStep4} disabled={loading}>
-                {loading ? "Saving…" : "Finish setup →"}
+                {loading ? "Saving…" : "Continue →"}
               </Button>
             </div>
           </div>
         )}
 
         {step === 5 && (
+          <div className="space-y-4">
+            <h2 className="text-xl font-semibold text-[#1a1a1a]">Document Numbering</h2>
+            <p className="text-sm text-[#666]">
+              Configure how invoice and voucher numbers are generated. You can change these later
+              in settings.
+            </p>
+
+            <div className="space-y-3">
+              <label className="text-sm font-medium text-[#1a1a1a]">Numbering mode</label>
+              <div className="grid gap-2">
+                <button
+                  type="button"
+                  onClick={() => setSequenceMode("defaults")}
+                  className={`w-full rounded-md border px-4 py-3 text-left text-sm transition-colors ${
+                    sequenceMode === "defaults"
+                      ? "border-[#dc2626] bg-red-50 text-[#1a1a1a]"
+                      : "border-[#e5e5e5] bg-white text-[#666] hover:border-[#dc2626]"
+                  }`}
+                >
+                  <span className="font-medium">Use default sequencing</span>
+                  <span className="block text-xs text-[#999] mt-0.5">
+                    Invoice: INV/2026/00001 · Voucher: VCH/2026/00001
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSequenceMode("custom")}
+                  className={`w-full rounded-md border px-4 py-3 text-left text-sm transition-colors ${
+                    sequenceMode === "custom"
+                      ? "border-[#dc2626] bg-red-50 text-[#1a1a1a]"
+                      : "border-[#e5e5e5] bg-white text-[#666] hover:border-[#dc2626]"
+                  }`}
+                >
+                  <span className="font-medium">Customize sequencing now</span>
+                  <span className="block text-xs text-[#999] mt-0.5">
+                    Set your own format and periodicity for invoices and vouchers
+                  </span>
+                </button>
+              </div>
+            </div>
+
+            {sequenceMode === "defaults" && (
+              <div className="bg-[#f8f8f8] rounded-lg p-4 space-y-3">
+                <p className="text-sm font-medium text-[#1a1a1a]">Default sequences</p>
+                <div className="grid grid-cols-2 gap-3 text-sm">
+                  <div className="bg-white rounded border border-[#e5e5e5] p-3">
+                    <p className="text-[#666]">Invoice format</p>
+                    <p className="font-mono text-[#1a1a1a]">INV/&#123;YYYY&#125;/&#123;NNNNN&#125;</p>
+                    <p className="text-xs text-[#999] mt-0.5">Resets yearly</p>
+                  </div>
+                  <div className="bg-white rounded border border-[#e5e5e5] p-3">
+                    <p className="text-[#666]">Voucher format</p>
+                    <p className="font-mono text-[#1a1a1a]">VCH/&#123;YYYY&#125;/&#123;NNNNN&#125;</p>
+                    <p className="text-xs text-[#999] mt-0.5">Resets yearly</p>
+                  </div>
+                </div>
+                <p className="text-xs text-[#999]">
+                  Numbers start at 1 and reset each year. The counter pads to 5 digits (e.g.
+                  00001).
+                </p>
+              </div>
+            )}
+
+            {sequenceMode === "custom" && (
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                <p className="text-sm text-blue-700">
+                  Custom sequence setup will be available in the next step. You can configure
+                  formats, periodicity, and continuity after onboarding in Settings → Document
+                  Numbering.
+                </p>
+              </div>
+            )}
+
+            {error && <p className="text-sm text-red-600">{error}</p>}
+            <div className="flex gap-3">
+              <Button variant="secondary" className="flex-1" onClick={() => setStep(4)}>
+                ← Back
+              </Button>
+              <Button
+                className="flex-1"
+                onClick={handleStep5}
+                disabled={loading || (sequenceMode === "custom")}
+              >
+                {loading ? "Saving…" : "Finish setup →"}
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {step === 6 && (
           <div className="text-center space-y-4">
             <div className="text-5xl">🎉</div>
             <h2 className="text-xl font-semibold text-[#1a1a1a]">You&apos;re all set!</h2>
@@ -350,6 +464,7 @@ export function OnboardingPageClient() {
               <li>✅ Brand identity configured</li>
               <li>✅ Financial details saved</li>
               <li>✅ Default templates selected</li>
+              <li>✅ Document numbering configured</li>
             </ul>
             <Button className="w-full" onClick={() => router.push("/app/home")}>
               Go to dashboard →

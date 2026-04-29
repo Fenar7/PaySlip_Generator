@@ -2750,6 +2750,7 @@ model OnboardingProgress {
   firstDocExported  Boolean   @default(false)
   teamMemberInvited Boolean   @default(false)
   recurringSetup    Boolean   @default(false)
+  documentNumbering Boolean   @default(false)
   completedAt       DateTime?
   dismissedAt       DateTime?
   createdAt         DateTime  @default(now())
