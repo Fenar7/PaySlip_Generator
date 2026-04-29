@@ -130,6 +130,14 @@ export const AUDIT_ACTION_LABELS: Record<string, string> = {
   "totp.enabled": "Enabled authenticator app 2FA",
   "totp.disabled": "Disabled authenticator app 2FA",
   "recovery_code.used": "Used a recovery code",
+  "sequence.created": "Created document sequence",
+  "sequence.edited": "Edited document sequence",
+  "sequence.periodicity_changed": "Changed sequence periodicity",
+  "sequence.future_activated": "Activated future sequence format",
+  "sequence.continuity_seeded": "Seeded sequence continuity",
+  "sequence.resequence_previewed": "Previewed resequence batch",
+  "sequence.resequence_confirmed": "Confirmed resequence batch",
+  "sequence.locked_attempt_blocked": "Blocked sequence change on locked period",
 };
 export function getAuditCategory(action: string): string {
   if (
@@ -149,6 +157,7 @@ export function getAuditCategory(action: string): string {
   if (action.startsWith("gst.")) return "Compliance";
   if (action.startsWith("audit.")) return "System";
   if (action.startsWith("org.")) return "Settings";
+  if (action.startsWith("sequence.")) return "Sequences";
   if (action.startsWith("marketplace.")) return "Marketplace";
   if (
     action.startsWith("cron.") ||
