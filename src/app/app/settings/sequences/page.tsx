@@ -7,9 +7,14 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { getSequenceSettings, updateSequenceSettings } from "./actions";
+import {
+  getSequenceSettings,
+  updateSequenceSettings,
+  seedSequenceSetting,
+  getSequenceHistory,
+} from "./actions";
 import type { SequenceSettingsData } from "./actions";
-import type { SequencePeriodicity } from "@/features/sequences/types";
+import type { SequenceDocumentType, SequencePeriodicity } from "@/features/sequences/types";
 
 const PERIODICITY_LABELS: Record<SequencePeriodicity, string> = {
   NONE: "No reset (continuous)",
@@ -34,6 +39,21 @@ export default function SequenceSettingsPage() {
   const [invoicePeriodicity, setInvoicePeriodicity] = useState<SequencePeriodicity>("YEARLY");
   const [voucherFormat, setVoucherFormat] = useState("");
   const [voucherPeriodicity, setVoucherPeriodicity] = useState<SequencePeriodicity>("YEARLY");
+
+  // Continuity seed state
+  const [seedDocType, setSeedDocType] = useState<SequenceDocumentType>("INVOICE");
+  const [seedNumber, setSeedNumber] = useState("");
+  const [seedLoading, setSeedLoading] = useState(false);
+
+  // History state
+  const [history, setHistory] = useState<Array<{
+    id: string;
+    action: string;
+    actor: { name: string } | null;
+    createdAt: Date;
+    metadata: unknown;
+  }>>([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
 
   const loadSettings = useCallback(async () => {
     if (!activeOrg?.id) return;
@@ -139,6 +159,54 @@ export default function SequenceSettingsPage() {
         isOwner={isOwner}
         saving={saving === "VOUCHER"}
         onSave={() => handleSave("VOUCHER")}
+      />
+
+      {isOwner && (
+        <ContinuitySeedSection
+          docType={seedDocType}
+          onDocTypeChange={setSeedDocType}
+          number={seedNumber}
+          onNumberChange={setSeedNumber}
+          loading={seedLoading}
+          onSeed={async () => {
+            if (!activeOrg?.id) return;
+            setSeedLoading(true);
+            setError(null);
+            setSuccess(null);
+            try {
+              const result = await seedSequenceSetting(activeOrg.id, {
+                documentType: seedDocType,
+                latestUsedNumber: seedNumber,
+              });
+              setSuccess(
+                `${seedDocType === "INVOICE" ? "Invoice" : "Voucher"} continuity seeded. Next counter: ${result.nextCounter}`
+              );
+              setSeedNumber("");
+              await loadSettings();
+            } catch (err) {
+              setError(err instanceof Error ? err.message : "Failed to seed continuity");
+            } finally {
+              setSeedLoading(false);
+            }
+          }}
+        />
+      )}
+
+      <HistorySection
+        loading={historyLoading}
+        history={history}
+        onLoad={async () => {
+          if (!activeOrg?.id) return;
+          setHistoryLoading(true);
+          try {
+            const data = await getSequenceHistory(activeOrg.id);
+            setHistory(data.logs);
+          } catch {
+            // ignore
+          } finally {
+            setHistoryLoading(false);
+          }
+        }}
       />
     </div>
   );
@@ -248,6 +316,150 @@ function SequenceCard({
                 {saving ? "Saving..." : "Save Changes"}
               </Button>
             </div>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+
+function ContinuitySeedSection({
+  docType,
+  onDocTypeChange,
+  number,
+  onNumberChange,
+  loading,
+  onSeed,
+}: {
+  docType: SequenceDocumentType;
+  onDocTypeChange: (v: SequenceDocumentType) => void;
+  number: string;
+  onNumberChange: (v: string) => void;
+  loading: boolean;
+  onSeed: () => void;
+}) {
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-lg">Continuity Seeding</CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <p className="text-sm text-[#666]">
+          If you have already used numbers outside Slipwise, enter the latest used number to
+          establish continuity. The next generated number will continue from there.
+        </p>
+        <div className="flex gap-4 items-end">
+          <div>
+            <label className="block text-sm text-[#666] mb-1">Document Type</label>
+            <select
+              value={docType}
+              onChange={(e) => onDocTypeChange(e.target.value as SequenceDocumentType)}
+              className="block w-40 rounded-xl border border-[#e5e5e5] bg-white px-3 py-2 text-sm text-[#1a1a1a] focus:outline-none focus:ring-2 focus:ring-[#dc2626]"
+            >
+              <option value="INVOICE">Invoice</option>
+              <option value="VOUCHER">Voucher</option>
+            </select>
+          </div>
+          <div className="flex-1">
+            <label className="block text-sm text-[#666] mb-1">Latest Used Number</label>
+            <Input
+              value={number}
+              onChange={(e) => onNumberChange(e.target.value)}
+              placeholder="e.g. INV/2026/00042"
+              className="max-w-md"
+            />
+          </div>
+          <Button
+            onClick={onSeed}
+            disabled={loading || !number}
+            className="bg-[#dc2626] hover:bg-[#b91c1c] text-white"
+          >
+            {loading ? "Seeding..." : "Seed Continuity"}
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+const ACTION_LABELS: Record<string, string> = {
+  "sequence.created": "Created",
+  "sequence.edited": "Edited",
+  "sequence.periodicity_changed": "Periodicity Changed",
+  "sequence.future_activated": "Future Format Activated",
+  "sequence.continuity_seeded": "Continuity Seeded",
+  "sequence.resequence_previewed": "Resequence Previewed",
+  "sequence.resequence_confirmed": "Resequence Confirmed",
+  "sequence.locked_attempt_blocked": "Locked Period Blocked",
+};
+
+function HistorySection({
+  loading,
+  history,
+  onLoad,
+}: {
+  loading: boolean;
+  history: Array<{
+    id: string;
+    action: string;
+    actor: { name: string } | null;
+    createdAt: Date;
+    metadata: unknown;
+  }>;
+  onLoad: () => void;
+}) {
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-lg">Sequence History</CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {history.length === 0 && !loading && (
+          <Button
+            onClick={onLoad}
+            variant="outline"
+            className="border-[#dc2626] text-[#dc2626] hover:bg-red-50"
+          >
+            Load History
+          </Button>
+        )}
+        {loading && <p className="text-sm text-[#666]">Loading history...</p>}
+        {history.length > 0 && (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-[#e5e5e5]">
+                  <th className="text-left py-2 px-3 text-[#666] font-medium">Time</th>
+                  <th className="text-left py-2 px-3 text-[#666] font-medium">Action</th>
+                  <th className="text-left py-2 px-3 text-[#666] font-medium">Actor</th>
+                  <th className="text-left py-2 px-3 text-[#666] font-medium">Details</th>
+                </tr>
+              </thead>
+              <tbody>
+                {history.map((entry) => (
+                  <tr key={entry.id} className="border-b border-[#f5f5f5]">
+                    <td className="py-2 px-3 text-[#1a1a1a] whitespace-nowrap">
+                      {new Date(entry.createdAt).toLocaleString()}
+                    </td>
+                    <td className="py-2 px-3">
+                      <Badge variant="secondary">
+                        {ACTION_LABELS[entry.action] ?? entry.action}
+                      </Badge>
+                    </td>
+                    <td className="py-2 px-3 text-[#1a1a1a]">{entry.actor?.name ?? "System"}</td>
+                    <td className="py-2 px-3 text-[#666]">
+                      {entry.metadata && typeof entry.metadata === "object" && entry.metadata !== null
+                        ? Object.entries(entry.metadata as Record<string, unknown>)
+                            .filter(([k]) => !k.includes("Id"))
+                            .map(([k, v]) => `${k}: ${String(v)}`)
+                            .join(", ")
+                        : "—"}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         )}
       </CardContent>
