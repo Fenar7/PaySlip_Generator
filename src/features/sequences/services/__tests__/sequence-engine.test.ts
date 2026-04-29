@@ -1,11 +1,14 @@
 import { describe, expect, it } from "vitest";
 import { db } from "@/lib/db";
+import { isDatabaseReachable } from "../../__tests__/db-check";
 import {
   previewSequenceNumber,
   consumeSequenceNumber,
   SequenceNotFoundError,
   SequenceEngineError,
 } from "../sequence-engine";
+
+const dbReachable = await isDatabaseReachable();
 
 async function createTestOrg() {
   return db.organization.create({
@@ -40,7 +43,7 @@ async function createTestSequence(orgId: string) {
   return sequence;
 }
 
-describe("sequence-engine integration", () => {
+describe.skipIf(!dbReachable)("sequence-engine integration", () => {
   // Note: test data accumulates in the test DB. Each test uses a unique org slug.
 
   it("preview returns next number without consuming counter", async () => {
