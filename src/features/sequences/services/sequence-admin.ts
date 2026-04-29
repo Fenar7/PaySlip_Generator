@@ -7,13 +7,7 @@ import { headers } from "next/headers";
 import { tokenize, validateFormat } from "../engine/tokenizer";
 import type { SequencePeriodicity, SequenceDocumentType } from "../types";
 import type { OrgContext } from "@/lib/auth/require-org";
-
-export class SequenceAdminError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = "SequenceAdminError";
-  }
-}
+import { SequenceAdminError } from "./sequence-errors";
 
 async function requireOrgOwner(): Promise<OrgContext> {
   return requireRole("owner");

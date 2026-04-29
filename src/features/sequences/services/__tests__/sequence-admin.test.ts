@@ -43,8 +43,8 @@ import {
   seedSequenceContinuity,
   getSequenceAuditHistory,
   updateSequenceSettingsAtomic,
-  SequenceAdminError,
 } from "../sequence-admin";
+import { SequenceAdminError } from "../sequence-errors";
 
 describe("sequence-admin", () => {
   beforeEach(() => {

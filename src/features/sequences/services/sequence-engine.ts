@@ -10,6 +10,11 @@ import type {
 import { tokenize, validateFormat } from "../engine/tokenizer";
 import { render, buildRenderContext } from "../engine/renderer";
 import { calculatePeriodBoundaries } from "../engine/periodicity";
+import {
+  SequenceEngineError,
+  SequenceExhaustionError,
+  SequenceNotFoundError,
+} from "./sequence-engine-errors";
 
 /**
  * Sequence Engine Service
@@ -19,27 +24,6 @@ import { calculatePeriodBoundaries } from "../engine/periodicity";
  *
  * All mutations are atomic and run inside Prisma transactions.
  */
-
-export class SequenceEngineError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = "SequenceEngineError";
-  }
-}
-
-export class SequenceExhaustionError extends SequenceEngineError {
-  constructor() {
-    super("Sequence counter has exceeded safe integer bounds");
-    this.name = "SequenceExhaustionError";
-  }
-}
-
-export class SequenceNotFoundError extends SequenceEngineError {
-  constructor(sequenceId: string) {
-    super(`Sequence not found: ${sequenceId}`);
-    this.name = "SequenceNotFoundError";
-  }
-}
 
 interface PreviewParams {
   sequenceId: string;

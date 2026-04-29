@@ -4,9 +4,11 @@ import { isDatabaseReachable } from "../../__tests__/db-check";
 import {
   previewSequenceNumber,
   consumeSequenceNumber,
+} from "../sequence-engine";
+import {
   SequenceNotFoundError,
   SequenceEngineError,
-} from "../sequence-engine";
+} from "../sequence-engine-errors";
 
 const dbReachable = await isDatabaseReachable();
 

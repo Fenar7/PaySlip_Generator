@@ -37,9 +37,8 @@ export async function logAuditStrict(params: AuditParams): Promise<void> {
 
 async function logAuditUnsafe(params: AuditParams): Promise<void> {
   const hdrs = await headers();
-  const ipAddress = params.ipAddress ??
-    (hdrs.get("x-forwarded-for") || hdrs.get("x-real-ip") || null);
-  const userAgent = params.userAgent ?? hdrs.get("user-agent") || null;
+  const ipAddress = params.ipAddress ?? (hdrs.get("x-forwarded-for") || hdrs.get("x-real-ip") || null);
+  const userAgent = params.userAgent ?? (hdrs.get("user-agent") || null);
   const activeProxy =
     params.representedId || params.proxyGrantId
       ? null
