@@ -134,3 +134,57 @@ export function getRunningNumberPadding(tokens: Token[]): number {
   }
   return 5; // default fallback
 }
+
+/**
+ * Extract the counter value from a formatted number by matching
+ * against a format string.  Builds a regex from the tokenized format
+ * and captures the running-number group.
+ *
+ * Returns null if the number does not match the format or no running-number
+ * token is present.
+ */
+export function extractCounterFromFormat(
+  formattedNumber: string,
+  formatString: string
+): number | null {
+  const tokens = tokenize(formatString);
+  let pattern = "^";
+  let hasRunningNumber = false;
+
+  for (const token of tokens) {
+    if (token.type === "literal") {
+      pattern += escapeRegex(token.value);
+    } else if (token.type === "token" && /^N{2,}$/.test(token.value)) {
+      pattern += "(\\d+)";
+      hasRunningNumber = true;
+    } else if (token.type === "token") {
+      if (token.value === "YYYY") pattern += "(\\d{4})";
+      else if (token.value === "MM") pattern += "(\\d{2})";
+      else if (token.value === "DD") pattern += "(\\d{2})";
+      else if (token.value === "FY") pattern += "FY[\\w\\-]+";
+      else pattern += ".*?";
+    }
+  }
+  pattern += "$";
+
+  if (!hasRunningNumber) return null;
+
+  const regex = new RegExp(pattern);
+  const match = formattedNumber.match(regex);
+  if (!match) return null;
+
+  let captureIndex = 1;
+  for (const token of tokens) {
+    if (token.type === "token" && /^N{2,}$/.test(token.value)) break;
+    if (token.type === "token" && ["YYYY", "MM", "DD"].includes(token.value)) captureIndex++;
+  }
+
+  const counterStr = match[captureIndex];
+  if (!counterStr) return null;
+  const counter = parseInt(counterStr, 10);
+  return isNaN(counter) ? null : counter;
+}
+
+function escapeRegex(str: string): string {
+  return str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}

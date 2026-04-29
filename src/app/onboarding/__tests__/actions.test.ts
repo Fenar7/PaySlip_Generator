@@ -276,4 +276,64 @@ describe("saveOnboardingSequences", () => {
     expect(capturedPeriodCounter).toBe(42);
     expect(mockCompleteStep).toHaveBeenCalled();
   });
+
+  // ── Periodicity/token alignment tests ────────────────────────────
+
+  it("rejects yearly periodicity without date token", async () => {
+    mockRequireRole.mockResolvedValue({ orgId: "org-1", userId: "owner-1", role: "owner" });
+
+    await expect(
+      saveOnboardingSequences({
+        organizationId: "org-1",
+        customConfigs: [
+          { documentType: "INVOICE", formatString: "INV/{NNNNN}", periodicity: "YEARLY" },
+        ],
+      })
+    ).rejects.toThrow(/periodicity.*YEARLY.*requires.*YYYY.*FY/i);
+
+    expect(mockCompleteStep).not.toHaveBeenCalled();
+  });
+
+  it("rejects financial year periodicity without {FY} token", async () => {
+    mockRequireRole.mockResolvedValue({ orgId: "org-1", userId: "owner-1", role: "owner" });
+
+    await expect(
+      saveOnboardingSequences({
+        organizationId: "org-1",
+        customConfigs: [
+          { documentType: "VOUCHER", formatString: "VCH/{YYYY}/{NNNNN}", periodicity: "FINANCIAL_YEAR" },
+        ],
+      })
+    ).rejects.toThrow(/financial_year.*requires.*FY/i);
+
+    expect(mockCompleteStep).not.toHaveBeenCalled();
+  });
+
+  it("accepts NONE periodicity without date token (continuous)", async () => {
+    mockRequireRole.mockResolvedValue({ orgId: "org-1", userId: "owner-1", role: "owner" });
+    mockDb.sequence.findFirst.mockResolvedValue(null);
+
+    mockDb.$transaction.mockImplementation(
+      async (fn: (tx: unknown) => Promise<unknown>) => {
+        const txClient = {
+          sequence: { create: vi.fn().mockResolvedValue({ id: "s1" }) },
+          sequenceFormat: { create: vi.fn().mockResolvedValue({ id: "f1" }) },
+          sequencePeriod: { create: vi.fn().mockResolvedValue({ id: "p1" }) },
+        };
+        return fn(txClient);
+      }
+    );
+    mockLogAuditTx.mockResolvedValue(null);
+    mockCompleteStep.mockResolvedValue(undefined);
+
+    const result = await saveOnboardingSequences({
+      organizationId: "org-1",
+      customConfigs: [
+        { documentType: "INVOICE", formatString: "INV/{NNNNN}", periodicity: "NONE" },
+      ],
+    });
+
+    expect(result.success).toBe(true);
+    expect(mockCompleteStep).toHaveBeenCalled();
+  });
 });

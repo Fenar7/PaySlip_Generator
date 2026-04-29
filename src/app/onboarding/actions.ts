@@ -5,7 +5,7 @@ import { logAuditTx } from "@/lib/audit";
 import { completeOnboardingStep } from "@/lib/onboarding-tracker";
 import { headers } from "next/headers";
 import { calculatePeriodBoundaries } from "@/features/sequences/engine/periodicity";
-import { validateFormat, tokenize } from "@/features/sequences/engine/tokenizer";
+import { validateFormat, extractCounterFromFormat } from "@/features/sequences/engine/tokenizer";
 import type { SequenceDocumentType, SequencePeriodicity } from "@/features/sequences/types";
 
 const DEFAULT_SEQUENCE_CONFIGS: Array<{
@@ -39,6 +39,8 @@ export interface SequenceCustomConfig {
   formatString: string;
   periodicity: SequencePeriodicity;
   latestUsedNumber?: string;
+  startCounter?: number;
+  counterPadding?: number;
 }
 
 async function getAuditHeaders() {
@@ -61,8 +63,27 @@ function validateCustomConfig(config: SequenceCustomConfig): void {
     );
   }
 
+  // Periodicity/token alignment — enforce the PRD rule that the
+  // format must contain date tokens appropriate for the chosen
+  // periodicity so that period boundaries are visible in the number.
+  const hasYear = config.formatString.includes("{YYYY}");
+  const hasFY = config.formatString.includes("{FY}");
+
+  if (config.periodicity !== "NONE" && !hasYear && !hasFY) {
+    throw new Error(
+      `${config.documentType}: periodicity "${config.periodicity}" requires ` +
+      `the format to include {YYYY} or {FY} so period boundaries are visible in the number`
+    );
+  }
+
+  if (config.periodicity === "FINANCIAL_YEAR" && !hasFY) {
+    throw new Error(
+      `${config.documentType}: financial_year periodicity requires {FY} in the format string`
+    );
+  }
+
   if (config.latestUsedNumber) {
-    const match = extractCounterFromNumber(
+    const match = extractCounterFromFormat(
       config.latestUsedNumber,
       config.formatString
     );
@@ -72,57 +93,6 @@ function validateCustomConfig(config: SequenceCustomConfig): void {
       );
     }
   }
-}
-
-/**
- * Extract the counter value from a formatted number by matching
- * against a format string.  Uses the same tokenize → regex approach
- * as the sequence-admin service.
- */
-function extractCounterFromNumber(
-  formattedNumber: string,
-  formatString: string
-): number | null {
-  const tokens = tokenize(formatString);
-  let pattern = "^";
-  let hasRunningNumber = false;
-
-  for (const token of tokens) {
-    if (token.type === "literal") {
-      pattern += escapeRegex(token.value);
-    } else if (token.type === "token" && /^N{2,}$/.test(token.value)) {
-      pattern += "(\\d+)";
-      hasRunningNumber = true;
-    } else if (token.type === "token") {
-      if (token.value === "YYYY") pattern += "(\\d{4})";
-      else if (token.value === "MM") pattern += "(\\d{2})";
-      else if (token.value === "DD") pattern += "(\\d{2})";
-      else if (token.value === "FY") pattern += "FY[\\w\\-]+";
-      else pattern += ".*?";
-    }
-  }
-  pattern += "$";
-
-  if (!hasRunningNumber) return null;
-
-  const regex = new RegExp(pattern);
-  const match = formattedNumber.match(regex);
-  if (!match) return null;
-
-  let captureIndex = 1;
-  for (const token of tokens) {
-    if (token.type === "token" && /^N{2,}$/.test(token.value)) break;
-    if (token.type === "token" && ["YYYY", "MM", "DD"].includes(token.value)) captureIndex++;
-  }
-
-  const counterStr = match[captureIndex];
-  if (!counterStr) return null;
-  const counter = parseInt(counterStr, 10);
-  return isNaN(counter) ? null : counter;
-}
-
-function escapeRegex(str: string): string {
-  return str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
 export async function saveOnboardingSequences({
@@ -160,10 +130,12 @@ export async function saveOnboardingSequences({
 
     // Derive the initial counter: if a continuity seed was supplied,
     // set currentCounter = extracted value so the next consume yields +1.
+    const startCounter = config.startCounter ?? 1;
+    const counterPadding = config.counterPadding ?? 5;
     const seedCounter = config.latestUsedNumber
-      ? extractCounterFromNumber(config.latestUsedNumber, config.formatString) ?? 0
+      ? extractCounterFromFormat(config.latestUsedNumber, config.formatString) ?? 0
       : null;
-    const periodCounter = seedCounter !== null ? seedCounter : config.startCounter - 1;
+    const periodCounter = seedCounter !== null ? seedCounter : startCounter - 1;
 
     await db.$transaction(async (tx) => {
       const sequence = await tx.sequence.create({
@@ -179,8 +151,8 @@ export async function saveOnboardingSequences({
         data: {
           sequenceId: sequence.id,
           formatString: config.formatString,
-          startCounter: config.startCounter,
-          counterPadding: config.counterPadding,
+          startCounter,
+          counterPadding,
           isDefault: true,
         },
       });

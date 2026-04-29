@@ -12,7 +12,7 @@ import {
 } from "./actions";
 import type { SequenceCustomConfig } from "./actions";
 import type { SequencePeriodicity } from "@/features/sequences/types";
-import { validateFormat, tokenize } from "@/features/sequences/engine/tokenizer";
+import { validateFormat, tokenize, extractCounterFromFormat } from "@/features/sequences/engine/tokenizer";
 import { render, buildRenderContext } from "@/features/sequences/engine/renderer";
 
 const PERIODICITY_LABELS: Record<SequencePeriodicity, string> = {
@@ -584,12 +584,18 @@ function CustomSequenceSection({
     try {
       const tokens = tokenize(formatValue);
       const prefix = documentType === "INVOICE" ? "INV" : "VCH";
-      const ctx = buildRenderContext(new Date(), prefix, 1);
+      // If a continuity seed is provided, preview the NEXT number after it.
+      // Otherwise preview the first number (counter = 1).
+      const seedCounter = latestUsedValue.trim()
+        ? extractCounterFromFormat(latestUsedValue.trim(), formatValue)
+        : null;
+      const nextCounter = seedCounter !== null ? seedCounter + 1 : 1;
+      const ctx = buildRenderContext(new Date(), prefix, nextCounter);
       return render(tokens, ctx);
     } catch {
       return null;
     }
-  }, [formatValue, formatValidation.valid, documentType]);
+  }, [formatValue, formatValidation.valid, documentType, latestUsedValue]);
 
   return (
     <div className="space-y-3">

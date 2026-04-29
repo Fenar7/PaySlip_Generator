@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { tokenize, validateFormat, getRunningNumberPadding } from "../tokenizer";
+import { tokenize, validateFormat, getRunningNumberPadding, extractCounterFromFormat } from "../tokenizer";
 
 describe("tokenize", () => {
   it("parses literal text only", () => {
@@ -87,5 +87,27 @@ describe("getRunningNumberPadding", () => {
   it("returns default 5 when no running number", () => {
     const tokens = tokenize("{YYYY}");
     expect(getRunningNumberPadding(tokens)).toBe(5);
+  });
+});
+
+describe("extractCounterFromFormat", () => {
+  it("extracts counter from standard format", () => {
+    expect(extractCounterFromFormat("INV/2026/00042", "INV/{YYYY}/{NNNNN}")).toBe(42);
+  });
+
+  it("extracts counter with short padding", () => {
+    expect(extractCounterFromFormat("PYMT/FY25-26/099", "PYMT/{FY}/{NNN}")).toBe(99);
+  });
+
+  it("returns null when number does not match format", () => {
+    expect(extractCounterFromFormat("VCH/2026/00042", "INV/{YYYY}/{NNNNN}")).toBeNull();
+  });
+
+  it("returns null for format without running number", () => {
+    expect(extractCounterFromFormat("INV/2026", "INV/{YYYY}")).toBeNull();
+  });
+
+  it("extracts counter from format with multiple digit tokens before counter", () => {
+    expect(extractCounterFromFormat("INV/2026/04/00010", "INV/{YYYY}/{MM}/{NNNNN}")).toBe(10);
   });
 });

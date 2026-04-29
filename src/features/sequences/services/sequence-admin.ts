@@ -4,7 +4,7 @@ import { db } from "@/lib/db";
 import { requireRole, getOrgContext } from "@/lib/auth/require-org";
 import { logAuditTx } from "@/lib/audit";
 import { headers } from "next/headers";
-import { tokenize, validateFormat } from "../engine/tokenizer";
+import { validateFormat, extractCounterFromFormat } from "../engine/tokenizer";
 import type { SequencePeriodicity, SequenceDocumentType } from "../types";
 import type { OrgContext } from "@/lib/auth/require-org";
 import { SequenceAdminError } from "./sequence-errors";
@@ -274,7 +274,7 @@ export async function seedSequenceContinuity(params: {
   }
 
   // Validate that latestUsedNumber matches the format
-  const extractedCounter = extractCounterFromNumber(
+  const extractedCounter = extractCounterFromFormat(
     params.latestUsedNumber,
     format.formatString
   );
@@ -547,72 +547,4 @@ export async function getSequenceAuditHistory(params: {
     limit,
     offset,
   };
-}
-
-/**
- * Extract the counter value from a formatted number by matching against the format string.
- */
-function extractCounterFromNumber(
-  formattedNumber: string,
-  formatString: string
-): number | null {
-  // Tokenize the format string
-  const tokens = tokenize(formatString);
-
-  // Build a regex pattern from the format tokens
-  let pattern = "^";
-  let hasRunningNumber = false;
-
-  for (const token of tokens) {
-    if (token.type === "literal") {
-      pattern += escapeRegex(token.value);
-    } else if (token.type === "token" && token.value === "NNNNN") {
-      pattern += "(\\d+)";
-      hasRunningNumber = true;
-    } else if (token.type === "token") {
-      // For other tokens like YYYY, MM, DD, match digits or word chars
-      if (token.value === "YYYY") {
-        pattern += "(\\d{4})";
-      } else if (token.value === "MM") {
-        pattern += "(\\d{2})";
-      } else if (token.value === "DD") {
-        pattern += "(\\d{2})";
-      } else if (token.value === "FY") {
-        pattern += "FY[\\w\\-]+";
-      } else if (token.value === "PREFIX") {
-        pattern += "[A-Z0-9]+";
-      } else {
-        pattern += ".*?";
-      }
-    }
-  }
-  pattern += "$";
-
-  if (!hasRunningNumber) return null;
-
-  const regex = new RegExp(pattern);
-  const match = formattedNumber.match(regex);
-
-  if (!match) return null;
-
-  // Find the capture group index for the running number
-  let captureIndex = 1;
-  for (const token of tokens) {
-    if (token.type === "token" && token.value === "NNNNN") {
-      break;
-    }
-    if (token.type === "token" && ["YYYY", "MM", "DD"].includes(token.value)) {
-      captureIndex++;
-    }
-  }
-
-  const counterStr = match[captureIndex];
-  if (!counterStr) return null;
-
-  const counter = parseInt(counterStr, 10);
-  return isNaN(counter) ? null : counter;
-}
-
-function escapeRegex(str: string): string {
-  return str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
