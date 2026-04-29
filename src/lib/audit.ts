@@ -16,47 +16,60 @@ interface AuditParams {
 
 export async function logAudit(params: AuditParams): Promise<void> {
   try {
-    const hdrs = await headers();
-    const ipAddress =
-      hdrs.get("x-forwarded-for") || hdrs.get("x-real-ip") || null;
-    const userAgent = hdrs.get("user-agent") || null;
-    const activeProxy =
-      params.representedId || params.proxyGrantId
-        ? null
-        : await db.proxyGrant.findFirst({
-            where: {
-              orgId: params.orgId,
-              actorId: params.actorId,
-              status: "ACTIVE",
-              expiresAt: { gt: new Date() },
-            },
-            orderBy: { createdAt: "desc" },
-            select: {
-              id: true,
-              representedId: true,
-            },
-          });
-
-    await db.auditLog.create({
-      data: {
-        orgId: params.orgId,
-        actorId: params.actorId,
-        representedId:
-          params.representedId ?? activeProxy?.representedId ?? null,
-        proxyGrantId: params.proxyGrantId ?? activeProxy?.id ?? null,
-        action: params.action,
-        entityType: params.entityType ?? null,
-        entityId: params.entityId ?? null,
-        metadata:
-          (params.metadata as Prisma.InputJsonValue) ?? Prisma.DbNull,
-        ipAddress,
-        userAgent,
-      },
-    });
+    await logAuditUnsafe(params);
   } catch (error) {
     // Fire-and-forget: never block the user action
     console.error("[AUDIT] Failed to log:", error);
   }
+}
+
+/**
+ * Strict audit logging that throws on failure.
+ * Use for high-risk mutations (sequence changes, resequencing) where
+ * audit persistence is a hard requirement.
+ */
+export async function logAuditStrict(params: AuditParams): Promise<void> {
+  await logAuditUnsafe(params);
+}
+
+async function logAuditUnsafe(params: AuditParams): Promise<void> {
+  const hdrs = await headers();
+  const ipAddress =
+    hdrs.get("x-forwarded-for") || hdrs.get("x-real-ip") || null;
+  const userAgent = hdrs.get("user-agent") || null;
+  const activeProxy =
+    params.representedId || params.proxyGrantId
+      ? null
+      : await db.proxyGrant.findFirst({
+          where: {
+            orgId: params.orgId,
+            actorId: params.actorId,
+            status: "ACTIVE",
+            expiresAt: { gt: new Date() },
+          },
+          orderBy: { createdAt: "desc" },
+          select: {
+            id: true,
+            representedId: true,
+          },
+        });
+
+  await db.auditLog.create({
+    data: {
+      orgId: params.orgId,
+      actorId: params.actorId,
+      representedId:
+        params.representedId ?? activeProxy?.representedId ?? null,
+      proxyGrantId: params.proxyGrantId ?? activeProxy?.id ?? null,
+      action: params.action,
+      entityType: params.entityType ?? null,
+      entityId: params.entityId ?? null,
+      metadata:
+        (params.metadata as Prisma.InputJsonValue) ?? Prisma.DbNull,
+      ipAddress,
+      userAgent,
+    },
+  });
 }
 
 export const AUDIT_ACTION_LABELS: Record<string, string> = {

@@ -4,18 +4,20 @@ const mockGetSequenceConfig = vi.fn();
 const mockUpdateSequenceFormat = vi.fn();
 const mockUpdateSequencePeriodicity = vi.fn();
 const mockPreviewSequenceNumber = vi.fn();
+const mockGetSequenceAuditHistory = vi.fn();
 
 vi.mock("@/features/sequences/services/sequence-admin", () => ({
   getSequenceConfig: (...args: unknown[]) => mockGetSequenceConfig(...args),
   updateSequenceFormat: (...args: unknown[]) => mockUpdateSequenceFormat(...args),
   updateSequencePeriodicity: (...args: unknown[]) => mockUpdateSequencePeriodicity(...args),
+  getSequenceAuditHistory: (...args: unknown[]) => mockGetSequenceAuditHistory(...args),
 }));
 
 vi.mock("@/features/sequences/services/sequence-engine", () => ({
   previewSequenceNumber: (...args: unknown[]) => mockPreviewSequenceNumber(...args),
 }));
 
-import { getSequenceSettings, updateSequenceSettings } from "../actions";
+import { getSequenceSettings, updateSequenceSettings, getSequenceHistory } from "../actions";
 
 describe("sequence settings actions", () => {
   it("returns null sequences when none exist", async () => {
@@ -80,5 +82,38 @@ describe("sequence settings actions", () => {
       documentType: "INVOICE",
       periodicity: "MONTHLY",
     });
+  });
+
+  it("getSequenceHistory passes documentType to audit history when provided", async () => {
+    mockGetSequenceAuditHistory.mockResolvedValue({
+      logs: [{ id: "log-1", action: "sequence.edited" }],
+      total: 1,
+    });
+
+    const result = await getSequenceHistory("org-1", "INVOICE");
+
+    expect(mockGetSequenceAuditHistory).toHaveBeenCalledWith({
+      orgId: "org-1",
+      documentType: "INVOICE",
+      limit: 50,
+      offset: 0,
+    });
+    expect(result.logs).toHaveLength(1);
+  });
+
+  it("getSequenceHistory omits documentType when not provided", async () => {
+    mockGetSequenceAuditHistory.mockResolvedValue({
+      logs: [{ id: "log-1", action: "sequence.edited" }],
+      total: 1,
+    });
+
+    const result = await getSequenceHistory("org-1");
+
+    expect(mockGetSequenceAuditHistory).toHaveBeenCalledWith({
+      orgId: "org-1",
+      limit: 50,
+      offset: 0,
+    });
+    expect(result.logs).toHaveLength(1);
   });
 });

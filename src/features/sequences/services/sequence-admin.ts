@@ -1,11 +1,11 @@
 "use server";
 
 import { db } from "@/lib/db";
-// Prisma type available when transaction support is needed
 import { requireRole } from "@/lib/auth/require-org";
-import { logAudit } from "@/lib/audit";
+import { logAuditStrict } from "@/lib/audit";
 import { tokenize, validateFormat } from "../engine/tokenizer";
 import type { SequencePeriodicity, SequenceDocumentType } from "../types";
+import type { OrgContext } from "@/lib/auth/require-org";
 
 export class SequenceAdminError extends Error {
   constructor(message: string) {
@@ -14,11 +14,19 @@ export class SequenceAdminError extends Error {
   }
 }
 
-async function requireOrgOwner() {
+async function requireOrgOwner(): Promise<OrgContext> {
   return requireRole("owner");
 }
 
-function getSequenceAuditBase(ctx: { orgId: string; userId: string }) {
+function assertOrgMatch(ctx: OrgContext, targetOrgId: string): void {
+  if (ctx.orgId !== targetOrgId) {
+    throw new SequenceAdminError(
+      `Cross-org access denied. Context org: ${ctx.orgId}, target org: ${targetOrgId}`
+    );
+  }
+}
+
+function getSequenceAuditBase(ctx: OrgContext) {
   return {
     orgId: ctx.orgId,
     actorId: ctx.userId,
@@ -68,6 +76,8 @@ export async function getSequenceConfig(params: {
 
 /**
  * Update sequence format (owner-only).
+ * Creates a new format version instead of editing in place,
+ * preserving configuration history.
  */
 export async function updateSequenceFormat(params: {
   orgId: string;
@@ -77,6 +87,7 @@ export async function updateSequenceFormat(params: {
   counterPadding?: number;
 }) {
   const ctx = await requireOrgOwner();
+  assertOrgMatch(ctx, params.orgId);
 
   const validation = validateFormat(params.formatString);
   if (!validation.valid) {
@@ -103,39 +114,37 @@ export async function updateSequenceFormat(params: {
 
   const oldFormat = sequence.formats[0];
 
-  await db.$transaction(async (tx) => {
+  const newFormat = await db.$transaction(async (tx) => {
     if (oldFormat) {
       await tx.sequenceFormat.update({
         where: { id: oldFormat.id },
-        data: {
-          formatString: params.formatString,
-          startCounter: params.startCounter ?? oldFormat.startCounter,
-          counterPadding: params.counterPadding ?? oldFormat.counterPadding,
-        },
-      });
-    } else {
-      await tx.sequenceFormat.create({
-        data: {
-          sequenceId: sequence.id,
-          formatString: params.formatString,
-          startCounter: params.startCounter ?? 1,
-          counterPadding: params.counterPadding ?? 5,
-          isDefault: true,
-        },
+        data: { isDefault: false },
       });
     }
+
+    return tx.sequenceFormat.create({
+      data: {
+        sequenceId: sequence.id,
+        formatString: params.formatString,
+        startCounter: params.startCounter ?? oldFormat?.startCounter ?? 1,
+        counterPadding: params.counterPadding ?? oldFormat?.counterPadding ?? 5,
+        isDefault: true,
+      },
+    });
   });
 
-  await logAudit({
+  await logAuditStrict({
     ...getSequenceAuditBase(ctx),
     entityId: sequence.id,
     action: "sequence.edited",
     metadata: {
       documentType: params.documentType,
+      oldFormatId: oldFormat?.id ?? null,
       oldFormatString: oldFormat?.formatString ?? null,
+      newFormatId: newFormat.id,
       newFormatString: params.formatString,
       oldStartCounter: oldFormat?.startCounter ?? null,
-      newStartCounter: params.startCounter ?? oldFormat?.startCounter ?? null,
+      newStartCounter: newFormat.startCounter,
     },
   });
 
@@ -151,6 +160,7 @@ export async function updateSequencePeriodicity(params: {
   periodicity: SequencePeriodicity;
 }) {
   const ctx = await requireOrgOwner();
+  assertOrgMatch(ctx, params.orgId);
 
   const sequence = await db.sequence.findFirst({
     where: {
@@ -172,7 +182,7 @@ export async function updateSequencePeriodicity(params: {
     data: { periodicity: params.periodicity },
   });
 
-  await logAudit({
+  await logAuditStrict({
     ...getSequenceAuditBase(ctx),
     entityId: sequence.id,
     action: "sequence.periodicity_changed",
@@ -188,6 +198,10 @@ export async function updateSequencePeriodicity(params: {
 
 /**
  * Seed sequence continuity from a latest-used number (owner-only).
+ *
+ * Phase 1 invariant: currentCounter stores the LAST ISSUED number.
+ * If latest used number extracts counter 42, currentCounter must become 42,
+ * so that the next preview / next consume yields 43.
  */
 export async function seedSequenceContinuity(params: {
   orgId: string;
@@ -195,6 +209,7 @@ export async function seedSequenceContinuity(params: {
   latestUsedNumber: string;
 }) {
   const ctx = await requireOrgOwner();
+  assertOrgMatch(ctx, params.orgId);
 
   const sequence = await db.sequence.findFirst({
     where: {
@@ -232,17 +247,19 @@ export async function seedSequenceContinuity(params: {
     );
   }
 
-  const nextCounter = extractedCounter + 1;
+  // Preserve Phase 1 invariant: currentCounter = last issued number
+  const seededCounter = extractedCounter;
+  const nextPreview = seededCounter + 1;
 
   const period = sequence.periods[0];
   if (period) {
     await db.sequencePeriod.update({
       where: { id: period.id },
-      data: { currentCounter: nextCounter },
+      data: { currentCounter: seededCounter },
     });
   }
 
-  await logAudit({
+  await logAuditStrict({
     ...getSequenceAuditBase(ctx),
     entityId: sequence.id,
     action: "sequence.continuity_seeded",
@@ -250,16 +267,18 @@ export async function seedSequenceContinuity(params: {
       documentType: params.documentType,
       latestUsedNumber: params.latestUsedNumber,
       extractedCounter,
-      nextCounter,
+      seededCounter,
+      nextPreview,
       periodId: period?.id ?? null,
     },
   });
 
-  return { success: true, nextCounter };
+  return { success: true, nextPreview };
 }
 
 /**
  * Get audit history for sequence changes in an org.
+ * When documentType is provided, filters to that specific sequence.
  */
 export async function getSequenceAuditHistory(params: {
   orgId: string;
@@ -281,12 +300,29 @@ export async function getSequenceAuditHistory(params: {
     "sequence.locked_attempt_blocked",
   ];
 
+  let entityIdFilter: string | undefined;
+  if (params.documentType) {
+    const sequence = await db.sequence.findFirst({
+      where: {
+        organizationId: params.orgId,
+        documentType: params.documentType,
+      },
+      select: { id: true },
+    });
+    if (sequence) {
+      entityIdFilter = sequence.id;
+    }
+  }
+
+  const where = {
+    orgId: params.orgId,
+    action: { in: actions },
+    ...(entityIdFilter ? { entityId: entityIdFilter } : {}),
+  };
+
   const [logs, total] = await Promise.all([
     db.auditLog.findMany({
-      where: {
-        orgId: params.orgId,
-        action: { in: actions },
-      },
+      where,
       orderBy: { createdAt: "desc" },
       take: limit,
       skip: offset,
@@ -300,12 +336,7 @@ export async function getSequenceAuditHistory(params: {
         },
       },
     }),
-    db.auditLog.count({
-      where: {
-        orgId: params.orgId,
-        action: { in: actions },
-      },
-    }),
+    db.auditLog.count({ where }),
   ]);
 
   return {

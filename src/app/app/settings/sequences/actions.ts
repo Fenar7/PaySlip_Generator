@@ -131,11 +131,11 @@ export async function seedSequenceSetting(
 
 export async function getSequenceHistory(
   orgId: string,
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  _documentType?: SequenceDocumentType
+  documentType?: SequenceDocumentType
 ) {
   return getSequenceAuditHistory({
     orgId,
+    documentType,
     limit: 50,
     offset: 0,
   });

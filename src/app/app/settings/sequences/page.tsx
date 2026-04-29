@@ -46,6 +46,7 @@ export default function SequenceSettingsPage() {
   const [seedLoading, setSeedLoading] = useState(false);
 
   // History state
+  const [historyDocType, setHistoryDocType] = useState<SequenceDocumentType | "ALL">("ALL");
   const [history, setHistory] = useState<Array<{
     id: string;
     action: string;
@@ -179,7 +180,7 @@ export default function SequenceSettingsPage() {
                 latestUsedNumber: seedNumber,
               });
               setSuccess(
-                `${seedDocType === "INVOICE" ? "Invoice" : "Voucher"} continuity seeded. Next counter: ${result.nextCounter}`
+                `${seedDocType === "INVOICE" ? "Invoice" : "Voucher"} continuity seeded. Next number will be ${result.nextPreview}`
               );
               setSeedNumber("");
               await loadSettings();
@@ -193,13 +194,18 @@ export default function SequenceSettingsPage() {
       )}
 
       <HistorySection
+        docType={historyDocType}
+        onDocTypeChange={setHistoryDocType}
         loading={historyLoading}
         history={history}
         onLoad={async () => {
           if (!activeOrg?.id) return;
           setHistoryLoading(true);
           try {
-            const data = await getSequenceHistory(activeOrg.id);
+            const data = await getSequenceHistory(
+              activeOrg.id,
+              historyDocType === "ALL" ? undefined : historyDocType
+            );
             setHistory(data.logs);
           } catch {
             // ignore
@@ -395,10 +401,14 @@ const ACTION_LABELS: Record<string, string> = {
 };
 
 function HistorySection({
+  docType,
+  onDocTypeChange,
   loading,
   history,
   onLoad,
 }: {
+  docType: SequenceDocumentType | "ALL";
+  onDocTypeChange: (v: SequenceDocumentType | "ALL") => void;
   loading: boolean;
   history: Array<{
     id: string;
@@ -415,15 +425,25 @@ function HistorySection({
         <CardTitle className="text-lg">Sequence History</CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
-        {history.length === 0 && !loading && (
+        <div className="flex items-center gap-4">
+          <label className="text-sm text-[#666]">Filter:</label>
+          <select
+            value={docType}
+            onChange={(e) => onDocTypeChange(e.target.value as SequenceDocumentType | "ALL")}
+            className="block w-40 rounded-xl border border-[#e5e5e5] bg-white px-3 py-2 text-sm text-[#1a1a1a] focus:outline-none focus:ring-2 focus:ring-[#dc2626]"
+          >
+            <option value="ALL">All</option>
+            <option value="INVOICE">Invoice</option>
+            <option value="VOUCHER">Voucher</option>
+          </select>
           <Button
             onClick={onLoad}
             variant="outline"
             className="border-[#dc2626] text-[#dc2626] hover:bg-red-50"
           >
-            Load History
+            {loading ? "Loading..." : "Load History"}
           </Button>
-        )}
+        </div>
         {loading && <p className="text-sm text-[#666]">Loading history...</p>}
         {history.length > 0 && (
           <div className="overflow-x-auto">
