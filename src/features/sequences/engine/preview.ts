@@ -24,7 +24,8 @@ export function generatePreview(inputs: PreviewInputs): PreviewResult {
   }
 
   const tokens = validation.tokens;
-  const nextCounter = inputs.currentCounter + 1;
+  const nextCounter =
+    inputs.periodId === null ? inputs.startCounter : inputs.currentCounter + 1;
 
   const context = buildRenderContext(
     inputs.documentDate,

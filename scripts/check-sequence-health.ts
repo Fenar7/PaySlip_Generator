@@ -34,7 +34,9 @@ interface HealthFailure {
     | "MISSING_LINKAGE"
     | "DUPLICATE_SEQUENCE_NUMBER"
     | "DRAFT_LINKED"
-    | "ORPHAN_PERIOD";
+    | "ORPHAN_PERIOD"
+    | "COUNTER_BEHIND_HISTORY"
+    | "MISMATCHED_SEQUENCE_NUMBER";
   severity: "critical" | "warn";
   detail: string;
   orgId?: string;
@@ -58,18 +60,31 @@ interface HealthCheckResult {
   };
 }
 
+const INVOICE_HISTORICAL_STATUSES = [
+  "ISSUED",
+  "VIEWED",
+  "DUE",
+  "PARTIALLY_PAID",
+  "PAID",
+  "OVERDUE",
+  "DISPUTED",
+  "CANCELLED",
+  "REISSUED",
+  "ARRANGEMENT_MADE",
+] as const;
+
 async function runHealthCheck(): Promise<HealthCheckResult> {
   const failures: HealthFailure[] = [];
 
   // 1. Count finalized vs linked invoices
   const finalizedInvoices = await db.invoice.count({
     where: {
-      status: { not: "DRAFT" },
+      status: { in: [...INVOICE_HISTORICAL_STATUSES] },
     },
   });
   const linkedInvoices = await db.invoice.count({
     where: {
-      status: { not: "DRAFT" },
+      status: { in: [...INVOICE_HISTORICAL_STATUSES] },
       sequenceId: { not: null },
     },
   });
@@ -180,7 +195,7 @@ async function runHealthCheck(): Promise<HealthCheckResult> {
   if (linkedInvoices < finalizedInvoices) {
     const missingInvoices = await db.invoice.findMany({
       where: {
-        status: { not: "DRAFT" },
+        status: { in: [...INVOICE_HISTORICAL_STATUSES] },
         sequenceId: null,
       },
       take: 10,
@@ -215,6 +230,43 @@ async function runHealthCheck(): Promise<HealthCheckResult> {
         documentId: v.id,
       });
     }
+  }
+
+  // 9. Sequence periods must be at least as high as the max linked document
+  const invoiceCounterBehind = await db.$queryRaw<
+    Array<{ periodId: string; currentCounter: number; maxLinked: number }>
+  >`
+    SELECT sp.id as "periodId", sp."currentCounter", MAX(i."sequenceNumber") as "maxLinked"
+    FROM "sequence_period" sp
+    JOIN "invoice" i ON i."sequencePeriodId" = sp.id
+    WHERE i."sequenceNumber" IS NOT NULL
+    GROUP BY sp.id, sp."currentCounter"
+    HAVING MAX(i."sequenceNumber") > sp."currentCounter"
+  `;
+  for (const row of invoiceCounterBehind) {
+    failures.push({
+      type: "COUNTER_BEHIND_HISTORY",
+      severity: "critical",
+      detail: `Invoice period ${row.periodId} currentCounter ${row.currentCounter} is behind linked max ${row.maxLinked}`,
+    });
+  }
+
+  const voucherCounterBehind = await db.$queryRaw<
+    Array<{ periodId: string; currentCounter: number; maxLinked: number }>
+  >`
+    SELECT sp.id as "periodId", sp."currentCounter", MAX(v."sequenceNumber") as "maxLinked"
+    FROM "sequence_period" sp
+    JOIN "voucher" v ON v."sequencePeriodId" = sp.id
+    WHERE v."sequenceNumber" IS NOT NULL
+    GROUP BY sp.id, sp."currentCounter"
+    HAVING MAX(v."sequenceNumber") > sp."currentCounter"
+  `;
+  for (const row of voucherCounterBehind) {
+    failures.push({
+      type: "COUNTER_BEHIND_HISTORY",
+      severity: "critical",
+      detail: `Voucher period ${row.periodId} currentCounter ${row.currentCounter} is behind linked max ${row.maxLinked}`,
+    });
   }
 
   // 8. Drafts incorrectly linked

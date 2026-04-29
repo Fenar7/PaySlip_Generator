@@ -14,7 +14,7 @@ async function createTestOrg() {
   return db.organization.create({
     data: {
       name: "Test Org",
-      slug: `test-org-${Date.now()}`,
+      slug: `seq-engine-test-org-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     },
   });
 }

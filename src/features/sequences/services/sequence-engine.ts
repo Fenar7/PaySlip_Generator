@@ -95,9 +95,8 @@ export async function previewSequenceNumber(
   }
 
   const period = sequence.periods[0];
-  const currentCounter = period?.currentCounter ?? format.startCounter;
   const periodId = period?.id ?? null;
-  const nextCounter = currentCounter;
+  const nextCounter = period ? period.currentCounter + 1 : format.startCounter;
 
   const context = buildRenderContext(
     documentDate,

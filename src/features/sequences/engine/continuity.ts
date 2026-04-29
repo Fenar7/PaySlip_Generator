@@ -12,20 +12,20 @@ export interface LegacyOrgDefaults {
  * new sequence engine.
  *
  * Input:  { invoicePrefix: "INV", invoiceCounter: 42 }
- * Output: { formatString: "INV/{YYYY}/{NNNNN}", startCounter: 43, ... }
+ * Output: { formatString: "INV/{YYYY}/{NNNNN}", startCounter: 42, ... }
  *
  * The format string is inferred with sensible defaults:
  * - Prefix becomes the static prefix token
  * - Year token is added for periodic alignment
  * - Running number token is always added
  * - Periodicity defaults to YEARLY (matches default sequence behavior)
+ * - The legacy OrgDefaults counter is treated as the NEXT number to issue
  *
  * All inferred seeds are marked with inferred: true.
  */
 export function parseContinuitySeed(
   prefix: string,
-  counter: number,
-  _documentType: "INVOICE" | "VOUCHER"
+  counter: number
 ): ContinuitySeedResult {
   const sanitizedPrefix = prefix
     .toUpperCase()
@@ -38,8 +38,8 @@ export function parseContinuitySeed(
 
   const formatString = `${sanitizedPrefix}/{YYYY}/{NNNNN}`;
 
-  // startCounter = counter + 1 because legacy counter is the LAST used number
-  const startCounter = counter + 1;
+  // Legacy OrgDefaults stores the next number to issue, not the last number used.
+  const startCounter = counter;
 
   return {
     formatString,

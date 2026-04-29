@@ -3,26 +3,26 @@ import { parseContinuitySeed, getDefaultPrefix, getDefaultFormatString } from ".
 
 describe("parseContinuitySeed", () => {
   it("derives format from legacy invoice prefix and counter", () => {
-    const result = parseContinuitySeed("INV", 42, "INVOICE");
+    const result = parseContinuitySeed("INV", 42);
     expect(result.formatString).toBe("INV/{YYYY}/{NNNNN}");
-    expect(result.startCounter).toBe(43);
+    expect(result.startCounter).toBe(42);
     expect(result.periodicity).toBe("YEARLY");
     expect(result.inferred).toBe(true);
   });
 
   it("derives format from legacy voucher prefix and counter", () => {
-    const result = parseContinuitySeed("VCH", 100, "VOUCHER");
+    const result = parseContinuitySeed("VCH", 100);
     expect(result.formatString).toBe("VCH/{YYYY}/{NNNNN}");
-    expect(result.startCounter).toBe(101);
+    expect(result.startCounter).toBe(100);
   });
 
   it("sanitizes prefix to uppercase alphanumeric", () => {
-    const result = parseContinuitySeed("inv-2025", 5, "INVOICE");
+    const result = parseContinuitySeed("inv-2025", 5);
     expect(result.formatString).toBe("INV2025/{YYYY}/{NNNNN}");
   });
 
   it("throws on empty prefix", () => {
-    expect(() => parseContinuitySeed("", 1, "INVOICE")).toThrow(
+    expect(() => parseContinuitySeed("", 1)).toThrow(
       "alphanumeric"
     );
   });

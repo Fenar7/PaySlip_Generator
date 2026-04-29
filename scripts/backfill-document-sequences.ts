@@ -2,11 +2,11 @@
  * Sprint 1.3 — Document Sequence Backfill
  *
  * Links existing finalized invoices and vouchers to their sequences
- * and assigns sequence numbers via the sequence engine.
+ * without consuming future sequence counters.
  *
  * Rules:
- *   - ISSUED invoices → linked + sequence number assigned
- *   - approved vouchers → linked + sequence number assigned
+ *   - Non-draft invoices → linked to historical sequence metadata
+ *   - Non-draft vouchers → linked to historical sequence metadata
  *   - DRAFT invoices / draft vouchers → left untouched (sequenceId IS NULL)
  *   - Processes oldest → newest to preserve chronological ordering
  *   - Batched cursor pagination to avoid memory pressure
@@ -18,7 +18,10 @@
 
 import { PrismaClient } from "@/generated/prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
-import { consumeSequenceNumber } from "@/features/sequences/services/sequence-engine";
+import {
+  parseHistoricalSequenceNumber,
+} from "@/features/sequences/migrations/legacy-mapper";
+import { calculatePeriodBoundaries } from "@/features/sequences/engine/periodicity";
 
 const connectionString = process.env.DATABASE_URL;
 if (!connectionString) {
@@ -36,7 +39,74 @@ interface BackfillResult {
   vouchersProcessed: number;
   invoicesSkipped: number;
   vouchersSkipped: number;
+  periodsTouched: number;
   errors: Array<{ docId: string; docType: string; error: string }>;
+}
+
+const INVOICE_HISTORICAL_STATUSES = [
+  "ISSUED",
+  "VIEWED",
+  "DUE",
+  "PARTIALLY_PAID",
+  "PAID",
+  "OVERDUE",
+  "DISPUTED",
+  "CANCELLED",
+  "REISSUED",
+  "ARRANGEMENT_MADE",
+] as const;
+
+async function getSequenceContext(
+  organizationId: string,
+  documentType: "INVOICE" | "VOUCHER"
+) {
+  return db.sequence.findFirst({
+    where: { organizationId, documentType },
+    include: { formats: { where: { isDefault: true }, take: 1 } },
+  });
+}
+
+async function findOrCreateHistoricalPeriod(
+  sequenceId: string,
+  periodicity: "NONE" | "MONTHLY" | "YEARLY" | "FINANCIAL_YEAR",
+  documentDate: Date,
+  sequenceNumber: number
+) {
+  const bounds = calculatePeriodBoundaries(documentDate, periodicity);
+
+  const existing = await db.sequencePeriod.findUnique({
+    where: {
+      sequenceId_startDate_endDate: {
+        sequenceId,
+        startDate: bounds.startDate,
+        endDate: bounds.endDate,
+      },
+    },
+    select: { id: true, currentCounter: true },
+  });
+
+  if (existing) {
+    if (existing.currentCounter < sequenceNumber) {
+      await db.sequencePeriod.update({
+        where: { id: existing.id },
+        data: { currentCounter: sequenceNumber },
+      });
+    }
+    return existing.id;
+  }
+
+  const created = await db.sequencePeriod.create({
+    data: {
+      sequenceId,
+      startDate: bounds.startDate,
+      endDate: bounds.endDate,
+      currentCounter: sequenceNumber,
+      status: "OPEN",
+    },
+    select: { id: true },
+  });
+
+  return created.id;
 }
 
 async function backfillInvoices(result: BackfillResult): Promise<void> {
@@ -48,13 +118,14 @@ async function backfillInvoices(result: BackfillResult): Promise<void> {
       ...(cursor ? { skip: 1, cursor: { id: cursor } } : {}),
       orderBy: { invoiceDate: "asc" },
       where: {
-        status: { in: ["ISSUED", "VIEWED", "DUE", "PARTIALLY_PAID", "PAID", "OVERDUE"] },
+        status: { in: [...INVOICE_HISTORICAL_STATUSES] },
         sequenceId: null,
       },
       select: {
         id: true,
         organizationId: true,
         invoiceDate: true,
+        invoiceNumber: true,
       },
     });
 
@@ -62,15 +133,9 @@ async function backfillInvoices(result: BackfillResult): Promise<void> {
     cursor = rows[rows.length - 1].id;
 
     for (const inv of rows) {
-      const sequence = await db.sequence.findFirst({
-        where: {
-          organizationId: inv.organizationId,
-          documentType: "INVOICE",
-        },
-        select: { id: true },
-      });
+      const sequence = await getSequenceContext(inv.organizationId, "INVOICE");
 
-      if (!sequence) {
+      if (!sequence || !sequence.formats[0]) {
         result.invoicesSkipped++;
         console.warn(
           `No invoice sequence found for org ${inv.organizationId}; skipping invoice ${inv.id}`
@@ -80,22 +145,31 @@ async function backfillInvoices(result: BackfillResult): Promise<void> {
 
       try {
         const docDate = new Date(inv.invoiceDate);
-        const consumed = await consumeSequenceNumber({
-          sequenceId: sequence.id,
-          documentDate: docDate,
-          orgId: inv.organizationId,
-        });
+        const prefix = sequence.formats[0].formatString.split("/")[0] ?? "";
+        const parsed = parseHistoricalSequenceNumber(inv.invoiceNumber, prefix);
+        if (!parsed) {
+          throw new Error(
+            `Invoice number ${inv.invoiceNumber} does not match expected prefix ${prefix}`
+          );
+        }
+        const periodId = await findOrCreateHistoricalPeriod(
+          sequence.id,
+          sequence.periodicity,
+          docDate,
+          parsed.sequenceNumber
+        );
 
         await db.invoice.update({
           where: { id: inv.id },
           data: {
             sequenceId: sequence.id,
-            sequencePeriodId: consumed.periodId,
-            sequenceNumber: consumed.sequenceNumber,
+            sequencePeriodId: periodId,
+            sequenceNumber: parsed.sequenceNumber,
           },
         });
 
         result.invoicesProcessed++;
+        result.periodsTouched++;
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
         result.errors.push({ docId: inv.id, docType: "invoice", error: message });
@@ -123,6 +197,7 @@ async function backfillVouchers(result: BackfillResult): Promise<void> {
         id: true,
         organizationId: true,
         voucherDate: true,
+        voucherNumber: true,
       },
     });
 
@@ -130,15 +205,9 @@ async function backfillVouchers(result: BackfillResult): Promise<void> {
     cursor = rows[rows.length - 1].id;
 
     for (const v of rows) {
-      const sequence = await db.sequence.findFirst({
-        where: {
-          organizationId: v.organizationId,
-          documentType: "VOUCHER",
-        },
-        select: { id: true },
-      });
+      const sequence = await getSequenceContext(v.organizationId, "VOUCHER");
 
-      if (!sequence) {
+      if (!sequence || !sequence.formats[0]) {
         result.vouchersSkipped++;
         console.warn(
           `No voucher sequence found for org ${v.organizationId}; skipping voucher ${v.id}`
@@ -148,22 +217,31 @@ async function backfillVouchers(result: BackfillResult): Promise<void> {
 
       try {
         const docDate = new Date(v.voucherDate);
-        const consumed = await consumeSequenceNumber({
-          sequenceId: sequence.id,
-          documentDate: docDate,
-          orgId: v.organizationId,
-        });
+        const prefix = sequence.formats[0].formatString.split("/")[0] ?? "";
+        const parsed = parseHistoricalSequenceNumber(v.voucherNumber, prefix);
+        if (!parsed) {
+          throw new Error(
+            `Voucher number ${v.voucherNumber} does not match expected prefix ${prefix}`
+          );
+        }
+        const periodId = await findOrCreateHistoricalPeriod(
+          sequence.id,
+          sequence.periodicity,
+          docDate,
+          parsed.sequenceNumber
+        );
 
         await db.voucher.update({
           where: { id: v.id },
           data: {
             sequenceId: sequence.id,
-            sequencePeriodId: consumed.periodId,
-            sequenceNumber: consumed.sequenceNumber,
+            sequencePeriodId: periodId,
+            sequenceNumber: parsed.sequenceNumber,
           },
         });
 
         result.vouchersProcessed++;
+        result.periodsTouched++;
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
         result.errors.push({ docId: v.id, docType: "voucher", error: message });
@@ -183,6 +261,7 @@ async function main() {
     vouchersProcessed: 0,
     invoicesSkipped: 0,
     vouchersSkipped: 0,
+    periodsTouched: 0,
     errors: [],
   };
 
@@ -195,6 +274,7 @@ async function main() {
   console.log(`  Invoices skipped:   ${result.invoicesSkipped}`);
   console.log(`  Vouchers processed: ${result.vouchersProcessed}`);
   console.log(`  Vouchers skipped:   ${result.vouchersSkipped}`);
+  console.log(`  Periods touched:    ${result.periodsTouched}`);
   console.log(`  Errors:             ${result.errors.length}`);
   console.log("───────────────────────────────────────────────────────────────\n");
 

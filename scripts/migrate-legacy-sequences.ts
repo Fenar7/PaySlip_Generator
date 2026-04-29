@@ -131,7 +131,7 @@ async function runMigration(): Promise<MigrationResult> {
                   sequenceId: sequence.id,
                   startDate: bounds.startDate,
                   endDate: bounds.endDate,
-                  currentCounter: seed.format.startCounter,
+                  currentCounter: seed.legacyNextCounter - 1,
                   status: "OPEN",
                 },
               });

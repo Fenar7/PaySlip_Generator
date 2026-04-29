@@ -3,7 +3,6 @@ import { db } from "@/lib/db";
 import { isDatabaseReachable } from "../../__tests__/db-check";
 import { mapOrgDefaultsToSequences } from "../legacy-mapper";
 import { calculatePeriodBoundaries } from "../../engine/periodicity";
-import { consumeSequenceNumber } from "../../services/sequence-engine";
 
 const dbReachable = await isDatabaseReachable();
 
@@ -11,7 +10,7 @@ async function createTestOrg() {
   return db.organization.create({
     data: {
       name: "Test Org",
-      slug: `test-org-${Date.now()}`,
+      slug: `seq-migrate-test-org-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     },
   });
 }
@@ -20,7 +19,7 @@ describe.skipIf(!dbReachable)("migration integration", () => {
   beforeEach(async () => {
     // Scope cleanup to test orgs only to avoid interfering with parallel tests
     const testOrgs = await db.organization.findMany({
-      where: { slug: { startsWith: "test-org-" } },
+      where: { slug: { startsWith: "seq-migrate-test-org-" } },
       select: { id: true },
     });
     const testOrgIds = testOrgs.map((o) => o.id);
@@ -110,7 +109,7 @@ describe.skipIf(!dbReachable)("migration integration", () => {
             sequenceId: sequence.id,
             startDate: bounds.startDate,
             endDate: bounds.endDate,
-            currentCounter: seed.format.startCounter,
+            currentCounter: seed.legacyNextCounter - 1,
             status: "OPEN",
           },
         });
@@ -158,7 +157,7 @@ describe.skipIf(!dbReachable)("migration integration", () => {
     expect(existing[0].id).toBe(seq1.id);
   });
 
-  it("backfills finalized invoices with sequence numbers", async () => {
+  it("links historical invoices without advancing the live counter", async () => {
     const org = await createTestOrg();
     const sequence = await db.sequence.create({
       data: {
@@ -173,16 +172,26 @@ describe.skipIf(!dbReachable)("migration integration", () => {
       data: {
         sequenceId: sequence.id,
         formatString: "INV/{YYYY}/{NNNNN}",
-        startCounter: 1,
+        startCounter: 42,
         counterPadding: 5,
         isDefault: true,
+      },
+    });
+    const bounds = calculatePeriodBoundaries(new Date("2026-04-28"), "YEARLY");
+    const period = await db.sequencePeriod.create({
+      data: {
+        sequenceId: sequence.id,
+        startDate: bounds.startDate,
+        endDate: bounds.endDate,
+        currentCounter: 41,
+        status: "OPEN",
       },
     });
 
     const invoice = await db.invoice.create({
       data: {
         organizationId: org.id,
-        invoiceNumber: "INV-001",
+        invoiceNumber: "INV-041",
         status: "ISSUED",
         invoiceDate: new Date("2026-04-28"),
         totalAmount: 100,
@@ -190,25 +199,24 @@ describe.skipIf(!dbReachable)("migration integration", () => {
       },
     });
 
-    const consumed = await consumeSequenceNumber({
-      sequenceId: sequence.id,
-      documentDate: new Date(invoice.invoiceDate),
-      orgId: org.id,
-    });
-
     await db.invoice.update({
       where: { id: invoice.id },
       data: {
         sequenceId: sequence.id,
-        sequencePeriodId: consumed.periodId,
-        sequenceNumber: consumed.sequenceNumber,
+        sequencePeriodId: period.id,
+        sequenceNumber: 41,
       },
     });
 
     const updated = await db.invoice.findUnique({ where: { id: invoice.id } });
     expect(updated?.sequenceId).toBe(sequence.id);
-    expect(updated?.sequenceNumber).toBe(1);
-    expect(updated?.sequencePeriodId).not.toBeNull();
+    expect(updated?.sequenceNumber).toBe(41);
+    expect(updated?.sequencePeriodId).toBe(period.id);
+
+    const preservedPeriod = await db.sequencePeriod.findUnique({
+      where: { id: period.id },
+    });
+    expect(preservedPeriod?.currentCounter).toBe(41);
   });
 
   it("does not backfill draft invoices", async () => {
@@ -242,7 +250,7 @@ describe.skipIf(!dbReachable)("migration integration", () => {
     });
 
     const missing = await db.invoice.findMany({
-      where: { status: { not: "DRAFT" }, sequenceId: null },
+      where: { status: "ISSUED", sequenceId: null },
       select: { id: true },
     });
 
@@ -304,6 +312,7 @@ describe.skipIf(!dbReachable)("migration integration", () => {
       FROM "invoice"
       WHERE "sequencePeriodId" IS NOT NULL
         AND "sequenceNumber" IS NOT NULL
+        AND "sequencePeriodId" = ${period.id}
       GROUP BY "sequencePeriodId", "sequenceNumber"
       HAVING COUNT(*) > 1
     `;

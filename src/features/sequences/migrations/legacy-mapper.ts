@@ -30,6 +30,7 @@ export interface SequenceSeed {
     counterPadding: number;
     isDefault: boolean;
   };
+  legacyNextCounter: number;
   inferred: boolean;
 }
 
@@ -72,7 +73,7 @@ function mapDocumentType(
   const prefix = (rawPrefix ?? getDefaultPrefix(documentType)).toUpperCase();
   const counter = rawCounter ?? 1;
 
-  const seed = parseContinuitySeed(prefix, counter, documentType);
+  const seed = parseContinuitySeed(prefix, counter);
 
   return {
     organizationId: row.organizationId,
@@ -86,6 +87,49 @@ function mapDocumentType(
       counterPadding: seed.counterPadding,
       isDefault: true,
     },
+    legacyNextCounter: counter,
     inferred: seed.inferred,
   };
+}
+
+export interface HistoricalSequenceMatch {
+  sequenceNumber: number;
+}
+
+/**
+ * Parse a historical issued document number and extract its numeric counter.
+ *
+ * Phase 1 supports the current legacy {PREFIX}-{NNN} format and conservative
+ * variants that still end in a numeric counter (for example INV/2026/00042).
+ * Prefix mismatches or non-numeric tails are treated as non-mappable.
+ */
+export function parseHistoricalSequenceNumber(
+  documentNumber: string,
+  expectedPrefix: string
+): HistoricalSequenceMatch | null {
+  const normalizedNumber = documentNumber.trim().toUpperCase();
+  const normalizedPrefix = expectedPrefix.trim().toUpperCase();
+
+  if (!normalizedNumber || !normalizedPrefix) {
+    return null;
+  }
+
+  const digitsMatch = normalizedNumber.match(/(\d+)$/);
+  if (!digitsMatch) {
+    return null;
+  }
+
+  const prefixToken = normalizedNumber.slice(0, digitsMatch.index ?? 0);
+  const compactPrefix = prefixToken.replace(/[^A-Z0-9]/g, "");
+
+  if (!compactPrefix.startsWith(normalizedPrefix.replace(/[^A-Z0-9]/g, ""))) {
+    return null;
+  }
+
+  const sequenceNumber = Number.parseInt(digitsMatch[1], 10);
+  if (!Number.isSafeInteger(sequenceNumber) || sequenceNumber < 1) {
+    return null;
+  }
+
+  return { sequenceNumber };
 }

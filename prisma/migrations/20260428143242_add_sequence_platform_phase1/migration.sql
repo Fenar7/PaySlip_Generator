@@ -8,9 +8,6 @@ CREATE TYPE "SequencePeriodicity" AS ENUM ('NONE', 'MONTHLY', 'YEARLY', 'FINANCI
 CREATE TYPE "SequencePeriodStatus" AS ENUM ('OPEN', 'CLOSED');
 
 -- AlterTable
-ALTER TABLE "e_invoice_request" ALTER COLUMN "status" SET DEFAULT 'PENDING';
-
--- AlterTable
 ALTER TABLE "invoice" ADD COLUMN     "sequenceId" TEXT,
 ADD COLUMN     "sequenceNumber" INTEGER,
 ADD COLUMN     "sequencePeriodId" TEXT;

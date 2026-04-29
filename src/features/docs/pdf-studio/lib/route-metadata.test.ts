@@ -16,7 +16,10 @@ describe("pdf studio route metadata", () => {
 
   it("builds structured data for the public hub", () => {
     const structuredData = buildPdfStudioHubStructuredData();
-    const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://app.slipwise.app";
+    const baseUrl = (process.env.NEXT_PUBLIC_APP_URL ?? "https://app.slipwise.app").replace(
+      /\/$/,
+      "",
+    );
 
     expect(structuredData["@type"]).toBe("CollectionPage");
     expect(structuredData.url).toBe(`${baseUrl}/pdf-studio`);
@@ -39,7 +42,10 @@ describe("pdf studio route metadata", () => {
 
   it("builds structured data for public tool landing pages", () => {
     const structuredData = buildPdfStudioToolStructuredData("repair");
-    const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://app.slipwise.app";
+    const baseUrl = (process.env.NEXT_PUBLIC_APP_URL ?? "https://app.slipwise.app").replace(
+      /\/$/,
+      "",
+    );
 
     expect(structuredData["@type"]).toBe("WebPage");
     expect(structuredData.url).toBe(`${baseUrl}/pdf-studio/repair`);
