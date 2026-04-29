@@ -102,6 +102,7 @@ model Organization {
   employees                    Employee[]
   invoices                     Invoice[]
   vouchers                     Voucher[]
+  sequences                    Sequence[]
   salarySlips                  SalarySlip[]
   salaryPresets                SalaryPreset[]
   attachments                  FileAttachment[]
@@ -394,6 +395,80 @@ model OrgDefaults {
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
   @@map("org_defaults")
+}
+
+// ─── Phase 1: Document Sequencing Platform ────────────────────────────────────
+
+enum SequenceDocumentType {
+  INVOICE
+  VOUCHER
+}
+
+enum SequencePeriodicity {
+  NONE
+  MONTHLY
+  YEARLY
+  FINANCIAL_YEAR
+}
+
+enum SequencePeriodStatus {
+  OPEN
+  CLOSED
+}
+
+model Sequence {
+  id             String               @id @default(cuid())
+  organizationId String
+  name           String
+  documentType   SequenceDocumentType
+  periodicity    SequencePeriodicity  @default(NONE)
+  isActive       Boolean              @default(true)
+  createdAt      DateTime             @default(now())
+  updatedAt      DateTime             @updatedAt
+
+  organization Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  formats      SequenceFormat[]
+  periods      SequencePeriod[]
+  invoices     Invoice[]         @relation("InvoiceSequence")
+  vouchers     Voucher[]         @relation("VoucherSequence")
+
+  @@index([organizationId, documentType])
+  @@index([organizationId, isActive])
+  @@map("sequence")
+}
+
+model SequenceFormat {
+  id             String  @id @default(cuid())
+  sequenceId     String
+  formatString   String
+  startCounter   Int     @default(1)
+  counterPadding Int     @default(5)
+  isDefault      Boolean @default(false)
+  createdAt      DateTime @default(now())
+
+  sequence Sequence @relation(fields: [sequenceId], references: [id], onDelete: Cascade)
+
+  @@index([sequenceId])
+  @@map("sequence_format")
+}
+
+model SequencePeriod {
+  id            String               @id @default(cuid())
+  sequenceId    String
+  startDate     DateTime             @db.Date
+  endDate       DateTime             @db.Date
+  currentCounter Int                 @default(1)
+  status        SequencePeriodStatus @default(OPEN)
+  createdAt     DateTime             @default(now())
+  updatedAt     DateTime             @updatedAt
+
+  sequence Sequence  @relation(fields: [sequenceId], references: [id], onDelete: Cascade)
+  invoices Invoice[] @relation("InvoiceSequencePeriod")
+  vouchers Voucher[] @relation("VoucherSequencePeriod")
+
+  @@unique([sequenceId, startDate, endDate])
+  @@index([sequenceId, status])
+  @@map("sequence_period")
 }
 
 // ─── Phase 16: SW Books — Accounting Foundation ────────────────────────────────
@@ -1284,6 +1359,14 @@ model Invoice {
 
   eInvoiceRequests EInvoiceRequest[]
 
+  // Phase 1: Document Sequencing Platform
+  sequenceId       String?
+  sequencePeriodId String?
+  sequenceNumber   Int?
+
+  sequence       Sequence?       @relation("InvoiceSequence", fields: [sequenceId], references: [id])
+  sequencePeriod SequencePeriod? @relation("InvoiceSequencePeriod", fields: [sequencePeriodId], references: [id])
+
   @@unique([organizationId, invoiceNumber])
   @@index([organizationId, status])
   @@map("invoice")
@@ -1342,6 +1425,14 @@ model Voucher {
   attachments      FileAttachment[]  @relation("VoucherAttachments")
   journalEntry     JournalEntry?     @relation("VoucherPostedJournal", fields: [journalEntryId], references: [id])
   approvalRequests ApprovalRequest[] @relation("VoucherApprovals")
+
+  // Phase 1: Document Sequencing Platform
+  sequenceId       String?
+  sequencePeriodId String?
+  sequenceNumber   Int?
+
+  sequence       Sequence?       @relation("VoucherSequence", fields: [sequenceId], references: [id])
+  sequencePeriod SequencePeriod? @relation("VoucherSequencePeriod", fields: [sequencePeriodId], references: [id])
 
   @@unique([organizationId, voucherNumber])
   @@index([organizationId, status])

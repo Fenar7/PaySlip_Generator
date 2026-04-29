@@ -188,6 +188,8 @@ describe("billing Razorpay routes", () => {
   });
 
   it("fails clearly when the requested billing interval has no configured Razorpay plan ID", async () => {
+    delete process.env.RAZORPAY_PLAN_STARTER_MONTHLY;
+
     vi.mocked(getRazorpay).mockReturnValue({} as never);
     vi.mocked(getActiveOrg).mockResolvedValue({
       id: "org-active",
