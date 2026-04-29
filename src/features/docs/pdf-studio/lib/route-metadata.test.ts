@@ -16,14 +16,15 @@ describe("pdf studio route metadata", () => {
 
   it("builds structured data for the public hub", () => {
     const structuredData = buildPdfStudioHubStructuredData();
+    const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://app.slipwise.app";
 
     expect(structuredData["@type"]).toBe("CollectionPage");
-    expect(structuredData.url).toBe("https://app.slipwise.app/pdf-studio");
+    expect(structuredData.url).toBe(`${baseUrl}/pdf-studio`);
     expect(
       structuredData.mainEntity.itemListElement.some(
         (entry: { name?: string; url?: string }) =>
           entry.name === "Repair PDF" &&
-          entry.url === "https://app.slipwise.app/pdf-studio/repair",
+          entry.url === `${baseUrl}/pdf-studio/repair`,
       ),
     ).toBe(true);
   });
@@ -38,9 +39,10 @@ describe("pdf studio route metadata", () => {
 
   it("builds structured data for public tool landing pages", () => {
     const structuredData = buildPdfStudioToolStructuredData("repair");
+    const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://app.slipwise.app";
 
     expect(structuredData["@type"]).toBe("WebPage");
-    expect(structuredData.url).toBe("https://app.slipwise.app/pdf-studio/repair");
+    expect(structuredData.url).toBe(`${baseUrl}/pdf-studio/repair`);
     expect(structuredData.description).toContain("Pro access");
   });
 
