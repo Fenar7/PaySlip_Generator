@@ -1,6 +1,6 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
 
-const { mockDb, mockLogAuditTx, mockRequireRole } = vi.hoisted(() => ({
+const { mockDb, mockLogAuditTx, mockRequireRole, mockCompleteStep } = vi.hoisted(() => ({
   mockDb: {
     sequence: {
       findFirst: vi.fn(),
@@ -16,11 +16,15 @@ const { mockDb, mockLogAuditTx, mockRequireRole } = vi.hoisted(() => ({
   },
   mockLogAuditTx: vi.fn(),
   mockRequireRole: vi.fn(),
+  mockCompleteStep: vi.fn(),
 }));
 
 vi.mock("@/lib/db", () => ({ db: mockDb }));
 vi.mock("@/lib/audit", () => ({ logAuditTx: mockLogAuditTx }));
 vi.mock("@/lib/auth/require-org", () => ({ requireRole: mockRequireRole }));
+vi.mock("@/lib/onboarding-tracker", () => ({
+  completeOnboardingStep: mockCompleteStep,
+}));
 vi.mock("next/headers", () => ({
   headers: vi.fn(() =>
     new Map([
@@ -82,6 +86,7 @@ describe("saveOnboardingSequences", () => {
     );
 
     mockLogAuditTx.mockResolvedValue(null);
+    mockCompleteStep.mockResolvedValue(undefined);
 
     const result = await saveOnboardingSequences({ organizationId: "org-1" });
 
@@ -90,9 +95,12 @@ describe("saveOnboardingSequences", () => {
     expect(result.created).toContain("VOUCHER");
     expect(mockDb.sequence.findFirst).toHaveBeenCalledTimes(2);
     expect(mockDb.$transaction).toHaveBeenCalledTimes(2);
+
+    // Must record the onboarding step as complete server-side
+    expect(mockCompleteStep).toHaveBeenCalledWith("owner-1", "documentNumbering");
   });
 
-  it("skips already-existing sequences (idempotent)", async () => {
+  it("marks documentNumbering complete even when sequences already exist (idempotent)", async () => {
     mockRequireRole.mockResolvedValue({ orgId: "org-1", userId: "owner-1", role: "owner" });
 
     mockDb.sequence.findFirst
@@ -117,6 +125,7 @@ describe("saveOnboardingSequences", () => {
     );
 
     mockLogAuditTx.mockResolvedValue(null);
+    mockCompleteStep.mockResolvedValue(undefined);
 
     const result = await saveOnboardingSequences({ organizationId: "org-1" });
 
@@ -124,17 +133,35 @@ describe("saveOnboardingSequences", () => {
     expect(result.created).toHaveLength(1);
     expect(result.created).toContain("VOUCHER");
     expect(mockDb.$transaction).toHaveBeenCalledTimes(1);
+    expect(mockCompleteStep).toHaveBeenCalledWith("owner-1", "documentNumbering");
   });
 
-  it("handles both sequences already existing", async () => {
+  it("marks documentNumbering complete even when both sequences already exist", async () => {
     mockRequireRole.mockResolvedValue({ orgId: "org-1", userId: "owner-1", role: "owner" });
 
     mockDb.sequence.findFirst.mockResolvedValue({ id: "existing" });
+    mockCompleteStep.mockResolvedValue(undefined);
 
     const result = await saveOnboardingSequences({ organizationId: "org-1" });
 
     expect(result.success).toBe(true);
     expect(result.created).toHaveLength(0);
     expect(mockDb.$transaction).not.toHaveBeenCalled();
+    // Step must still be recorded complete
+    expect(mockCompleteStep).toHaveBeenCalledWith("owner-1", "documentNumbering");
+  });
+
+  it("does NOT mark documentNumbering complete when sequence creation fails", async () => {
+    mockRequireRole.mockResolvedValue({ orgId: "org-1", userId: "owner-1", role: "owner" });
+
+    mockDb.sequence.findFirst.mockResolvedValue(null);
+    mockDb.$transaction.mockRejectedValue(new Error("DB write failed"));
+
+    await expect(
+      saveOnboardingSequences({ organizationId: "org-1" })
+    ).rejects.toThrow("DB write failed");
+
+    // Step completion must not be recorded on failure
+    expect(mockCompleteStep).not.toHaveBeenCalled();
   });
 });

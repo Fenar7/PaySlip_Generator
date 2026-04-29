@@ -2,6 +2,7 @@
 import { db } from "@/lib/db";
 import { requireRole } from "@/lib/auth/require-org";
 import { logAuditTx } from "@/lib/audit";
+import { completeOnboardingStep } from "@/lib/onboarding-tracker";
 import { headers } from "next/headers";
 import { calculatePeriodBoundaries } from "@/features/sequences/engine/periodicity";
 import type { SequenceDocumentType, SequencePeriodicity } from "@/features/sequences/types";
@@ -116,6 +117,11 @@ export async function saveOnboardingSequences({
       created.push(config.documentType);
     });
   }
+
+  // Mark the Document Numbering onboarding step complete server-side.
+  // This is authoritative — onboarding completion must not rely on
+  // client-only state.
+  await completeOnboardingStep(ctx.userId, "documentNumbering");
 
   return { success: true, created };
 }

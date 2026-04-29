@@ -46,9 +46,6 @@ export function OnboardingPageClient() {
   const [slipTemplate, setSlipTemplate] = useState("modern-premium");
   const [voucherTemplate, setVoucherTemplate] = useState("minimal-office");
 
-  // Step 5 — Document Numbering
-  const [sequenceMode, setSequenceMode] = useState<"defaults" | "custom">("defaults");
-
   const slug = slugify(orgName);
 
   async function handleStep1() {
@@ -143,10 +140,7 @@ export function OnboardingPageClient() {
     setLoading(true);
     try {
       if (orgId) {
-        if (sequenceMode === "defaults") {
-          await saveOnboardingSequences({ organizationId: orgId });
-        }
-        // Custom mode save is deferred to Sprint 3.2
+        await saveOnboardingSequences({ organizationId: orgId });
       }
       setStep(6);
     } catch (err) {
@@ -370,71 +364,25 @@ export function OnboardingPageClient() {
               in settings.
             </p>
 
-            <div className="space-y-3">
-              <label className="text-sm font-medium text-[#1a1a1a]">Numbering mode</label>
-              <div className="grid gap-2">
-                <button
-                  type="button"
-                  onClick={() => setSequenceMode("defaults")}
-                  className={`w-full rounded-md border px-4 py-3 text-left text-sm transition-colors ${
-                    sequenceMode === "defaults"
-                      ? "border-[#dc2626] bg-red-50 text-[#1a1a1a]"
-                      : "border-[#e5e5e5] bg-white text-[#666] hover:border-[#dc2626]"
-                  }`}
-                >
-                  <span className="font-medium">Use default sequencing</span>
-                  <span className="block text-xs text-[#999] mt-0.5">
-                    Invoice: INV/2026/00001 · Voucher: VCH/2026/00001
-                  </span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setSequenceMode("custom")}
-                  className={`w-full rounded-md border px-4 py-3 text-left text-sm transition-colors ${
-                    sequenceMode === "custom"
-                      ? "border-[#dc2626] bg-red-50 text-[#1a1a1a]"
-                      : "border-[#e5e5e5] bg-white text-[#666] hover:border-[#dc2626]"
-                  }`}
-                >
-                  <span className="font-medium">Customize sequencing now</span>
-                  <span className="block text-xs text-[#999] mt-0.5">
-                    Set your own format and periodicity for invoices and vouchers
-                  </span>
-                </button>
-              </div>
-            </div>
-
-            {sequenceMode === "defaults" && (
-              <div className="bg-[#f8f8f8] rounded-lg p-4 space-y-3">
-                <p className="text-sm font-medium text-[#1a1a1a]">Default sequences</p>
-                <div className="grid grid-cols-2 gap-3 text-sm">
-                  <div className="bg-white rounded border border-[#e5e5e5] p-3">
-                    <p className="text-[#666]">Invoice format</p>
-                    <p className="font-mono text-[#1a1a1a]">INV/&#123;YYYY&#125;/&#123;NNNNN&#125;</p>
-                    <p className="text-xs text-[#999] mt-0.5">Resets yearly</p>
-                  </div>
-                  <div className="bg-white rounded border border-[#e5e5e5] p-3">
-                    <p className="text-[#666]">Voucher format</p>
-                    <p className="font-mono text-[#1a1a1a]">VCH/&#123;YYYY&#125;/&#123;NNNNN&#125;</p>
-                    <p className="text-xs text-[#999] mt-0.5">Resets yearly</p>
-                  </div>
+            <div className="bg-[#f8f8f8] rounded-lg p-4 space-y-3">
+              <p className="text-sm font-medium text-[#1a1a1a]">Default sequences</p>
+              <div className="grid grid-cols-2 gap-3 text-sm">
+                <div className="bg-white rounded border border-[#e5e5e5] p-3">
+                  <p className="text-[#666]">Invoice format</p>
+                  <p className="font-mono text-[#1a1a1a]">INV/&#123;YYYY&#125;/&#123;NNNNN&#125;</p>
+                  <p className="text-xs text-[#999] mt-0.5">Resets yearly, starts at 1</p>
                 </div>
-                <p className="text-xs text-[#999]">
-                  Numbers start at 1 and reset each year. The counter pads to 5 digits (e.g.
-                  00001).
-                </p>
+                <div className="bg-white rounded border border-[#e5e5e5] p-3">
+                  <p className="text-[#666]">Voucher format</p>
+                  <p className="font-mono text-[#1a1a1a]">VCH/&#123;YYYY&#125;/&#123;NNNNN&#125;</p>
+                  <p className="text-xs text-[#999] mt-0.5">Resets yearly, starts at 1</p>
+                </div>
               </div>
-            )}
-
-            {sequenceMode === "custom" && (
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                <p className="text-sm text-blue-700">
-                  Custom sequence setup will be available in the next step. You can configure
-                  formats, periodicity, and continuity after onboarding in Settings → Document
-                  Numbering.
-                </p>
-              </div>
-            )}
+              <p className="text-xs text-[#999]">
+                Custom formats and periodicity can be configured in Settings → Document Numbering
+                after onboarding.
+              </p>
+            </div>
 
             {error && <p className="text-sm text-red-600">{error}</p>}
             <div className="flex gap-3">
@@ -444,7 +392,7 @@ export function OnboardingPageClient() {
               <Button
                 className="flex-1"
                 onClick={handleStep5}
-                disabled={loading || (sequenceMode === "custom")}
+                disabled={loading}
               >
                 {loading ? "Saving…" : "Finish setup →"}
               </Button>
