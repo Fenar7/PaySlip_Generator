@@ -4,6 +4,8 @@ import {
   getSequenceConfig,
   updateSequenceFormat,
   updateSequencePeriodicity,
+  seedSequenceContinuity,
+  getSequenceAuditHistory,
 } from "@/features/sequences/services/sequence-admin";
 import { previewSequenceNumber } from "@/features/sequences/services/sequence-engine";
 import type { SequenceDocumentType, SequencePeriodicity } from "@/features/sequences/types";
@@ -110,5 +112,31 @@ export async function previewSequenceSetting(
     sequenceId: params.sequenceId,
     documentDate: params.documentDate,
     orgId,
+  });
+}
+
+export async function seedSequenceSetting(
+  orgId: string,
+  params: {
+    documentType: SequenceDocumentType;
+    latestUsedNumber: string;
+  }
+) {
+  return seedSequenceContinuity({
+    orgId,
+    documentType: params.documentType,
+    latestUsedNumber: params.latestUsedNumber,
+  });
+}
+
+export async function getSequenceHistory(
+  orgId: string,
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  _documentType?: SequenceDocumentType
+) {
+  return getSequenceAuditHistory({
+    orgId,
+    limit: 50,
+    offset: 0,
   });
 }
