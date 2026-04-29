@@ -64,9 +64,10 @@ export default function SignupPage() {
   }
 
   return (
-    <AuthCard title="Create your account" subtitle="Start your Slipwise journey for free">
+    <AuthCard title="Create your account" subtitle="Get started with Slipwise for free">
       <GoogleButton callbackURL="/onboarding" />
-      <AuthDivider />
+
+      <AuthDivider text="or" />
       <form onSubmit={handleSubmit} className="space-y-4">
         <Input
           label="Full name"
@@ -100,14 +101,23 @@ export default function SignupPage() {
           required
           autoComplete="new-password"
         />
-        {error && <p className="text-sm text-red-600">{error}</p>}
-        <Button type="submit" className="w-full" disabled={loading}>
+        {error && (
+          <p className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+            {error}
+          </p>
+        )}
+        <Button
+          type="submit"
+          className="h-10 w-full bg-[#dc2626] text-white hover:bg-[#b91c1c]"
+          disabled={loading}
+        >
           {loading ? "Creating account…" : "Create account"}
         </Button>
       </form>
-      <p className="text-center text-sm text-[#666] mt-4">
+
+      <p className="mt-5 text-center text-sm text-gray-500">
         Already have an account?{" "}
-        <Link href="/auth/login" className="text-[#dc2626] font-medium hover:underline">
+        <Link href="/auth/login" className="font-medium text-[#dc2626] hover:underline">
           Sign in
         </Link>
       </p>
