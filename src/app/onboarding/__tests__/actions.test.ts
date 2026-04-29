@@ -164,4 +164,116 @@ describe("saveOnboardingSequences", () => {
     // Step completion must not be recorded on failure
     expect(mockCompleteStep).not.toHaveBeenCalled();
   });
+
+  // ── Custom config tests ──────────────────────────────────────────
+
+  it("creates sequences with custom format and periodicity", async () => {
+    mockRequireRole.mockResolvedValue({ orgId: "org-1", userId: "owner-1", role: "owner" });
+    mockDb.sequence.findFirst.mockResolvedValue(null);
+
+    mockDb.$transaction.mockImplementation(
+      async (fn: (tx: unknown) => Promise<unknown>) => {
+        const txClient = {
+          sequence: { create: vi.fn().mockResolvedValue({ id: "s1" }) },
+          sequenceFormat: { create: vi.fn().mockResolvedValue({ id: "f1" }) },
+          sequencePeriod: { create: vi.fn().mockResolvedValue({ id: "p1" }) },
+        };
+        return fn(txClient);
+      }
+    );
+    mockLogAuditTx.mockResolvedValue(null);
+    mockCompleteStep.mockResolvedValue(undefined);
+
+    const result = await saveOnboardingSequences({
+      organizationId: "org-1",
+      customConfigs: [
+        { documentType: "INVOICE", formatString: "MYINV/{YYYY}/{NNNNN}", periodicity: "MONTHLY" },
+        { documentType: "VOUCHER", formatString: "PYMT/{FY}/{NNN}", periodicity: "FINANCIAL_YEAR" },
+      ],
+    });
+
+    expect(result.success).toBe(true);
+    expect(result.created).toContain("INVOICE");
+    expect(result.created).toContain("VOUCHER");
+    expect(mockDb.$transaction).toHaveBeenCalledTimes(2);
+    expect(mockCompleteStep).toHaveBeenCalledWith("owner-1", "documentNumbering");
+  });
+
+  it("rejects invalid format string in custom config", async () => {
+    mockRequireRole.mockResolvedValue({ orgId: "org-1", userId: "owner-1", role: "owner" });
+
+    await expect(
+      saveOnboardingSequences({
+        organizationId: "org-1",
+        customConfigs: [
+          { documentType: "INVOICE", formatString: "INV/{YYYY}", periodicity: "YEARLY" },
+        ],
+      })
+    ).rejects.toThrow(/INVOICE format:.*running number/i);
+
+    // Must not reach step completion
+    expect(mockCompleteStep).not.toHaveBeenCalled();
+  });
+
+  it("rejects continuity seed that does not match format", async () => {
+    mockRequireRole.mockResolvedValue({ orgId: "org-1", userId: "owner-1", role: "owner" });
+
+    await expect(
+      saveOnboardingSequences({
+        organizationId: "org-1",
+        customConfigs: [
+          {
+            documentType: "INVOICE",
+            formatString: "INV/{YYYY}/{NNNNN}",
+            periodicity: "YEARLY",
+            latestUsedNumber: "VCH/2026/00042",
+          },
+        ],
+      })
+    ).rejects.toThrow(/does not match format/i);
+
+    expect(mockCompleteStep).not.toHaveBeenCalled();
+  });
+
+  it("applies valid continuity seed during custom creation", async () => {
+    mockRequireRole.mockResolvedValue({ orgId: "org-1", userId: "owner-1", role: "owner" });
+    mockDb.sequence.findFirst.mockResolvedValue(null);
+
+    let capturedPeriodCounter: number | undefined;
+
+    mockDb.$transaction.mockImplementation(
+      async (fn: (tx: unknown) => Promise<unknown>) => {
+        const txClient = {
+          sequence: { create: vi.fn().mockResolvedValue({ id: "s1" }) },
+          sequenceFormat: { create: vi.fn().mockResolvedValue({ id: "f1" }) },
+          sequencePeriod: {
+            create: vi.fn((args: { data: { currentCounter: number } }) => {
+              capturedPeriodCounter = args.data.currentCounter;
+              return { id: "p1" };
+            }),
+          },
+        };
+        return fn(txClient);
+      }
+    );
+    mockLogAuditTx.mockResolvedValue(null);
+    mockCompleteStep.mockResolvedValue(undefined);
+
+    await saveOnboardingSequences({
+      organizationId: "org-1",
+      customConfigs: [
+        {
+          documentType: "INVOICE",
+          formatString: "INV/{YYYY}/{NNNNN}",
+          periodicity: "YEARLY",
+          latestUsedNumber: "INV/2026/00042",
+        },
+      ],
+    });
+
+    // currentCounter should be set to 42 (the extracted counter),
+    // so the next consume yields 43.
+    expect(capturedPeriodCounter).toBe(42);
+    expect(mockCompleteStep).toHaveBeenCalled();
+  });
 });
