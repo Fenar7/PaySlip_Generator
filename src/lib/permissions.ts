@@ -22,7 +22,8 @@ export type Module =
   | "settings_users"
   | "settings_roles"
   | "settings_proxy"
-  | "settings_audit";
+  | "settings_audit"
+  | "settings_sequences";
 
 export type Action =
   | "read"
@@ -59,6 +60,7 @@ const ALL_MODULES: Module[] = [
   "settings_roles",
   "settings_proxy",
   "settings_audit",
+  "settings_sequences",
 ];
 
 function fullAccess(): Record<Module, Action[]> {
@@ -86,6 +88,7 @@ const PERMISSIONS: Record<Role, Record<Module, Action[]>> = {
     settings_roles: ["read"],
     settings_proxy: ["read", "create", "edit", "delete"],
     settings_audit: ["read", "export"],
+    settings_sequences: ["read", "create", "edit", "delete"],
   },
 
   finance_manager: {
@@ -104,6 +107,7 @@ const PERMISSIONS: Record<Role, Record<Module, Action[]>> = {
     settings_roles: [],
     settings_proxy: [],
     settings_audit: [],
+    settings_sequences: [],
   },
 
   hr_manager: {
@@ -122,6 +126,7 @@ const PERMISSIONS: Record<Role, Record<Module, Action[]>> = {
     settings_roles: [],
     settings_proxy: [],
     settings_audit: [],
+    settings_sequences: [],
   },
 
   voucher_operator: {
@@ -140,6 +145,7 @@ const PERMISSIONS: Record<Role, Record<Module, Action[]>> = {
     settings_roles: [],
     settings_proxy: [],
     settings_audit: [],
+    settings_sequences: [],
   },
 
   invoice_operator: {
@@ -158,6 +164,7 @@ const PERMISSIONS: Record<Role, Record<Module, Action[]>> = {
     settings_roles: [],
     settings_proxy: [],
     settings_audit: [],
+    settings_sequences: [],
   },
 
   viewer: {
@@ -176,6 +183,7 @@ const PERMISSIONS: Record<Role, Record<Module, Action[]>> = {
     settings_roles: [],
     settings_proxy: [],
     settings_audit: [],
+    settings_sequences: [],
   },
 };
 

@@ -22,10 +22,14 @@ describe("signMfaToken + verifyMfaToken", () => {
   it("rejects an expired token", async () => {
     const userId = "user-456";
     const token = signMfaToken(userId);
-    const lastChar = token.slice(-1);
-    const replacement = lastChar === "x" ? "y" : "x";
-    const tampered = `${token.slice(0, -1)}${replacement}`;
-    const result = await verifyMfaToken(tampered, process.env.TOTP_SESSION_SECRET!);
+
+    // Fast-forward past the 5-minute expiry
+    const originalDateNow = Date.now;
+    Date.now = () => originalDateNow() + 6 * 60 * 1000;
+
+    const result = await verifyMfaToken(token, process.env.TOTP_SESSION_SECRET!);
+    Date.now = originalDateNow;
+
     expect(result).toBeNull();
   });
 
