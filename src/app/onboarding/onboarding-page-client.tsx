@@ -8,6 +8,7 @@ import {
   saveOnboardingBranding,
   saveOnboardingFinancials,
   saveOnboardingTemplates,
+  saveOnboardingSequences,
 } from "./actions";
 
 function slugify(str: string) {
@@ -134,6 +135,23 @@ export function OnboardingPageClient() {
     }
   }
 
+  async function handleStep5() {
+    setError("");
+    setLoading(true);
+    try {
+      if (orgId) {
+        await saveOnboardingSequences({ organizationId: orgId });
+      }
+      setStep(6);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      setError(msg || "Could not save document numbering. Please try again.");
+      console.error("[saveOnboardingSequences error]", err);
+    } finally {
+      setLoading(false);
+    }
+  }
+
   return (
     <div className="min-h-screen flex flex-col items-center justify-center px-4 py-12">
       <div className="mb-8 text-center">
@@ -145,16 +163,16 @@ export function OnboardingPageClient() {
         </span>
       </div>
 
-      {step < 5 && (
+      {step < 6 && (
         <div className="w-full max-w-[480px] mb-6">
           <div className="flex justify-between text-xs text-[#999] mb-2">
-            <span>Step {step} of 4</span>
-            <span>{["Org Setup", "Branding", "Financials", "Templates"][step - 1]}</span>
+            <span>Step {step} of 5</span>
+            <span>{["Org Setup", "Branding", "Financials", "Templates", "Numbering"][step - 1]}</span>
           </div>
           <div className="h-1 bg-[#e5e5e5] rounded-full">
             <div
               className="h-1 bg-[#dc2626] rounded-full transition-all duration-300"
-              style={{ width: `${step * 25}%` }}
+              style={{ width: `${step * 20}%` }}
             />
           </div>
         </div>
@@ -332,13 +350,57 @@ export function OnboardingPageClient() {
                 ← Back
               </Button>
               <Button className="flex-1" onClick={handleStep4} disabled={loading}>
-                {loading ? "Saving…" : "Finish setup →"}
+                {loading ? "Saving…" : "Continue →"}
               </Button>
             </div>
           </div>
         )}
 
         {step === 5 && (
+          <div className="space-y-4">
+            <h2 className="text-xl font-semibold text-[#1a1a1a]">Document Numbering</h2>
+            <p className="text-sm text-[#666]">
+              Configure how invoice and voucher numbers are generated. You can change these later
+              in settings.
+            </p>
+
+            <div className="bg-[#f8f8f8] rounded-lg p-4 space-y-3">
+              <p className="text-sm font-medium text-[#1a1a1a]">Default sequences</p>
+              <div className="grid grid-cols-2 gap-3 text-sm">
+                <div className="bg-white rounded border border-[#e5e5e5] p-3">
+                  <p className="text-[#666]">Invoice format</p>
+                  <p className="font-mono text-[#1a1a1a]">INV/&#123;YYYY&#125;/&#123;NNNNN&#125;</p>
+                  <p className="text-xs text-[#999] mt-0.5">Resets yearly, starts at 1</p>
+                </div>
+                <div className="bg-white rounded border border-[#e5e5e5] p-3">
+                  <p className="text-[#666]">Voucher format</p>
+                  <p className="font-mono text-[#1a1a1a]">VCH/&#123;YYYY&#125;/&#123;NNNNN&#125;</p>
+                  <p className="text-xs text-[#999] mt-0.5">Resets yearly, starts at 1</p>
+                </div>
+              </div>
+              <p className="text-xs text-[#999]">
+                Custom formats and periodicity can be configured in Settings → Document Numbering
+                after onboarding.
+              </p>
+            </div>
+
+            {error && <p className="text-sm text-red-600">{error}</p>}
+            <div className="flex gap-3">
+              <Button variant="secondary" className="flex-1" onClick={() => setStep(4)}>
+                ← Back
+              </Button>
+              <Button
+                className="flex-1"
+                onClick={handleStep5}
+                disabled={loading}
+              >
+                {loading ? "Saving…" : "Finish setup →"}
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {step === 6 && (
           <div className="text-center space-y-4">
             <div className="text-5xl">🎉</div>
             <h2 className="text-xl font-semibold text-[#1a1a1a]">You&apos;re all set!</h2>
@@ -350,6 +412,7 @@ export function OnboardingPageClient() {
               <li>✅ Brand identity configured</li>
               <li>✅ Financial details saved</li>
               <li>✅ Default templates selected</li>
+              <li>✅ Document numbering configured</li>
             </ul>
             <Button className="w-full" onClick={() => router.push("/app/home")}>
               Go to dashboard →

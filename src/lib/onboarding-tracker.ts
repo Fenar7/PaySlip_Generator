@@ -9,7 +9,8 @@ export type OnboardingStep =
   | "firstDocCreated"
   | "firstDocExported"
   | "teamMemberInvited"
-  | "recurringSetup";
+  | "recurringSetup"
+  | "documentNumbering";
 
 export interface OnboardingStatus {
   steps: Record<OnboardingStep, boolean>;
@@ -28,6 +29,7 @@ const ALL_STEPS: OnboardingStep[] = [
   "firstDocExported",
   "teamMemberInvited",
   "recurringSetup",
+  "documentNumbering",
 ];
 
 export async function getOnboardingStatus(
@@ -51,6 +53,7 @@ export async function getOnboardingStatus(
     firstDocExported: progress.firstDocExported,
     teamMemberInvited: progress.teamMemberInvited,
     recurringSetup: progress.recurringSetup,
+    documentNumbering: progress.documentNumbering,
   };
 
   const completedCount = Object.values(steps).filter(Boolean).length;
