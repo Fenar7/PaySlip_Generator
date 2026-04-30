@@ -547,7 +547,7 @@ export function OnboardingPageClient({
               </div>
             )}
 
-            {!hasExistingConfig && (
+            {!hasExistingConfig && !hasPartialConfig && (
               <div className="space-y-3">
                 <label className="text-sm font-medium text-[#1a1a1a]">Numbering mode</label>
                 <div className="grid gap-2">
@@ -583,7 +583,7 @@ export function OnboardingPageClient({
               </div>
             )}
 
-            {sequenceMode === "defaults" && !hasExistingConfig && (
+            {sequenceMode === "defaults" && !hasExistingConfig && !hasPartialConfig && (
               <div className="bg-[#f8f8f8] rounded-lg p-4 space-y-3">
                 <p className="text-sm font-medium text-[#1a1a1a]">Default sequences</p>
                 <div className="grid grid-cols-2 gap-3 text-sm">
@@ -601,7 +601,7 @@ export function OnboardingPageClient({
               </div>
             )}
 
-            {sequenceMode === "custom" && !hasExistingConfig && (
+            {sequenceMode === "custom" && !hasExistingConfig && !hasPartialConfig && (
               <div className="space-y-4">
                 <CustomSequenceSection
                   title="Invoice Numbering"

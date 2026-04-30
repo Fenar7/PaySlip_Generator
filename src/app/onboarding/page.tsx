@@ -21,6 +21,14 @@ export default async function OnboardingPage() {
       redirect("/app/home");
     }
 
+    // Only the org owner can configure document numbering during
+    // onboarding.  Non-owner members are routed to /app/home safely
+    // rather than hitting an access-control error in the sequence
+    // state helper downstream.
+    if (context.role !== "owner") {
+      redirect("/app/home");
+    }
+
     // Onboarding incomplete — hydrate the existing sequence state so
     // the client can resume from the Document Numbering step instead
     // of starting from scratch.

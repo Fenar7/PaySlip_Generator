@@ -156,4 +156,23 @@ describe("OnboardingPage route guard", () => {
 
     expect(mockRedirect).not.toHaveBeenCalled();
   });
+
+  it("redirects non-owner members to /app/home safely", async () => {
+    mockGetAuth.mockResolvedValue({
+      isAuthenticated: true,
+      userId: "user-1",
+      hasOrg: true,
+      orgId: "org-1",
+      orgName: "Test",
+      orgSlug: "test",
+      role: "member",
+    });
+
+    mockGetStatus.mockResolvedValue(setupIncompleteStatus());
+
+    await OnboardingPage();
+
+    // Non-owners are safely redirected without hitting owner-only helpers
+    expect(mockRedirect).toHaveBeenCalledWith("/app/home");
+  });
 });
