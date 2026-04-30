@@ -24,6 +24,7 @@ vi.mock("@/lib/audit", () => ({ logAuditTx: mockLogAuditTx }));
 vi.mock("@/lib/auth/require-org", () => ({ requireRole: mockRequireRole }));
 vi.mock("@/lib/onboarding-tracker", () => ({
   completeOnboardingStep: mockCompleteStep,
+  completeOnboardingStepStrict: mockCompleteStep,
 }));
 vi.mock("next/headers", () => ({
   headers: vi.fn(() =>
@@ -187,7 +188,7 @@ describe("saveOnboardingSequences", () => {
     const result = await saveOnboardingSequences({
       organizationId: "org-1",
       customConfigs: [
-        { documentType: "INVOICE", formatString: "MYINV/{YYYY}/{NNNNN}", periodicity: "MONTHLY" },
+        { documentType: "INVOICE", formatString: "MYINV/{YYYY}/{MM}/{NNNNN}", periodicity: "MONTHLY" },
         { documentType: "VOUCHER", formatString: "PYMT/{FY}/{NNN}", periodicity: "FINANCIAL_YEAR" },
       ],
     });
@@ -335,5 +336,50 @@ describe("saveOnboardingSequences", () => {
 
     expect(result.success).toBe(true);
     expect(mockCompleteStep).toHaveBeenCalled();
+  });
+
+  it("rejects MONTHLY periodicity without {MM} or {FY} token", async () => {
+    mockRequireRole.mockResolvedValue({ orgId: "org-1", userId: "owner-1", role: "owner" });
+
+    await expect(
+      saveOnboardingSequences({
+        organizationId: "org-1",
+        customConfigs: [
+          { documentType: "INVOICE", formatString: "INV/{YYYY}/{NNNNN}", periodicity: "MONTHLY" },
+        ],
+      })
+    ).rejects.toThrow(/monthly periodicity requires.*MM.*FY/i);
+
+    expect(mockCompleteStep).not.toHaveBeenCalled();
+  });
+
+  // ── Strict completion tests ──────────────────────────────────────
+
+  it("fails the action when completion persistence fails", async () => {
+    mockRequireRole.mockResolvedValue({ orgId: "org-1", userId: "owner-1", role: "owner" });
+    mockDb.sequence.findFirst.mockResolvedValue(null);
+
+    mockDb.$transaction.mockImplementation(
+      async (fn: (tx: unknown) => Promise<unknown>) => {
+        const txClient = {
+          sequence: { create: vi.fn().mockResolvedValue({ id: "s1" }) },
+          sequenceFormat: { create: vi.fn().mockResolvedValue({ id: "f1" }) },
+          sequencePeriod: { create: vi.fn().mockResolvedValue({ id: "p1" }) },
+        };
+        return fn(txClient);
+      }
+    );
+    mockLogAuditTx.mockResolvedValue(null);
+
+    // Simulate the completion write failing
+    mockCompleteStep.mockRejectedValue(new Error("Onboarding progress write failed"));
+
+    await expect(
+      saveOnboardingSequences({ organizationId: "org-1" })
+    ).rejects.toThrow("Onboarding progress write failed");
+
+    // Sequence creation succeeded but completion failed — the action
+    // must surface the failure so the caller knows the step was not
+    // recorded.
   });
 });

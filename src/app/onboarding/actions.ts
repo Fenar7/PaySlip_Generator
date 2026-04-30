@@ -2,7 +2,7 @@
 import { db } from "@/lib/db";
 import { requireRole } from "@/lib/auth/require-org";
 import { logAuditTx } from "@/lib/audit";
-import { completeOnboardingStep } from "@/lib/onboarding-tracker";
+import { completeOnboardingStepStrict } from "@/lib/onboarding-tracker";
 import { headers } from "next/headers";
 import { calculatePeriodBoundaries } from "@/features/sequences/engine/periodicity";
 import { validateFormat, extractCounterFromFormat } from "@/features/sequences/engine/tokenizer";
@@ -68,11 +68,19 @@ function validateCustomConfig(config: SequenceCustomConfig): void {
   // periodicity so that period boundaries are visible in the number.
   const hasYear = config.formatString.includes("{YYYY}");
   const hasFY = config.formatString.includes("{FY}");
+  const hasMonth = config.formatString.includes("{MM}");
 
   if (config.periodicity !== "NONE" && !hasYear && !hasFY) {
     throw new Error(
       `${config.documentType}: periodicity "${config.periodicity}" requires ` +
       `the format to include {YYYY} or {FY} so period boundaries are visible in the number`
+    );
+  }
+
+  if (config.periodicity === "MONTHLY" && !hasMonth && !hasFY) {
+    throw new Error(
+      `${config.documentType}: monthly periodicity requires ` +
+      `the format to include {MM} or {FY} so months are distinguishable in the number`
     );
   }
 
@@ -196,8 +204,9 @@ export async function saveOnboardingSequences({
 
   // Mark the Document Numbering onboarding step complete server-side.
   // This is authoritative — onboarding completion must not rely on
-  // client-only state.
-  await completeOnboardingStep(ctx.userId, "documentNumbering");
+  // client-only state.  Uses the strict variant so a persistence failure
+  // here surfaces as an error rather than silently returning success.
+  await completeOnboardingStepStrict(ctx.userId, "documentNumbering");
 
   return { success: true, created };
 }
