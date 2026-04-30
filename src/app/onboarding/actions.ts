@@ -2,7 +2,7 @@
 import { db } from "@/lib/db";
 import { requireRole } from "@/lib/auth/require-org";
 import { logAuditTx } from "@/lib/audit";
-import { completeOnboardingStepStrict } from "@/lib/onboarding-tracker";
+import { completeOnboardingStepStrict, getOnboardingStatus } from "@/lib/onboarding-tracker";
 import { headers } from "next/headers";
 import { calculatePeriodBoundaries } from "@/features/sequences/engine/periodicity";
 import { validateFormat, extractCounterFromFormat } from "@/features/sequences/engine/tokenizer";
@@ -209,6 +209,58 @@ export async function saveOnboardingSequences({
   await completeOnboardingStepStrict(ctx.userId, "documentNumbering");
 
   return { success: true, created };
+}
+
+/**
+ * Read the current sequence onboarding state for an org.
+ * Used by the client to hydrate the Document Numbering step on re-entry
+ * so the user sees existing configuration rather than a blank slate.
+ *
+ * Returns null for any document type that has no sequence configured,
+ * enabling the UI to surface partial/mixed state honestly.
+ */
+export interface OnboardingSequenceState {
+  invoice: {
+    formatString: string;
+    periodicity: SequencePeriodicity;
+  } | null;
+  voucher: {
+    formatString: string;
+    periodicity: SequencePeriodicity;
+  } | null;
+  _onboardingComplete: boolean;
+}
+
+export async function getOnboardingSequenceState(
+  organizationId: string,
+): Promise<OnboardingSequenceState> {
+  const ctx = await requireRole("owner");
+  if (ctx.orgId !== organizationId) {
+    throw new Error("Cannot read sequence state for a different organization.");
+  }
+
+  const onboardingStatus = await getOnboardingStatus(ctx.userId);
+
+  const [invoiceSeq, voucherSeq] = await Promise.all([
+    db.sequence.findFirst({
+      where: { organizationId, documentType: "INVOICE" },
+      include: { formats: { where: { isDefault: true }, take: 1 } },
+    }),
+    db.sequence.findFirst({
+      where: { organizationId, documentType: "VOUCHER" },
+      include: { formats: { where: { isDefault: true }, take: 1 } },
+    }),
+  ]);
+
+  return {
+    invoice: invoiceSeq?.formats[0]
+      ? { formatString: invoiceSeq.formats[0].formatString, periodicity: invoiceSeq.periodicity }
+      : null,
+    voucher: voucherSeq?.formats[0]
+      ? { formatString: voucherSeq.formats[0].formatString, periodicity: voucherSeq.periodicity }
+      : null,
+    _onboardingComplete: onboardingStatus.steps.documentNumbering,
+  };
 }
 
 export async function saveOnboardingBranding({

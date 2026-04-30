@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { getAuthRoutingContext } from "@/lib/auth";
 import { getOnboardingStatus } from "@/lib/onboarding-tracker";
+import { getOnboardingSequenceState } from "./actions";
 import { OnboardingPageClient } from "./onboarding-page-client";
 
 export default async function OnboardingPage() {
@@ -18,7 +19,18 @@ export default async function OnboardingPage() {
     if (status.isComplete) {
       redirect("/app/home");
     }
-    // Onboarding incomplete — allow re-entry so required steps can be finished.
+
+    // Onboarding incomplete — hydrate the existing sequence state so
+    // the client can resume from the Document Numbering step instead
+    // of starting from scratch.
+    const sequenceState = await getOnboardingSequenceState(context.orgId);
+    return (
+      <OnboardingPageClient
+        orgId={context.orgId}
+        orgName={context.orgName}
+        sequenceState={sequenceState}
+      />
+    );
   }
 
   return <OnboardingPageClient />;

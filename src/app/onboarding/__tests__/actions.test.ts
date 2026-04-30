@@ -1,6 +1,6 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
 
-const { mockDb, mockLogAuditTx, mockRequireRole, mockCompleteStep } = vi.hoisted(() => ({
+const { mockDb, mockLogAuditTx, mockRequireRole, mockCompleteStep, mockGetOnboardingStatus } = vi.hoisted(() => ({
   mockDb: {
     sequence: {
       findFirst: vi.fn(),
@@ -17,6 +17,7 @@ const { mockDb, mockLogAuditTx, mockRequireRole, mockCompleteStep } = vi.hoisted
   mockLogAuditTx: vi.fn(),
   mockRequireRole: vi.fn(),
   mockCompleteStep: vi.fn(),
+  mockGetOnboardingStatus: vi.fn(),
 }));
 
 vi.mock("@/lib/db", () => ({ db: mockDb }));
@@ -25,6 +26,7 @@ vi.mock("@/lib/auth/require-org", () => ({ requireRole: mockRequireRole }));
 vi.mock("@/lib/onboarding-tracker", () => ({
   completeOnboardingStep: mockCompleteStep,
   completeOnboardingStepStrict: mockCompleteStep,
+  getOnboardingStatus: mockGetOnboardingStatus,
 }));
 vi.mock("next/headers", () => ({
   headers: vi.fn(() =>
@@ -41,7 +43,7 @@ vi.mock("@/features/sequences/engine/periodicity", () => ({
   })),
 }));
 
-import { saveOnboardingSequences } from "../actions";
+import { saveOnboardingSequences, getOnboardingSequenceState } from "../actions";
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -381,5 +383,64 @@ describe("saveOnboardingSequences", () => {
     // Sequence creation succeeded but completion failed — the action
     // must surface the failure so the caller knows the step was not
     // recorded.
+  });
+});
+
+// ── Onboarding sequence state hydration tests ─────────────────────
+
+describe("getOnboardingSequenceState", () => {
+  it("rejects non-owner callers", async () => {
+    mockRequireRole.mockRejectedValue(new Error("Insufficient permissions"));
+
+    await expect(getOnboardingSequenceState("org-1")).rejects.toThrow(
+      "Insufficient permissions"
+    );
+  });
+
+  it("rejects cross-org access", async () => {
+    mockRequireRole.mockResolvedValue({ orgId: "org-2", userId: "user-1", role: "owner" });
+
+    await expect(getOnboardingSequenceState("org-1")).rejects.toThrow(
+      "Cannot read sequence state for a different organization"
+    );
+  });
+
+  it("returns nulls when no sequences exist", async () => {
+    mockRequireRole.mockResolvedValue({ orgId: "org-1", userId: "owner-1", role: "owner" });
+    mockDb.sequence.findFirst.mockResolvedValue(null);
+    mockGetOnboardingStatus.mockResolvedValue({
+      steps: { documentNumbering: false },
+    });
+
+    const state = await getOnboardingSequenceState("org-1");
+
+    expect(state.invoice).toBeNull();
+    expect(state.voucher).toBeNull();
+    expect(state._onboardingComplete).toBe(false);
+  });
+
+  it("returns existing config when sequences are configured", async () => {
+    mockRequireRole.mockResolvedValue({ orgId: "org-1", userId: "owner-1", role: "owner" });
+
+    mockDb.sequence.findFirst
+      .mockResolvedValueOnce({
+        periodicity: "YEARLY",
+        documentType: "INVOICE",
+        formats: [{ formatString: "INV/{YYYY}/{NNNNN}", isDefault: true }],
+      })
+      .mockResolvedValueOnce({
+        periodicity: "MONTHLY",
+        documentType: "VOUCHER",
+        formats: [{ formatString: "VCH/{YYYY}/{MM}/{NNNNN}", isDefault: true }],
+      });
+
+    mockGetOnboardingStatus.mockResolvedValue({
+      steps: { documentNumbering: false },
+    });
+
+    const state = await getOnboardingSequenceState("org-1");
+
+    expect(state.invoice).toEqual({ formatString: "INV/{YYYY}/{NNNNN}", periodicity: "YEARLY" });
+    expect(state.voucher).toEqual({ formatString: "VCH/{YYYY}/{MM}/{NNNNN}", periodicity: "MONTHLY" });
   });
 });

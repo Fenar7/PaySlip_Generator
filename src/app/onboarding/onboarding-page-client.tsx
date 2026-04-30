@@ -10,7 +10,7 @@ import {
   saveOnboardingTemplates,
   saveOnboardingSequences,
 } from "./actions";
-import type { SequenceCustomConfig } from "./actions";
+import type { SequenceCustomConfig, OnboardingSequenceState } from "./actions";
 import type { SequencePeriodicity } from "@/features/sequences/types";
 import { validateFormat, tokenize, extractCounterFromFormat } from "@/features/sequences/engine/tokenizer";
 import { render, buildRenderContext } from "@/features/sequences/engine/renderer";
@@ -29,15 +29,27 @@ function slugify(str: string) {
     .replace(/^-|-$/g, "");
 }
 
-export function OnboardingPageClient() {
+export function OnboardingPageClient({
+  orgId: initialOrgId,
+  orgName: initialOrgName,
+  sequenceState,
+}: {
+  orgId?: string;
+  orgName?: string;
+  sequenceState?: OnboardingSequenceState;
+} = {}) {
   const router = useRouter();
-  const [step, setStep] = useState(1);
-  const [orgId, setOrgId] = useState("");
+  const isResuming = !!initialOrgId;
+
+  // When resuming, we already have an org — skip to the numbering step.
+  const startingStep = isResuming ? 5 : 1;
+  const [step, setStep] = useState(startingStep);
+  const [orgId, setOrgId] = useState(initialOrgId ?? "");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
   // Step 1
-  const [orgName, setOrgName] = useState("");
+  const [orgName, setOrgName] = useState(initialOrgName ?? "");
   const [industry, setIndustry] = useState("Freelance");
 
   // Step 2
@@ -58,12 +70,34 @@ export function OnboardingPageClient() {
   const [voucherTemplate, setVoucherTemplate] = useState("minimal-office");
 
   // Step 5 — Document Numbering
-  const [sequenceMode, setSequenceMode] = useState<"defaults" | "custom">("defaults");
-  const [invFormat, setInvFormat] = useState("INV/{YYYY}/{NNNNN}");
-  const [invPeriodicity, setInvPeriodicity] = useState<SequencePeriodicity>("YEARLY");
+  // Derive initial values from hydrated sequence state for re-entry.
+  const hasExistingConfig = !!(sequenceState?.invoice && sequenceState?.voucher);
+  const hasPartialConfig =
+    (sequenceState?.invoice && !sequenceState?.voucher) ||
+    (!sequenceState?.invoice && sequenceState?.voucher);
+  const isDefaultConfig =
+    hasExistingConfig &&
+    sequenceState?.invoice?.formatString === "INV/{YYYY}/{NNNNN}" &&
+    sequenceState?.invoice?.periodicity === "YEARLY" &&
+    sequenceState?.voucher?.formatString === "VCH/{YYYY}/{NNNNN}" &&
+    sequenceState?.voucher?.periodicity === "YEARLY";
+
+  const [sequenceMode, setSequenceMode] = useState<"defaults" | "custom">(
+    hasExistingConfig && !isDefaultConfig ? "custom" : "defaults"
+  );
+  const [invFormat, setInvFormat] = useState(
+    sequenceState?.invoice?.formatString ?? "INV/{YYYY}/{NNNNN}"
+  );
+  const [invPeriodicity, setInvPeriodicity] = useState<SequencePeriodicity>(
+    sequenceState?.invoice?.periodicity ?? "YEARLY"
+  );
   const [invLatestUsed, setInvLatestUsed] = useState("");
-  const [vchFormat, setVchFormat] = useState("VCH/{YYYY}/{NNNNN}");
-  const [vchPeriodicity, setVchPeriodicity] = useState<SequencePeriodicity>("YEARLY");
+  const [vchFormat, setVchFormat] = useState(
+    sequenceState?.voucher?.formatString ?? "VCH/{YYYY}/{NNNNN}"
+  );
+  const [vchPeriodicity, setVchPeriodicity] = useState<SequencePeriodicity>(
+    sequenceState?.voucher?.periodicity ?? "YEARLY"
+  );
   const [vchLatestUsed, setVchLatestUsed] = useState("");
 
   const slug = slugify(orgName);
@@ -185,6 +219,28 @@ export function OnboardingPageClient() {
       const msg = err instanceof Error ? err.message : String(err);
       setError(msg || "Could not save document numbering. Please try again.");
       console.error("[saveOnboardingSequences error]", err);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  /**
+   * When the user already has both sequences configured and re-enters
+   * onboarding, confirm the step without recreating (the action is
+   * idempotent so re-running is safe, but the UX stays clear).
+   */
+  async function handleConfirmExisting() {
+    setError("");
+    setLoading(true);
+    try {
+      if (orgId) {
+        await saveOnboardingSequences({ organizationId: orgId });
+      }
+      setStep(6);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      setError(msg || "Could not confirm document numbering. Please try again.");
+      console.error("[handleConfirmExisting error]", err);
     } finally {
       setLoading(false);
     }
@@ -402,41 +458,79 @@ export function OnboardingPageClient() {
               in settings.
             </p>
 
-            <div className="space-y-3">
-              <label className="text-sm font-medium text-[#1a1a1a]">Numbering mode</label>
-              <div className="grid gap-2">
-                <button
-                  type="button"
-                  onClick={() => setSequenceMode("defaults")}
-                  className={`w-full rounded-md border px-4 py-3 text-left text-sm transition-colors ${
-                    sequenceMode === "defaults"
-                      ? "border-[#dc2626] bg-red-50 text-[#1a1a1a]"
-                      : "border-[#e5e5e5] bg-white text-[#666] hover:border-[#dc2626]"
-                  }`}
-                >
-                  <span className="font-medium">Use default sequencing</span>
-                  <span className="block text-xs text-[#999] mt-0.5">
-                    Invoice: INV/2026/00001 · Voucher: VCH/2026/00001
-                  </span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setSequenceMode("custom")}
-                  className={`w-full rounded-md border px-4 py-3 text-left text-sm transition-colors ${
-                    sequenceMode === "custom"
-                      ? "border-[#dc2626] bg-red-50 text-[#1a1a1a]"
-                      : "border-[#e5e5e5] bg-white text-[#666] hover:border-[#dc2626]"
-                  }`}
-                >
-                  <span className="font-medium">Customize sequencing now</span>
-                  <span className="block text-xs text-[#999] mt-0.5">
-                    Set your own format and periodicity for invoices and vouchers
-                  </span>
-                </button>
+            {hasExistingConfig && !hasPartialConfig && (
+              <div className="rounded-lg bg-blue-50 border border-blue-200 p-4 space-y-2">
+                <p className="text-sm font-medium text-blue-700">
+                  Numbering already configured
+                </p>
+                <div className="grid grid-cols-2 gap-3 text-sm">
+                  <div className="bg-white rounded border border-blue-100 p-2">
+                    <p className="text-xs text-[#999]">Invoice</p>
+                    <p className="font-mono text-xs text-[#1a1a1a]">
+                      {sequenceState?.invoice?.formatString ?? "—"}
+                    </p>
+                    <p className="text-xs text-[#999]">{sequenceState?.invoice?.periodicity ?? "—"}</p>
+                  </div>
+                  <div className="bg-white rounded border border-blue-100 p-2">
+                    <p className="text-xs text-[#999]">Voucher</p>
+                    <p className="font-mono text-xs text-[#1a1a1a]">
+                      {sequenceState?.voucher?.formatString ?? "—"}
+                    </p>
+                    <p className="text-xs text-[#999]">{sequenceState?.voucher?.periodicity ?? "—"}</p>
+                  </div>
+                </div>
+                <p className="text-xs text-blue-600">
+                  Click Confirm and continue to complete this step. You can change these in Settings later.
+                </p>
               </div>
-            </div>
+            )}
 
-            {sequenceMode === "defaults" && (
+            {hasPartialConfig && (
+              <div className="rounded-lg bg-amber-50 border border-amber-200 p-3">
+                <p className="text-sm text-amber-700">
+                  One document type is configured, the other is not. You can complete the
+                  missing type below.
+                </p>
+              </div>
+            )}
+
+            {!hasExistingConfig && (
+              <div className="space-y-3">
+                <label className="text-sm font-medium text-[#1a1a1a]">Numbering mode</label>
+                <div className="grid gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setSequenceMode("defaults")}
+                    className={`w-full rounded-md border px-4 py-3 text-left text-sm transition-colors ${
+                      sequenceMode === "defaults"
+                        ? "border-[#dc2626] bg-red-50 text-[#1a1a1a]"
+                        : "border-[#e5e5e5] bg-white text-[#666] hover:border-[#dc2626]"
+                    }`}
+                  >
+                    <span className="font-medium">Use default sequencing</span>
+                    <span className="block text-xs text-[#999] mt-0.5">
+                      Invoice: INV/2026/00001 · Voucher: VCH/2026/00001
+                    </span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSequenceMode("custom")}
+                    className={`w-full rounded-md border px-4 py-3 text-left text-sm transition-colors ${
+                      sequenceMode === "custom"
+                        ? "border-[#dc2626] bg-red-50 text-[#1a1a1a]"
+                        : "border-[#e5e5e5] bg-white text-[#666] hover:border-[#dc2626]"
+                    }`}
+                  >
+                    <span className="font-medium">Customize sequencing now</span>
+                    <span className="block text-xs text-[#999] mt-0.5">
+                      Set your own format and periodicity for invoices and vouchers
+                    </span>
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {sequenceMode === "defaults" && !hasExistingConfig && (
               <div className="bg-[#f8f8f8] rounded-lg p-4 space-y-3">
                 <p className="text-sm font-medium text-[#1a1a1a]">Default sequences</p>
                 <div className="grid grid-cols-2 gap-3 text-sm">
@@ -454,7 +548,7 @@ export function OnboardingPageClient() {
               </div>
             )}
 
-            {sequenceMode === "custom" && (
+            {sequenceMode === "custom" && !hasExistingConfig && (
               <div className="space-y-4">
                 <CustomSequenceSection
                   title="Invoice Numbering"
@@ -486,15 +580,17 @@ export function OnboardingPageClient() {
               </div>
             )}
             <div className="flex gap-3">
-              <Button variant="secondary" className="flex-1" onClick={() => setStep(4)}>
-                ← Back
-              </Button>
+              {!isResuming && (
+                <Button variant="secondary" className="flex-1" onClick={() => setStep(4)}>
+                  ← Back
+                </Button>
+              )}
               <Button
                 className="flex-1"
-                onClick={handleStep5}
+                onClick={hasExistingConfig ? handleConfirmExisting : handleStep5}
                 disabled={loading}
               >
-                {loading ? "Saving…" : "Finish setup →"}
+                {loading ? "Saving…" : hasExistingConfig ? "Confirm & continue →" : "Finish setup →"}
               </Button>
             </div>
           </div>
