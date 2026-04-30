@@ -1269,7 +1269,7 @@ model Invoice {
   id                     String        @id @default(cuid())
   organizationId         String
   customerId             String?
-  invoiceNumber          String
+  invoiceNumber          String? // nullable — drafts do not consume official numbers (Phase 4)
   invoiceDate            DateTime                 @db.Date
   dueDate                DateTime?                @db.Date
   status                 InvoiceStatus @default(DRAFT)

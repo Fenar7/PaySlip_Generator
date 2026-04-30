@@ -97,8 +97,8 @@ export async function POST(request: NextRequest) {
 
     const { invoiceNumber, invoiceDate, dueDate, customerId, notes, lineItems, formData } = body;
 
-    if (!invoiceNumber || !invoiceDate) {
-      throw new ApiError(ErrorCode.VALIDATION_ERROR, "invoiceNumber and invoiceDate are required.", 422);
+    if (!invoiceDate) {
+      throw new ApiError(ErrorCode.VALIDATION_ERROR, "invoiceDate is required.", 422);
     }
 
     let normalizedInvoiceDate: Date;
@@ -114,7 +114,7 @@ export async function POST(request: NextRequest) {
     const invoice = await db.invoice.create({
       data: {
         organizationId: auth.orgId,
-        invoiceNumber,
+        invoiceNumber: invoiceNumber ?? null,
         invoiceDate: normalizedInvoiceDate,
         dueDate: normalizedDueDate,
         customerId: customerId ?? null,
