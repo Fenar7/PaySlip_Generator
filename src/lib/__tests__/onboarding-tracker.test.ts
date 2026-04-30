@@ -39,6 +39,28 @@ describe("onboarding-tracker", () => {
     expect(status.totalSteps).toBe(8);
     expect(status.steps).toHaveProperty("documentNumbering");
     expect(status.steps.documentNumbering).toBe(false);
+    expect(status.isSetupComplete).toBe(false);
+  });
+
+  it("reports isSetupComplete only when required setup steps are done", async () => {
+    mockDb.onboardingProgress.findUnique.mockResolvedValue({
+      accountCreated: true,
+      emailVerified: true,
+      orgSetup: true,
+      documentNumbering: true,
+      firstDocCreated: false,
+      firstDocExported: false,
+      teamMemberInvited: false,
+      recurringSetup: false,
+      completedAt: null,
+      dismissedAt: null,
+    });
+
+    const status = await getOnboardingStatus("user-1");
+
+    // Setup steps are complete even though adoption milestones are not
+    expect(status.isSetupComplete).toBe(true);
+    expect(status.isComplete).toBe(false);
   });
 
   it("creates onboarding progress with documentNumbering when none exists", async () => {

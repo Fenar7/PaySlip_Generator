@@ -443,4 +443,46 @@ describe("getOnboardingSequenceState", () => {
     expect(state.invoice).toEqual({ formatString: "INV/{YYYY}/{NNNNN}", periodicity: "YEARLY" });
     expect(state.voucher).toEqual({ formatString: "VCH/{YYYY}/{MM}/{NNNNN}", periodicity: "MONTHLY" });
   });
+
+  it("returns partial state — invoice exists, voucher missing", async () => {
+    mockRequireRole.mockResolvedValue({ orgId: "org-1", userId: "owner-1", role: "owner" });
+
+    mockDb.sequence.findFirst
+      .mockResolvedValueOnce({
+        periodicity: "YEARLY",
+        documentType: "INVOICE",
+        formats: [{ formatString: "INV/{YYYY}/{NNNNN}", isDefault: true }],
+      })
+      .mockResolvedValueOnce(null);
+
+    mockGetOnboardingStatus.mockResolvedValue({
+      steps: { documentNumbering: false },
+    });
+
+    const state = await getOnboardingSequenceState("org-1");
+
+    expect(state.invoice).toEqual({ formatString: "INV/{YYYY}/{NNNNN}", periodicity: "YEARLY" });
+    expect(state.voucher).toBeNull();
+  });
+
+  it("returns partial state — custom invoice exists, voucher missing", async () => {
+    mockRequireRole.mockResolvedValue({ orgId: "org-1", userId: "owner-1", role: "owner" });
+
+    mockDb.sequence.findFirst
+      .mockResolvedValueOnce({
+        periodicity: "FINANCIAL_YEAR",
+        documentType: "INVOICE",
+        formats: [{ formatString: "INV/{FY}/{NNNNN}", isDefault: true }],
+      })
+      .mockResolvedValueOnce(null);
+
+    mockGetOnboardingStatus.mockResolvedValue({
+      steps: { documentNumbering: false },
+    });
+
+    const state = await getOnboardingSequenceState("org-1");
+
+    expect(state.invoice).toEqual({ formatString: "INV/{FY}/{NNNNN}", periodicity: "FINANCIAL_YEAR" });
+    expect(state.voucher).toBeNull();
+  });
 });

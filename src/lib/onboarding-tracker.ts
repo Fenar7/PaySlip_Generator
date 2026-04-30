@@ -18,6 +18,7 @@ export interface OnboardingStatus {
   totalSteps: number;
   percentComplete: number;
   isComplete: boolean;
+  isSetupComplete: boolean;
   isDismissed: boolean;
 }
 
@@ -31,6 +32,18 @@ const ALL_STEPS: OnboardingStep[] = [
   "recurringSetup",
   "documentNumbering",
 ];
+
+/**
+ * Steps that together constitute the required setup onboarding flow.
+ * When these are all complete the user should be routed to /app/home
+ * rather than /onboarding, even if later adoption milestones remain.
+ */
+const SETUP_STEPS: Set<OnboardingStep> = new Set([
+  "accountCreated",
+  "emailVerified",
+  "orgSetup",
+  "documentNumbering",
+]);
 
 export async function getOnboardingStatus(
   userId: string,
@@ -57,6 +70,7 @@ export async function getOnboardingStatus(
   };
 
   const completedCount = Object.values(steps).filter(Boolean).length;
+  const setupComplete = [...SETUP_STEPS].every((s) => steps[s]);
 
   return {
     steps,
@@ -64,6 +78,7 @@ export async function getOnboardingStatus(
     totalSteps: ALL_STEPS.length,
     percentComplete: Math.round((completedCount / ALL_STEPS.length) * 100),
     isComplete: completedCount === ALL_STEPS.length,
+    isSetupComplete: setupComplete,
     isDismissed: !!progress.dismissedAt,
   };
 }

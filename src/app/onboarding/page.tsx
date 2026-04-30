@@ -11,12 +11,13 @@ export default async function OnboardingPage() {
     redirect(context.loginPath ?? "/auth/login");
   }
 
-  // If the user has an org, check whether they still have incomplete
-  // required onboarding steps (e.g. Document Numbering).  Only redirect
-  // to the app when onboarding is fully complete.
+  // If the user has an org, check whether required setup onboarding is
+  // complete.  Only the setup steps (accountCreated, emailVerified,
+  // orgSetup, documentNumbering) gate access to /app/home.  Later
+  // adoption milestones like firstDocCreated do not block exit.
   if (context.hasOrg) {
     const status = await getOnboardingStatus(context.userId);
-    if (status.isComplete) {
+    if (status.isSetupComplete) {
       redirect("/app/home");
     }
 

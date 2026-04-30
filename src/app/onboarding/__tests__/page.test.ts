@@ -26,6 +26,48 @@ beforeEach(() => {
   vi.clearAllMocks();
 });
 
+function setupCompleteStatus() {
+  return {
+    steps: {
+      accountCreated: true,
+      emailVerified: true,
+      orgSetup: true,
+      documentNumbering: true,
+      firstDocCreated: false,
+      firstDocExported: false,
+      teamMemberInvited: false,
+      recurringSetup: false,
+    },
+    completedCount: 4,
+    totalSteps: 8,
+    percentComplete: 50,
+    isComplete: false,
+    isSetupComplete: true,
+    isDismissed: false,
+  };
+}
+
+function setupIncompleteStatus() {
+  return {
+    steps: {
+      accountCreated: true,
+      emailVerified: true,
+      orgSetup: true,
+      documentNumbering: false,
+      firstDocCreated: false,
+      firstDocExported: false,
+      teamMemberInvited: false,
+      recurringSetup: false,
+    },
+    completedCount: 3,
+    totalSteps: 8,
+    percentComplete: 37,
+    isComplete: false,
+    isSetupComplete: false,
+    isDismissed: false,
+  };
+}
+
 describe("OnboardingPage route guard", () => {
   it("redirects unauthenticated users to login", async () => {
     mockGetAuth.mockResolvedValue({
@@ -50,7 +92,7 @@ describe("OnboardingPage route guard", () => {
     expect(mockRedirect).not.toHaveBeenCalled();
   });
 
-  it("redirects to /app/home when onboarding is fully complete", async () => {
+  it("redirects when setup is complete even if later milestones are not", async () => {
     mockGetAuth.mockResolvedValue({
       isAuthenticated: true,
       userId: "user-1",
@@ -61,21 +103,15 @@ describe("OnboardingPage route guard", () => {
       role: "owner",
     });
 
-    mockGetStatus.mockResolvedValue({
-      steps: { documentNumbering: true },
-      completedCount: 8,
-      totalSteps: 8,
-      percentComplete: 100,
-      isComplete: true,
-      isDismissed: false,
-    });
+    mockGetStatus.mockResolvedValue(setupCompleteStatus());
 
     await OnboardingPage();
 
+    // Setup-complete users are redirected even if firstDocCreated etc. are false
     expect(mockRedirect).toHaveBeenCalledWith("/app/home");
   });
 
-  it("allows re-entry when onboarding is incomplete and sequences not yet configured", async () => {
+  it("allows re-entry when setup is incomplete (documentNumbering not done)", async () => {
     mockGetAuth.mockResolvedValue({
       isAuthenticated: true,
       userId: "user-1",
@@ -86,15 +122,7 @@ describe("OnboardingPage route guard", () => {
       role: "owner",
     });
 
-    mockGetStatus.mockResolvedValue({
-      steps: { documentNumbering: false },
-      completedCount: 3,
-      totalSteps: 8,
-      percentComplete: 37,
-      isComplete: false,
-      isDismissed: false,
-    });
-
+    mockGetStatus.mockResolvedValue(setupIncompleteStatus());
     mockGetSequenceState.mockResolvedValue({
       invoice: null,
       voucher: null,
@@ -106,7 +134,7 @@ describe("OnboardingPage route guard", () => {
     expect(mockRedirect).not.toHaveBeenCalled();
   });
 
-  it("allows re-entry when onboarding is incomplete but sequences already exist", async () => {
+  it("allows re-entry when setup is incomplete but sequences already exist", async () => {
     mockGetAuth.mockResolvedValue({
       isAuthenticated: true,
       userId: "user-1",
@@ -117,15 +145,7 @@ describe("OnboardingPage route guard", () => {
       role: "owner",
     });
 
-    mockGetStatus.mockResolvedValue({
-      steps: { documentNumbering: false },
-      completedCount: 3,
-      totalSteps: 8,
-      percentComplete: 37,
-      isComplete: false,
-      isDismissed: false,
-    });
-
+    mockGetStatus.mockResolvedValue(setupIncompleteStatus());
     mockGetSequenceState.mockResolvedValue({
       invoice: { formatString: "INV/{YYYY}/{NNNNN}", periodicity: "YEARLY" },
       voucher: { formatString: "VCH/{YYYY}/{NNNNN}", periodicity: "YEARLY" },

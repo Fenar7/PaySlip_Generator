@@ -75,6 +75,20 @@ export function OnboardingPageClient({
   const hasPartialConfig =
     (sequenceState?.invoice && !sequenceState?.voucher) ||
     (!sequenceState?.invoice && sequenceState?.voucher);
+
+  // When partial, detect whether the existing side is default or custom
+  // so the missing side defaults to the same mode.
+  const existingPartialSide = hasPartialConfig
+    ? (sequenceState?.invoice ? "INVOICE" : "VOUCHER")
+    : null;
+  const existingPartialConfig = existingPartialSide
+    ? sequenceState?.invoice ?? sequenceState?.voucher
+    : null;
+  const partialIsDefault =
+    existingPartialConfig?.formatString ===
+      (existingPartialSide === "INVOICE" ? "INV/{YYYY}/{NNNNN}" : "VCH/{YYYY}/{NNNNN}") &&
+    existingPartialConfig?.periodicity === "YEARLY";
+
   const isDefaultConfig =
     hasExistingConfig &&
     sequenceState?.invoice?.formatString === "INV/{YYYY}/{NNNNN}" &&
@@ -83,7 +97,10 @@ export function OnboardingPageClient({
     sequenceState?.voucher?.periodicity === "YEARLY";
 
   const [sequenceMode, setSequenceMode] = useState<"defaults" | "custom">(
-    hasExistingConfig && !isDefaultConfig ? "custom" : "defaults"
+    // When partial and the existing side is custom, default to custom for missing
+    (hasPartialConfig && !partialIsDefault) ? "custom"
+    : (hasExistingConfig && !isDefaultConfig) ? "custom"
+    : "defaults"
   );
   const [invFormat, setInvFormat] = useState(
     sequenceState?.invoice?.formatString ?? "INV/{YYYY}/{NNNNN}"
@@ -486,11 +503,47 @@ export function OnboardingPageClient({
             )}
 
             {hasPartialConfig && (
-              <div className="rounded-lg bg-amber-50 border border-amber-200 p-3">
+              <div className="rounded-lg bg-amber-50 border border-amber-200 p-3 space-y-3">
                 <p className="text-sm text-amber-700">
-                  One document type is configured, the other is not. You can complete the
-                  missing type below.
+                  One document type is already configured, the other is missing. The
+                  existing configuration is shown below — complete the missing type to
+                  finish.
                 </p>
+                {existingPartialConfig && (
+                  <div className="bg-white rounded border border-amber-100 p-2 text-sm">
+                    <p className="text-xs text-[#999]">
+                      {existingPartialSide} (already configured)
+                    </p>
+                    <p className="font-mono text-xs text-[#1a1a1a]">
+                      {existingPartialConfig.formatString}
+                    </p>
+                    <p className="text-xs text-[#999]">{existingPartialConfig.periodicity}</p>
+                  </div>
+                )}
+                {!sequenceState?.invoice && (
+                  <CustomSequenceSection
+                    title="Invoice Numbering"
+                    documentType="INVOICE"
+                    formatValue={invFormat}
+                    onFormatChange={setInvFormat}
+                    periodicityValue={invPeriodicity}
+                    onPeriodicityChange={setInvPeriodicity}
+                    latestUsedValue={invLatestUsed}
+                    onLatestUsedChange={setInvLatestUsed}
+                  />
+                )}
+                {!sequenceState?.voucher && (
+                  <CustomSequenceSection
+                    title="Voucher Numbering"
+                    documentType="VOUCHER"
+                    formatValue={vchFormat}
+                    onFormatChange={setVchFormat}
+                    periodicityValue={vchPeriodicity}
+                    onPeriodicityChange={setVchPeriodicity}
+                    latestUsedValue={vchLatestUsed}
+                    onLatestUsedChange={setVchLatestUsed}
+                  />
+                )}
               </div>
             )}
 
