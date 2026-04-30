@@ -36,6 +36,11 @@ import { OcrProgressPanel } from "@/features/docs/pdf-studio/components/ocr-prog
 import { usePdfStudioAnalytics } from "@/features/docs/pdf-studio/lib/analytics";
 import { buildPdfStudioOutputName } from "@/features/docs/pdf-studio/lib/output";
 import { cancelAllOcr } from "@/features/docs/pdf-studio/utils/ocr-processor";
+import {
+  getOcrReadiness,
+  buildOcrRestoreMessage,
+  type OcrReadinessResult,
+} from "@/features/docs/pdf-studio/utils/ocr-readiness";
 import { useActiveOrg } from "@/hooks/use-active-org";
 import { cn } from "@/lib/utils";
 import Link from "next/link";
@@ -239,6 +244,18 @@ export function PdfStudioWorkspace(props?: {
   const [estimateStatus, setEstimateStatus] = useState<"idle" | "estimating" | "ready" | "error">("idle");
   const [isOcrUnavailable, setIsOcrUnavailable] = useState(false);
   const [ocrLanguage, setOcrLanguage] = useState("eng");
+  const [showOcrConfirmDowngrade, setShowOcrConfirmDowngrade] = useState(false);
+  const [ocrReadinessState, setOcrReadinessState] = useState<OcrReadinessResult | null>(null);
+
+  const ocrReadiness = useMemo(
+    () =>
+      getOcrReadiness({
+        images,
+        ocrEnabled: settings.enableOcr,
+        lowConfidenceThreshold: PDF_STUDIO_OCR_LOW_CONFIDENCE_THRESHOLD,
+      }),
+    [images, settings.enableOcr],
+  );
   const hasLowConfidenceImages = useMemo(
     () =>
       images.some(
@@ -440,11 +457,35 @@ export function PdfStudioWorkspace(props?: {
     setSessionStatus("Restored the next image edit.");
   }, [history, historyIndex]);
 
-  const handleGenerate = useCallback(async () => {
+  const handleGenerate = useCallback(async (overrideOcrGating = false) => {
     if (images.length === 0) {
       setUploadError("Add at least one image before generating the PDF.");
       return;
     }
+
+    // OCR readiness gating — prevent silent searchable-PDF failure
+    if (!overrideOcrGating) {
+      const readiness = getOcrReadiness({
+        images,
+        ocrEnabled: settings.enableOcr,
+        lowConfidenceThreshold: PDF_STUDIO_OCR_LOW_CONFIDENCE_THRESHOLD,
+      });
+
+      if (readiness.exportAction === "block") {
+        setUploadError(readiness.summary);
+        return;
+      }
+
+      if (readiness.exportAction === "confirm") {
+        setOcrReadinessState(readiness);
+        setShowOcrConfirmDowngrade(true);
+        return;
+      }
+    }
+
+    // Reset confirmation state
+    setShowOcrConfirmDowngrade(false);
+    setOcrReadinessState(null);
 
     // Validate passwords up-front if protection is enabled (Case C)
     if (settings.password.enabled) {
@@ -552,7 +593,7 @@ export function PdfStudioWorkspace(props?: {
     } finally {
       generateCancelRef.current = null;
     }
-  }, [analytics, images, settings, toolId]);
+  }, [analytics, images, settings, toolId, PDF_STUDIO_OCR_LOW_CONFIDENCE_THRESHOLD]);
 
   useEffect(() => {
     if (isOrgLoading) {
@@ -577,15 +618,7 @@ export function PdfStudioWorkspace(props?: {
         const completeCount = session._ocrCompleteCount ?? 0;
         const droppedCount = session._ocrDroppedCount ?? 0;
         if (completeCount > 0 || droppedCount > 0) {
-          if (droppedCount > 0) {
-            parts.push(
-              `${completeCount} page${completeCount !== 1 ? "s" : ""} ha${completeCount === 1 ? "s" : "ve"} restored OCR text. ${droppedCount} page${droppedCount !== 1 ? "s" : ""} need${droppedCount === 1 ? "s" : ""} re-upload before OCR can run again.`,
-            );
-          } else {
-            parts.push(
-              `OCR text restored for all ${completeCount} page${completeCount !== 1 ? "s" : ""}.`,
-            );
-          }
+          parts.push(buildOcrRestoreMessage(completeCount, droppedCount));
         } else if (!session.watermarkImageCleared) {
           parts.push(
             session.images.length > 0
@@ -724,6 +757,8 @@ export function PdfStudioWorkspace(props?: {
   }, [handleBatchDelete, handleBatchRotateLeft, handleBatchRotateRight, handleRedo, handleSelectAll, handleUndo, images.length, selectedIds.length]);
 
   const handleDialogClose = useCallback(() => {
+    setShowOcrConfirmDowngrade(false);
+    setOcrReadinessState(null);
     if (actionState.status === "success") {
       setImages([]);
       setHistory([[]]);
@@ -740,6 +775,15 @@ export function PdfStudioWorkspace(props?: {
   const handleRetry = useCallback(() => {
     void handleGenerate();
   }, [handleGenerate]);
+
+  const handleContinueWithoutOcr = useCallback(() => {
+    void handleGenerate(true);
+  }, [handleGenerate]);
+
+  const handleCancelOcrDowngrade = useCallback(() => {
+    setShowOcrConfirmDowngrade(false);
+    setOcrReadinessState(null);
+  }, []);
 
   const isPending = actionState.status === "generating";
   const canUndo = historyIndex > 0;
@@ -871,11 +915,39 @@ export function PdfStudioWorkspace(props?: {
 
         {sessionStatus ||
         images.some((img) => img.ocrStatus && img.ocrStatus !== "complete") ||
-        hasLowConfidenceImages ? (
+        hasLowConfidenceImages ||
+        ocrReadiness.exportAction === "warn-image-only" ||
+        ocrReadiness.exportAction === "confirm" ? (
           <div className="space-y-3">
             {sessionStatus ? (
               <div className="rounded-xl border border-[var(--border-soft)] bg-white px-5 py-4 text-sm text-[var(--foreground-soft)] shadow-[var(--shadow-soft)]">
                 {sessionStatus}
+              </div>
+            ) : null}
+            {ocrReadiness.exportAction === "warn-image-only" && images.length > 0 ? (
+              <div className="rounded-xl border border-[#e5e5e5] bg-[#f9f9f9] px-5 py-4 text-sm shadow-[var(--shadow-soft)]">
+                <p className="flex items-center gap-2 font-medium text-[var(--foreground)]">
+                  <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-[var(--surface-soft)]">
+                    <svg className="h-3.5 w-3.5 text-[var(--muted-foreground)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" /></svg>
+                  </span>
+                  Image-only PDF
+                </p>
+                <p className="mt-1 text-[var(--muted-foreground)]">
+                  Searchable text (OCR) is turned off. The exported PDF will contain images only — text in the images will not be selectable or searchable. Enable OCR in Settings → Advanced before uploading to get a searchable PDF.
+                </p>
+              </div>
+            ) : null}
+            {ocrReadiness.exportAction === "confirm" && !showOcrConfirmDowngrade ? (
+              <div className="rounded-xl border border-amber-200 bg-amber-50 px-5 py-4 text-sm shadow-[var(--shadow-soft)]">
+                <p className="flex items-center gap-2 font-medium text-amber-800">
+                  <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-amber-100">
+                    <svg className="h-3.5 w-3.5 text-amber-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" /><line x1="12" y1="9" x2="12" y2="13" /><line x1="12" y1="17" x2="12.01" y2="17" /></svg>
+                  </span>
+                  OCR partially complete
+                </p>
+                <p className="mt-1 text-amber-700">
+                  {ocrReadiness.summary} Use the retry controls below or you will be asked to confirm before generating.
+                </p>
               </div>
             ) : null}
             <OcrProgressPanel
@@ -1110,6 +1182,60 @@ export function PdfStudioWorkspace(props?: {
         onClose={handleDialogClose}
         onRetry={handleRetry}
       />
+
+      {showOcrConfirmDowngrade && ocrReadinessState ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center px-3 py-4 sm:px-4 sm:py-6">
+          <div className="absolute inset-0 bg-[rgba(34,34,34,0.24)]" onClick={handleCancelOcrDowngrade} />
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="ocr-downgrade-dialog-title"
+            className="relative max-h-[calc(100vh-1.5rem)] w-full max-w-[32rem] overflow-y-auto overflow-x-hidden rounded-2xl border border-[var(--border-strong)] bg-white p-5 shadow-[0_8px_30px_rgba(0,0,0,0.12)] sm:p-6"
+          >
+            <div className="flex items-center gap-3">
+              <div className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-amber-100 bg-amber-50 text-amber-600">
+                <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+                  <line x1="12" y1="9" x2="12" y2="13" />
+                  <line x1="12" y1="17" x2="12.01" y2="17" />
+                </svg>
+              </div>
+              <h3 id="ocr-downgrade-dialog-title" className="text-lg font-semibold text-[var(--foreground)]">
+                PDF may not be fully searchable
+              </h3>
+            </div>
+            <p className="mt-3 text-sm leading-7 text-[var(--foreground-soft)]">
+              {ocrReadinessState.summary}
+            </p>
+            {settings.enableOcr && (
+              <p className="mt-2 text-[0.82rem] leading-6 text-[var(--muted-foreground)]">
+                Searchable PDF export requires completed OCR text on every page.
+                {ocrReadinessState.failedCount > 0
+                  ? ` ${ocrReadinessState.failedCount} page${ocrReadinessState.failedCount !== 1 ? "s" : ""} failed OCR and will be image-only in the exported PDF.`
+                  : ocrReadinessState.cancelledCount > 0
+                    ? ` ${ocrReadinessState.cancelledCount} page${ocrReadinessState.cancelledCount !== 1 ? "s" : ""} had OCR cancelled and will be image-only in the exported PDF.`
+                    : ""}
+              </p>
+            )}
+            <div className="mt-5 flex flex-col gap-2.5 sm:flex-row sm:gap-3">
+              <button
+                type="button"
+                onClick={handleCancelOcrDowngrade}
+                className="inline-flex w-full items-center justify-center rounded-full border border-[var(--border-strong)] bg-white px-5 py-3 text-sm font-medium text-[var(--foreground)] shadow-[0_10px_24px_rgba(34,34,34,0.04)] transition-colors hover:bg-[var(--surface-soft)] sm:w-auto"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleContinueWithoutOcr}
+                className="inline-flex w-full items-center justify-center rounded-full border border-transparent bg-[linear-gradient(135deg,var(--accent),var(--accent-strong))] px-5 py-3 text-sm font-medium text-white shadow-[0_18px_36px_rgba(34,34,34,0.10)] transition-all hover:brightness-105 sm:w-auto"
+              >
+                Continue without OCR on affected pages
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </main>
   );
 }

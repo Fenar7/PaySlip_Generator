@@ -357,7 +357,7 @@ function AdvancedSettingsTab({
 
         <ToggleRow
           label="Enable searchable PDF (OCR)"
-          hint="Extract text from images to make the PDF content searchable. English OCR runs locally in your browser — large images may take longer."
+          hint="When ON: text is extracted from images so the PDF is searchable. OCR runs locally in your browser. When OFF: output is image-only — text will not be selectable or searchable."
           checked={settings.enableOcr}
           onChange={(enableOcr) => onChange({ ...settings, enableOcr })}
         />

@@ -36,6 +36,10 @@ import {
 } from "@/features/docs/pdf-studio/utils/scan-input";
 import { downloadBlob, downloadPdfBytes } from "@/features/docs/pdf-studio/utils/zip-builder";
 import {
+  getOcrReadiness,
+  buildOcrRestoreMessage,
+} from "@/features/docs/pdf-studio/utils/ocr-readiness";
+import {
   clearOcrWorkspaceSession,
   loadOcrWorkspaceSession,
   saveOcrWorkspaceSession,
@@ -134,6 +138,17 @@ export function OcrWorkspace() {
     [sourceFile],
   );
   const canExport = resultCards.length > 0;
+  const ocrReadiness = useMemo(
+    () =>
+      images.length > 0
+        ? getOcrReadiness({ images, ocrEnabled: true, lowConfidenceThreshold: confidenceThreshold })
+        : null,
+    [images, confidenceThreshold],
+  );
+
+  const exportHasGaps =
+    ocrReadiness !== null &&
+    (ocrReadiness.exportAction === "confirm" || ocrReadiness.exportAction === "block");
   const largeFileRequiresPro =
     images.length > PDF_STUDIO_STARTER_OCR_PAGE_LIMIT &&
     (!plan || (plan.planId !== "pro" && plan.planId !== "enterprise"));
@@ -160,18 +175,8 @@ export function OcrWorkspace() {
           session.images.filter((img) => img.ocrStatus === "complete" && img.ocrText).length;
         const rerunRequiredCount = session.restoreCounts?.rerunRequiredCount ?? 0;
 
-        if (completeCount > 0 && rerunRequiredCount > 0) {
-          setSessionStatus(
-            `${completeCount} page${completeCount !== 1 ? "s" : ""} ha${completeCount === 1 ? "s" : "ve"} restored OCR text. ${rerunRequiredCount} page${rerunRequiredCount !== 1 ? "s" : ""} need${rerunRequiredCount === 1 ? "s" : ""} the source file re-uploaded before OCR can run again.`,
-          );
-        } else if (completeCount > 0) {
-          setSessionStatus(
-            `OCR text restored for all ${completeCount} page${completeCount !== 1 ? "s" : ""}. Re-upload the source file to modify results.`,
-          );
-        } else if (rerunRequiredCount > 0) {
-          setSessionStatus(
-            `${rerunRequiredCount} page${rerunRequiredCount !== 1 ? "s" : ""} still need${rerunRequiredCount === 1 ? "s" : ""} OCR. Re-upload the source file to continue.`,
-          );
+        if (completeCount > 0 || rerunRequiredCount > 0) {
+          setSessionStatus(buildOcrRestoreMessage(completeCount, rerunRequiredCount));
         }
       }
 
@@ -774,6 +779,15 @@ export function OcrWorkspace() {
                   </Button>
                 </div>
               </div>
+              {exportHasGaps ? (
+                <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                  {ocrReadiness?.failedCount
+                    ? `${ocrReadiness.failedCount} page${ocrReadiness.failedCount !== 1 ? "s" : ""} failed OCR — those pages will not be searchable in the exported PDF.`
+                    : ocrReadiness?.inProgressCount
+                      ? `${ocrReadiness.inProgressCount} page${ocrReadiness.inProgressCount !== 1 ? "s" : ""} still processing — the exported PDF may be incomplete.`
+                      : "Some pages are not fully OCR-ready. The exported PDF may not be fully searchable."}
+                </div>
+              ) : null}
             </div>
           ) : null}
         </div>

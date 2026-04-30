@@ -222,7 +222,7 @@ describe("PdfStudioWorkspace", () => {
     render(<PdfStudioWorkspace />);
 
     await waitFor(() => {
-      expect(screen.getByText(/1 page has restored OCR text\. 1 page needs re-upload before OCR can run again/i)).toBeInTheDocument();
+      expect(screen.getByText(/1 page has restored OCR text. 1 page needs the source file re-uploaded before OCR can run again/i)).toBeInTheDocument();
     });
   });
 
@@ -282,6 +282,6 @@ describe("PdfStudioWorkspace", () => {
     await waitFor(() => {
       expect(screen.getByText(/Watermark image was cleared on refresh/i)).toBeInTheDocument();
     });
-    expect(screen.getByText(/1 page has restored OCR text\. 1 page needs re-upload before OCR can run again/i)).toBeInTheDocument();
+    expect(screen.getByText(/1 page has restored OCR text. 1 page needs the source file re-uploaded before OCR can run again/i)).toBeInTheDocument();
   });
 });
