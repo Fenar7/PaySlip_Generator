@@ -13,7 +13,7 @@ const { mockDb } = vi.hoisted(() => ({
 
 vi.mock("@/lib/db", () => ({ db: mockDb }));
 
-import { getOnboardingStatus, completeOnboardingStep, dismissOnboarding } from "../onboarding-tracker";
+import { getOnboardingStatus, completeOnboardingStep, completeOnboardingStepStrict, dismissOnboarding } from "../onboarding-tracker";
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -83,5 +83,13 @@ describe("onboarding-tracker", () => {
       create: { userId: "user-3", documentNumbering: true },
       update: { documentNumbering: true },
     });
+  });
+
+  it("completeOnboardingStepStrict throws on DB failure instead of swallowing", async () => {
+    mockDb.onboardingProgress.upsert.mockRejectedValue(new Error("DB error"));
+
+    await expect(
+      completeOnboardingStepStrict("user-4", "documentNumbering")
+    ).rejects.toThrow("DB error");
   });
 });

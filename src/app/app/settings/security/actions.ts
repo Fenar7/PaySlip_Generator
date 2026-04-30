@@ -122,7 +122,7 @@ export async function verify2faSetup(
     // can read it from the JWT without a database round-trip.
     await syncMfaMetadata(user.id, {
       hasTotp: true,
-      hasPasskey: profile.passkeyEnabled,
+      hasPasskey: profile.passkeyEnabled ?? false,
       twoFaEnforcedByOrg: profile.twoFaEnforcedByOrg,
     });
 
@@ -170,7 +170,9 @@ export async function disable2fa(
     });
 
     const passkeyCount = await countPasskeysForUser(user.id);
-    const hasPasskey = existingProfile?.passkeyEnabled && passkeyCount > 0;
+    // hasPasskey is deliberately normalized to boolean: the profile's
+    // passkeyEnabled flag is nullable; passkeyCount confirms real enrolment.
+    const hasPasskey = !!(existingProfile?.passkeyEnabled) && passkeyCount > 0;
 
     if (!hasPasskey && existingProfile?.twoFaEnforcedByOrg) {
       return {
@@ -245,7 +247,7 @@ export async function enforce2faForOrg(): Promise<ActionResult<void>> {
       profiles.map((profile) =>
         syncMfaMetadata(profile.id, {
           hasTotp: profile.totpEnabled,
-          hasPasskey: profile.passkeyEnabled,
+          hasPasskey: profile.passkeyEnabled ?? false,
           twoFaEnforcedByOrg: profile.twoFaEnforcedByOrg,
         })
       )

@@ -92,6 +92,30 @@ export async function completeOnboardingStep(
   }
 }
 
+/**
+ * Same as completeOnboardingStep, but re-throws on failure instead of
+ * swallowing.  Use this in required-step flows (e.g. onboarding sequences)
+ * where a silently-missing flag is a correctness bug, not a UX hint.
+ */
+export async function completeOnboardingStepStrict(
+  userId: string,
+  step: OnboardingStep,
+): Promise<void> {
+  await db.onboardingProgress.upsert({
+    where: { userId },
+    create: { userId, [step]: true },
+    update: { [step]: true },
+  });
+
+  const status = await getOnboardingStatus(userId);
+  if (status.isComplete) {
+    await db.onboardingProgress.update({
+      where: { userId },
+      data: { completedAt: new Date() },
+    });
+  }
+}
+
 export async function dismissOnboarding(userId: string): Promise<void> {
   await db.onboardingProgress.upsert({
     where: { userId },

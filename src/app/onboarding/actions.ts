@@ -2,9 +2,10 @@
 import { db } from "@/lib/db";
 import { requireRole } from "@/lib/auth/require-org";
 import { logAuditTx } from "@/lib/audit";
-import { completeOnboardingStep } from "@/lib/onboarding-tracker";
+import { completeOnboardingStepStrict } from "@/lib/onboarding-tracker";
 import { headers } from "next/headers";
 import { calculatePeriodBoundaries } from "@/features/sequences/engine/periodicity";
+import { validateFormat, extractCounterFromFormat } from "@/features/sequences/engine/tokenizer";
 import type { SequenceDocumentType, SequencePeriodicity } from "@/features/sequences/types";
 
 const DEFAULT_SEQUENCE_CONFIGS: Array<{
@@ -33,6 +34,15 @@ const DEFAULT_SEQUENCE_CONFIGS: Array<{
   },
 ];
 
+export interface SequenceCustomConfig {
+  documentType: SequenceDocumentType;
+  formatString: string;
+  periodicity: SequencePeriodicity;
+  latestUsedNumber?: string;
+  startCounter?: number;
+  counterPadding?: number;
+}
+
 async function getAuditHeaders() {
   const hdrs = await headers();
   return {
@@ -41,10 +51,64 @@ async function getAuditHeaders() {
   };
 }
 
+/**
+ * Validate a custom sequence config against the format engine.
+ * Throws a descriptive error on failure.
+ */
+function validateCustomConfig(config: SequenceCustomConfig): void {
+  const validation = validateFormat(config.formatString);
+  if (!validation.valid) {
+    throw new Error(
+      `${config.documentType} format: ${validation.errors.join("; ")}`
+    );
+  }
+
+  // Periodicity/token alignment — enforce the PRD rule that the
+  // format must contain date tokens appropriate for the chosen
+  // periodicity so that period boundaries are visible in the number.
+  const hasYear = config.formatString.includes("{YYYY}");
+  const hasFY = config.formatString.includes("{FY}");
+  const hasMonth = config.formatString.includes("{MM}");
+
+  if (config.periodicity !== "NONE" && !hasYear && !hasFY) {
+    throw new Error(
+      `${config.documentType}: periodicity "${config.periodicity}" requires ` +
+      `the format to include {YYYY} or {FY} so period boundaries are visible in the number`
+    );
+  }
+
+  if (config.periodicity === "MONTHLY" && !hasMonth && !hasFY) {
+    throw new Error(
+      `${config.documentType}: monthly periodicity requires ` +
+      `the format to include {MM} or {FY} so months are distinguishable in the number`
+    );
+  }
+
+  if (config.periodicity === "FINANCIAL_YEAR" && !hasFY) {
+    throw new Error(
+      `${config.documentType}: financial_year periodicity requires {FY} in the format string`
+    );
+  }
+
+  if (config.latestUsedNumber) {
+    const match = extractCounterFromFormat(
+      config.latestUsedNumber,
+      config.formatString
+    );
+    if (match === null) {
+      throw new Error(
+        `${config.documentType} latest used number "${config.latestUsedNumber}" does not match format "${config.formatString}"`
+      );
+    }
+  }
+}
+
 export async function saveOnboardingSequences({
   organizationId,
+  customConfigs,
 }: {
   organizationId: string;
+  customConfigs?: SequenceCustomConfig[];
 }) {
   const ctx = await requireRole("owner");
 
@@ -52,24 +116,40 @@ export async function saveOnboardingSequences({
     throw new Error("Cannot configure sequences for a different organization.");
   }
 
+  // When the user chose custom, validate every config before touching the DB.
+  if (customConfigs && customConfigs.length > 0) {
+    for (const config of customConfigs) {
+      validateCustomConfig(config);
+    }
+  }
+
   const auditHeaders = await getAuditHeaders();
   const created: string[] = [];
+  const configs = customConfigs?.length
+    ? customConfigs
+    : DEFAULT_SEQUENCE_CONFIGS;
 
-  for (const config of DEFAULT_SEQUENCE_CONFIGS) {
+  for (const config of configs) {
     const existing = await db.sequence.findFirst({
-      where: {
-        organizationId,
-        documentType: config.documentType,
-      },
+      where: { organizationId, documentType: config.documentType },
     });
 
     if (existing) continue;
+
+    // Derive the initial counter: if a continuity seed was supplied,
+    // set currentCounter = extracted value so the next consume yields +1.
+    const startCounter = config.startCounter ?? 1;
+    const counterPadding = config.counterPadding ?? 5;
+    const seedCounter = config.latestUsedNumber
+      ? extractCounterFromFormat(config.latestUsedNumber, config.formatString) ?? 0
+      : null;
+    const periodCounter = seedCounter !== null ? seedCounter : startCounter - 1;
 
     await db.$transaction(async (tx) => {
       const sequence = await tx.sequence.create({
         data: {
           organizationId,
-          name: config.name,
+          name: `${config.documentType === "INVOICE" ? "Invoice" : "Voucher"} Sequence`,
           documentType: config.documentType,
           periodicity: config.periodicity,
         },
@@ -79,8 +159,8 @@ export async function saveOnboardingSequences({
         data: {
           sequenceId: sequence.id,
           formatString: config.formatString,
-          startCounter: config.startCounter,
-          counterPadding: config.counterPadding,
+          startCounter,
+          counterPadding,
           isDefault: true,
         },
       });
@@ -93,7 +173,7 @@ export async function saveOnboardingSequences({
             sequenceId: sequence.id,
             startDate: boundaries.startDate,
             endDate: boundaries.endDate,
-            currentCounter: config.startCounter - 1,
+            currentCounter: periodCounter,
             status: "OPEN",
           },
         });
@@ -110,6 +190,10 @@ export async function saveOnboardingSequences({
           formatString: config.formatString,
           periodicity: config.periodicity,
           source: "onboarding",
+          continuitySeeded:
+            config.latestUsedNumber != null
+              ? { latestUsedNumber: config.latestUsedNumber, seedCounter: periodCounter }
+              : undefined,
         },
         ...auditHeaders,
       });
@@ -120,8 +204,9 @@ export async function saveOnboardingSequences({
 
   // Mark the Document Numbering onboarding step complete server-side.
   // This is authoritative — onboarding completion must not rely on
-  // client-only state.
-  await completeOnboardingStep(ctx.userId, "documentNumbering");
+  // client-only state.  Uses the strict variant so a persistence failure
+  // here surfaces as an error rather than silently returning success.
+  await completeOnboardingStepStrict(ctx.userId, "documentNumbering");
 
   return { success: true, created };
 }

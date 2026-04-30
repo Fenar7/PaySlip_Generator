@@ -29,7 +29,7 @@ export async function GET(
       return NextResponse.json({ error: "Conversion job not found." }, { status: 404 });
     }
 
-    return new NextResponse(bundle.bytes, {
+    return new NextResponse(new Uint8Array(bundle.bytes), {
       status: 200,
       headers: {
         "Content-Type": "application/zip",

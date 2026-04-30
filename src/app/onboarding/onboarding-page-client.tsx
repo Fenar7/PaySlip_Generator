@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -10,6 +10,17 @@ import {
   saveOnboardingTemplates,
   saveOnboardingSequences,
 } from "./actions";
+import type { SequenceCustomConfig } from "./actions";
+import type { SequencePeriodicity } from "@/features/sequences/types";
+import { validateFormat, tokenize, extractCounterFromFormat } from "@/features/sequences/engine/tokenizer";
+import { render, buildRenderContext } from "@/features/sequences/engine/renderer";
+
+const PERIODICITY_LABELS: Record<SequencePeriodicity, string> = {
+  NONE: "No reset (continuous)",
+  MONTHLY: "Monthly",
+  YEARLY: "Yearly",
+  FINANCIAL_YEAR: "Financial Year",
+};
 
 function slugify(str: string) {
   return str
@@ -45,6 +56,15 @@ export function OnboardingPageClient() {
   const [invoiceTemplate, setInvoiceTemplate] = useState("minimal");
   const [slipTemplate, setSlipTemplate] = useState("modern-premium");
   const [voucherTemplate, setVoucherTemplate] = useState("minimal-office");
+
+  // Step 5 — Document Numbering
+  const [sequenceMode, setSequenceMode] = useState<"defaults" | "custom">("defaults");
+  const [invFormat, setInvFormat] = useState("INV/{YYYY}/{NNNNN}");
+  const [invPeriodicity, setInvPeriodicity] = useState<SequencePeriodicity>("YEARLY");
+  const [invLatestUsed, setInvLatestUsed] = useState("");
+  const [vchFormat, setVchFormat] = useState("VCH/{YYYY}/{NNNNN}");
+  const [vchPeriodicity, setVchPeriodicity] = useState<SequencePeriodicity>("YEARLY");
+  const [vchLatestUsed, setVchLatestUsed] = useState("");
 
   const slug = slugify(orgName);
 
@@ -140,7 +160,25 @@ export function OnboardingPageClient() {
     setLoading(true);
     try {
       if (orgId) {
-        await saveOnboardingSequences({ organizationId: orgId });
+        if (sequenceMode === "custom") {
+          const customConfigs: SequenceCustomConfig[] = [
+            {
+              documentType: "INVOICE",
+              formatString: invFormat,
+              periodicity: invPeriodicity,
+              latestUsedNumber: invLatestUsed.trim() || undefined,
+            },
+            {
+              documentType: "VOUCHER",
+              formatString: vchFormat,
+              periodicity: vchPeriodicity,
+              latestUsedNumber: vchLatestUsed.trim() || undefined,
+            },
+          ];
+          await saveOnboardingSequences({ organizationId: orgId, customConfigs });
+        } else {
+          await saveOnboardingSequences({ organizationId: orgId });
+        }
       }
       setStep(6);
     } catch (err) {
@@ -364,27 +402,89 @@ export function OnboardingPageClient() {
               in settings.
             </p>
 
-            <div className="bg-[#f8f8f8] rounded-lg p-4 space-y-3">
-              <p className="text-sm font-medium text-[#1a1a1a]">Default sequences</p>
-              <div className="grid grid-cols-2 gap-3 text-sm">
-                <div className="bg-white rounded border border-[#e5e5e5] p-3">
-                  <p className="text-[#666]">Invoice format</p>
-                  <p className="font-mono text-[#1a1a1a]">INV/&#123;YYYY&#125;/&#123;NNNNN&#125;</p>
-                  <p className="text-xs text-[#999] mt-0.5">Resets yearly, starts at 1</p>
-                </div>
-                <div className="bg-white rounded border border-[#e5e5e5] p-3">
-                  <p className="text-[#666]">Voucher format</p>
-                  <p className="font-mono text-[#1a1a1a]">VCH/&#123;YYYY&#125;/&#123;NNNNN&#125;</p>
-                  <p className="text-xs text-[#999] mt-0.5">Resets yearly, starts at 1</p>
-                </div>
+            <div className="space-y-3">
+              <label className="text-sm font-medium text-[#1a1a1a]">Numbering mode</label>
+              <div className="grid gap-2">
+                <button
+                  type="button"
+                  onClick={() => setSequenceMode("defaults")}
+                  className={`w-full rounded-md border px-4 py-3 text-left text-sm transition-colors ${
+                    sequenceMode === "defaults"
+                      ? "border-[#dc2626] bg-red-50 text-[#1a1a1a]"
+                      : "border-[#e5e5e5] bg-white text-[#666] hover:border-[#dc2626]"
+                  }`}
+                >
+                  <span className="font-medium">Use default sequencing</span>
+                  <span className="block text-xs text-[#999] mt-0.5">
+                    Invoice: INV/2026/00001 · Voucher: VCH/2026/00001
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSequenceMode("custom")}
+                  className={`w-full rounded-md border px-4 py-3 text-left text-sm transition-colors ${
+                    sequenceMode === "custom"
+                      ? "border-[#dc2626] bg-red-50 text-[#1a1a1a]"
+                      : "border-[#e5e5e5] bg-white text-[#666] hover:border-[#dc2626]"
+                  }`}
+                >
+                  <span className="font-medium">Customize sequencing now</span>
+                  <span className="block text-xs text-[#999] mt-0.5">
+                    Set your own format and periodicity for invoices and vouchers
+                  </span>
+                </button>
               </div>
-              <p className="text-xs text-[#999]">
-                Custom formats and periodicity can be configured in Settings → Document Numbering
-                after onboarding.
-              </p>
             </div>
 
-            {error && <p className="text-sm text-red-600">{error}</p>}
+            {sequenceMode === "defaults" && (
+              <div className="bg-[#f8f8f8] rounded-lg p-4 space-y-3">
+                <p className="text-sm font-medium text-[#1a1a1a]">Default sequences</p>
+                <div className="grid grid-cols-2 gap-3 text-sm">
+                  <div className="bg-white rounded border border-[#e5e5e5] p-3">
+                    <p className="text-[#666]">Invoice format</p>
+                    <p className="font-mono text-[#1a1a1a]">INV/&#123;YYYY&#125;/&#123;NNNNN&#125;</p>
+                    <p className="text-xs text-[#999] mt-0.5">Resets yearly, starts at 1</p>
+                  </div>
+                  <div className="bg-white rounded border border-[#e5e5e5] p-3">
+                    <p className="text-[#666]">Voucher format</p>
+                    <p className="font-mono text-[#1a1a1a]">VCH/&#123;YYYY&#125;/&#123;NNNNN&#125;</p>
+                    <p className="text-xs text-[#999] mt-0.5">Resets yearly, starts at 1</p>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {sequenceMode === "custom" && (
+              <div className="space-y-4">
+                <CustomSequenceSection
+                  title="Invoice Numbering"
+                  documentType="INVOICE"
+                  formatValue={invFormat}
+                  onFormatChange={setInvFormat}
+                  periodicityValue={invPeriodicity}
+                  onPeriodicityChange={setInvPeriodicity}
+                  latestUsedValue={invLatestUsed}
+                  onLatestUsedChange={setInvLatestUsed}
+                />
+                <div className="border-t border-[#e5e5e5]" />
+                <CustomSequenceSection
+                  title="Voucher Numbering"
+                  documentType="VOUCHER"
+                  formatValue={vchFormat}
+                  onFormatChange={setVchFormat}
+                  periodicityValue={vchPeriodicity}
+                  onPeriodicityChange={setVchPeriodicity}
+                  latestUsedValue={vchLatestUsed}
+                  onLatestUsedChange={setVchLatestUsed}
+                />
+              </div>
+            )}
+
+            {error && (
+              <div className="rounded-lg bg-red-50 border border-red-200 px-3 py-2 text-sm text-red-700">
+                {error}
+              </div>
+            )}
             <div className="flex gap-3">
               <Button variant="secondary" className="flex-1" onClick={() => setStep(4)}>
                 ← Back
@@ -453,6 +553,108 @@ function TemplateRadio({
             <span className="font-medium capitalize">{opt.replace(/-/g, " ")}</span>
           </button>
         ))}
+      </div>
+    </div>
+  );
+}
+
+function CustomSequenceSection({
+  title,
+  documentType,
+  formatValue,
+  onFormatChange,
+  periodicityValue,
+  onPeriodicityChange,
+  latestUsedValue,
+  onLatestUsedChange,
+}: {
+  title: string;
+  documentType: string;
+  formatValue: string;
+  onFormatChange: (v: string) => void;
+  periodicityValue: SequencePeriodicity;
+  onPeriodicityChange: (v: SequencePeriodicity) => void;
+  latestUsedValue: string;
+  onLatestUsedChange: (v: string) => void;
+}) {
+  const formatValidation = useMemo(() => validateFormat(formatValue), [formatValue]);
+
+  const preview = useMemo(() => {
+    if (!formatValidation.valid) return null;
+    try {
+      const tokens = tokenize(formatValue);
+      const prefix = documentType === "INVOICE" ? "INV" : "VCH";
+      // If a continuity seed is provided, preview the NEXT number after it.
+      // Otherwise preview the first number (counter = 1).
+      const seedCounter = latestUsedValue.trim()
+        ? extractCounterFromFormat(latestUsedValue.trim(), formatValue)
+        : null;
+      const nextCounter = seedCounter !== null ? seedCounter + 1 : 1;
+      const ctx = buildRenderContext(new Date(), prefix, nextCounter);
+      return render(tokens, ctx);
+    } catch {
+      return null;
+    }
+  }, [formatValue, formatValidation.valid, documentType, latestUsedValue]);
+
+  return (
+    <div className="space-y-3">
+      <h3 className="text-sm font-semibold text-[#1a1a1a]">{title}</h3>
+
+      <div>
+        <label className="block text-sm text-[#666] mb-1">Format string</label>
+        <Input
+          value={formatValue}
+          onChange={(e) => onFormatChange(e.target.value)}
+          placeholder={`${documentType === "INVOICE" ? "INV" : "VCH"}/{YYYY}/{NNNNN}`}
+        />
+        <p className="text-xs text-[#999] mt-1">
+          Valid tokens: {"{YYYY}"}, {"{MM}"}, {"{DD}"}, {"{NNNNN}"}, {"{FY}"}
+        </p>
+      </div>
+
+      {!formatValidation.valid && formatValidation.errors.length > 0 && (
+        <div className="rounded bg-red-50 border border-red-200 px-3 py-2 text-xs text-red-700">
+          {formatValidation.errors.join("; ")}
+        </div>
+      )}
+
+      {preview && (
+        <div className="rounded bg-green-50 border border-green-200 px-3 py-1.5 text-xs text-green-800 flex items-center gap-2">
+          <span className="text-[#666]">Preview:</span>
+          <span className="font-mono font-medium">{preview}</span>
+        </div>
+      )}
+
+      <div>
+        <label className="block text-sm text-[#666] mb-1">Periodicity</label>
+        <select
+          value={periodicityValue}
+          onChange={(e) => onPeriodicityChange(e.target.value as SequencePeriodicity)}
+          className="block w-full rounded-xl border border-[#e5e5e5] bg-white px-3 py-2 text-sm text-[#1a1a1a] focus:outline-none focus:ring-2 focus:ring-[#dc2626] focus:ring-offset-0"
+        >
+          {Object.entries(PERIODICITY_LABELS).map(([value, label]) => (
+            <option key={value} value={value}>
+              {label}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      <div>
+        <label className="block text-sm text-[#666] mb-1">
+          Latest already-used number{" "}
+          <span className="text-[#999] font-normal">(optional)</span>
+        </label>
+        <Input
+          value={latestUsedValue}
+          onChange={(e) => onLatestUsedChange(e.target.value)}
+          placeholder={`e.g. ${documentType === "INVOICE" ? "INV/2026/00042" : "VCH/2026/00042"}`}
+        />
+        <p className="text-xs text-[#999] mt-1">
+          If you&apos;ve already used numbers outside Slipwise, enter the latest used
+          number to continue from there. Must match the format above.
+        </p>
       </div>
     </div>
   );
