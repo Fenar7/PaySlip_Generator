@@ -2,7 +2,7 @@
 
 import { db } from "@/lib/db";
 import { requireOrgContext } from "@/lib/auth";
-import { nextDocumentNumber } from "@/lib/docs";
+import { nextDocumentNumberTx } from "@/lib/docs";
 import { getSchemaDriftActionMessage, isSchemaDriftError } from "@/lib/prisma-errors";
 import { revalidatePath } from "next/cache";
 import type { Prisma } from "@/generated/prisma/client";
@@ -335,8 +335,9 @@ async function assignNextInvoiceNumber(
     };
   }
 
-  // Legacy fallback — OrgDefaults counter.
-  const legacyNumber = await nextDocumentNumber(orgId, "invoice");
+  // Legacy fallback — use the transaction-aware variant so the counter
+  // is only advanced if the enclosing invoice transaction commits.
+  const legacyNumber = await nextDocumentNumberTx(tx, orgId, "invoice");
   return {
     invoiceNumber: legacyNumber,
     sequenceId: null,
