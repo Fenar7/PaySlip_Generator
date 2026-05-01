@@ -782,10 +782,21 @@ export async function issueInvoice(id: string): Promise<ActionResult<void>> {
       return { success: false, error: `Cannot issue invoice in ${existing.status} status` };
     }
 
+    // Phase 4 / Sprint 4.1: drafts may have null invoiceNumber.
+    // Assign the next official number before issuing so no issued
+    // invoice is left unnumbered. Sprint 4.2 replaces this stopgap
+    // with the full sequence engine integration.
+    const invoiceNumber =
+      existing.invoiceNumber ?? (await nextDocumentNumber(orgId, "invoice"));
+
     await db.$transaction(async (tx) => {
       await tx.invoice.update({
         where: { id },
-        data: { status: "ISSUED", issuedAt: new Date() },
+        data: {
+          status: "ISSUED",
+          issuedAt: new Date(),
+          ...(!existing.invoiceNumber ? { invoiceNumber } : {}),
+        },
       });
 
       await tx.invoiceStateEvent.create({
@@ -828,7 +839,7 @@ export async function issueInvoice(id: string): Promise<ActionResult<void>> {
       sourceEntityId: id,
       actorId: userId,
       payload: {
-        invoiceNumber: existing.invoiceNumber,
+        invoiceNumber,
         totalAmount: existing.totalAmount,
         customerId: existing.customerId,
       },
@@ -837,7 +848,7 @@ export async function issueInvoice(id: string): Promise<ActionResult<void>> {
     await Promise.all([
       emitInvoiceEvent(orgId, id, "issued", {
         actorId: userId,
-        metadata: { invoiceNumber: existing.invoiceNumber },
+        metadata: { invoiceNumber },
       }),
       syncInvoiceRecordToIndex(orgId, id),
     ]);

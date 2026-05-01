@@ -42,7 +42,7 @@ export const invoiceDefaultValues: InvoiceFormValues = {
   clientEmail: "finance@axispeoplex.example",
   clientPhone: "+91 98470 12000",
   clientTaxId: "GSTIN 32AAACA1122R1ZV",
-  invoiceNumber: "INV-2026-031",
+  invoiceNumber: "", // assigned when issued — drafts have no official number (Phase 4)
   invoiceDate: "2026-03-26",
   dueDate: "2026-04-02",
   placeOfSupply: "Kerala",
