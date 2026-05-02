@@ -126,6 +126,15 @@ function PdfPageThumbnail({
             </svg>
           </div>
         )}
+        {/* Rotation angle badge — shows cumulative user-applied rotation for this page */}
+        {item.rotation != null && item.rotation !== 0 && !isMarkedForDeletion && (
+          <div
+            data-testid="rotation-badge"
+            className="absolute bottom-1.5 left-1.5 rounded bg-[var(--accent)] px-1 py-0.5 text-[0.55rem] font-semibold leading-none text-white shadow-sm"
+          >
+            {item.rotation}°
+          </div>
+        )}
         {/* Drag affordance badge — fades in on hover, hidden while actively dragging */}
         {mode === "reorder" && !sortable.isDragging && (
           <div className="pointer-events-none absolute inset-0 flex items-center justify-center opacity-0 transition-opacity duration-150 group-hover:opacity-100">
