@@ -12,9 +12,13 @@ import {
   updateSequenceSettings,
   seedSequenceSetting,
   getSequenceHistory,
+  getSupportOverview,
+  runSequenceHealthCheck,
+  diagnoseSequenceHealth,
 } from "./actions";
 import type { SequenceSettingsData } from "./actions";
-import type { SequenceDocumentType, SequencePeriodicity } from "@/features/sequences/types";
+import type { SequenceSupportOverview } from "@/features/sequences/services/sequence-admin";
+import type { SequenceDocumentType, SequencePeriodicity, HealthCheckReport, HealthCheckFailure } from "@/features/sequences/types";
 
 const PERIODICITY_LABELS: Record<SequencePeriodicity, string> = {
   NONE: "No reset (continuous)",
@@ -55,6 +59,13 @@ export default function SequenceSettingsPage() {
     metadata: unknown;
   }>>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
+
+  // Diagnostics state (Phase 7 / Sprint 7.2)
+  const [diagDocType, setDiagDocType] = useState<SequenceDocumentType>("INVOICE");
+  const [diagLoading, setDiagLoading] = useState<"health" | "overview" | "diagnostics" | null>(null);
+  const [healthReport, setHealthReport] = useState<HealthCheckReport | null>(null);
+  const [supportOverview, setSupportOverview] = useState<SequenceSupportOverview | null>(null);
+  const [diagResult, setDiagResult] = useState<{ gaps: number; irregularities: number; warnings: number; criticals: number } | null>(null);
 
   const loadSettings = useCallback(async () => {
     if (!activeOrg?.id) return;
@@ -193,6 +204,21 @@ export default function SequenceSettingsPage() {
         />
       )}
 
+      <DiagnosticsSection
+        orgId={activeOrg?.id ?? ""}
+        docType={diagDocType}
+        onDocTypeChange={setDiagDocType}
+        loading={diagLoading}
+        onSetLoading={setDiagLoading}
+        healthReport={healthReport}
+        onSetHealthReport={setHealthReport}
+        supportOverview={supportOverview}
+        onSetSupportOverview={setSupportOverview}
+        diagResult={diagResult}
+        onSetDiagResult={setDiagResult}
+        onError={setError}
+      />
+
       <HistorySection
         docType={historyDocType}
         onDocTypeChange={setHistoryDocType}
@@ -247,10 +273,267 @@ function SequenceCard({
             No {title.toLowerCase()} configured yet. Run the migration script to set up the initial
             sequence.
           </p>
-        </CardContent>
-      </Card>
-    );
-  }
+      </CardContent>
+    </Card>
+  );
+}
+
+// ─── Diagnostics Section (Phase 7 / Sprint 7.2) ───────────────────────────────
+
+const SEVERITY_COLORS: Record<string, string> = {
+  critical: "bg-red-100 text-red-800 border-red-200",
+  warning: "bg-yellow-100 text-yellow-800 border-yellow-200",
+};
+
+function DiagnosticsSection({
+  orgId,
+  docType,
+  onDocTypeChange,
+  loading,
+  onSetLoading,
+  healthReport,
+  onSetHealthReport,
+  supportOverview,
+  onSetSupportOverview,
+  diagResult,
+  onSetDiagResult,
+  onError,
+}: {
+  orgId: string;
+  docType: SequenceDocumentType;
+  onDocTypeChange: (v: SequenceDocumentType) => void;
+  loading: "health" | "overview" | "diagnostics" | null;
+  onSetLoading: (v: "health" | "overview" | "diagnostics" | null) => void;
+  healthReport: HealthCheckReport | null;
+  onSetHealthReport: (v: HealthCheckReport | null) => void;
+  supportOverview: SequenceSupportOverview | null;
+  onSetSupportOverview: (v: SequenceSupportOverview | null) => void;
+  diagResult: { gaps: number; irregularities: number; warnings: number; criticals: number } | null;
+  onSetDiagResult: (v: { gaps: number; irregularities: number; warnings: number; criticals: number } | null) => void;
+  onError: (v: string | null) => void;
+}) {
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-lg">Diagnostics &amp; Support</CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-6">
+        <p className="text-sm text-[#666]">
+          Investigate sequence health, current state, and irregularities.
+        </p>
+
+        <div className="flex items-center gap-2">
+          <label className="text-sm text-[#666]">Document Type:</label>
+          <select
+            value={docType}
+            onChange={(e) => onDocTypeChange(e.target.value as SequenceDocumentType)}
+            className="block w-32 rounded-xl border border-[#e5e5e5] bg-white px-3 py-1.5 text-sm text-[#1a1a1a] focus:outline-none focus:ring-2 focus:ring-[#dc2626]"
+          >
+            <option value="INVOICE">Invoice</option>
+            <option value="VOUCHER">Voucher</option>
+          </select>
+        </div>
+
+        <div className="flex flex-wrap gap-3">
+          <Button
+            variant="outline"
+            className="border-[#dc2626] text-[#dc2626] hover:bg-red-50"
+            disabled={loading !== null}
+            onClick={async () => {
+              onSetLoading("health");
+              onSetHealthReport(null);
+              onError(null);
+              try {
+                const report = await runSequenceHealthCheck(orgId, docType);
+                onSetHealthReport(report);
+              } catch (err) {
+                onError(err instanceof Error ? err.message : "Health check failed");
+              } finally {
+                onSetLoading(null);
+              }
+            }}
+          >
+            {loading === "health" ? "Running..." : "Run Health Check"}
+          </Button>
+
+          <Button
+            variant="outline"
+            className="border-[#dc2626] text-[#dc2626] hover:bg-red-50"
+            disabled={loading !== null}
+            onClick={async () => {
+              onSetLoading("overview");
+              onSetSupportOverview(null);
+              onSetDiagResult(null);
+              onError(null);
+              try {
+                const overview = await getSupportOverview(orgId, docType);
+                onSetSupportOverview(overview);
+              } catch (err) {
+                onError(err instanceof Error ? err.message : "Support overview failed");
+              } finally {
+                onSetLoading(null);
+              }
+            }}
+          >
+            {loading === "overview" ? "Loading..." : "Support Overview"}
+          </Button>
+
+          <Button
+            variant="outline"
+            className="border-[#dc2626] text-[#dc2626] hover:bg-red-50"
+            disabled={loading !== null}
+            onClick={async () => {
+              onSetLoading("diagnostics");
+              onSetDiagResult(null);
+              onError(null);
+              try {
+                const now = new Date();
+                const start = new Date(now.getFullYear() - 2, 0, 1);
+                const result = await diagnoseSequenceHealth({
+                  orgId,
+                  documentType: docType,
+                  startDate: start,
+                  endDate: now,
+                });
+                onSetDiagResult(result.summary);
+              } catch (err) {
+                onError(err instanceof Error ? err.message : "Diagnostics failed");
+              } finally {
+                onSetLoading(null);
+              }
+            }}
+          >
+            {loading === "diagnostics" ? "Running..." : "Run Diagnostics"}
+          </Button>
+        </div>
+
+        {/* Health Check Results */}
+        {healthReport && (
+          <div className="space-y-3">
+            <div className="flex items-center gap-2">
+              <h4 className="text-sm font-medium text-[#1a1a1a]">Health Check</h4>
+              <Badge variant={healthReport.passed ? "default" : "warning"}>
+                {healthReport.passed ? "PASSED" : "FAILED"}
+              </Badge>
+            </div>
+            {healthReport.failures.length === 0 ? (
+              <p className="text-sm text-green-700">All checks passed.</p>
+            ) : (
+              <div className="space-y-2">
+                {healthReport.failures.map((f: HealthCheckFailure, i: number) => (
+                  <div
+                    key={i}
+                    className={`rounded-lg border px-3 py-2 text-sm ${SEVERITY_COLORS[f.severity] ?? "bg-gray-100 border-gray-200"}`}
+                  >
+                    <span className="font-medium capitalize">{f.severity}</span>: {f.message}
+                    {f.count !== undefined && (
+                      <span className="ml-2 text-xs opacity-70">({f.count})</span>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Support Overview */}
+        {supportOverview && (
+          <div className="space-y-3">
+            <h4 className="text-sm font-medium text-[#1a1a1a]">Support Overview</h4>
+            <div className="grid grid-cols-2 gap-3 text-sm">
+              <div>
+                <p className="text-[#666]">Sequence</p>
+                <p className="font-medium text-[#1a1a1a]">{supportOverview.name}</p>
+              </div>
+              <div>
+                <p className="text-[#666]">Status</p>
+                <Badge variant={supportOverview.isActive ? "default" : "warning"}>
+                  {supportOverview.isActive ? "Active" : "Inactive"}
+                </Badge>
+              </div>
+              <div>
+                <p className="text-[#666]">Next Preview</p>
+                <p className="font-medium text-[#1a1a1a]">{supportOverview.nextPreview ?? "—"}</p>
+              </div>
+              <div>
+                <p className="text-[#666]">Finalized Docs</p>
+                <p className="font-medium text-[#1a1a1a]">{supportOverview.totalFinalizedDocs}</p>
+              </div>
+              <div>
+                <p className="text-[#666]">Periods</p>
+                <p className="font-medium text-[#1a1a1a]">
+                  {supportOverview.periodCount} ({supportOverview.openPeriodCount} open, {supportOverview.closedPeriodCount} closed)
+                </p>
+              </div>
+              <div>
+                <p className="text-[#666]">Resequence</p>
+                <p className="font-medium text-[#1a1a1a]">
+                  {supportOverview.resequenceCount > 0
+                    ? `${supportOverview.resequenceCount} times (last: ${supportOverview.lastResequenceAt?.slice(0, 10) ?? "—"})`
+                    : "Never"}
+                </p>
+              </div>
+            </div>
+            {supportOverview.periods.length > 0 && (
+              <div className="mt-3">
+                <p className="text-sm text-[#666] mb-2">Recent Periods</p>
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-[#e5e5e5]">
+                      <th className="text-left py-1 px-2 text-[#666] font-medium">Period</th>
+                      <th className="text-left py-1 px-2 text-[#666] font-medium">Status</th>
+                      <th className="text-left py-1 px-2 text-[#666] font-medium">Counter</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {supportOverview.periods.slice(0, 10).map((p) => (
+                      <tr key={p.periodId} className="border-b border-[#f5f5f5]">
+                        <td className="py-1 px-2 text-[#1a1a1a]">
+                          {p.startDate} – {p.endDate}
+                        </td>
+                        <td className="py-1 px-2">
+                          <Badge variant={p.status === "OPEN" ? "default" : "secondary"}>
+                            {p.status}
+                          </Badge>
+                        </td>
+                        <td className="py-1 px-2 text-[#1a1a1a]">{p.currentCounter}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Diagnostics Result */}
+        {diagResult && (
+          <div className="space-y-3">
+            <h4 className="text-sm font-medium text-[#1a1a1a]">Gap &amp; Irregularity Diagnostics</h4>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
+              <div className="bg-gray-50 rounded-lg p-3 text-center">
+                <p className="text-[#666]">Total Docs</p>
+                <p className="font-bold text-[#1a1a1a] text-lg">{diagResult.irregularities + diagResult.warnings}</p>
+              </div>
+              <div className="bg-yellow-50 rounded-lg p-3 text-center">
+                <p className="text-[#666]">Gaps</p>
+                <p className="font-bold text-yellow-700 text-lg">{diagResult.gaps}</p>
+              </div>
+              <div className="bg-orange-50 rounded-lg p-3 text-center">
+                <p className="text-[#666]">Warnings</p>
+                <p className="font-bold text-orange-700 text-lg">{diagResult.warnings}</p>
+              </div>
+              <div className="bg-red-50 rounded-lg p-3 text-center">
+                <p className="text-[#666]">Criticals</p>
+                <p className="font-bold text-red-700 text-lg">{diagResult.criticals}</p>
+              </div>
+            </div>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
 
   return (
     <Card>

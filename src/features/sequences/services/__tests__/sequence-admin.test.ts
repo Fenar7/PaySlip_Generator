@@ -25,6 +25,7 @@ vi.mock("@/lib/auth/require-org", () => ({
 
 vi.mock("@/lib/audit", () => ({
   logAuditTx: (...args: unknown[]) => mockLogAuditTx(...args),
+  logAudit: (...args: unknown[]) => mockLogAuditTx(...args),
 }));
 
 vi.mock("@/lib/db", () => ({

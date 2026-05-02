@@ -2,7 +2,7 @@
 
 import { db } from "@/lib/db";
 import { requireRole, getOrgContext } from "@/lib/auth/require-org";
-import { logAuditTx } from "@/lib/audit";
+import { logAuditTx, logAudit } from "@/lib/audit";
 import { headers } from "next/headers";
 import { rateLimitByOrg, RATE_LIMITS } from "@/lib/rate-limit";
 import { validateFormat, extractCounterFromFormat } from "../engine/tokenizer";
@@ -15,6 +15,7 @@ import type {
   ResequenceApplyResult,
   SequenceDiagnosticsInput,
   SequenceDiagnosticsResult,
+  HealthCheckReport,
 } from "../types";
 import type { OrgContext } from "@/lib/auth/require-org";
 import { SequenceAdminError } from "./sequence-errors";
@@ -607,6 +608,152 @@ export async function diagnoseSequence(
   input: SequenceDiagnosticsInput
 ): Promise<SequenceDiagnosticsResult> {
   await assertCallerOwnsOrg(input.orgId);
+
+  const rateLimit = await rateLimitByOrg(input.orgId, RATE_LIMITS.diagnostics);
+  if (!rateLimit.success) {
+    throw new SequenceAdminError(
+      `Rate limit exceeded for diagnostics. Retry after ${rateLimit.retryAfter ?? 60} seconds.`
+    );
+  }
+
+  const ctx = await getOrgContext();
+  const auditHeaders = await getAuditHeaders();
+
   const { diagnoseSequence: diagnose } = await import("./sequence-resequence");
-  return diagnose(input);
+  const result = await diagnose(input);
+
+  void logAudit({
+    orgId: input.orgId,
+    actorId: ctx?.userId ?? "system",
+    action: "sequence.diagnostics_ran",
+    entityType: "sequence",
+    entityId: result.sequenceId,
+    metadata: {
+      documentType: input.documentType,
+      startDate: input.startDate.toISOString(),
+      endDate: input.endDate.toISOString(),
+      summary: result.summary,
+    },
+    ipAddress: auditHeaders.ipAddress,
+    userAgent: auditHeaders.userAgent,
+  });
+
+  return result;
+}
+
+// ─── Support Overview (Phase 7 / Sprint 7.2) ──────────────────────────────────
+
+export interface SequenceSupportOverview {
+  sequenceId: string;
+  documentType: SequenceDocumentType;
+  name: string;
+  periodicity: SequencePeriodicity;
+  isActive: boolean;
+  formatString: string | null;
+  startCounter: number | null;
+  counterPadding: number | null;
+  currentCounter: number | null;
+  nextPreview: string | null;
+  periodCount: number;
+  openPeriodCount: number;
+  closedPeriodCount: number;
+  periods: Array<{
+    periodId: string;
+    startDate: string;
+    endDate: string;
+    currentCounter: number;
+    status: string;
+  }>;
+  lastResequenceAt: string | null;
+  resequenceCount: number;
+  totalFinalizedDocs: number;
+}
+
+export async function getSequenceSupportOverview(params: {
+  orgId: string;
+  documentType: SequenceDocumentType;
+}): Promise<SequenceSupportOverview | null> {
+  await assertCallerOwnsOrg(params.orgId);
+
+  const sequence = await db.sequence.findFirst({
+    where: { organizationId: params.orgId, documentType: params.documentType },
+    include: {
+      formats: { where: { isDefault: true }, take: 1 },
+      periods: { orderBy: { startDate: "desc" }, take: 20 },
+    },
+  });
+
+  if (!sequence) return null;
+
+  const format = sequence.formats[0] ?? null;
+
+  const periods = sequence.periods.map((p) => ({
+    periodId: p.id,
+    startDate: p.startDate.toISOString().slice(0, 10),
+    endDate: p.endDate.toISOString().slice(0, 10),
+    currentCounter: p.currentCounter,
+    status: p.status,
+  }));
+
+  const openPeriodCount = sequence.periods.filter((p) => p.status === "OPEN").length;
+  const closedPeriodCount = sequence.periods.filter((p) => p.status === "CLOSED").length;
+
+  const totalFinalizedDocs = params.documentType === "INVOICE"
+    ? await db.invoice.count({ where: { organizationId: params.orgId, status: { not: "DRAFT" } } })
+    : await db.voucher.count({ where: { organizationId: params.orgId, status: "approved" } });
+
+  const recentResequence = await db.auditLog.findFirst({
+    where: { orgId: params.orgId, action: "sequence.resequence_confirmed", entityId: sequence.id },
+    orderBy: { createdAt: "desc" },
+    select: { createdAt: true },
+  });
+
+  const resequenceCount = await db.auditLog.count({
+    where: { orgId: params.orgId, entityId: sequence.id, action: "sequence.resequence_confirmed" },
+  });
+
+  const { previewSequenceNumber } = await import("./sequence-engine");
+  let nextPreview: string | null = null;
+  if (sequence.id && format) {
+    try {
+      const preview = await previewSequenceNumber({
+        sequenceId: sequence.id,
+        documentDate: new Date(),
+        orgId: params.orgId,
+      });
+      nextPreview = preview.preview;
+    } catch {
+      nextPreview = null;
+    }
+  }
+
+  return {
+    sequenceId: sequence.id,
+    documentType: sequence.documentType,
+    name: sequence.name,
+    periodicity: sequence.periodicity,
+    isActive: sequence.isActive,
+    formatString: format?.formatString ?? null,
+    startCounter: format?.startCounter ?? null,
+    counterPadding: format?.counterPadding ?? null,
+    currentCounter: periods[0]?.currentCounter ?? null,
+    nextPreview,
+    periodCount: sequence.periods.length,
+    openPeriodCount,
+    closedPeriodCount,
+    periods,
+    lastResequenceAt: recentResequence?.createdAt?.toISOString() ?? null,
+    resequenceCount,
+    totalFinalizedDocs,
+  };
+}
+
+export async function runHealthCheck(params: {
+  orgId: string;
+  documentType: SequenceDocumentType;
+}): Promise<HealthCheckReport> {
+  await assertCallerOwnsOrg(params.orgId);
+
+  const { runSequenceHealthCheck } = await import("./sequence-health");
+  return runSequenceHealthCheck(params);
 }

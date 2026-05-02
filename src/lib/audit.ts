@@ -197,6 +197,7 @@ export const AUDIT_ACTION_LABELS: Record<string, string> = {
   "sequence.resequence_previewed": "Previewed resequence batch",
   "sequence.resequence_confirmed": "Confirmed resequence batch",
   "sequence.locked_attempt_blocked": "Blocked sequence change on locked period",
+  "sequence.diagnostics_ran": "Ran sequence diagnostics",
 };
 export function getAuditCategory(action: string): string {
   if (
