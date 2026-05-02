@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
 import { db } from "@/lib/db";
+import { nextDocumentNumberTx } from "@/lib/docs";
 import { dispatchEvent } from "@/lib/webhook/deliver";
 import {
   authenticateApiRequest,
@@ -33,9 +34,24 @@ export async function POST(request: NextRequest, context: RouteContext) {
       throw new ApiError(ErrorCode.VALIDATION_ERROR, "Only DRAFT invoices can be sent.", 422);
     }
 
-    const updated = await db.invoice.update({
-      where: { id },
-      data: { status: "ISSUED", issuedAt: new Date() },
+    const updated = await db.$transaction(async (tx) => {
+      // Phase 4: drafts may have null invoiceNumber — assign one
+      // before transitioning to ISSUED so no issued invoice is
+      // left unnumbered.
+      const invoiceNumber =
+        invoice.invoiceNumber ??
+        await nextDocumentNumberTx(tx, auth.orgId, "invoice");
+
+      return tx.invoice.update({
+        where: { id },
+        data: {
+          status: "ISSUED",
+          issuedAt: new Date(),
+          ...(invoiceNumber !== invoice.invoiceNumber
+            ? { invoiceNumber }
+            : {}),
+        },
+      });
     });
 
     dispatchEvent(auth.orgId, "invoice.sent", {

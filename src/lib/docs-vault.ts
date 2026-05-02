@@ -317,7 +317,7 @@ export async function syncInvoiceToIndex(
     docType: "invoice",
     documentId: invoice.id,
     documentNumber: invoice.invoiceNumber,
-    titleOrSummary: `Invoice ${invoice.invoiceNumber}`,
+    titleOrSummary: `Invoice ${invoice.invoiceNumber ?? "Draft"}`,
     counterpartyLabel: invoice.customer?.name ?? null,
     status: invoice.status,
     primaryDate: new Date(invoice.invoiceDate),

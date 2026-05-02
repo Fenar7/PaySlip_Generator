@@ -101,10 +101,10 @@ export async function generateStatement(params: {
     const invoiceTotalAmount = toAccountingNumber(inv.totalAmount);
     events.push({
       date: invoiceDate,
-      description: `Invoice ${inv.invoiceNumber}`,
+      description: `Invoice ${inv.invoiceNumber ?? "Draft"}`,
       debit: invoiceTotalAmount,
       credit: 0,
-      sortKey: `${invoiceDate}_0_${inv.invoiceNumber}`,
+      sortKey: `${invoiceDate}_0_${inv.invoiceNumber ?? "draft-0"}`,
     });
     totalInvoiced = roundMoney(totalInvoiced + invoiceTotalAmount);
 
@@ -116,10 +116,10 @@ export async function generateStatement(params: {
         const methodLabel = payment.method ? ` (${payment.method})` : "";
         events.push({
           date: paidDate,
-          description: `Payment — ${inv.invoiceNumber}${methodLabel}`,
+          description: `Payment — ${inv.invoiceNumber ?? "Draft"}${methodLabel}`,
           debit: 0,
           credit: paymentAmount,
-          sortKey: `${paidDate}_1_${inv.invoiceNumber}_${payment.id}`,
+          sortKey: `${paidDate}_1_${inv.invoiceNumber ?? "draft-0"}_${payment.id}`,
         });
         totalReceived = roundMoney(totalReceived + paymentAmount);
       }
@@ -135,10 +135,10 @@ export async function generateStatement(params: {
         const methodLabel = payment.method ? ` (${payment.method})` : "";
         events.push({
           date: paidDate,
-          description: `Payment — ${inv.invoiceNumber}${methodLabel}`,
+          description: `Payment — ${inv.invoiceNumber ?? "Draft"}${methodLabel}`,
           debit: 0,
           credit: paymentAmount,
-          sortKey: `${paidDate}_1_${inv.invoiceNumber}_${payment.id}`,
+          sortKey: `${paidDate}_1_${inv.invoiceNumber ?? "draft-0"}_${payment.id}`,
         });
         totalReceived = roundMoney(totalReceived + paymentAmount);
       }

@@ -50,7 +50,7 @@ export async function createInvoicePaymentLink(
   try {
     const link = await createPaymentLink({
       amount: amountPaise,
-      description: `Invoice ${invoice.invoiceNumber}`,
+      description: `Invoice ${invoice.invoiceNumber ?? "Draft"}`,
       referenceId: invoiceId,
       customer: invoice.customer
         ? {
