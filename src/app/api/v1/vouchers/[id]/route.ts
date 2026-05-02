@@ -62,14 +62,15 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
       throw new ApiError(ErrorCode.VALIDATION_ERROR, "Invalid JSON body.", 422);
     }
 
-    const { voucherDate, type, vendorId, formData, lines, status } = body;
+    const { voucherDate, type, vendorId, formData, lines } = body;
 
     const updateData: Record<string, unknown> = {};
     if (voucherDate !== undefined) updateData.voucherDate = voucherDate;
     if (type !== undefined) updateData.type = type;
     if (vendorId !== undefined) updateData.vendorId = vendorId;
     if (formData !== undefined) updateData.formData = formData;
-    if (status !== undefined) updateData.status = status;
+    // status is intentionally NOT updatable via PATCH — approval must
+    // go through the proper approval flow (Sprint 5.2 sequence engine).
 
     if (Array.isArray(lines)) {
       await db.voucherLine.deleteMany({ where: { voucherId: id } });

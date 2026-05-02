@@ -272,7 +272,7 @@ export async function saveVoucher(
 export async function updateVoucher(
   id: string,
   input: Partial<VoucherInput>
-): Promise<ActionResult<{ id: string }>> {
+): Promise<ActionResult<{ id: string; voucherNumber?: string }>> {
   try {
     const { orgId, userId } = await requireOrgContext();
     
@@ -300,6 +300,8 @@ export async function updateVoucher(
           allowPartial: (input.status ?? existing.status) === "draft",
         })
       : null;
+
+    let assignedVoucherNumber: string | undefined;
 
     await db.$transaction(async (tx) => {
       await tx.voucher.update({
@@ -338,6 +340,7 @@ export async function updateVoucher(
         // time via the sequence engine (or legacy fallback).
         if (!existing.voucherNumber) {
           const assigned = await assignNextVoucherNumber(orgId, input.voucherDate ?? new Date().toISOString().split("T")[0], tx);
+          assignedVoucherNumber = assigned.voucherNumber;
           await tx.voucher.update({
             where: { id },
             data: {
@@ -362,7 +365,9 @@ export async function updateVoucher(
 
     revalidatePath("/app/docs/vouchers");
     revalidatePath(`/app/docs/vouchers/${id}`);
-    return { success: true, data: { id } };
+    // Include the assigned voucherNumber when one was generated during
+    // approval, so the workspace can update live form/export state.
+    return { success: true, data: { id, voucherNumber: assignedVoucherNumber } };
   } catch (error) {
     if (isSchemaDriftError(error, "Voucher")) {
       console.warn(
