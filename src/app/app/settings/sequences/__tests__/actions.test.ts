@@ -114,7 +114,7 @@ describe("sequence settings actions", () => {
 
   it("previewResequence validates and delegates to admin service", async () => {
     mockPreviewResequencePreview.mockResolvedValue({
-      summary: { totalDocuments: 3, unchanged: 0, renumbered: 3, blocked: 0, skipped: 0 },
+      summary: { totalDocuments: 3, unchanged: 0, renumbered: 3, blocked: 0 },
       mappings: [
         {
           documentId: "inv-1",

@@ -106,8 +106,7 @@ export interface ResequencePreviewInput {
 export type ResequenceRecordStatus =
   | "unchanged"
   | "renumbered"
-  | "blocked"
-  | "skipped";
+  | "blocked";
 
 export interface ResequenceRecordMapping {
   documentId: string;
@@ -126,7 +125,6 @@ export interface ResequencePreviewSummary {
   unchanged: number;
   renumbered: number;
   blocked: number;
-  skipped: number;
 }
 
 export interface ResequencePreviewResult {

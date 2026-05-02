@@ -77,7 +77,7 @@ describe.skipIf(!dbReachable)("previewResequence integration", () => {
 
   it("previews renumbered mappings deterministically", async () => {
     const org = await createTestOrg();
-    const sequence = await createTestSequence(org.id);
+    await createTestSequence(org.id);
 
     await createInvoice(org.id, {
       invoiceNumber: "INV/2026/00042",
@@ -299,5 +299,47 @@ describe.skipIf(!dbReachable)("previewResequence integration", () => {
 
     expect(result.summary.totalDocuments).toBe(1);
     expect(result.mappings[0].oldNumber).toBe("INV/2026/00001");
+  });
+
+  it("lockDate prevents duplicate proposals from locked records", async () => {
+    const org = await createTestOrg();
+    await createTestSequence(org.id);
+
+    await createInvoice(org.id, {
+      invoiceNumber: "INV/2026/00001",
+      invoiceDate: new Date("2026-01-15"),
+    });
+    await createInvoice(org.id, {
+      invoiceNumber: "INV/2026/00002",
+      invoiceDate: new Date("2026-01-20"),
+    });
+    await createInvoice(org.id, {
+      invoiceNumber: "INV/2026/00099",
+      invoiceDate: new Date("2026-03-15"),
+    });
+
+    const result = await previewResequence({
+      orgId: org.id,
+      documentType: "INVOICE",
+      startDate: new Date("2026-01-01"),
+      endDate: new Date("2026-12-31"),
+      orderBy: "document_date",
+      lockDate: new Date("2026-02-28"),
+    });
+
+    // inv Jan 15 + Jan 20 are locked; inv Mar 15 should NOT be proposed as 00001
+    const blockedDocs = result.mappings.filter((m) => m.status === "blocked");
+    expect(blockedDocs).toHaveLength(2);
+
+    const unlocked = result.mappings.find((m) => m.status !== "blocked")!;
+    expect(unlocked.proposedNumber).not.toBe("INV/2026/00001");
+    expect(unlocked.proposedCounter).toBe(3);
+
+    // Verify no duplicate proposed numbers
+    const proposedNumbers = result.mappings
+      .filter((m) => m.proposedNumber !== null)
+      .map((m) => m.proposedNumber);
+    const uniqueProposed = new Set(proposedNumbers);
+    expect(uniqueProposed.size).toBe(proposedNumbers.length);
   });
 });

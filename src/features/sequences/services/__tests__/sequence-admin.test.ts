@@ -608,7 +608,7 @@ describe("sequence-admin", () => {
       });
 
       mockPreviewResequence.mockResolvedValue({
-        summary: { totalDocuments: 0, unchanged: 0, renumbered: 0, blocked: 0, skipped: 0 },
+        summary: { totalDocuments: 0, unchanged: 0, renumbered: 0, blocked: 0 },
         mappings: [],
         sequenceId: "seq-1",
         formatString: "INV/{YYYY}/{NNNNN}",

@@ -33,7 +33,7 @@ interface PeriodGroup {
  * constraints when a lockDate is provided.
  *
  * Returns a complete mapping of old → proposed numbers with classification
- * (unchanged / renumbered / blocked / skipped) and a summary count.
+ * (unchanged / renumbered / blocked) and a summary count.
  */
 export async function previewResequence(
   input: ResequencePreviewInput
@@ -101,8 +101,22 @@ export async function previewResequence(
     );
 
     for (const doc of sorted) {
-      if (lockDate && doc.documentDate <= lockDate) {
-        mappings.push(blockedMapping(doc, "Document date is on or before lock date", periodKey));
+      const dateLocked = lockDate && doc.documentDate <= lockDate;
+
+      // Locked documents remain blocked but their parseable counters still
+      // consume numbering space so unlocked documents downstream do not
+      // produce duplicate proposed numbers against preserved locked records.
+      if (dateLocked) {
+        const lockedParsedCounter = extractCounterFromFormat(
+          doc.oldNumber,
+          format.formatString
+        );
+        if (lockedParsedCounter !== null && lockedParsedCounter >= runningCounter) {
+          runningCounter = lockedParsedCounter + 1;
+        }
+        mappings.push(
+          blockedMapping(doc, "Document date is on or before lock date", periodKey, lockedParsedCounter)
+        );
         continue;
       }
 
@@ -155,8 +169,6 @@ export async function previewResequence(
 
       runningCounter++;
     }
-
-    blockOffset += blockOffset;
   }
 
   return buildResult(
@@ -175,7 +187,7 @@ function emptyResult(
   periodicity: SequencePeriodicity
 ): ResequencePreviewResult {
   return {
-    summary: { totalDocuments: 0, unchanged: 0, renumbered: 0, blocked: 0, skipped: 0 },
+    summary: { totalDocuments: 0, unchanged: 0, renumbered: 0, blocked: 0 },
     mappings: [],
     sequenceId,
     formatString,
@@ -186,7 +198,8 @@ function emptyResult(
 function blockedMapping(
   doc: DocumentRecord,
   reason: string,
-  periodKey: string
+  periodKey: string,
+  oldCounter: number | null = null
 ): ResequenceRecordMapping {
   return {
     documentId: doc.documentId,
@@ -195,7 +208,7 @@ function blockedMapping(
     proposedNumber: null,
     status: "blocked",
     reason,
-    oldCounter: null,
+    oldCounter,
     proposedCounter: null,
     periodKey,
   };
@@ -212,7 +225,6 @@ function buildResult(
     unchanged: 0,
     renumbered: 0,
     blocked: 0,
-    skipped: 0,
   };
 
   for (const m of mappings) {
@@ -225,9 +237,6 @@ function buildResult(
         break;
       case "blocked":
         summary.blocked++;
-        break;
-      case "skipped":
-        summary.skipped++;
         break;
     }
   }
