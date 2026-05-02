@@ -21,6 +21,15 @@ vi.mock("@/lib/auth", () => ({
 
 vi.mock("@/lib/docs", () => ({
   nextDocumentNumber: vi.fn(),
+  nextDocumentNumberTx: vi.fn(),
+}));
+
+vi.mock("@/features/sequences/services/sequence-engine", () => ({
+  consumeSequenceNumber: vi.fn(),
+}));
+
+vi.mock("@/features/sequences/services/sequence-admin", () => ({
+  getSequenceConfig: vi.fn().mockResolvedValue(null), // no sequence → fallback
 }));
 
 vi.mock("@/lib/prisma-errors", () => ({
@@ -54,7 +63,7 @@ vi.mock("@/lib/flow/workflow-engine", () => ({
 
 import { requireOrgContext } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { nextDocumentNumber } from "@/lib/docs";
+import { nextDocumentNumberTx } from "@/lib/docs";
 import { postVoucherTx } from "@/lib/accounting";
 import { checkUsageLimit } from "@/lib/usage-metering";
 import { saveVoucher, updateVoucher } from "../actions";
@@ -98,11 +107,11 @@ describe("voucher save actions", () => {
   });
 
   it("saves draft vouchers even when the current form only has partial lines", async () => {
-    vi.mocked(nextDocumentNumber).mockResolvedValue("VCH-001");
+    vi.mocked(nextDocumentNumberTx).mockResolvedValue("VCH-001");
     vi.mocked(db.voucher.create).mockResolvedValue({
       id: "voucher-1",
       voucherNumber: "VCH-001",
-      totalAmount: 0,
+      totalAmount: 1250,
       type: "payment",
     } as any);
 
@@ -162,12 +171,12 @@ describe("voucher save actions", () => {
   });
 
   it("posts approved vouchers once the normalized total is positive", async () => {
-    vi.mocked(nextDocumentNumber).mockResolvedValue("VCH-001");
+    vi.mocked(nextDocumentNumberTx).mockResolvedValue("VCH-001");
     vi.mocked(db.voucher.create).mockResolvedValue({
       id: "voucher-1",
       voucherNumber: "VCH-001",
       totalAmount: 1250,
-      type: "payment",
+      type: "draft",
     } as any);
     vi.mocked(db.voucher.findFirst).mockResolvedValue({
       id: "voucher-1",
