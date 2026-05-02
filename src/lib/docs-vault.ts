@@ -347,7 +347,7 @@ export async function syncVoucherToIndex(
     docType: "voucher",
     documentId: voucher.id,
     documentNumber: voucher.voucherNumber,
-    titleOrSummary: `${typeLabel} Voucher ${voucher.voucherNumber}`,
+    titleOrSummary: `${typeLabel} Voucher ${voucher.voucherNumber ?? "Draft"}`,
     counterpartyLabel: voucher.vendor?.name ?? null,
     status: voucher.status,
     primaryDate: new Date(voucher.voucherDate),

@@ -18,7 +18,7 @@ export interface VoucherReportFilters {
 
 export interface VoucherReportRow {
   id: string;
-  voucherNumber: string;
+  voucherNumber: string | null;
   type: string;
   voucherDate: string;
   vendorName: string;
