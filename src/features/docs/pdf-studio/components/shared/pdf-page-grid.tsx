@@ -80,6 +80,7 @@ function PdfPageThumbnail({
             : isSelected
               ? "border-[var(--accent)] ring-2 ring-[rgba(220,38,38,0.15)]"
               : "border-[var(--border-soft)] hover:shadow-md",
+        mode === "reorder" && "hover:ring-2 hover:ring-[var(--accent)] hover:ring-offset-1",
         (mode === "select" || mode === "delete") && "cursor-pointer"
       )}
       onClick={handleClick}
