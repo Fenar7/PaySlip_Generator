@@ -8,6 +8,10 @@ import type {
   ResequenceRecordMapping,
   ResequenceApplyInput,
   ResequenceApplyResult,
+  SequenceDiagnosticsInput,
+  SequenceDiagnosticsResult,
+  GapRecord,
+  IrregularityRecord,
   SequencePeriodicity,
 } from "../types";
 import { tokenize, validateFormat, extractCounterFromFormat } from "../engine/tokenizer";
@@ -42,6 +46,12 @@ export async function previewResequence(
   input: ResequencePreviewInput
 ): Promise<ResequencePreviewResult> {
   const { orgId, documentType, startDate, endDate, orderBy, lockDate } = input;
+
+  if (lockDate && startDate <= lockDate) {
+    throw new SequenceEngineError(
+      `Resequence window (${startDate.toISOString().slice(0, 10)} – ${endDate.toISOString().slice(0, 10)}) overlaps or precedes the lock date (${lockDate.toISOString().slice(0, 10)}). The entire window must be strictly after the lock date.`
+    );
+  }
 
   const sequence = await db.sequence.findFirst({
     where: { organizationId: orgId, documentType },
@@ -548,4 +558,113 @@ function deriveBoundariesForPeriodKey(
     return calculatePeriodBoundaries(d, "FINANCIAL_YEAR");
   }
   return { startDate: new Date(periodKey), endDate: new Date(periodKey) };
+}
+
+// ─── Diagnostics (Phase 6 / Sprint 6.3) ───────────────────────────────────────
+
+export async function diagnoseSequence(
+  input: SequenceDiagnosticsInput
+): Promise<SequenceDiagnosticsResult> {
+  const { orgId, documentType, startDate, endDate, lockDate } = input;
+
+  const sequence = await db.sequence.findFirst({
+    where: { organizationId: orgId, documentType },
+    include: { formats: { where: { isDefault: true }, take: 1 } },
+  });
+
+  if (!sequence) throw new SequenceNotFoundError(`No ${documentType} sequence for org ${orgId}`);
+
+  const format = sequence.formats[0];
+  if (!format) throw new SequenceEngineError(`Sequence ${sequence.id} has no default format`);
+
+  const validation = validateFormat(format.formatString);
+  if (!validation.valid) throw new SequenceEngineError(`Invalid format string: ${validation.errors.join(", ")}`);
+
+  const documents = await fetchFinalizedDocuments(orgId, documentType, startDate, endDate);
+
+  const groups = groupByPeriod(documents, sequence.periodicity, format.startCounter);
+
+  const gaps: GapRecord[] = [];
+  const irregularities: IrregularityRecord[] = [];
+
+  for (const group of groups) {
+    const periodKey = periodKeyLabel(group.boundaries.startDate, sequence.periodicity);
+
+    const parseable: { doc: (typeof documents)[0]; counter: number }[] = [];
+    const seenNumbers = new Set<string>();
+
+    for (const doc of group.documents) {
+      const parsedCounter = extractCounterFromFormat(doc.oldNumber, format.formatString);
+
+      if (lockDate && doc.documentDate <= lockDate) {
+        irregularities.push({
+          documentId: doc.documentId, documentDate: doc.documentDate, oldNumber: doc.oldNumber,
+          issue: "Document date is on or before lock date", severity: "warning",
+        });
+        continue;
+      }
+
+      if (seenNumbers.has(doc.oldNumber)) {
+        irregularities.push({
+          documentId: doc.documentId, documentDate: doc.documentDate, oldNumber: doc.oldNumber,
+          issue: "Duplicate official number within organization", severity: "critical",
+        });
+      }
+      seenNumbers.add(doc.oldNumber);
+
+      if (parsedCounter === null) {
+        irregularities.push({
+          documentId: doc.documentId, documentDate: doc.documentDate, oldNumber: doc.oldNumber,
+          issue: `Cannot parse existing number with format "${format.formatString}"`, severity: "warning",
+        });
+        continue;
+      }
+
+      parseable.push({ doc, counter: parsedCounter });
+    }
+
+    parseable.sort((a, b) => a.counter - b.counter);
+
+    // Detect out-of-order: counter is smaller than a previous document's counter
+    // despite a later date (counter should increase with date)
+    for (let i = 1; i < parseable.length; i++) {
+      if (parseable[i].doc.documentDate < parseable[i - 1].doc.documentDate) {
+        irregularities.push({
+          documentId: parseable[i].doc.documentId, documentDate: parseable[i].doc.documentDate,
+          oldNumber: parseable[i].doc.oldNumber,
+          issue: `Out-of-order counter ${parseable[i].counter} appears after counter ${parseable[i - 1].counter} with earlier date`,
+          severity: "warning",
+        });
+      }
+    }
+
+    for (let i = 1; i < parseable.length; i++) {
+      const prev = parseable[i - 1];
+      const curr = parseable[i];
+      const expectedCounter = prev.counter + 1;
+
+      if (curr.counter > expectedCounter) {
+        for (let missing = expectedCounter; missing < curr.counter; missing++) {
+          gaps.push({
+            periodKey,
+            missingCounter: missing,
+            beforeNumber: prev.doc.oldNumber,
+            afterNumber: curr.doc.oldNumber,
+          });
+        }
+      }
+    }
+  }
+
+  return {
+    summary: {
+      totalDocuments: documents.length,
+      gaps: gaps.length,
+      irregularities: irregularities.length,
+      warnings: irregularities.filter((r) => r.severity === "warning").length,
+      criticals: irregularities.filter((r) => r.severity === "critical").length,
+    },
+    gaps, irregularities,
+    sequenceId: sequence.id, formatString: format.formatString, periodicity: sequence.periodicity,
+  };
 }

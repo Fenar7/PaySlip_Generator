@@ -207,69 +207,34 @@ describe("previewResequence (unit)", () => {
     expect(blocked.reason).toContain("Cannot parse existing number");
   });
 
-  it("marks documents on or before lockDate as blocked", async () => {
+  it("rejects preview when window overlaps lock date", async () => {
+    mockDb.sequence.findFirst.mockResolvedValue(makeSequence());
+
+    await expect(
+      previewResequence({
+        orgId: ORG_ID, documentType: "INVOICE",
+        startDate: new Date("2026-01-01"), endDate: new Date("2026-12-31"),
+        orderBy: "document_date",
+        lockDate: new Date("2026-03-01"),
+      })
+    ).rejects.toThrow(/lock date/);
+  });
+
+  it("allows preview when window is strictly after lock date", async () => {
     mockDb.sequence.findFirst.mockResolvedValue(makeSequence());
     mockDb.invoice.findMany.mockResolvedValue([
-      makeInvoice("inv-1", "INV/2026/00001", "2026-01-15"),
-      makeInvoice("inv-2", "INV/2026/00002", "2026-03-15"),
-      makeInvoice("inv-3", "INV/2026/00003", "2026-06-01"),
+      makeInvoice("inv-1", "INV/2026/00001", "2026-06-15"),
+      makeInvoice("inv-2", "INV/2026/00002", "2026-07-15"),
     ]);
 
     const result = await previewResequence({
-      orgId: ORG_ID,
-      documentType: "INVOICE",
-      startDate: new Date("2026-01-01"),
-      endDate: new Date("2026-12-31"),
+      orgId: ORG_ID, documentType: "INVOICE",
+      startDate: new Date("2026-06-01"), endDate: new Date("2026-12-31"),
       orderBy: "document_date",
       lockDate: new Date("2026-03-01"),
     });
 
-    // inv-1 (Jan 15) is on or before lock date → blocked
-    // inv-2 (Mar 15) is after lock date → unchanged/renumbered
-    // inv-3 (Jun 1) is after lock date → unchanged/renumbered
-
-    const blockedDocs = result.mappings.filter((m) => m.status === "blocked");
-    expect(blockedDocs).toHaveLength(1);
-    expect(blockedDocs[0].documentId).toBe("inv-1");
-    expect(blockedDocs[0].reason).toContain("lock date");
-  });
-
-  it("lockDate does not allow duplicate proposed numbers against locked docs", async () => {
-    mockDb.sequence.findFirst.mockResolvedValue(makeSequence());
-    mockDb.invoice.findMany.mockResolvedValue([
-      makeInvoice("inv-1", "INV/2026/00001", "2026-01-15"),
-      makeInvoice("inv-2", "INV/2026/00002", "2026-01-20"),
-      makeInvoice("inv-3", "INV/2026/00099", "2026-03-15"),
-    ]);
-
-    const result = await previewResequence({
-      orgId: ORG_ID,
-      documentType: "INVOICE",
-      startDate: new Date("2026-01-01"),
-      endDate: new Date("2026-12-31"),
-      orderBy: "document_date",
-      lockDate: new Date("2026-02-28"),
-    });
-
-    // inv-1 (Jan 15): locked, parseable counter=1 → blocked, counter advances to 2
-    // inv-2 (Jan 20): locked, parseable counter=2 → blocked, counter advances to 3
-    // inv-3 (Mar 15): unlocked → proposed counter starts at 3, not 1
-    // Without fix: inv-3 would get counter 1 → "INV/2026/00001" which collides with locked inv-1
-
-    const blockedDocs = result.mappings.filter((m) => m.status === "blocked");
-    expect(blockedDocs).toHaveLength(2);
-
-    const unlocked = result.mappings.find((m) => m.documentId === "inv-3")!;
-    expect(unlocked.status).toBe("renumbered");
-    expect(unlocked.proposedCounter).toBe(3);
-    expect(unlocked.proposedNumber).toBe("INV/2026/00003");
-
-    // Verify no duplicate proposed numbers exist in the result
-    const proposedNumbers = result.mappings
-      .filter((m) => m.proposedNumber !== null)
-      .map((m) => m.proposedNumber);
-    const uniqueProposed = new Set(proposedNumbers);
-    expect(uniqueProposed.size).toBe(proposedNumbers.length);
+    expect(result.summary.blocked).toBe(0);
   });
 
   it("respects periodicity — counter resets per yearly period", async () => {

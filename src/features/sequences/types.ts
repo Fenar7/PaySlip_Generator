@@ -153,3 +153,37 @@ export interface ResequenceApplyResult {
   appliedDocumentIds: string[];
   preview: ResequencePreviewResult;
 }
+
+// ─── Diagnostics (Phase 6 / Sprint 6.3) ───────────────────────────────────────
+
+export interface SequenceDiagnosticsInput {
+  orgId: string;
+  documentType: SequenceDocumentType;
+  startDate: Date;
+  endDate: Date;
+  lockDate?: Date;
+}
+
+export interface GapRecord {
+  periodKey: string;
+  missingCounter: number;
+  beforeNumber: string | null;
+  afterNumber: string | null;
+}
+
+export interface IrregularityRecord {
+  documentId: string;
+  documentDate: Date;
+  oldNumber: string;
+  issue: string;
+  severity: "warning" | "critical";
+}
+
+export interface SequenceDiagnosticsResult {
+  summary: { totalDocuments: number; gaps: number; irregularities: number; warnings: number; criticals: number };
+  gaps: GapRecord[];
+  irregularities: IrregularityRecord[];
+  sequenceId: string;
+  formatString: string;
+  periodicity: SequencePeriodicity;
+}

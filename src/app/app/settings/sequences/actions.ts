@@ -7,6 +7,7 @@ import {
   getSequenceAuditHistory,
   previewResequencePreview,
   applyResequencePreview,
+  diagnoseSequence,
 } from "@/features/sequences/services/sequence-admin";
 import { previewSequenceNumber } from "@/features/sequences/services/sequence-engine";
 import type {
@@ -16,6 +17,8 @@ import type {
   ResequencePreviewResult,
   ResequenceApplyInput,
   ResequenceApplyResult,
+  SequenceDiagnosticsInput,
+  SequenceDiagnosticsResult,
 } from "@/features/sequences/types";
 import { ResequencePreviewInputSchema, ResequenceApplyInputSchema } from "@/features/sequences/schema";
 
@@ -155,4 +158,10 @@ export async function applyResequence(
 ): Promise<ResequenceApplyResult> {
   const parsed = ResequenceApplyInputSchema.parse(input);
   return applyResequencePreview(parsed);
+}
+
+export async function diagnoseSequenceHealth(
+  input: SequenceDiagnosticsInput
+): Promise<SequenceDiagnosticsResult> {
+  return diagnoseSequence(input);
 }

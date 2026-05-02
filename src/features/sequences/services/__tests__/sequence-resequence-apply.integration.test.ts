@@ -45,22 +45,17 @@ describe.skipIf(!dbReachable)("applyResequence integration", () => {
     expect((await db.invoice.findUnique({ where: { id: inv2.id } }))?.invoiceNumber).toBe("INV/2026/00002");
   });
 
-  it("does not modify blocked locked records", async () => {
+  it("rejects apply when startDate is on or before lockDate", async () => {
     const org = await createTestOrg();
     await createTestSequence(org.id);
-    const locked = await createInvoice(org.id, "INV/2026/00001", new Date("2026-01-15"));
-    const unlocked = await createInvoice(org.id, "INV/2026/00099", new Date("2026-03-15"));
-    const lockedInput = { ...baseInput(org.id), lockDate: new Date("2026-02-01") };
-    const fp = (await previewResequence(lockedInput)).previewFingerprint;
+    await createInvoice(org.id, "INV/2026/00042", new Date("2026-03-15"));
 
-    const result = await applyResequence(
-      { ...baseInput(org.id), lockDate: new Date("2026-02-01"), expectedFingerprint: fp },
-      { actorId: TEST_ACTOR_ID }
-    );
-    expect(result.summary.blocked).toBe(1);
-    expect(result.summary.applied).toBe(1);
-    expect((await db.invoice.findUnique({ where: { id: locked.id } }))?.invoiceNumber).toBe("INV/2026/00001");
-    expect((await db.invoice.findUnique({ where: { id: unlocked.id } }))?.invoiceNumber).toBe("INV/2026/00002");
+    await expect(
+      applyResequence(
+        { ...baseInput(org.id), lockDate: new Date("2026-06-01"), expectedFingerprint: "any" },
+        { actorId: TEST_ACTOR_ID }
+      )
+    ).rejects.toThrow(/lock date/);
   });
 
   it("does not modify unchanged records", async () => {
