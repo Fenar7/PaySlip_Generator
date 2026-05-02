@@ -3,6 +3,10 @@
 import type { Prisma } from "@/generated/prisma/client";
 import { db } from "@/lib/db";
 import { requireOrgContext } from "@/lib/auth";
+import { nextDocumentNumberTx } from "@/lib/docs";
+import { consumeSequenceNumber } from "@/features/sequences/services/sequence-engine";
+import { getSequenceConfig } from "@/features/sequences/services/sequence-admin";
+import type { ConsumeResult } from "@/features/sequences/types";
 import { formatIsoDate, toAccountingNumber } from "@/lib/accounting/utils";
 import {
   canDecideApprovalForDoc,
@@ -711,6 +715,48 @@ export async function approveRequest(
         });
 
         if (approval.docType === "voucher") {
+          // Phase 5 / Sprint 5.2: assign the official number at
+          // approval time via the sequence engine (or legacy fallback).
+          const draft = await tx.voucher.findUnique({
+            where: { id: approval.docId },
+            select: { voucherNumber: true, voucherDate: true },
+          });
+          let voucherNumber = draft?.voucherNumber;
+
+          if (!voucherNumber) {
+            const sequenceConfig = await getSequenceConfig({
+              orgId,
+              documentType: "VOUCHER",
+            });
+
+            if (sequenceConfig?.sequenceId) {
+              const docDate = new Date(
+                `${draft?.voucherDate ?? new Date().toISOString().split("T")[0]}T00:00:00`
+              );
+              const result: ConsumeResult = await consumeSequenceNumber({
+                sequenceId: sequenceConfig.sequenceId,
+                documentDate: docDate,
+                orgId,
+                tx,
+              });
+              voucherNumber = result.formattedNumber;
+              await tx.voucher.update({
+                where: { id: approval.docId },
+                data: {
+                  voucherNumber,
+                  sequenceId: sequenceConfig.sequenceId,
+                  sequencePeriodId: result.periodId,
+                  sequenceNumber: result.sequenceNumber,
+                },
+              });
+            } else {
+              voucherNumber = await nextDocumentNumberTx(tx, orgId, "voucher");
+              await tx.voucher.update({
+                where: { id: approval.docId },
+                data: { voucherNumber },
+              });
+            }
+          }
           await tx.voucher.update({ where: { id: approval.docId }, data: { status: "approved" } });
           await postVoucherTx(tx, { orgId, voucherId: approval.docId, actorId: userId });
         } else if (approval.docType === "salary-slip") {

@@ -14,7 +14,7 @@ interface Vendor {
 
 export type ExistingVoucher = {
   id: string;
-  voucherNumber: string;
+  voucherNumber: string | null;
   voucherDate: string;
   type: string;
   totalAmount: number;
@@ -41,7 +41,7 @@ export function VoucherBrandingWrapper({
   const initialValues: Partial<VoucherFormValues> | undefined = existingVoucher
     ? {
         ...(existingVoucher.formData as Partial<VoucherFormValues>),
-        voucherNumber: existingVoucher.voucherNumber,
+        voucherNumber: existingVoucher.voucherNumber ?? "",
         date: existingVoucher.voucherDate,
         voucherType: existingVoucher.type as "payment" | "receipt",
       }

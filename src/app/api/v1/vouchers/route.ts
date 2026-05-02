@@ -83,8 +83,8 @@ export async function POST(request: NextRequest) {
 
     const { voucherNumber, voucherDate, type, vendorId, formData, lines } = body;
 
-    if (!voucherNumber || !voucherDate) {
-      throw new ApiError(ErrorCode.VALIDATION_ERROR, "voucherNumber and voucherDate are required.", 422);
+    if (!voucherDate) {
+      throw new ApiError(ErrorCode.VALIDATION_ERROR, "voucherDate is required.", 422);
     }
 
     const totalAmount = Array.isArray(lines)
@@ -94,7 +94,7 @@ export async function POST(request: NextRequest) {
     const voucher = await db.voucher.create({
       data: {
         organizationId: auth.orgId,
-        voucherNumber,
+        voucherNumber: voucherNumber ?? null,
         voucherDate,
         type: type ?? "payment",
         status: "draft",
