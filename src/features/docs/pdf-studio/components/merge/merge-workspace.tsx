@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { Button, Input } from "@/components/ui";
 import { PdfUploadZone } from "@/features/docs/pdf-studio/components/shared/pdf-upload-zone";
@@ -20,6 +20,14 @@ import {
 } from "@/features/docs/pdf-studio/utils/pdf-page-operations";
 import { getPdfPageCount, readPdfPages } from "@/features/docs/pdf-studio/utils/pdf-reader";
 import { downloadPdfBytes } from "@/features/docs/pdf-studio/utils/zip-builder";
+import {
+  loadMergeSession,
+  saveMergeSession,
+  clearMergeSession,
+  buildMergeRestoreMessage,
+  type MergeSessionPage,
+  type MergeSessionSource,
+} from "@/features/docs/pdf-studio/utils/merge-session-storage";
 
 export function MergeWorkspace() {
   const analytics = usePdfStudioAnalytics("merge");
@@ -29,6 +37,62 @@ export function MergeWorkspace() {
   const [loading, setLoading] = useState(false);
   const [processing, setProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [sessionStatus, setSessionStatus] = useState<string | undefined>(undefined);
+  const [hasHydratedSession, setHasHydratedSession] = useState(false);
+
+  const sourceIdsInOrder = useMemo(
+    () => {
+      const seen = new Set<string>();
+      const result: string[] = [];
+      for (const page of pages) {
+        if (page.sourceDocumentId && !seen.has(page.sourceDocumentId)) {
+          seen.add(page.sourceDocumentId);
+          result.push(page.sourceDocumentId);
+        }
+      }
+      return result;
+    },
+    [pages],
+  );
+
+  useEffect(() => {
+    const timeout = window.setTimeout(() => {
+      const session = loadMergeSession();
+      if (session && session.pages.length > 0) {
+        const restoredSourceMap = new Map(session.sources.map((s) => [s.id, s]));
+        const restoredPages = session.pages.filter((p) => restoredSourceMap.has(p.sourceDocumentId)).map((p) => ({
+          id: p.id, pageIndex: p.pageIndex, originalPageNumber: p.originalPageNumber,
+          rotation: p.rotation, sourceDocumentId: p.sourceDocumentId,
+          sourceLabel: p.sourceLabel, sourcePdfName: p.sourcePdfName,
+          previewUrl: "", previewBytes: 0, widthPt: 612, heightPt: 792,
+        }));
+        if (restoredPages.length > 0) {
+          setPages(restoredPages);
+          if (session.filename) setFilename(session.filename);
+          setSourceDocuments(session.sources.map((s) => ({
+            id: s.id, name: s.name, bytes: new Uint8Array(0), pages: [],
+            sourceLabel: s.sourceLabel,
+          })));
+          setSessionStatus(buildMergeRestoreMessage(restoredPages.length, session.sources.length));
+        }
+      }
+      setHasHydratedSession(true);
+    }, 0);
+    return () => window.clearTimeout(timeout);
+  }, []);
+
+  useEffect(() => {
+    if (!hasHydratedSession) return;
+    const timeout = window.setTimeout(() => {
+      if (pages.length === 0) return;
+      saveMergeSession(
+        pages.map((p) => ({ id: p.id, pageIndex: p.pageIndex, originalPageNumber: p.originalPageNumber ?? p.pageIndex + 1, rotation: p.rotation ?? 0, sourceDocumentId: p.sourceDocumentId ?? "", sourceLabel: p.sourceLabel ?? "", sourcePdfName: p.sourcePdfName ?? "" })),
+        sourceDocuments.map((s) => ({ id: s.id, name: s.name, sourceLabel: s.sourceLabel, pageCount: s.pages.length })),
+        filename,
+      );
+    }, 600);
+    return () => window.clearTimeout(timeout);
+  }, [hasHydratedSession, pages, sourceDocuments, filename]);
 
   const handleFiles = useCallback(
     async (files: File[]) => {
@@ -88,6 +152,8 @@ export function MergeWorkspace() {
 
         setSourceDocuments(nextDocuments);
         setPages(nextPages);
+        clearMergeSession();
+        setSessionStatus(undefined);
         analytics.trackUpload({
           fileCount: uploadedDocuments.length,
           pageCount: nextPages.length,
@@ -110,6 +176,15 @@ export function MergeWorkspace() {
     setPages(reordered);
   }, []);
 
+  const handleRotate = useCallback((id: string) => {
+    setPages((prev) => prev.map((page) => page.id === id ? { ...page, rotation: ((page.rotation ?? 0) + 90) % 360 } : page));
+  }, []);
+
+  const handleDeletePage = useCallback((id: string) => {
+    setPages((prev) => prev.filter((page) => page.id !== id));
+    setError(null);
+  }, []);
+
   const handleRemoveSource = useCallback((sourceDocumentId: string) => {
     setSourceDocuments((prev) =>
       prev.filter((document) => document.id !== sourceDocumentId),
@@ -118,6 +193,28 @@ export function MergeWorkspace() {
       prev.filter((page) => page.sourceDocumentId !== sourceDocumentId),
     );
     setError(null);
+  }, []);
+
+  const handleMoveSource = useCallback((sourceDocumentId: string, direction: "up" | "down") => {
+    setPages((prev) => {
+      const sourceIds = new Set(prev.filter((p) => p.sourceDocumentId === sourceDocumentId).map((p) => p.id));
+      const nonSrc = prev.filter((p) => !sourceIds.has(p.id));
+      const srcPages = prev.filter((p) => sourceIds.has(p.id));
+      if (srcPages.length === 0) return prev;
+      const fst = prev.findIndex((p) => sourceIds.has(p.id));
+      const lst = prev.findLastIndex((p) => sourceIds.has(p.id));
+      if (direction === "up" && fst > 0) {
+        const abvId = prev[fst - 1].id;
+        const at = nonSrc.findIndex((p) => p.id === abvId);
+        const r = [...nonSrc]; r.splice(at, 0, ...srcPages); return r;
+      }
+      if (direction === "down" && lst < prev.length - 1) {
+        const blwId = prev[lst + 1].id;
+        const at = nonSrc.findIndex((p) => p.id === blwId);
+        const r = [...nonSrc]; r.splice(at + 1, 0, ...srcPages); return r;
+      }
+      return prev;
+    });
   }, []);
 
   const handleMerge = useCallback(async () => {
@@ -172,7 +269,11 @@ export function MergeWorkspace() {
     setSourceDocuments([]);
     setFilename("merged-document");
     setError(null);
+    setSessionStatus(undefined);
+    clearMergeSession();
   }, []);
+
+  const hasRotatedPages = useMemo(() => pages.some((p) => (p.rotation ?? 0) !== 0), [pages]);
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:px-8">
@@ -192,6 +293,12 @@ export function MergeWorkspace() {
           export.
         </p>
       </div>
+
+      {sessionStatus ? (
+        <div className="mb-4 rounded-xl border border-[var(--border-soft)] bg-white px-5 py-3 text-sm text-[var(--foreground-soft)] shadow-[var(--shadow-soft)]">
+          {sessionStatus}
+        </div>
+      ) : null}
 
       <PdfUploadZone
         onFiles={handleFiles}
@@ -218,6 +325,11 @@ export function MergeWorkspace() {
                 {sourceDocuments.length} file
                 {sourceDocuments.length !== 1 ? "s" : ""}
               </span>
+              {hasRotatedPages ? (
+                <span className="rounded-full border border-[var(--border-soft)] bg-[var(--surface-soft)] px-2 py-0.5 text-[0.65rem] text-[var(--muted-foreground)]">
+                  Rotations applied
+                </span>
+              ) : null}
               <button
                 onClick={handleClear}
                 className="text-xs text-[var(--muted-foreground)] underline transition-colors hover:text-red-600"
@@ -227,12 +339,15 @@ export function MergeWorkspace() {
             </div>
 
             <div className="flex items-center gap-3">
-              <Input
-                value={filename}
-                onChange={(event) => setFilename(event.target.value)}
-                placeholder="Filename"
-                className="h-9 w-52 text-sm"
-              />
+              <label className="flex items-center gap-2">
+                <span className="text-sm font-medium text-[var(--foreground)]">File Name</span>
+                <Input
+                  value={filename}
+                  onChange={(event) => setFilename(event.target.value)}
+                  placeholder="merged-document"
+                  className="h-9 w-52 text-sm"
+                />
+              </label>
               <Button
                 onClick={handleMerge}
                 disabled={processing || pages.length === 0}
@@ -243,39 +358,46 @@ export function MergeWorkspace() {
             </div>
           </div>
 
-          <div className="mt-4 flex flex-wrap gap-2">
-            {sourceDocuments.map((document) => (
-              <div
-                key={document.id}
-                className="inline-flex items-center gap-2 rounded-full border border-[var(--border-strong)] bg-white px-3 py-1.5 text-xs text-[var(--foreground)]"
-              >
-                <span className="font-medium">{document.sourceLabel}</span>
-                <span className="text-[var(--muted-foreground)]">
-                  {document.pages.length} page
-                  {document.pages.length !== 1 ? "s" : ""}
-                </span>
-                <button
-                  type="button"
-                  onClick={() => handleRemoveSource(document.id)}
-                  className="text-[var(--muted-foreground)] transition-colors hover:text-red-600"
-                  aria-label={`Remove ${document.name}`}
-                >
-                  ×
-                </button>
-              </div>
-            ))}
+          <div className="mt-4 space-y-2">
+            {sourceIdsInOrder.map((sourceId) => {
+              const doc = sourceDocuments.find((d) => d.id === sourceId);
+              if (!doc) return null;
+              const isFirst = sourceIdsInOrder.indexOf(sourceId) === 0;
+              const isLast = sourceIdsInOrder.indexOf(sourceId) === sourceIdsInOrder.length - 1;
+              return (
+                <div key={doc.id} className="flex items-center gap-2 rounded-lg border border-[var(--border-soft)] bg-white px-3 py-1.5">
+                  <div className="flex shrink-0 flex-col gap-0">
+                    <button type="button" onClick={() => handleMoveSource(doc.id, "up")} disabled={isFirst} className="flex h-4 w-4 items-center justify-center text-[var(--muted-foreground)] hover:text-[var(--foreground)] disabled:opacity-30" aria-label={"Move " + doc.sourceLabel + " up"}>
+                      <svg className="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="m18 15-6-6-6 6" /></svg>
+                    </button>
+                    <button type="button" onClick={() => handleMoveSource(doc.id, "down")} disabled={isLast} className="flex h-4 w-4 items-center justify-center text-[var(--muted-foreground)] hover:text-[var(--foreground)] disabled:opacity-30" aria-label={"Move " + doc.sourceLabel + " down"}>
+                      <svg className="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="m6 9 6 6 6-6" /></svg>
+                    </button>
+                  </div>
+                  <span className="text-xs font-medium text-[var(--foreground)]">{doc.sourceLabel}</span>
+                  <span className="text-[0.65rem] text-[var(--muted-foreground)]">{doc.pages.length} pg</span>
+                  <button type="button" onClick={() => handleRemoveSource(doc.id)} className="ml-auto text-[var(--muted-foreground)] hover:text-red-600" aria-label={"Remove " + doc.name}>
+                    ×
+                  </button>
+                </div>
+              );
+            })}
           </div>
 
-          <p className="mt-3 text-xs text-[var(--muted-foreground)]">
-            Drag pages to reorder them. The source badge under each thumbnail
-            shows which uploaded file that page came from.
-          </p>
+          <div className="mt-3 rounded-lg border border-[var(--border-soft)] bg-[var(--surface-soft)] px-3.5 py-2.5 text-xs leading-5 text-[var(--muted-foreground)]">
+            <p className="flex items-center gap-1.5">
+              <svg className="h-3.5 w-3.5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2 2 7l10 5 10-5-10-5z" /><path d="M2 17 12 22l10-5" /><path d="M2 12 12 17l10-5" /></svg>
+              Drag any page to reorder. Hover to rotate or delete. Use arrows on source files to move all pages together.
+            </p>
+          </div>
 
           <div className="mt-4">
             <PdfPageGrid
               pages={pages}
               mode="reorder"
               onReorder={handleReorder}
+              onRotate={handleRotate}
+              onDeletePage={handleDeletePage}
             />
           </div>
         </>
