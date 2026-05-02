@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
 import { db } from "@/lib/db";
+import { performIssueInvoice } from "@/app/app/docs/invoices/actions";
 import { dispatchEvent } from "@/lib/webhook/deliver";
 import {
   authenticateApiRequest,
@@ -33,22 +34,26 @@ export async function POST(request: NextRequest, context: RouteContext) {
       throw new ApiError(ErrorCode.VALIDATION_ERROR, "Only DRAFT invoices can be sent.", 422);
     }
 
-    const updated = await db.invoice.update({
-      where: { id },
-      data: { status: "ISSUED", issuedAt: new Date() },
-    });
+    // Reuse the authoritative issue lifecycle so the API path includes
+    // all required side effects (state event, public token, accounting,
+    // inventory, workflow, event emission, index sync).
+    const { invoiceNumber } = await performIssueInvoice(
+      auth.orgId,
+      `api:${auth.apiKeyId}`,
+      id,
+    );
 
     dispatchEvent(auth.orgId, "invoice.sent", {
-      id: updated.id,
-      invoiceNumber: updated.invoiceNumber,
-      status: updated.status,
+      id,
+      invoiceNumber,
+      status: "ISSUED",
     }).catch(() => {});
 
     const resp = apiResponse({
-      id: updated.id,
-      invoiceNumber: updated.invoiceNumber,
-      status: updated.status,
-      issuedAt: updated.issuedAt,
+      id,
+      invoiceNumber,
+      status: "ISSUED",
+      issuedAt: new Date(),
     });
     logApiRequest(auth.orgId, auth.apiKeyId, "POST", `/api/v1/invoices/${id}/send`, 200, Date.now() - start, getClientIp(request));
     return resp;

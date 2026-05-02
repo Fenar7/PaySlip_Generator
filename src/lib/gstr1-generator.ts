@@ -216,7 +216,7 @@ export async function generateGSTR1(
       const ctin = customerGstin!;
       const entry = b2bMap.get(ctin) ?? { ctin, inv: [] };
       entry.inv.push({
-        inum: invoice.invoiceNumber,
+        inum: invoice.invoiceNumber ?? (() => { throw new Error("GSTR1 cannot be generated for an invoice with no official number"); })(),
         idt: invoiceDateFormatted,
         val: round(invoiceTotal),
         pos: customerState,
@@ -229,7 +229,7 @@ export async function generateGSTR1(
       const pos = customerState;
       const entry = b2clMap.get(pos) ?? { pos, inv: [] };
       entry.inv.push({
-        inum: invoice.invoiceNumber,
+        inum: invoice.invoiceNumber ?? (() => { throw new Error("GSTR1 cannot be generated for an invoice with no official number"); })(),
         idt: invoiceDateFormatted,
         val: round(invoiceTotal),
         itms: invoiceItems.map((item) => ({

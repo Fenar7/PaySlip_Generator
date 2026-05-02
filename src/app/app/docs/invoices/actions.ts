@@ -830,116 +830,132 @@ function canTransition(from: string, to: string): boolean {
 
 // ─── Status Transitions ───────────────────────────────────────────────────────
 
-export async function issueInvoice(id: string): Promise<ActionResult<void>> {
-  try {
-    const { orgId, userId } = await requireOrgContext();
+/**
+ * Execute the full issue lifecycle for a draft invoice.
+ *
+ * This is the authoritative issue path.  It is called by both the
+ * web-app `issueInvoice` server action and the API v1 send endpoint
+ * so that no issued invoice can skip critical side effects (state
+ * event, public token, accounting posting, inventory dispatch,
+ * workflow trigger, event emission, index sync).
+ *
+ * The caller is responsible for authz (org scoping, status check)
+ * before invoking this helper.
+ */
+export async function performIssueInvoice(
+  orgId: string,
+  actorId: string,
+  invoiceId: string,
+): Promise<{ invoiceNumber: string }> {
+  const existing = await db.invoice.findFirst({
+    where: { id: invoiceId, organizationId: orgId },
+    include: { lineItems: { where: { inventoryItemId: { not: null } } } },
+  });
 
-    const existing = await db.invoice.findFirst({
-      where: { id, organizationId: orgId },
-      include: { lineItems: { where: { inventoryItemId: { not: null } } } },
-    });
+  if (!existing) {
+    throw new Error("Invoice not found");
+  }
 
-    if (!existing) {
-      return { success: false, error: "Invoice not found" };
+  if (!canTransition(existing.status, "ISSUED")) {
+    throw new Error(`Cannot issue invoice in ${existing.status} status`);
+  }
+
+  let invoiceNumber: string;
+  let issueSequenceId: string | null = null;
+  let issuePeriodId: string | null = null;
+  let issueSequenceNumber: number | null = null;
+
+  await db.$transaction(async (tx) => {
+    if (!existing.invoiceNumber) {
+      const docDate = new Date(existing.invoiceDate);
+      const assigned = await assignNextInvoiceNumber(orgId, docDate, tx);
+      invoiceNumber = assigned.invoiceNumber;
+      issueSequenceId = assigned.sequenceId;
+      issuePeriodId = assigned.sequencePeriodId;
+      issueSequenceNumber = assigned.sequenceNumber;
+    } else {
+      invoiceNumber = existing.invoiceNumber;
     }
 
-    if (!canTransition(existing.status, "ISSUED")) {
-      return { success: false, error: `Cannot issue invoice in ${existing.status} status` };
-    }
-
-    // Phase 4 / Sprint 4.2: assign the official invoice number at issue
-    // time via the sequence engine (or legacy fallback).  Drafts that
-    // already received a number (e.g. via direct ISSUED create) are
-    // left untouched — no double-consumption.
-    let invoiceNumber: string;
-    let issueSequenceId: string | null = null;
-    let issuePeriodId: string | null = null;
-    let issueSequenceNumber: number | null = null;
-
-    await db.$transaction(async (tx) => {
-      if (!existing.invoiceNumber) {
-        const docDate = new Date(existing.invoiceDate);
-        const assigned = await assignNextInvoiceNumber(orgId, docDate, tx);
-        invoiceNumber = assigned.invoiceNumber;
-        issueSequenceId = assigned.sequenceId;
-        issuePeriodId = assigned.sequencePeriodId;
-        issueSequenceNumber = assigned.sequenceNumber;
-      } else {
-        invoiceNumber = existing.invoiceNumber;
-      }
-
-      await tx.invoice.update({
-        where: { id },
-        data: {
-          status: "ISSUED",
-          issuedAt: new Date(),
-          ...(!existing.invoiceNumber
-            ? {
-                invoiceNumber,
-                sequenceId: issueSequenceId,
-                sequencePeriodId: issuePeriodId,
-                sequenceNumber: issueSequenceNumber,
-              }
-            : {}),
-        },
-      });
-
-      await tx.invoiceStateEvent.create({
-        data: {
-          invoiceId: id,
-          fromStatus: existing.status,
-          toStatus: "ISSUED",
-          actorId: userId,
-        },
-      });
-
-      await tx.publicInvoiceToken.create({
-        data: {
-          invoiceId: id,
-          orgId,
-          token: crypto.randomUUID(),
-        },
-      });
-
-      await postInvoiceIssueTx(tx, {
-        orgId,
-        invoiceId: id,
-        actorId: userId,
-      });
-
-      await dispatchInvoiceInventoryTx(tx, {
-        orgId,
-        actorId: userId,
-        invoiceId: id,
-        lineItems: existing.lineItems,
-      });
-    });
-
-    // Phase 17.4: Hook workflow trigger
-    await fireWorkflowTrigger({
-      triggerType: "invoice.issued",
-      orgId,
-      sourceModule: "invoices",
-      sourceEntityType: "Invoice",
-      sourceEntityId: id,
-      actorId: userId,
-      payload: {
-        invoiceNumber,
-        totalAmount: existing.totalAmount,
-        customerId: existing.customerId,
+    await tx.invoice.update({
+      where: { id: invoiceId },
+      data: {
+        status: "ISSUED",
+        issuedAt: new Date(),
+        ...(!existing.invoiceNumber
+          ? {
+              invoiceNumber,
+              sequenceId: issueSequenceId,
+              sequencePeriodId: issuePeriodId,
+              sequenceNumber: issueSequenceNumber,
+            }
+          : {}),
       },
     });
 
-    await Promise.all([
-      emitInvoiceEvent(orgId, id, "issued", {
-        actorId: userId,
-        metadata: { invoiceNumber },
-      }),
-      syncInvoiceRecordToIndex(orgId, id),
-    ]);
+    await tx.invoiceStateEvent.create({
+      data: {
+        invoiceId,
+        fromStatus: existing.status,
+        toStatus: "ISSUED",
+        actorId,
+      },
+    });
 
-    revalidatePath("/app/docs/invoices");
-    revalidatePath(`/app/docs/invoices/${id}`);
+    await tx.publicInvoiceToken.create({
+      data: {
+        invoiceId,
+        orgId,
+        token: crypto.randomUUID(),
+      },
+    });
+
+    await postInvoiceIssueTx(tx, {
+      orgId,
+      invoiceId,
+      actorId,
+    });
+
+    await dispatchInvoiceInventoryTx(tx, {
+      orgId,
+      actorId,
+      invoiceId,
+      lineItems: existing.lineItems,
+    });
+  });
+
+  await fireWorkflowTrigger({
+    triggerType: "invoice.issued",
+    orgId,
+    sourceModule: "invoices",
+    sourceEntityType: "Invoice",
+    sourceEntityId: invoiceId,
+    actorId,
+    payload: {
+      invoiceNumber,
+      totalAmount: existing.totalAmount,
+      customerId: existing.customerId,
+    },
+  });
+
+  await Promise.all([
+    emitInvoiceEvent(orgId, invoiceId, "issued", {
+      actorId,
+      metadata: { invoiceNumber },
+    }),
+    syncInvoiceRecordToIndex(orgId, invoiceId),
+  ]);
+
+  revalidatePath("/app/docs/invoices");
+  revalidatePath(`/app/docs/invoices/${invoiceId}`);
+
+  return { invoiceNumber };
+}
+
+export async function issueInvoice(id: string): Promise<ActionResult<void>> {
+  try {
+    const { orgId, userId } = await requireOrgContext();
+    await performIssueInvoice(orgId, userId, id);
     return { success: true, data: undefined };
   } catch (error) {
     console.error("issueInvoice error:", error);
