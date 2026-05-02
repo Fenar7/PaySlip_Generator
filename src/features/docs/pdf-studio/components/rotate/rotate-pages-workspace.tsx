@@ -73,6 +73,9 @@ export function RotatePagesWorkspace() {
   }, [analytics]);
 
   const toggleSelection = useCallback((id: string) => {
+    if (processing) {
+      return;
+    }
     setSelectedIds((prev) => {
       const next = new Set(prev);
       if (next.has(id)) {
@@ -82,29 +85,41 @@ export function RotatePagesWorkspace() {
       }
       return next;
     });
-  }, []);
+  }, [processing]);
 
   const rotateSelection = useCallback((delta: 90 | -90) => {
+    if (processing) {
+      return;
+    }
     const targetIds =
       selectedIds.size > 0 ? selectedIds : new Set(pages.map((page) => page.id));
     setPages((prev) => rotatePdfPageDescriptors(prev, targetIds, delta));
     setError(null);
-  }, [pages, selectedIds]);
+  }, [pages, processing, selectedIds]);
 
   const handleSelectAll = useCallback(() => {
+    if (processing) {
+      return;
+    }
     setSelectedIds(new Set(pages.map((page) => page.id)));
-  }, [pages]);
+  }, [pages, processing]);
 
   const handleClearSelection = useCallback(() => {
+    if (processing) {
+      return;
+    }
     setSelectedIds(new Set());
-  }, []);
+  }, [processing]);
 
   const handleClear = useCallback(() => {
+    if (processing) {
+      return;
+    }
     setSourceDocument(null);
     setPages([]);
     setSelectedIds(new Set());
     setError(null);
-  }, []);
+  }, [processing]);
 
   const handleDownload = useCallback(async () => {
     if (!sourceDocument || pages.length === 0) {
@@ -184,6 +199,7 @@ export function RotatePagesWorkspace() {
               </span>
               <button
                 onClick={handleClear}
+                disabled={processing}
                 className="text-xs text-[var(--muted-foreground)] underline transition-colors hover:text-red-600"
               >
                 Change file
@@ -191,14 +207,14 @@ export function RotatePagesWorkspace() {
             </div>
 
             <div className="flex flex-wrap items-center gap-2">
-              <Button variant="ghost" size="sm" onClick={handleSelectAll}>
+              <Button variant="ghost" size="sm" onClick={handleSelectAll} disabled={processing}>
                 Select all
               </Button>
               <Button
                 variant="ghost"
                 size="sm"
                 onClick={handleClearSelection}
-                disabled={selectedIds.size === 0}
+                disabled={selectedIds.size === 0 || processing}
               >
                 Clear selection
               </Button>
@@ -210,6 +226,7 @@ export function RotatePagesWorkspace() {
             scope={rotateScope}
             selectedCount={selectedIds.size}
             totalCount={pages.length}
+            disabled={processing}
             onRotateLeft={() => rotateSelection(-90)}
             onRotateRight={() => rotateSelection(90)}
           />
@@ -225,11 +242,18 @@ export function RotatePagesWorkspace() {
             </Button>
           </div>
 
+          {processing ? (
+            <p className="mt-2 text-right text-xs text-[var(--muted-foreground)]">
+              Exporting the current rotation state. Editing is temporarily disabled.
+            </p>
+          ) : null}
+
           {/* Page grid */}
           <div className="mt-4">
             <PdfPageGrid
               pages={pages}
               mode="select"
+              disabled={processing}
               selectedIds={selectedIds}
               onToggleSelect={toggleSelection}
             />
@@ -244,6 +268,7 @@ interface RotateScopeIndicatorProps {
   scope: "selection" | "all";
   selectedCount: number;
   totalCount: number;
+  disabled?: boolean;
   onRotateLeft: () => void;
   onRotateRight: () => void;
 }
@@ -252,6 +277,7 @@ function RotateScopeIndicator({
   scope,
   selectedCount,
   totalCount,
+  disabled = false,
   onRotateLeft,
   onRotateRight,
 }: RotateScopeIndicatorProps) {
@@ -312,10 +338,10 @@ function RotateScopeIndicator({
       </div>
 
       <div className="flex items-center gap-2">
-        <Button variant="outline" size="sm" onClick={onRotateLeft}>
+        <Button variant="outline" size="sm" onClick={onRotateLeft} disabled={disabled}>
           ↺ Rotate left
         </Button>
-        <Button variant="outline" size="sm" onClick={onRotateRight}>
+        <Button variant="outline" size="sm" onClick={onRotateRight} disabled={disabled}>
           ↻ Rotate right
         </Button>
       </div>

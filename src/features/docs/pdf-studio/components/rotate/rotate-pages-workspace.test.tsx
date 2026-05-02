@@ -1,8 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { render, screen, fireEvent, act } from "@testing-library/react";
+import { render, screen, fireEvent, act, waitFor } from "@testing-library/react";
 
 vi.mock("@/features/docs/pdf-studio/utils/pdf-reader", () => ({
   readPdfPages: vi.fn(),
+}));
+const { mockExportPdfFromPageDescriptors } = vi.hoisted(() => ({
+  mockExportPdfFromPageDescriptors: vi.fn().mockResolvedValue(new Uint8Array()),
 }));
 vi.mock("@/features/docs/pdf-studio/utils/pdf-page-operations", async () => {
   const actual = await vi.importActual<
@@ -10,7 +13,7 @@ vi.mock("@/features/docs/pdf-studio/utils/pdf-page-operations", async () => {
   >("@/features/docs/pdf-studio/utils/pdf-page-operations");
   return {
     ...actual,
-    exportPdfFromPageDescriptors: vi.fn().mockResolvedValue(new Uint8Array()),
+    exportPdfFromPageDescriptors: mockExportPdfFromPageDescriptors,
   };
 });
 vi.mock("@/features/docs/pdf-studio/utils/zip-builder", () => ({
@@ -94,11 +97,16 @@ async function loadFile(pageCount: number) {
   await act(async () => {
     fireEvent.change(input, { target: { files: [file] } });
   });
+
+  await waitFor(() =>
+    expect(screen.getByTestId("rotate-scope-indicator")).toBeInTheDocument()
+  );
 }
 
 describe("RotatePagesWorkspace", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockExportPdfFromPageDescriptors.mockResolvedValue(new Uint8Array());
   });
 
   it("shows upload zone before a file is loaded", () => {
@@ -109,9 +117,6 @@ describe("RotatePagesWorkspace", () => {
   it("scope indicator defaults to whole-document when no pages are selected", async () => {
     await loadFile(3);
 
-    const indicator = screen.queryByTestId("rotate-scope-indicator");
-    if (!indicator) return; // upload zone interaction didn't complete — acceptable in jsdom
-
     const label = screen.getByTestId("rotate-scope-label");
     expect(label.textContent).toMatch(/No pages selected/);
     expect(label.textContent).toMatch(/entire document/);
@@ -120,9 +125,6 @@ describe("RotatePagesWorkspace", () => {
 
   it("scope indicator updates to selection scope after Select all", async () => {
     await loadFile(3);
-
-    const indicator = screen.queryByTestId("rotate-scope-indicator");
-    if (!indicator) return;
 
     fireEvent.click(screen.getByRole("button", { name: /select all/i }));
 
@@ -133,9 +135,6 @@ describe("RotatePagesWorkspace", () => {
 
   it("Clear selection reverts scope to whole-document", async () => {
     await loadFile(2);
-
-    const indicator = screen.queryByTestId("rotate-scope-indicator");
-    if (!indicator) return;
 
     fireEvent.click(screen.getByRole("button", { name: /select all/i }));
     fireEvent.click(screen.getByRole("button", { name: /clear selection/i }));
@@ -148,9 +147,6 @@ describe("RotatePagesWorkspace", () => {
   it("Clear selection button is disabled when no selection exists", async () => {
     await loadFile(2);
 
-    const indicator = screen.queryByTestId("rotate-scope-indicator");
-    if (!indicator) return;
-
     const clearBtn = screen.getByRole("button", { name: /clear selection/i });
     expect(clearBtn).toBeDisabled();
   });
@@ -158,10 +154,64 @@ describe("RotatePagesWorkspace", () => {
   it("scope indicator shows rotate left and rotate right buttons", async () => {
     await loadFile(2);
 
-    const indicator = screen.queryByTestId("rotate-scope-indicator");
-    if (!indicator) return;
-
     expect(screen.getByRole("button", { name: /rotate left/i })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /rotate right/i })).toBeInTheDocument();
+  });
+
+  it("disables mutating controls while export is in progress", async () => {
+    await loadFile(2);
+
+    let resolveExport: ((value: Uint8Array) => void) | null = null;
+    mockExportPdfFromPageDescriptors.mockImplementationOnce(
+      () =>
+        new Promise<Uint8Array>((resolve) => {
+          resolveExport = resolve;
+        })
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /download rotated pdf/i }));
+
+    await waitFor(() =>
+      expect(screen.getByText(/editing is temporarily disabled/i)).toBeInTheDocument()
+    );
+
+    expect(screen.getByRole("button", { name: /select all/i })).toBeDisabled();
+    expect(screen.getByRole("button", { name: /clear selection/i })).toBeDisabled();
+    expect(screen.getByRole("button", { name: /rotate left/i })).toBeDisabled();
+    expect(screen.getByRole("button", { name: /rotate right/i })).toBeDisabled();
+    expect(screen.getByRole("button", { name: /exporting/i })).toBeDisabled();
+    expect(screen.getByRole("button", { name: /change file/i })).toBeDisabled();
+
+    await act(async () => {
+      resolveExport?.(new Uint8Array());
+    });
+
+    await waitFor(() =>
+      expect(screen.queryByText(/editing is temporarily disabled/i)).not.toBeInTheDocument()
+    );
+  });
+
+  it("freezes page selection while export is in progress", async () => {
+    await loadFile(2);
+
+    let resolveExport: ((value: Uint8Array) => void) | null = null;
+    mockExportPdfFromPageDescriptors.mockImplementationOnce(
+      () =>
+        new Promise<Uint8Array>((resolve) => {
+          resolveExport = resolve;
+        })
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /download rotated pdf/i }));
+    await waitFor(() =>
+      expect(screen.getByText(/editing is temporarily disabled/i)).toBeInTheDocument()
+    );
+
+    fireEvent.click(screen.getByAltText("Page 1"));
+    expect(screen.getByTestId("rotate-scope-label").textContent).toMatch(/No pages selected/);
+
+    await act(async () => {
+      resolveExport?.(new Uint8Array());
+    });
   });
 });
