@@ -3,6 +3,7 @@
 import type { Prisma } from "@/generated/prisma/client";
 import { db } from "@/lib/db";
 import { requireOrgContext } from "@/lib/auth";
+import { nextDocumentNumberTx } from "@/lib/docs";
 import { formatIsoDate, toAccountingNumber } from "@/lib/accounting/utils";
 import {
   canDecideApprovalForDoc,
@@ -711,6 +712,21 @@ export async function approveRequest(
         });
 
         if (approval.docType === "voucher") {
+          // Phase 5 / Sprint 5.1: drafts may have null voucherNumber.
+          // Assign the next official number before transition so no
+          // approved voucher is left unnumbered. Sprint 5.2 replaces
+          // this stopgap with the sequence engine.
+          let voucherNumber = (await tx.voucher.findUnique({
+            where: { id: approval.docId },
+            select: { voucherNumber: true },
+          }))?.voucherNumber;
+          if (!voucherNumber) {
+            voucherNumber = await nextDocumentNumberTx(tx, orgId, "voucher");
+            await tx.voucher.update({
+              where: { id: approval.docId },
+              data: { voucherNumber },
+            });
+          }
           await tx.voucher.update({ where: { id: approval.docId }, data: { status: "approved" } });
           await postVoucherTx(tx, { orgId, voucherId: approval.docId, actorId: userId });
         } else if (approval.docType === "salary-slip") {
