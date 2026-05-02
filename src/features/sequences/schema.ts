@@ -106,3 +106,16 @@ export const ResequenceApplyInputSchema = z.object({
 });
 
 export type ResequenceApplyInput = z.infer<typeof ResequenceApplyInputSchema>;
+
+// ─── Diagnostics (Phase 7 / Sprint 7.2) ──────────────────────────────────────
+
+export const SequenceDiagnosticsInputSchema = z.object({
+  orgId: z.string().min(1),
+  documentType: SequenceDocumentTypeSchema,
+  startDate: z.coerce.date(),
+  endDate: z.coerce.date(),
+  lockDate: z.coerce.date().optional(),
+}).refine((val) => val.startDate <= val.endDate, {
+  message: "startDate must be on or before endDate",
+  path: ["startDate"],
+});

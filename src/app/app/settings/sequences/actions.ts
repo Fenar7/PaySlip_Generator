@@ -8,7 +8,10 @@ import {
   previewResequencePreview,
   applyResequencePreview,
   diagnoseSequence,
+  getSequenceSupportOverview,
+  runHealthCheck,
 } from "@/features/sequences/services/sequence-admin";
+import type { SequenceSupportOverview } from "@/features/sequences/services/sequence-admin";
 import { previewSequenceNumber } from "@/features/sequences/services/sequence-engine";
 import type {
   SequenceDocumentType,
@@ -19,8 +22,9 @@ import type {
   ResequenceApplyResult,
   SequenceDiagnosticsInput,
   SequenceDiagnosticsResult,
+  HealthCheckReport,
 } from "@/features/sequences/types";
-import { ResequencePreviewInputSchema, ResequenceApplyInputSchema } from "@/features/sequences/schema";
+import { ResequencePreviewInputSchema, ResequenceApplyInputSchema, SequenceDiagnosticsInputSchema } from "@/features/sequences/schema";
 
 export interface SequenceSettingsData {
   documentType: SequenceDocumentType;
@@ -163,5 +167,20 @@ export async function applyResequence(
 export async function diagnoseSequenceHealth(
   input: SequenceDiagnosticsInput
 ): Promise<SequenceDiagnosticsResult> {
-  return diagnoseSequence(input);
+  const parsed = SequenceDiagnosticsInputSchema.parse(input);
+  return diagnoseSequence(parsed);
+}
+
+export async function getSupportOverview(
+  orgId: string,
+  documentType: SequenceDocumentType
+): Promise<SequenceSupportOverview | null> {
+  return getSequenceSupportOverview({ orgId, documentType });
+}
+
+export async function runSequenceHealthCheck(
+  orgId: string,
+  documentType: SequenceDocumentType
+): Promise<HealthCheckReport> {
+  return runHealthCheck({ orgId, documentType });
 }
