@@ -595,13 +595,14 @@ export async function diagnoseSequence(
 
     for (const doc of group.documents) {
       const parsedCounter = extractCounterFromFormat(doc.oldNumber, format.formatString);
+      let docLocked = false;
 
       if (lockDate && doc.documentDate <= lockDate) {
         irregularities.push({
           documentId: doc.documentId, documentDate: doc.documentDate, oldNumber: doc.oldNumber,
           issue: "Document date is on or before lock date", severity: "warning",
         });
-        continue;
+        docLocked = true;
       }
 
       if (seenNumbers.has(doc.oldNumber)) {
@@ -619,6 +620,9 @@ export async function diagnoseSequence(
         });
         continue;
       }
+
+      // Locked/blocked docs do not participate in gap or ordering analysis
+      if (docLocked) continue;
 
       parseable.push({ doc, counter: parsedCounter });
     }

@@ -97,7 +97,8 @@ describe.skipIf(!dbReachable)("applyResequence integration", () => {
     expect(fresh?.sequencePeriodId).toBeTruthy();
     expect(fresh?.sequenceNumber).toBe(1);
 
-    const period = await db.sequencePeriod.findUnique({ where: { id: fresh?.sequencePeriodId! } });
+    const periodId = fresh?.sequencePeriodId;
+    const period = periodId ? await db.sequencePeriod.findUnique({ where: { id: periodId } }) : null;
     expect(period?.startDate.getFullYear()).toBe(2026);
   });
 
@@ -116,7 +117,7 @@ describe.skipIf(!dbReachable)("applyResequence integration", () => {
 
   it("links multi-period documents to correct sequencePeriodId", async () => {
     const org = await createTestOrg();
-    const seq = await createTestSequence(org.id);
+    await createTestSequence(org.id);
     await createInvoice(org.id, "INV/2025/00042", new Date("2025-12-15"));
     await createInvoice(org.id, "INV/2026/00099", new Date("2026-03-15"));
 

@@ -80,9 +80,11 @@ describe("applyResequence", () => {
     mockDb.invoice.findMany.mockResolvedValue([makeInvoice("inv-1", "INV/2026/00001", "2026-03-15"), makeInvoice("inv-2", "BROKEN-FORMAT", "2026-03-16")]);
 
     const result = await applyResequence({ ...baseInput, expectedFingerprint: fp }, auditParams);
-    // inv-1 matches format correctly (unchanged/renumbered); inv-2 is blocked
-    expect(result.summary.blocked >= 0).toBe(true);
-    // Only renumbered or unchanged docs are applied; blocked doc not counted as applied
+    // inv-2 is unparseable → blocked. inv-1 is unchanged → not applied.
+    // Blocked records must NOT appear in appliedDocumentIds.
+    expect(result.appliedDocumentIds).not.toContain("inv-2");
+    expect(result.summary.blocked).toBe(1);
+    expect(result.summary.applied).toBe(0);
   });
 
   it("does not mutate unchanged records", async () => {

@@ -117,6 +117,45 @@ describe("diagnoseSequence", () => {
     expect(locked[0].documentId).toBe("inv-1");
   });
 
+  it("still detects duplicates inside locked ranges", async () => {
+    mockDb.sequence.findFirst.mockResolvedValue(makeSequence());
+    mockDb.invoice.findMany.mockResolvedValue([
+      makeInvoice("inv-1", "INV/2026/00001", "2026-01-15"),
+      makeInvoice("inv-2", "INV/2026/00001", "2026-01-20"),
+    ]);
+
+    const result = await diagnoseSequence({
+      ...baseInput,
+      lockDate: new Date("2026-02-01"),
+    });
+
+    // Both locked, both duplicate — should get lock warnings + duplicate critical
+    const dupes = result.irregularities.filter((r) => r.issue.includes("Duplicate"));
+    expect(dupes.length).toBe(1);
+    expect(dupes[0].severity).toBe("critical");
+    const locked = result.irregularities.filter((r) => r.issue.includes("lock date"));
+    expect(locked.length).toBe(2);
+  });
+
+  it("still detects unparseable numbers inside locked ranges", async () => {
+    mockDb.sequence.findFirst.mockResolvedValue(makeSequence());
+    mockDb.invoice.findMany.mockResolvedValue([
+      makeInvoice("inv-1", "INV/2026/00001", "2026-01-15"),
+      makeInvoice("inv-2", "BROKEN-FORMAT", "2026-01-20"),
+    ]);
+
+    const result = await diagnoseSequence({
+      ...baseInput,
+      lockDate: new Date("2026-02-01"),
+    });
+
+    // inv-2 is locked AND unparseable — both should be reported
+    const unparseable = result.irregularities.filter((r) => r.issue.includes("Cannot parse"));
+    expect(unparseable.length).toBe(1);
+    const locked = result.irregularities.filter((r) => r.issue.includes("lock date"));
+    expect(locked.length).toBe(2);
+  });
+
   it("respects periodicity for gap detection", async () => {
     mockDb.sequence.findFirst.mockResolvedValue(makeSequence());
     mockDb.invoice.findMany.mockResolvedValue([
