@@ -547,7 +547,7 @@ function VoucherPanel({
                       <TextField<VoucherFormValues>
                         name="voucherNumber"
                         label="Voucher number"
-                        required
+                        placeholder="Assigned when approved"
                       />
                       <TextField<VoucherFormValues>
                         name="date"

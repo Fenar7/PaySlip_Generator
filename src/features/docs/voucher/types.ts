@@ -27,7 +27,7 @@ export type VoucherFormValues = {
   templateId: VoucherTemplateId;
   voucherType: VoucherType;
   branding: BrandingConfig;
-  voucherNumber: string;
+  voucherNumber?: string;
   date: string;
   counterpartyName: string;
   amount: string;
@@ -50,7 +50,7 @@ export type VoucherDocument = {
   title: string;
   counterpartyLabel: string;
   branding: BrandingConfig;
-  voucherNumber: string;
+  voucherNumber?: string;
   date: string;
   counterpartyName: string;
   amount: number;
