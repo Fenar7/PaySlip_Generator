@@ -298,7 +298,7 @@ describe("invoice accounting transitions", () => {
     expect(db.invoice.create).toHaveBeenCalledWith({
       data: expect.objectContaining({
         organizationId: ORG_ID,
-        invoiceNumber: "INV-002",
+        invoiceNumber: null,
         originalId: "inv-1",
         lineItems: {
           create: [
@@ -324,7 +324,7 @@ describe("invoice accounting transitions", () => {
         toStatus: "REISSUED",
         metadata: {
           newInvoiceId: "inv-2",
-          newInvoiceNumber: "INV-002",
+          newInvoiceNumber: null,
           reversalJournalId: "reversal-1",
         },
       }),

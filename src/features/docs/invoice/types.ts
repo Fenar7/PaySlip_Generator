@@ -44,7 +44,7 @@ export type InvoiceFormValues = {
   clientEmail: string;
   clientPhone: string;
   clientTaxId: string;
-  invoiceNumber: string;
+  invoiceNumber?: string;
   invoiceDate: string;
   dueDate: string;
   placeOfSupply: string;
@@ -90,7 +90,7 @@ export type InvoiceDocument = {
   clientEmail?: string;
   clientPhone?: string;
   clientTaxId?: string;
-  invoiceNumber: string;
+  invoiceNumber?: string;
   invoiceDate: string;
   dueDate?: string;
   placeOfSupply?: string;
