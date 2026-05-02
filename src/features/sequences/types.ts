@@ -89,3 +89,48 @@ export interface HealthCheckReport {
   failures: HealthCheckFailure[];
   timestamp: string;
 }
+
+// ─── Resequence Preview (Phase 6 / Sprint 6.1) ────────────────────────────────
+
+export type ResequenceOrderBy = "document_date" | "current_number";
+
+export interface ResequencePreviewInput {
+  orgId: string;
+  documentType: SequenceDocumentType;
+  startDate: Date;
+  endDate: Date;
+  orderBy: ResequenceOrderBy;
+  lockDate?: Date;
+}
+
+export type ResequenceRecordStatus =
+  | "unchanged"
+  | "renumbered"
+  | "blocked";
+
+export interface ResequenceRecordMapping {
+  documentId: string;
+  documentDate: Date;
+  oldNumber: string;
+  proposedNumber: string | null;
+  status: ResequenceRecordStatus;
+  reason: string | null;
+  oldCounter: number | null;
+  proposedCounter: number | null;
+  periodKey: string;
+}
+
+export interface ResequencePreviewSummary {
+  totalDocuments: number;
+  unchanged: number;
+  renumbered: number;
+  blocked: number;
+}
+
+export interface ResequencePreviewResult {
+  summary: ResequencePreviewSummary;
+  mappings: ResequenceRecordMapping[];
+  sequenceId: string;
+  formatString: string;
+  periodicity: SequencePeriodicity;
+}

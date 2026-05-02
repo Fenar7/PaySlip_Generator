@@ -5,9 +5,16 @@ import {
   updateSequenceSettingsAtomic,
   seedSequenceContinuity,
   getSequenceAuditHistory,
+  previewResequencePreview,
 } from "@/features/sequences/services/sequence-admin";
 import { previewSequenceNumber } from "@/features/sequences/services/sequence-engine";
-import type { SequenceDocumentType, SequencePeriodicity } from "@/features/sequences/types";
+import type {
+  SequenceDocumentType,
+  SequencePeriodicity,
+  ResequencePreviewInput,
+  ResequencePreviewResult,
+} from "@/features/sequences/types";
+import { ResequencePreviewInputSchema } from "@/features/sequences/schema";
 
 export interface SequenceSettingsData {
   documentType: SequenceDocumentType;
@@ -131,4 +138,11 @@ export async function getSequenceHistory(
     limit: 50,
     offset: 0,
   });
+}
+
+export async function previewResequence(
+  input: ResequencePreviewInput
+): Promise<ResequencePreviewResult> {
+  const parsed = ResequencePreviewInputSchema.parse(input);
+  return previewResequencePreview(parsed);
 }
