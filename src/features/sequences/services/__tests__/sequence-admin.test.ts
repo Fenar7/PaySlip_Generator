@@ -659,18 +659,23 @@ describe("sequence-admin", () => {
   describe("diagnoseSequence", () => {
     const validInput = { orgId: "org-1", documentType: "INVOICE" as const, startDate: new Date("2026-01-01"), endDate: new Date("2026-12-31") };
 
-    it("requires authentication", async () => {
-      mockGetOrgContext.mockResolvedValue(null);
-      await expect(diagnoseSequence(validInput)).rejects.toThrow(SequenceAdminError);
+    it("requires owner authentication", async () => {
+      mockRequireRole.mockRejectedValue(new Error("Authentication required"));
+      await expect(diagnoseSequence(validInput)).rejects.toThrow(/Authentication required|Insufficient permissions/);
+    });
+
+    it("rejects non-owner org member", async () => {
+      mockRequireRole.mockRejectedValue(new Error("Insufficient permissions. Required: owner, Have: admin"));
+      await expect(diagnoseSequence(validInput)).rejects.toThrow(/Insufficient permissions/);
     });
 
     it("rejects cross-org diagnostics", async () => {
-      mockGetOrgContext.mockResolvedValue({ userId: "user-1", orgId: "org-1", role: "member", representedId: null, proxyGrantId: null, proxyScope: [] });
+      mockRequireRole.mockResolvedValue({ userId: "user-1", orgId: "org-1", role: "owner", representedId: null, proxyGrantId: null });
       await expect(diagnoseSequence({ ...validInput, orgId: "org-2" })).rejects.toThrow(/Cross-org access denied/);
     });
 
-    it("allows org member to run diagnostics", async () => {
-      mockGetOrgContext.mockResolvedValue({ userId: "user-1", orgId: "org-1", role: "member", representedId: null, proxyGrantId: null, proxyScope: [] });
+    it("allows org owner to run diagnostics", async () => {
+      mockRequireRole.mockResolvedValue({ userId: "user-1", orgId: "org-1", role: "owner", representedId: null, proxyGrantId: null });
       mockDiagnoseSequence.mockResolvedValue({
         summary: { totalDocuments: 0, gaps: 0, irregularities: 0, warnings: 0, criticals: 0 },
         gaps: [], irregularities: [],

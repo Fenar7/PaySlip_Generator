@@ -204,20 +204,22 @@ export default function SequenceSettingsPage() {
         />
       )}
 
-      <DiagnosticsSection
-        orgId={activeOrg?.id ?? ""}
-        docType={diagDocType}
-        onDocTypeChange={setDiagDocType}
-        loading={diagLoading}
-        onSetLoading={setDiagLoading}
-        healthReport={healthReport}
-        onSetHealthReport={setHealthReport}
-        supportOverview={supportOverview}
-        onSetSupportOverview={setSupportOverview}
-        diagResult={diagResult}
-        onSetDiagResult={setDiagResult}
-        onError={setError}
-      />
+      {isOwner && (
+        <DiagnosticsSection
+          orgId={activeOrg?.id ?? ""}
+          docType={diagDocType}
+          onDocTypeChange={setDiagDocType}
+          loading={diagLoading}
+          onSetLoading={setDiagLoading}
+          healthReport={healthReport}
+          onSetHealthReport={setHealthReport}
+          supportOverview={supportOverview}
+          onSetSupportOverview={setSupportOverview}
+          diagResult={diagResult}
+          onSetDiagResult={setDiagResult}
+          onError={setError}
+        />
+      )}
 
       <HistorySection
         docType={historyDocType}
@@ -273,12 +275,87 @@ function SequenceCard({
             No {title.toLowerCase()} configured yet. Run the migration script to set up the initial
             sequence.
           </p>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <div className="flex items-center justify-between">
+          <CardTitle className="text-lg">{title}</CardTitle>
+          <Badge variant={settings.isActive ? "default" : "warning"}>
+            {settings.isActive ? "Active" : "Inactive"}
+          </Badge>
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-6">
+        <div className="grid grid-cols-2 gap-4 text-sm">
+          <div>
+            <p className="text-[#666]">Current Format</p>
+            <p className="font-medium text-[#1a1a1a]">{settings.formatString}</p>
+          </div>
+          <div>
+            <p className="text-[#666]">Periodicity</p>
+            <p className="font-medium text-[#1a1a1a]">
+              {PERIODICITY_LABELS[settings.periodicity]}
+            </p>
+          </div>
+          <div>
+            <p className="text-[#666]">Current Counter</p>
+            <p className="font-medium text-[#1a1a1a]">{settings.currentCounter ?? "—"}</p>
+          </div>
+          <div>
+            <p className="text-[#666]">Next Number Preview</p>
+            <p className="font-medium text-[#1a1a1a]">{settings.nextPreview ?? "—"}</p>
+          </div>
+        </div>
+
+        {isOwner && (
+          <div className="border-t pt-6 space-y-4">
+            <h4 className="text-sm font-medium text-[#1a1a1a]">Update Format</h4>
+            <div className="space-y-3">
+              <div>
+                <label className="block text-sm text-[#666] mb-1">Format String</label>
+                <Input
+                  value={formatValue}
+                  onChange={(e) => onFormatChange(e.target.value)}
+                  placeholder="INV/{YYYY}/{NNNNN}"
+                  className="max-w-md"
+                />
+                <p className="text-xs text-[#999] mt-1">
+                  Valid tokens: {"{YYYY}"}, {"{MM}"}, {"{DD}"}, {"{NNNNN}"}, {"{FY}"}
+                </p>
+              </div>
+              <div>
+                <label className="block text-sm text-[#666] mb-1">Periodicity</label>
+                <select
+                  value={periodicityValue}
+                  onChange={(e) => onPeriodicityChange(e.target.value as SequencePeriodicity)}
+                  className="block w-full max-w-md rounded-xl border border-[#e5e5e5] bg-white px-3 py-2 text-sm text-[#1a1a1a] focus:outline-none focus:ring-2 focus:ring-[#dc2626] focus:ring-offset-0"
+                >
+                  {Object.entries(PERIODICITY_LABELS).map(([value, label]) => (
+                    <option key={value} value={value}>
+                      {label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <Button
+                onClick={onSave}
+                disabled={saving || !formatValue}
+                className="bg-[#dc2626] hover:bg-[#b91c1c] text-white"
+              >
+                {saving ? "Saving..." : "Save Changes"}
+              </Button>
+            </div>
+          </div>
+        )}
       </CardContent>
     </Card>
   );
 }
-
-// ─── Diagnostics Section (Phase 7 / Sprint 7.2) ───────────────────────────────
 
 const SEVERITY_COLORS: Record<string, string> = {
   critical: "bg-red-100 text-red-800 border-red-200",
@@ -527,83 +604,6 @@ function DiagnosticsSection({
                 <p className="text-[#666]">Criticals</p>
                 <p className="font-bold text-red-700 text-lg">{diagResult.criticals}</p>
               </div>
-            </div>
-          </div>
-        )}
-      </CardContent>
-    </Card>
-  );
-}
-
-  return (
-    <Card>
-      <CardHeader>
-        <div className="flex items-center justify-between">
-          <CardTitle className="text-lg">{title}</CardTitle>
-          <Badge variant={settings.isActive ? "default" : "warning"}>
-            {settings.isActive ? "Active" : "Inactive"}
-          </Badge>
-        </div>
-      </CardHeader>
-      <CardContent className="space-y-6">
-        <div className="grid grid-cols-2 gap-4 text-sm">
-          <div>
-            <p className="text-[#666]">Current Format</p>
-            <p className="font-medium text-[#1a1a1a]">{settings.formatString}</p>
-          </div>
-          <div>
-            <p className="text-[#666]">Periodicity</p>
-            <p className="font-medium text-[#1a1a1a]">
-              {PERIODICITY_LABELS[settings.periodicity]}
-            </p>
-          </div>
-          <div>
-            <p className="text-[#666]">Current Counter</p>
-            <p className="font-medium text-[#1a1a1a]">{settings.currentCounter ?? "—"}</p>
-          </div>
-          <div>
-            <p className="text-[#666]">Next Number Preview</p>
-            <p className="font-medium text-[#1a1a1a]">{settings.nextPreview ?? "—"}</p>
-          </div>
-        </div>
-
-        {isOwner && (
-          <div className="border-t pt-6 space-y-4">
-            <h4 className="text-sm font-medium text-[#1a1a1a]">Update Format</h4>
-            <div className="space-y-3">
-              <div>
-                <label className="block text-sm text-[#666] mb-1">Format String</label>
-                <Input
-                  value={formatValue}
-                  onChange={(e) => onFormatChange(e.target.value)}
-                  placeholder="INV/{YYYY}/{NNNNN}"
-                  className="max-w-md"
-                />
-                <p className="text-xs text-[#999] mt-1">
-                  Valid tokens: {"{YYYY}"}, {"{MM}"}, {"{DD}"}, {"{NNNNN}"}, {"{FY}"}
-                </p>
-              </div>
-              <div>
-                <label className="block text-sm text-[#666] mb-1">Periodicity</label>
-                <select
-                  value={periodicityValue}
-                  onChange={(e) => onPeriodicityChange(e.target.value as SequencePeriodicity)}
-                  className="block w-full max-w-md rounded-xl border border-[#e5e5e5] bg-white px-3 py-2 text-sm text-[#1a1a1a] focus:outline-none focus:ring-2 focus:ring-[#dc2626] focus:ring-offset-0"
-                >
-                  {Object.entries(PERIODICITY_LABELS).map(([value, label]) => (
-                    <option key={value} value={value}>
-                      {label}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <Button
-                onClick={onSave}
-                disabled={saving || !formatValue}
-                className="bg-[#dc2626] hover:bg-[#b91c1c] text-white"
-              >
-                {saving ? "Saving..." : "Save Changes"}
-              </Button>
             </div>
           </div>
         )}

@@ -607,7 +607,8 @@ export async function applyResequencePreview(
 export async function diagnoseSequence(
   input: SequenceDiagnosticsInput
 ): Promise<SequenceDiagnosticsResult> {
-  await assertCallerOwnsOrg(input.orgId);
+  const ctx = await requireOrgOwner();
+  assertOrgMatch(ctx, input.orgId);
 
   const rateLimit = await rateLimitByOrg(input.orgId, RATE_LIMITS.diagnostics);
   if (!rateLimit.success) {
@@ -616,7 +617,6 @@ export async function diagnoseSequence(
     );
   }
 
-  const ctx = await getOrgContext();
   const auditHeaders = await getAuditHeaders();
 
   const { diagnoseSequence: diagnose } = await import("./sequence-resequence");
@@ -624,7 +624,7 @@ export async function diagnoseSequence(
 
   void logAudit({
     orgId: input.orgId,
-    actorId: ctx?.userId ?? "system",
+    actorId: ctx.userId,
     action: "sequence.diagnostics_ran",
     entityType: "sequence",
     entityId: result.sequenceId,
@@ -673,7 +673,8 @@ export async function getSequenceSupportOverview(params: {
   orgId: string;
   documentType: SequenceDocumentType;
 }): Promise<SequenceSupportOverview | null> {
-  await assertCallerOwnsOrg(params.orgId);
+  const ctx = await requireOrgOwner();
+  assertOrgMatch(ctx, params.orgId);
 
   const sequence = await db.sequence.findFirst({
     where: { organizationId: params.orgId, documentType: params.documentType },
@@ -752,7 +753,8 @@ export async function runHealthCheck(params: {
   orgId: string;
   documentType: SequenceDocumentType;
 }): Promise<HealthCheckReport> {
-  await assertCallerOwnsOrg(params.orgId);
+  const ctx = await requireOrgOwner();
+  assertOrgMatch(ctx, params.orgId);
 
   const { runSequenceHealthCheck } = await import("./sequence-health");
   return runSequenceHealthCheck(params);
