@@ -144,6 +144,12 @@ async function backfillInvoices(result: BackfillResult): Promise<void> {
       }
 
       try {
+        // Drafts created after Phase 4 may have null invoiceNumber — skip them.
+        if (!inv.invoiceNumber) {
+          result.invoicesSkipped++;
+          continue;
+        }
+
         const docDate = new Date(inv.invoiceDate);
         const prefix = sequence.formats[0].formatString.split("/")[0] ?? "";
         const parsed = parseHistoricalSequenceNumber(inv.invoiceNumber, prefix);

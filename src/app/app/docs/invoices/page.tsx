@@ -147,7 +147,7 @@ async function InvoiceTable({
             <tr key={invoice.id} className="hover:bg-slate-50">
               <td className="px-4 py-3">
                 <Link href={`/app/docs/invoices/${invoice.id}`} className="font-medium text-blue-600 hover:underline">
-                  {invoice.invoiceNumber}
+                  {invoice.invoiceNumber ?? "Draft"}
                 </Link>
               </td>
               <td className="px-4 py-3 text-sm text-slate-900">

@@ -297,7 +297,7 @@ async function reverseInvoiceInventoryTx(
 export async function saveInvoice(
   input: InvoiceInput,
   status: "DRAFT" | "ISSUED" = "DRAFT"
-): Promise<ActionResult<{ id: string; invoiceNumber: string }>> {
+): Promise<ActionResult<{ id: string; invoiceNumber: string | null }>> {
   try {
     const { orgId, userId } = await requireOrgContext();
 
@@ -309,7 +309,10 @@ export async function saveInvoice(
       };
     }
 
-    const invoiceNumber = await nextDocumentNumber(orgId, "invoice");
+    // Phase 4 / Sprint 4.1: drafts do not consume official numbers.
+    // The real sequence number is assigned only on ISSUED (Sprint 4.2).
+    const invoiceNumber =
+      status === "DRAFT" ? null : await nextDocumentNumber(orgId, "invoice");
 
     const normalizedInvoice = normalizeInvoiceLineItems(input.lineItems);
     const invoiceDate = normalizeInvoiceDateInput(input.invoiceDate, "Invoice date");
@@ -543,7 +546,7 @@ export async function archiveInvoice(id: string): Promise<ActionResult<void>> {
 
 export async function duplicateInvoice(
   id: string
-): Promise<ActionResult<{ id: string; invoiceNumber: string }>> {
+): Promise<ActionResult<{ id: string; invoiceNumber: string | null }>> {
   try {
     const { orgId } = await requireOrgContext();
 
@@ -564,13 +567,12 @@ export async function duplicateInvoice(
       return { success: false, error: "Invoice not found" };
     }
 
-    const newNumber = await nextDocumentNumber(orgId, "invoice");
-
+    // Phase 4: duplicates start as drafts — no official number consumed yet.
     const duplicate = await db.invoice.create({
       data: {
         organizationId: orgId,
         customerId: existing.customerId,
-        invoiceNumber: newNumber,
+        invoiceNumber: null,
         invoiceDate: parseAccountingDate(new Date()),
         dueDate: existing.dueDate,
         status: "DRAFT",
@@ -594,16 +596,16 @@ export async function duplicateInvoice(
 
     await Promise.all([
       emitInvoiceEvent(orgId, duplicate.id, "created", {
-        metadata: { duplicatedFrom: id, invoiceNumber: newNumber },
+        metadata: { duplicatedFrom: id, invoiceNumber: null },
       }),
       emitInvoiceEvent(orgId, id, "duplicated", {
-        metadata: { newInvoiceId: duplicate.id, newInvoiceNumber: newNumber },
+        metadata: { newInvoiceId: duplicate.id, newInvoiceNumber: null },
       }),
       syncInvoiceRecordToIndex(orgId, duplicate.id),
     ]);
 
     revalidatePath("/app/docs/invoices");
-    return { success: true, data: { id: duplicate.id, invoiceNumber: newNumber } };
+    return { success: true, data: { id: duplicate.id, invoiceNumber: null } };
   } catch (error) {
     console.error("duplicateInvoice error:", error);
     return { success: false, error: "Failed to duplicate invoice" };
@@ -780,10 +782,21 @@ export async function issueInvoice(id: string): Promise<ActionResult<void>> {
       return { success: false, error: `Cannot issue invoice in ${existing.status} status` };
     }
 
+    // Phase 4 / Sprint 4.1: drafts may have null invoiceNumber.
+    // Assign the next official number before issuing so no issued
+    // invoice is left unnumbered. Sprint 4.2 replaces this stopgap
+    // with the full sequence engine integration.
+    const invoiceNumber =
+      existing.invoiceNumber ?? (await nextDocumentNumber(orgId, "invoice"));
+
     await db.$transaction(async (tx) => {
       await tx.invoice.update({
         where: { id },
-        data: { status: "ISSUED", issuedAt: new Date() },
+        data: {
+          status: "ISSUED",
+          issuedAt: new Date(),
+          ...(!existing.invoiceNumber ? { invoiceNumber } : {}),
+        },
       });
 
       await tx.invoiceStateEvent.create({
@@ -826,7 +839,7 @@ export async function issueInvoice(id: string): Promise<ActionResult<void>> {
       sourceEntityId: id,
       actorId: userId,
       payload: {
-        invoiceNumber: existing.invoiceNumber,
+        invoiceNumber,
         totalAmount: existing.totalAmount,
         customerId: existing.customerId,
       },
@@ -835,7 +848,7 @@ export async function issueInvoice(id: string): Promise<ActionResult<void>> {
     await Promise.all([
       emitInvoiceEvent(orgId, id, "issued", {
         actorId: userId,
-        metadata: { invoiceNumber: existing.invoiceNumber },
+        metadata: { invoiceNumber },
       }),
       syncInvoiceRecordToIndex(orgId, id),
     ]);
@@ -1272,7 +1285,7 @@ export async function cancelInvoice(
 export async function reissueInvoice(
   invoiceId: string,
   reason: string
-): Promise<ActionResult<{ id: string; invoiceNumber: string }>> {
+): Promise<ActionResult<{ id: string; invoiceNumber: string | null }>> {
   try {
     const { orgId, userId } = await requireOrgContext();
 
@@ -1289,7 +1302,7 @@ export async function reissueInvoice(
       return { success: false, error: `Cannot reissue invoice in ${existing.status} status` };
     }
 
-    const newNumber = await nextDocumentNumber(orgId, "invoice");
+    // Phase 4: reissue creates a new DRAFT — no official number yet.
 
     const result = await db.$transaction(async (tx) => {
       const reversalJournalId = await reverseInvoicePostingIfNeededTx(tx, {
@@ -1310,7 +1323,7 @@ export async function reissueInvoice(
         data: {
           organizationId: orgId,
           customerId: existing.customerId,
-          invoiceNumber: newNumber,
+          invoiceNumber: null, // Phase 4: draft — no official number yet
           invoiceDate: parseAccountingDate(new Date()),
           dueDate: existing.dueDate,
           status: "DRAFT",
@@ -1356,7 +1369,7 @@ export async function reissueInvoice(
           reason,
           metadata: {
             newInvoiceId: newInvoice.id,
-            newInvoiceNumber: newNumber,
+            newInvoiceNumber: null,
             ...(reversalJournalId ? { reversalJournalId } : {}),
           } as Prisma.InputJsonValue,
         },
@@ -1368,11 +1381,11 @@ export async function reissueInvoice(
     await Promise.all([
       emitInvoiceEvent(orgId, invoiceId, "reissued", {
         actorId: userId,
-        metadata: { newInvoiceId: result.id, newInvoiceNumber: newNumber, reason },
+        metadata: { newInvoiceId: result.id, newInvoiceNumber: null, reason },
       }),
       emitInvoiceEvent(orgId, result.id, "created", {
         actorId: userId,
-        metadata: { reissuedFromId: invoiceId, invoiceNumber: newNumber },
+        metadata: { reissuedFromId: invoiceId, invoiceNumber: null },
       }),
       syncInvoiceRecordToIndex(orgId, invoiceId),
       syncInvoiceRecordToIndex(orgId, result.id),
@@ -1380,7 +1393,7 @@ export async function reissueInvoice(
 
     revalidatePath("/app/docs/invoices");
     revalidatePath(`/app/docs/invoices/${invoiceId}`);
-    return { success: true, data: { id: result.id, invoiceNumber: newNumber } };
+    return { success: true, data: { id: result.id, invoiceNumber: null } };
   } catch (error) {
     console.error("reissueInvoice error:", error);
     return {

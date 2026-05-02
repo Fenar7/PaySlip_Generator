@@ -561,8 +561,7 @@ function InvoicePanel({ customers = [], inventoryItems = [] }: InvoicePanelProps
                 <TextField<InvoiceFormValues>
                   name="invoiceNumber"
                   label="Invoice number"
-                  required
-                  placeholder="INV-2026-031"
+                  placeholder="Assigned when issued"
                 />
                 <div className="grid gap-4 sm:grid-cols-2">
                   <TextField<InvoiceFormValues>
