@@ -2,7 +2,7 @@
 
 import { db } from "@/lib/db";
 import { requireOrgContext } from "@/lib/auth";
-import { nextDocumentNumber } from "@/lib/docs";
+import { nextDocumentNumberTx } from "@/lib/docs";
 import { getSchemaDriftActionMessage, isSchemaDriftError } from "@/lib/prisma-errors";
 import { revalidatePath } from "next/cache";
 import type { Prisma } from "@/generated/prisma/client";
@@ -23,6 +23,9 @@ import {
   toMinorUnits,
 } from "@/lib/money";
 import { formatIsoDate, parseAccountingDate, toAccountingNumber } from "@/lib/accounting/utils";
+import { consumeSequenceNumber } from "@/features/sequences/services/sequence-engine";
+import { getSequenceConfig } from "@/features/sequences/services/sequence-admin";
+import type { ConsumeResult } from "@/features/sequences/types";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -294,6 +297,55 @@ async function reverseInvoiceInventoryTx(
 
 // ─── Invoice Actions ──────────────────────────────────────────────────────────
 
+/**
+ * Assign the next official invoice number via the sequence engine.
+ * Falls back to legacy OrgDefaults numbering if no active sequence
+ * exists for the org (e.g. migration not yet run).
+ *
+ * Returns the formatted number and, when the sequence engine is used,
+ * the sequence details needed to link the invoice row.
+ */
+async function assignNextInvoiceNumber(
+  orgId: string,
+  documentDate: Date,
+  tx: Prisma.TransactionClient,
+): Promise<{
+  invoiceNumber: string;
+  sequenceId: string | null;
+  sequencePeriodId: string | null;
+  sequenceNumber: number | null;
+}> {
+  const sequenceConfig = await getSequenceConfig({
+    orgId,
+    documentType: "INVOICE",
+  });
+
+  if (sequenceConfig?.sequenceId) {
+    const result: ConsumeResult = await consumeSequenceNumber({
+      sequenceId: sequenceConfig.sequenceId,
+      documentDate,
+      orgId,
+      tx,
+    });
+    return {
+      invoiceNumber: result.formattedNumber,
+      sequenceId: sequenceConfig.sequenceId,
+      sequencePeriodId: result.periodId,
+      sequenceNumber: result.sequenceNumber,
+    };
+  }
+
+  // Legacy fallback — use the transaction-aware variant so the counter
+  // is only advanced if the enclosing invoice transaction commits.
+  const legacyNumber = await nextDocumentNumberTx(tx, orgId, "invoice");
+  return {
+    invoiceNumber: legacyNumber,
+    sequenceId: null,
+    sequencePeriodId: null,
+    sequenceNumber: null,
+  };
+}
+
 export async function saveInvoice(
   input: InvoiceInput,
   status: "DRAFT" | "ISSUED" = "DRAFT"
@@ -309,16 +361,26 @@ export async function saveInvoice(
       };
     }
 
-    // Phase 4 / Sprint 4.1: drafts do not consume official numbers.
-    // The real sequence number is assigned only on ISSUED (Sprint 4.2).
-    const invoiceNumber =
-      status === "DRAFT" ? null : await nextDocumentNumber(orgId, "invoice");
+    // Phase 4 / Sprint 4.2: drafts stay null; issued invoices get their
+    // official number via the sequence engine inside the transaction.
+    let invoiceNumber: string | null = null;
+    let issueSequenceId: string | null = null;
+    let issuePeriodId: string | null = null;
+    let issueSequenceNumber: number | null = null;
 
     const normalizedInvoice = normalizeInvoiceLineItems(input.lineItems);
     const invoiceDate = normalizeInvoiceDateInput(input.invoiceDate, "Invoice date");
     const dueDate = normalizeOptionalInvoiceDateInput(input.dueDate, "Due date");
 
     const invoice = await db.$transaction(async (tx) => {
+      if (status === "ISSUED") {
+        const assigned = await assignNextInvoiceNumber(orgId, invoiceDate, tx);
+        invoiceNumber = assigned.invoiceNumber;
+        issueSequenceId = assigned.sequenceId;
+        issuePeriodId = assigned.sequencePeriodId;
+        issueSequenceNumber = assigned.sequenceNumber;
+      }
+
       const created = await tx.invoice.create({
         data: {
           organizationId: orgId,
@@ -330,6 +392,9 @@ export async function saveInvoice(
           notes: input.notes || null,
           formData: input.formData as Prisma.InputJsonValue,
           totalAmount: normalizedInvoice.totalAmount,
+          sequenceId: issueSequenceId,
+          sequencePeriodId: issuePeriodId,
+          sequenceNumber: issueSequenceNumber,
           issuedAt: status === "ISSUED" ? new Date() : null,
           lineItems: {
             create: normalizedInvoice.lineItems.map((item, index) => ({
@@ -782,20 +847,40 @@ export async function issueInvoice(id: string): Promise<ActionResult<void>> {
       return { success: false, error: `Cannot issue invoice in ${existing.status} status` };
     }
 
-    // Phase 4 / Sprint 4.1: drafts may have null invoiceNumber.
-    // Assign the next official number before issuing so no issued
-    // invoice is left unnumbered. Sprint 4.2 replaces this stopgap
-    // with the full sequence engine integration.
-    const invoiceNumber =
-      existing.invoiceNumber ?? (await nextDocumentNumber(orgId, "invoice"));
+    // Phase 4 / Sprint 4.2: assign the official invoice number at issue
+    // time via the sequence engine (or legacy fallback).  Drafts that
+    // already received a number (e.g. via direct ISSUED create) are
+    // left untouched — no double-consumption.
+    let invoiceNumber: string;
+    let issueSequenceId: string | null = null;
+    let issuePeriodId: string | null = null;
+    let issueSequenceNumber: number | null = null;
 
     await db.$transaction(async (tx) => {
+      if (!existing.invoiceNumber) {
+        const docDate = new Date(existing.invoiceDate);
+        const assigned = await assignNextInvoiceNumber(orgId, docDate, tx);
+        invoiceNumber = assigned.invoiceNumber;
+        issueSequenceId = assigned.sequenceId;
+        issuePeriodId = assigned.sequencePeriodId;
+        issueSequenceNumber = assigned.sequenceNumber;
+      } else {
+        invoiceNumber = existing.invoiceNumber;
+      }
+
       await tx.invoice.update({
         where: { id },
         data: {
           status: "ISSUED",
           issuedAt: new Date(),
-          ...(!existing.invoiceNumber ? { invoiceNumber } : {}),
+          ...(!existing.invoiceNumber
+            ? {
+                invoiceNumber,
+                sequenceId: issueSequenceId,
+                sequencePeriodId: issuePeriodId,
+                sequenceNumber: issueSequenceNumber,
+              }
+            : {}),
         },
       });
 
