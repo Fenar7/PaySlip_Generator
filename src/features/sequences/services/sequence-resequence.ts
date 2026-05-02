@@ -1,10 +1,13 @@
 "use server";
 
 import { db } from "@/lib/db";
+import { createHash } from "crypto";
 import type {
   ResequencePreviewInput,
   ResequencePreviewResult,
   ResequenceRecordMapping,
+  ResequenceApplyInput,
+  ResequenceApplyResult,
   SequencePeriodicity,
 } from "../types";
 import { tokenize, validateFormat, extractCounterFromFormat } from "../engine/tokenizer";
@@ -192,6 +195,7 @@ function emptyResult(
     sequenceId,
     formatString,
     periodicity,
+    previewFingerprint: computeFingerprint([]),
   };
 }
 
@@ -241,7 +245,16 @@ function buildResult(
     }
   }
 
-  return { summary, mappings, sequenceId, formatString, periodicity };
+  const previewFingerprint = computeFingerprint(mappings);
+
+  return { summary, mappings, sequenceId, formatString, periodicity, previewFingerprint };
+}
+
+function computeFingerprint(mappings: ResequenceRecordMapping[]): string {
+  const payload = mappings
+    .map((m) => `${m.documentId}|${m.status}|${m.proposedNumber ?? "-"}`)
+    .join("\n");
+  return createHash("sha256").update(payload).digest("hex").slice(0, 16);
 }
 
 /**
@@ -283,6 +296,9 @@ async function fetchFinalizedDocuments(
   }
 
   // VOUCHER
+  // voucherDate is a String field; date filtering relies on ISO-8601
+  // lexicographic ordering.  If non-ISO dates are stored, the filter
+  // may produce incomplete or incorrect results.
   const vouchers = await db.voucher.findMany({
     where: {
       organizationId: orgId,
@@ -379,6 +395,7 @@ function extractStaticPrefix(formatString: string): string {
   return "";
 }
 
+
 function periodKeyLabel(startDate: Date, periodicity: SequencePeriodicity): string {
   if (periodicity === "NONE") return "ALL";
   if (periodicity === "YEARLY") return String(startDate.getFullYear());
@@ -387,5 +404,160 @@ function periodKeyLabel(startDate: Date, periodicity: SequencePeriodicity): stri
     const m = startDate.getMonth() + 1;
     return `${y}-${String(m).padStart(2, "0")}`;
   }
+  if (periodicity === "FINANCIAL_YEAR") {
+    const y = startDate.getFullYear();
+    return `FY${y}`;
+  }
   return startDate.toISOString().slice(0, 10);
+}
+
+// ─── Resequence Apply (Phase 6 / Sprint 6.2) ──────────────────────────────────
+
+export async function applyResequence(
+  input: ResequenceApplyInput,
+  auditParams: { actorId: string; ipAddress?: string | null; userAgent?: string | null }
+): Promise<ResequenceApplyResult> {
+  const preview = await previewResequence(input);
+
+  if (preview.previewFingerprint !== input.expectedFingerprint) {
+    throw new SequenceEngineError(
+      "Fingerprint mismatch: the preview may be stale. Please re-run the preview before applying."
+    );
+  }
+
+  if (preview.summary.renumbered === 0) {
+    return {
+      summary: { totalConsidered: preview.summary.totalDocuments, applied: 0, unchanged: preview.summary.unchanged, blocked: preview.summary.blocked, failed: 0 },
+      appliedDocumentIds: [],
+      preview,
+    };
+  }
+
+  // Guard against oversized transactions that could time out or lock tables.
+  // Large resequence batches should be narrowed by date range.
+  const MAX_APPLY_COUNT = 1000;
+  if (preview.summary.renumbered > MAX_APPLY_COUNT) {
+    throw new SequenceEngineError(
+      `Apply batch exceeds maximum of ${MAX_APPLY_COUNT} documents (${preview.summary.renumbered} eligible). Narrow the date range and try again.`
+    );
+  }
+
+  const renumbered = preview.mappings.filter((m) => m.status === "renumbered" && m.proposedNumber !== null);
+  const sequenceId = preview.sequenceId;
+  const documentType = input.documentType;
+  const appliedDocumentIds: string[] = [];
+
+  await db.$transaction(async (tx) => {
+    const periodCounters = new Map<string, number>();
+    for (const m of renumbered) {
+      if (m.proposedCounter !== null && (!periodCounters.has(m.periodKey) || m.proposedCounter > periodCounters.get(m.periodKey)!)) {
+        periodCounters.set(m.periodKey, m.proposedCounter);
+      }
+    }
+
+    for (const [periodKey, finalCounter] of periodCounters) {
+      const boundaries = deriveBoundariesForPeriodKey(periodKey, preview.periodicity);
+      const existing = await tx.sequencePeriod.findFirst({
+        where: { sequenceId, startDate: boundaries.startDate, endDate: boundaries.endDate },
+        select: { id: true },
+      });
+
+      if (existing) {
+        await tx.sequencePeriod.update({ where: { id: existing.id }, data: { currentCounter: finalCounter } });
+      } else {
+        await tx.sequencePeriod.create({
+          data: { sequenceId, startDate: boundaries.startDate, endDate: boundaries.endDate, currentCounter: finalCounter, status: "OPEN" },
+        });
+      }
+    }
+
+    for (const m of renumbered) {
+      const docBoundaries = deriveBoundariesForPeriodKey(m.periodKey, preview.periodicity);
+      const period = await tx.sequencePeriod.findFirst({
+        where: { sequenceId, startDate: docBoundaries.startDate, endDate: docBoundaries.endDate },
+        select: { id: true },
+      });
+
+      if (documentType === "INVOICE") {
+        await tx.invoice.update({
+          where: { id: m.documentId, organizationId: input.orgId },
+          data: {
+            invoiceNumber: m.proposedNumber!,
+            sequenceId,
+            sequencePeriodId: period?.id ?? null,
+            sequenceNumber: m.proposedCounter ?? null,
+          },
+        });
+      } else {
+        await tx.voucher.update({
+          where: { id: m.documentId, organizationId: input.orgId },
+          data: {
+            voucherNumber: m.proposedNumber!,
+            sequenceId,
+            sequencePeriodId: period?.id ?? null,
+            sequenceNumber: m.proposedCounter ?? null,
+          },
+        });
+      }
+
+      appliedDocumentIds.push(m.documentId);
+    }
+
+    await (await import("@/lib/audit")).logAuditTx(tx, {
+      orgId: input.orgId,
+      actorId: auditParams.actorId,
+      action: "sequence.resequence_confirmed",
+      entityType: "sequence",
+      entityId: sequenceId,
+      metadata: {
+        documentType,
+        startDate: input.startDate.toISOString(),
+        endDate: input.endDate.toISOString(),
+        orderBy: input.orderBy,
+        totalConsidered: preview.summary.totalDocuments,
+        applied: renumbered.length,
+        appliedDocumentIds,
+        snapshotBefore: renumbered.map((m) => ({ documentId: m.documentId, oldNumber: m.oldNumber })),
+        snapshotAfter: renumbered.map((m) => ({ documentId: m.documentId, newNumber: m.proposedNumber })),
+      },
+      ipAddress: auditParams.ipAddress ?? null,
+      userAgent: auditParams.userAgent ?? null,
+    });
+  });
+
+  return {
+    summary: {
+      totalConsidered: preview.summary.totalDocuments,
+      applied: renumbered.length,
+      unchanged: preview.summary.unchanged,
+      blocked: preview.summary.blocked,
+      failed: 0,
+    },
+    appliedDocumentIds,
+    preview,
+  };
+}
+
+function deriveBoundariesForPeriodKey(
+  periodKey: string,
+  periodicity: SequencePeriodicity
+): { startDate: Date; endDate: Date } {
+  if (periodicity === "NONE") {
+    return { startDate: new Date(Date.UTC(1970, 0, 1)), endDate: new Date(Date.UTC(2999, 11, 31)) };
+  }
+  if (periodicity === "YEARLY") {
+    const y = parseInt(periodKey, 10);
+    return { startDate: new Date(Date.UTC(y, 0, 1)), endDate: new Date(Date.UTC(y, 11, 31)) };
+  }
+  if (periodicity === "MONTHLY") {
+    const [yStr, mStr] = periodKey.split("-");
+    const y = parseInt(yStr, 10);
+    const m = parseInt(mStr, 10);
+    return { startDate: new Date(Date.UTC(y, m - 1, 1)), endDate: new Date(Date.UTC(y, m, 0)) };
+  }
+  if (periodicity === "FINANCIAL_YEAR") {
+    const d = new Date(periodKey);
+    return calculatePeriodBoundaries(d, "FINANCIAL_YEAR");
+  }
+  return { startDate: new Date(periodKey), endDate: new Date(periodKey) };
 }
