@@ -17,6 +17,7 @@ interface PdfPageThumbnailProps {
   item: PageGridItem;
   index: number;
   mode: "select" | "reorder" | "delete" | "preview";
+  disabled?: boolean;
   isSelected?: boolean;
   isMarkedForDeletion?: boolean;
   onToggleSelect?: (id: string) => void;
@@ -29,6 +30,7 @@ function PdfPageThumbnail({
   item,
   index,
   mode,
+  disabled = false,
   isSelected = false,
   isMarkedForDeletion = false,
   onToggleSelect,
@@ -48,6 +50,7 @@ function PdfPageThumbnail({
   };
 
   const handleClick = () => {
+    if (disabled) return;
     if (mode === "select") onToggleSelect?.(item.id);
     if (mode === "delete") onToggleSelect?.(item.id);
   };
@@ -81,9 +84,11 @@ function PdfPageThumbnail({
               ? "border-[var(--accent)] ring-2 ring-[rgba(220,38,38,0.15)]"
               : "border-[var(--border-soft)] hover:shadow-md",
         mode === "reorder" && "hover:ring-2 hover:ring-[var(--accent)] hover:ring-offset-1",
-        (mode === "select" || mode === "delete") && "cursor-pointer"
+        (mode === "select" || mode === "delete") && !disabled && "cursor-pointer",
+        disabled && "cursor-not-allowed opacity-70"
       )}
       onClick={handleClick}
+      aria-disabled={disabled || undefined}
     >
       {/* Preview area: drag zone in reorder mode with centered drag icon on hover. */}
       <div
@@ -124,6 +129,15 @@ function PdfPageThumbnail({
                 d="M5 13l4 4L19 7"
               />
             </svg>
+          </div>
+        )}
+        {/* Rotation angle badge — shows cumulative user-applied rotation for this page */}
+        {item.rotation != null && item.rotation !== 0 && !isMarkedForDeletion && (
+          <div
+            data-testid="rotation-badge"
+            className="absolute bottom-1.5 left-1.5 rounded bg-[var(--accent)] px-1 py-0.5 text-[0.55rem] font-semibold leading-none text-white shadow-sm"
+          >
+            {item.rotation}°
           </div>
         )}
         {/* Drag affordance badge — fades in on hover, hidden while actively dragging */}
@@ -269,6 +283,7 @@ import {
 interface PdfPageGridProps {
   pages: PageGridItem[];
   mode: "select" | "reorder" | "delete" | "preview";
+  disabled?: boolean;
   selectedIds?: Set<string>;
   deletedIds?: Set<string>;
   onToggleSelect?: (id: string) => void;
@@ -280,6 +295,7 @@ interface PdfPageGridProps {
 export function PdfPageGrid({
   pages,
   mode,
+  disabled = false,
   selectedIds = new Set(),
   deletedIds = new Set(),
   onToggleSelect,
@@ -336,6 +352,7 @@ export function PdfPageGrid({
               item={page}
               index={idx}
               mode={mode}
+              disabled={disabled}
               isSelected={selectedIds.has(page.id)}
               isMarkedForDeletion={deletedIds.has(page.id)}
               onToggleSelect={onToggleSelect}

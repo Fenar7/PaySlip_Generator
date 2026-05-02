@@ -257,7 +257,7 @@ function SequenceCard({
       <CardHeader>
         <div className="flex items-center justify-between">
           <CardTitle className="text-lg">{title}</CardTitle>
-          <Badge variant={settings.isActive ? "default" : "secondary"}>
+          <Badge variant={settings.isActive ? "default" : "warning"}>
             {settings.isActive ? "Active" : "Inactive"}
           </Badge>
         </div>

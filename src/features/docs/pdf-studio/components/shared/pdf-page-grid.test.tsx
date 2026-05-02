@@ -127,4 +127,37 @@ describe("PdfPageGrid", () => {
     expect(img).toHaveAttribute("style");
     expect(img.getAttribute("style")).toContain("rotate(90deg)");
   });
+
+  it("renders rotation badge when page has non-zero rotation", () => {
+    const pages = [makeItem({ rotation: 90 })];
+    render(<PdfPageGrid pages={pages} mode="select" />);
+    const badge = screen.getByTestId("rotation-badge");
+    expect(badge.textContent).toBe("90°");
+  });
+
+  it("renders rotation badge showing 270 for pages rotated left once", () => {
+    const pages = [makeItem({ rotation: 270 })];
+    render(<PdfPageGrid pages={pages} mode="select" />);
+    expect(screen.getByTestId("rotation-badge").textContent).toBe("270°");
+  });
+
+  it("does not render rotation badge when rotation is 0", () => {
+    const pages = [makeItem({ rotation: 0 })];
+    render(<PdfPageGrid pages={pages} mode="select" />);
+    expect(screen.queryByTestId("rotation-badge")).not.toBeInTheDocument();
+  });
+
+  it("does not render rotation badge when rotation is undefined", () => {
+    const item = makeItem();
+    const { rotation: _r, ...itemWithoutRotation } = item;
+    const pages = [itemWithoutRotation as PageGridItem];
+    render(<PdfPageGrid pages={pages} mode="select" />);
+    expect(screen.queryByTestId("rotation-badge")).not.toBeInTheDocument();
+  });
+
+  it("does not render rotation badge when page is marked for deletion", () => {
+    const pages = [makeItem({ rotation: 90 })];
+    render(<PdfPageGrid pages={pages} mode="delete" deletedIds={new Set(["page-1"])} />);
+    expect(screen.queryByTestId("rotation-badge")).not.toBeInTheDocument();
+  });
 });
