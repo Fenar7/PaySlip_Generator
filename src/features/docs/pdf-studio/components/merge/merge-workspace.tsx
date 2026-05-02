@@ -85,7 +85,8 @@ export function MergeWorkspace() {
             sourceDocumentId: p.sourceDocumentId,
             sourceLabel: p.sourceLabel,
             sourcePdfName: p.sourcePdfName,
-            previewUrl: p.previewUrl,
+            // Preview images are not persisted — source files must be re-uploaded
+            previewUrl: "",
             previewBytes: 0,
             widthPt: 612,
             heightPt: 792,

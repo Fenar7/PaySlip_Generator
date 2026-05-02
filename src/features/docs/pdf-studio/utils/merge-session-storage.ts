@@ -15,7 +15,6 @@ export type MergeSessionPage = {
   sourceDocumentId: string;
   sourceLabel: string;
   sourcePdfName: string;
-  previewUrl: string;
 };
 
 export type MergeSessionSource = {
@@ -53,7 +52,6 @@ export function loadMergeSession(scope = "anonymous"): MergeSession | null {
       pages: parsed.pages.filter(
         (p: Record<string, unknown>) =>
           typeof p.id === "string" &&
-          typeof p.previewUrl === "string" &&
           typeof p.sourceDocumentId === "string",
       ),
       sources: parsed.sources.filter(
@@ -110,5 +108,5 @@ export function buildMergeRestoreMessage(
   const pageLabel = `${restoredPageCount} page${restoredPageCount !== 1 ? "s" : ""}`;
   const sourceLabel = `${restoredSourceCount} file${restoredSourceCount !== 1 ? "s" : ""}`;
 
-  return `Previous merge session restored: ${pageLabel} from ${sourceLabel}. Source files must be re-uploaded to export. Re-order, rotate, or delete pages below, then merge when ready.`;
+  return `Previous session restored: ${pageLabel} from ${sourceLabel} — page order and rotations were recovered. Source files must be re-uploaded to export.`;
 }
