@@ -43,8 +43,14 @@ import {
   seedSequenceContinuity,
   getSequenceAuditHistory,
   updateSequenceSettingsAtomic,
+  previewResequencePreview,
 } from "../sequence-admin";
 import { SequenceAdminError } from "../sequence-errors";
+
+const mockPreviewResequence = vi.fn();
+vi.mock("../sequence-resequence", () => ({
+  previewResequence: (...args: unknown[]) => mockPreviewResequence(...args),
+}));
 
 describe("sequence-admin", () => {
   beforeEach(() => {
@@ -552,6 +558,66 @@ describe("sequence-admin", () => {
       await expect(
         getSequenceAuditHistory({ orgId: "org-2" })
       ).rejects.toThrow(/Cross-org access denied/);
+    });
+  });
+
+  describe("previewResequencePreview", () => {
+    const validInput = {
+      orgId: "org-1",
+      documentType: "INVOICE" as const,
+      startDate: new Date("2026-01-01"),
+      endDate: new Date("2026-12-31"),
+      orderBy: "document_date" as const,
+    };
+
+    it("requires owner role", async () => {
+      mockRequireRole.mockRejectedValue(
+        new Error("Insufficient permissions. Required: owner, Have: admin")
+      );
+
+      await expect(
+        previewResequencePreview(validInput)
+      ).rejects.toThrow(/Insufficient permissions/);
+    });
+
+    it("rejects cross-org preview", async () => {
+      mockRequireRole.mockResolvedValue({
+        userId: "user-1",
+        orgId: "org-1",
+        role: "owner",
+        representedId: null,
+        proxyGrantId: null,
+      });
+
+      await expect(
+        previewResequencePreview({ ...validInput, orgId: "org-2" })
+      ).rejects.toThrow(SequenceAdminError);
+
+      await expect(
+        previewResequencePreview({ ...validInput, orgId: "org-2" })
+      ).rejects.toThrow(/Cross-org access denied/);
+    });
+
+    it("allows owner to preview their own org", async () => {
+      mockRequireRole.mockResolvedValue({
+        userId: "user-1",
+        orgId: "org-1",
+        role: "owner",
+        representedId: null,
+        proxyGrantId: null,
+      });
+
+      mockPreviewResequence.mockResolvedValue({
+        summary: { totalDocuments: 0, unchanged: 0, renumbered: 0, blocked: 0, skipped: 0 },
+        mappings: [],
+        sequenceId: "seq-1",
+        formatString: "INV/{YYYY}/{NNNNN}",
+        periodicity: "YEARLY",
+      });
+
+      const result = await previewResequencePreview(validInput);
+      expect(result.summary.totalDocuments).toBe(0);
+      expect(mockPreviewResequence).toHaveBeenCalledWith(validInput);
     });
   });
 });

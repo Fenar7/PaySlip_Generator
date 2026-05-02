@@ -70,3 +70,24 @@ export type CreateSequenceInput = z.infer<typeof CreateSequenceSchema>;
 export type CreateSequenceFormatInput = z.infer<typeof CreateSequenceFormatSchema>;
 export type PreviewParams = z.infer<typeof PreviewParamsSchema>;
 export type ConsumeParams = z.infer<typeof ConsumeParamsSchema>;
+
+// ─── Resequence Preview (Phase 6 / Sprint 6.1) ────────────────────────────────
+
+export const ResequenceOrderBySchema = z.enum([
+  "document_date",
+  "current_number",
+]);
+
+export const ResequencePreviewInputSchema = z.object({
+  orgId: z.string().min(1),
+  documentType: SequenceDocumentTypeSchema,
+  startDate: z.coerce.date(),
+  endDate: z.coerce.date(),
+  orderBy: ResequenceOrderBySchema.default("document_date"),
+  lockDate: z.coerce.date().optional(),
+}).refine((val) => val.startDate <= val.endDate, {
+  message: "startDate must be on or before endDate",
+  path: ["startDate"],
+});
+
+export type ResequencePreviewInput = z.infer<typeof ResequencePreviewInputSchema>;

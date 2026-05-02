@@ -5,7 +5,12 @@ import { requireRole, getOrgContext } from "@/lib/auth/require-org";
 import { logAuditTx } from "@/lib/audit";
 import { headers } from "next/headers";
 import { validateFormat, extractCounterFromFormat } from "../engine/tokenizer";
-import type { SequencePeriodicity, SequenceDocumentType } from "../types";
+import type {
+  SequencePeriodicity,
+  SequenceDocumentType,
+  ResequencePreviewInput,
+  ResequencePreviewResult,
+} from "../types";
 import type { OrgContext } from "@/lib/auth/require-org";
 import { SequenceAdminError } from "./sequence-errors";
 
@@ -547,4 +552,25 @@ export async function getSequenceAuditHistory(params: {
     limit,
     offset,
   };
+}
+
+/**
+ * Preview resequencing for a document type within a date range (owner-only).
+ *
+ * Computes deterministic proposed numbering without mutating any live data.
+ * No counters are consumed. No documents are updated.
+ *
+ * Phase 6 / Sprint 6.1: preview only. Sprint 6.2 will add the apply flow.
+ */
+export async function previewResequencePreview(
+  input: ResequencePreviewInput
+): Promise<ResequencePreviewResult> {
+  const ctx = await requireOrgOwner();
+  assertOrgMatch(ctx, input.orgId);
+
+  // ResequencePreviewInput is validated by the caller (settings actions)
+  // using ResequencePreviewInputSchema before reaching this function.
+
+  const { previewResequence: preview } = await import("./sequence-resequence");
+  return preview(input);
 }

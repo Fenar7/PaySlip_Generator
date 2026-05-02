@@ -4,18 +4,20 @@ const mockGetSequenceConfig = vi.fn();
 const mockUpdateSequenceSettingsAtomic = vi.fn();
 const mockPreviewSequenceNumber = vi.fn();
 const mockGetSequenceAuditHistory = vi.fn();
+const mockPreviewResequencePreview = vi.fn();
 
 vi.mock("@/features/sequences/services/sequence-admin", () => ({
   getSequenceConfig: (...args: unknown[]) => mockGetSequenceConfig(...args),
   updateSequenceSettingsAtomic: (...args: unknown[]) => mockUpdateSequenceSettingsAtomic(...args),
   getSequenceAuditHistory: (...args: unknown[]) => mockGetSequenceAuditHistory(...args),
+  previewResequencePreview: (...args: unknown[]) => mockPreviewResequencePreview(...args),
 }));
 
 vi.mock("@/features/sequences/services/sequence-engine", () => ({
   previewSequenceNumber: (...args: unknown[]) => mockPreviewSequenceNumber(...args),
 }));
 
-import { getSequenceSettings, updateSequenceSettings, getSequenceHistory } from "../actions";
+import { getSequenceSettings, updateSequenceSettings, getSequenceHistory, previewResequence } from "../actions";
 
 describe("sequence settings actions", () => {
   it("returns null sequences when none exist", async () => {
@@ -108,5 +110,51 @@ describe("sequence settings actions", () => {
       offset: 0,
     });
     expect(result.logs).toHaveLength(1);
+  });
+
+  it("previewResequence validates and delegates to admin service", async () => {
+    mockPreviewResequencePreview.mockResolvedValue({
+      summary: { totalDocuments: 3, unchanged: 0, renumbered: 3, blocked: 0, skipped: 0 },
+      mappings: [
+        {
+          documentId: "inv-1",
+          documentDate: new Date("2026-03-15"),
+          oldNumber: "OLD-1",
+          proposedNumber: "INV/2026/00001",
+          status: "renumbered",
+          reason: "Counter 1 → 1",
+          oldCounter: null,
+          proposedCounter: 1,
+          periodKey: "2026",
+        },
+      ],
+      sequenceId: "seq-1",
+      formatString: "INV/{YYYY}/{NNNNN}",
+      periodicity: "YEARLY",
+    });
+
+    const result = await previewResequence({
+      orgId: "org-1",
+      documentType: "INVOICE",
+      startDate: new Date("2026-01-01"),
+      endDate: new Date("2026-12-31"),
+      orderBy: "document_date",
+    });
+
+    expect(result.summary.renumbered).toBe(3);
+    expect(result.mappings).toHaveLength(1);
+    expect(mockPreviewResequencePreview).toHaveBeenCalled();
+  });
+
+  it("previewResequence rejects invalid dates", async () => {
+    await expect(
+      previewResequence({
+        orgId: "org-1",
+        documentType: "INVOICE",
+        startDate: new Date("2026-12-31"),
+        endDate: new Date("2026-01-01"),
+        orderBy: "document_date",
+      })
+    ).rejects.toThrow();
   });
 });
