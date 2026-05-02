@@ -2,10 +2,10 @@ import { describe, expect, it, vi, beforeEach } from "vitest";
 
 const { mockDb } = vi.hoisted(() => ({
   mockDb: {
-    sequence: { findFirst: vi.fn() },
+    sequence: { findFirst: vi.fn(), update: vi.fn() },
     sequencePeriod: { findFirst: vi.fn(), update: vi.fn(), create: vi.fn() },
-    invoice: { findMany: vi.fn(), update: vi.fn() },
-    voucher: { findMany: vi.fn(), update: vi.fn() },
+    invoice: { findMany: vi.fn(), findUnique: vi.fn(), update: vi.fn() },
+    voucher: { findMany: vi.fn(), findUnique: vi.fn(), update: vi.fn() },
     $transaction: vi.fn(),
   },
 }));
@@ -37,7 +37,13 @@ async function getPreviewFp(input: Parameters<typeof applyResequence>[0]) {
 
 function setupTransactionMock() {
   mockDb.$transaction.mockImplementation(async (fn: (tx: unknown) => Promise<unknown>) => {
-    const txClient = { sequencePeriod: { findFirst: mockDb.sequencePeriod.findFirst, update: mockDb.sequencePeriod.update, create: mockDb.sequencePeriod.create }, invoice: { update: mockDb.invoice.update }, voucher: { update: mockDb.voucher.update } };
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const txClient: any = {
+      sequence: { update: mockDb.sequence.update },
+      sequencePeriod: { findFirst: mockDb.sequencePeriod.findFirst, update: mockDb.sequencePeriod.update, create: mockDb.sequencePeriod.create },
+      invoice: { findUnique: mockDb.invoice.findUnique, update: mockDb.invoice.update },
+      voucher: { findUnique: mockDb.voucher.findUnique, update: mockDb.voucher.update },
+    };
     return fn(txClient);
   });
 }

@@ -21,8 +21,18 @@ import {
  *
  * Provides preview and consume operations for document sequences.
  * Built in Phase 1; consumed by lifecycle hooks in Phase 4–5.
+ * Hardened in Phase 7/Sprint 7.1 for concurrency.
  *
  * All mutations are atomic and run inside Prisma transactions.
+ * Period contention is handled via retry on unique constraint violation.
+ *
+ * Idempotency (Phase 7/Sprint 7.1):
+ *  - Duplicate protection relies on document-level guards inside caller
+ *    transactions (e.g. re-reading invoiceNumber/voucherNumber before
+ *    consuming).  This is rollback-safe: if the outer transaction rolls
+ *    back, the guard sees the correct state on retry.
+ *  - There is no in-memory idempotency cache.  A cache would survive a
+ *    rolled-back outer transaction and poison retries with stale values.
  */
 
 interface PreviewParams {
@@ -102,6 +112,11 @@ export async function previewSequenceNumber(
  *
  * This increments the counter and returns the assigned number.
  * Must be called inside a transaction for finalize-time assignment.
+ *
+ * Idempotency (Phase 7/Sprint 7.1):
+ *  - Duplicate protection relies on document-level guards inside caller
+ *    transactions.  There is no in-memory cache because a cache would
+ *    survive a rolled-back outer transaction and return stale results.
  */
 export async function consumeSequenceNumber(
   params: ConsumeParams
@@ -136,6 +151,7 @@ export async function consumeSequenceNumber(
   }
 
   // Find or create the period for this document date
+  // Phase 7/Sprint 7.1: handles concurrent period creation via retry on P2002
   const period = await findOrCreatePeriod(
     executor,
     sequenceId,
@@ -174,6 +190,12 @@ export async function consumeSequenceNumber(
 
 /**
  * Find an existing period for the document date, or create one.
+ *
+ * Phase 7/Sprint 7.1: The DB enforces @@unique([sequenceId, startDate, endDate]).
+ * Two concurrent consume calls may both find a missing period and attempt to create
+ * it. The second create will hit a P2002 unique constraint violation. We catch
+ * P2002 and re-fetch the period created by the winning caller, then proceed
+ * normally — no number is lost.
  */
 async function findOrCreatePeriod(
   executor: Prisma.TransactionClient | typeof db,
@@ -196,16 +218,34 @@ async function findOrCreatePeriod(
     return existing;
   }
 
-  // Create new period
-  return executor.sequencePeriod.create({
-    data: {
-      sequenceId,
-      startDate: boundaries.startDate,
-      endDate: boundaries.endDate,
-      currentCounter: startCounter - 1, // consume will increment to startCounter
-      status: "OPEN",
-    },
-  });
+  try {
+    return await executor.sequencePeriod.create({
+      data: {
+        sequenceId,
+        startDate: boundaries.startDate,
+        endDate: boundaries.endDate,
+        currentCounter: startCounter - 1, // consume will increment to startCounter
+        status: "OPEN",
+      },
+    });
+  } catch (error: unknown) {
+    if (
+      error &&
+      typeof error === "object" &&
+      "code" in error &&
+      (error as Record<string, unknown>).code === "P2002"
+    ) {
+      const winner = await executor.sequencePeriod.findFirstOrThrow({
+        where: {
+          sequenceId,
+          startDate: boundaries.startDate,
+          endDate: boundaries.endDate,
+        },
+      });
+      return winner;
+    }
+    throw error;
+  }
 }
 
 /**

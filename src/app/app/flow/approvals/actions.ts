@@ -8,6 +8,7 @@ import { consumeSequenceNumber } from "@/features/sequences/services/sequence-en
 import { getSequenceConfig } from "@/features/sequences/services/sequence-admin";
 import type { ConsumeResult } from "@/features/sequences/types";
 import { formatIsoDate, toAccountingNumber } from "@/lib/accounting/utils";
+import { rateLimitByOrg, RATE_LIMITS } from "@/lib/rate-limit";
 import {
   canDecideApprovalForDoc,
   canRequestApprovalForDoc,
@@ -596,6 +597,11 @@ export async function approveRequest(
   try {
     const { orgId, userId, role } = await requireOrgContext();
 
+    const rateLimit = await rateLimitByOrg(orgId, RATE_LIMITS.voucherApprove);
+    if (!rateLimit.success) {
+      return { success: false, error: `Rate limit exceeded for approval. Retry after ${rateLimit.retryAfter ?? 60} seconds.` };
+    }
+
     const approval = await db.approvalRequest.findFirst({
       where: { id: requestId, orgId, status: { in: ["PENDING", "ESCALATED"] } },
     });
@@ -717,6 +723,9 @@ export async function approveRequest(
         if (approval.docType === "voucher") {
           // Phase 5 / Sprint 5.2: assign the official number at
           // approval time via the sequence engine (or legacy fallback).
+          // Phase 7/Sprint 7.1: re-read inside transaction for TOCTOU
+          // safety; idempotency key (voucherId) prevents double consumption
+          // on retry.
           const draft = await tx.voucher.findUnique({
             where: { id: approval.docId },
             select: { voucherNumber: true, voucherDate: true },
