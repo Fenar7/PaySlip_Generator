@@ -20,8 +20,6 @@ import {
 } from "../sequence-engine";
 import { SequenceNotFoundError, SequenceEngineError } from "../sequence-engine-errors";
 
-let testSuffix = 0;
-
 const ORG_ID = "org-test";
 const SEQ_ID = "seq-test";
 
@@ -56,10 +54,6 @@ function makePeriod(overrides?: Record<string, unknown>) {
 }
 
 const documentDate = new Date("2026-06-15");
-
-function uniqueIdempotencyKey(prefix: string): string {
-  return `${prefix}-${++testSuffix}`;
-}
 
 describe("sequence-engine concurrency hardening", () => {
   beforeEach(() => {
@@ -124,59 +118,29 @@ describe("sequence-engine concurrency hardening", () => {
     ).rejects.toThrow("Connection lost");
   });
 
-  // ─── Idempotency ────────────────────────────────────────────────────────────
+  // ─── Rollback safety ────────────────────────────────────────────────────────
 
-  it("returns cached result when idempotency key is reused", async () => {
-    const key = uniqueIdempotencyKey("invoice");
-    const period = makePeriod({ currentCounter: 0 });
+  it("retry after failed assignment does not reuse stale counter", async () => {
     mockDb.sequencePeriod.findFirst.mockResolvedValue(null);
+    mockDb.sequencePeriod.create.mockRejectedValue(new Error("DB error — transaction rolled back"));
+
+    await expect(
+      consumeSequenceNumber({ sequenceId: SEQ_ID, documentDate, orgId: ORG_ID })
+    ).rejects.toThrow("DB error");
+
+    const period = makePeriod({ currentCounter: 0 });
     mockDb.sequencePeriod.create.mockResolvedValue(period);
     mockDb.sequencePeriod.update.mockResolvedValue({ currentCounter: 1 } as never);
 
-    const first = await consumeSequenceNumber({
+    const retry = await consumeSequenceNumber({
       sequenceId: SEQ_ID,
       documentDate,
       orgId: ORG_ID,
-      idempotencyKey: key,
     });
 
-    const second = await consumeSequenceNumber({
-      sequenceId: SEQ_ID,
-      documentDate,
-      orgId: ORG_ID,
-      idempotencyKey: key,
-    });
-
-    expect(second).toEqual(first);
-    expect(mockDb.sequencePeriod.findFirst).toHaveBeenCalledTimes(1);
-    expect(mockDb.sequencePeriod.create).toHaveBeenCalledTimes(1);
-  });
-
-  it("consumes new number when idempotency keys differ", async () => {
-    const key1 = uniqueIdempotencyKey("invoice");
-    const key2 = uniqueIdempotencyKey("invoice");
-    mockDb.sequencePeriod.findFirst.mockResolvedValue(makePeriod({ currentCounter: 3 }));
-    mockDb.sequencePeriod.update
-      .mockResolvedValueOnce({ currentCounter: 4 } as never)
-      .mockResolvedValueOnce({ currentCounter: 5 } as never);
-
-    const first = await consumeSequenceNumber({
-      sequenceId: SEQ_ID,
-      documentDate,
-      orgId: ORG_ID,
-      idempotencyKey: key1,
-    });
-
-    const second = await consumeSequenceNumber({
-      sequenceId: SEQ_ID,
-      documentDate,
-      orgId: ORG_ID,
-      idempotencyKey: key2,
-    });
-
-    expect(first.sequenceNumber).toBe(4);
-    expect(second.sequenceNumber).toBe(5);
-    expect(mockDb.sequencePeriod.update).toHaveBeenCalledTimes(2);
+    expect(retry.sequenceNumber).toBe(1);
+    expect(retry.formattedNumber).toContain("INV/2026/00001");
+    expect(mockDb.sequencePeriod.create).toHaveBeenCalledTimes(2);
   });
 
   // ─── Transaction support ────────────────────────────────────────────────────

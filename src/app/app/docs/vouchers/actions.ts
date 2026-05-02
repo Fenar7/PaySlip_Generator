@@ -120,7 +120,6 @@ async function assignNextVoucherNumber(
   orgId: string,
   voucherDate: string,
   tx: Prisma.TransactionClient,
-  idempotencyKey?: string,
 ): Promise<{
   voucherNumber: string;
   sequenceId: string | null;
@@ -139,7 +138,6 @@ async function assignNextVoucherNumber(
       documentDate: docDate,
       orgId,
       tx,
-      idempotencyKey,
     });
     return {
       voucherNumber: result.formattedNumber,
@@ -355,7 +353,6 @@ export async function updateVoucher(
             orgId,
             input.voucherDate ?? new Date().toISOString().split("T")[0],
             tx,
-            id,
           );
           assignedVoucherNumber = assigned.voucherNumber;
           await tx.voucher.update({

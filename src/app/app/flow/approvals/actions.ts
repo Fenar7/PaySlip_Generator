@@ -339,10 +339,203 @@ export async function requestApproval(
   try {
     const { orgId, userId, role } = await requireOrgContext();
 
-    const rateLimit = await rateLimitByOrg(orgId, RATE_LIMITS.voucherApprove);
-    if (!rateLimit.success) {
-      return { success: false, error: `Rate limit exceeded for approval. Retry after ${rateLimit.retryAfter ?? 60} seconds.` };
+    if (!isApprovalDocType(docType)) {
+      return { success: false, error: "Invalid document type" };
     }
+
+    if (!canRequestApprovalForDoc(role, docType)) {
+      return { success: false, error: "Insufficient permissions." };
+    }
+
+    // Verify the document exists and belongs to the org
+    let docExists = false;
+    switch (docType) {
+      case "invoice":
+        docExists = !!(await db.invoice.findFirst({
+          where: { id: docId, organizationId: orgId },
+          select: { id: true },
+        }));
+        break;
+      case "voucher":
+        docExists = !!(await db.voucher.findFirst({
+          where: { id: docId, organizationId: orgId },
+          select: { id: true },
+        }));
+        break;
+      case "salary-slip":
+        docExists = !!(await db.salarySlip.findFirst({
+          where: { id: docId, organizationId: orgId },
+          select: { id: true },
+        }));
+        break;
+      case "vendor-bill":
+        docExists = !!(await db.vendorBill.findFirst({
+          where: { id: docId, orgId },
+          select: { id: true },
+        }));
+        break;
+      case "payment-run":
+        docExists = !!(await db.paymentRun.findFirst({
+          where: { id: docId, orgId },
+          select: { id: true },
+        }));
+        break;
+      case "fiscal-period-reopen":
+        docExists = !!(await db.fiscalPeriod.findFirst({
+          where: { id: docId, orgId },
+          select: { id: true },
+        }));
+        break;
+    }
+
+    if (!docExists) {
+      return { success: false, error: "Document not found" };
+    }
+
+    const profile = await db.profile.findUnique({
+      where: { id: userId },
+      select: { name: true },
+    });
+
+    const requesterName = profile?.name ?? "Unknown User";
+    const docNumber = await getDocNumber(docType, docId);
+    const amount = await getApprovalDocumentAmount(docType, docId, orgId);
+
+    const approval = await createApprovalRequest({
+      docType,
+      docId,
+      orgId,
+      requestedById: userId,
+      requestedByName: requesterName,
+      docNumber,
+      amount,
+    });
+
+    revalidatePath("/app/flow/approvals");
+    return { success: true, data: { id: approval.id } };
+  } catch (error) {
+    console.error("requestApproval error:", error);
+    return { success: false, error: "Failed to request approval" };
+  }
+}
+
+// ─── List Approvals ───────────────────────────────────────────────────────────
+
+export interface ApprovalListResult {
+  approvals: Array<{
+    id: string;
+    docType: string;
+    docId: string;
+    docNumber: string;
+    requestedByName: string | null;
+    status: string;
+    createdAt: Date;
+    decidedAt: Date | null;
+    approverName: string | null;
+  }>;
+  total: number;
+  counts: { all: number; pending: number; approved: number; rejected: number; escalated: number };
+}
+
+export async function listApprovals(
+  params?: { status?: string; page?: number }
+): Promise<ActionResult<ApprovalListResult>> {
+  try {
+    const { orgId, userId, role } = await requireOrgContext();
+    const page = params?.page ?? 0;
+
+    const statusFilter =
+      params?.status && ["PENDING", "APPROVED", "REJECTED", "ESCALATED"].includes(params.status)
+        ? { status: params.status as "PENDING" | "APPROVED" | "REJECTED" | "ESCALATED" }
+        : {};
+
+    const visibilityWhere = getApprovalVisibilityWhere(role, userId);
+    const where = { orgId, ...statusFilter, ...visibilityWhere };
+
+    const [approvals, total, pending, approved, rejected, escalated] = await Promise.all([
+      db.approvalRequest.findMany({
+        where,
+        orderBy: { createdAt: "desc" },
+        skip: page * PAGE_SIZE,
+        take: PAGE_SIZE,
+      }),
+      db.approvalRequest.count({ where }),
+      db.approvalRequest.count({ where: { orgId, status: "PENDING" } }),
+      db.approvalRequest.count({ where: { orgId, status: "APPROVED" } }),
+      db.approvalRequest.count({ where: { orgId, status: "REJECTED" } }),
+      db.approvalRequest.count({ where: { orgId, status: "ESCALATED" } }),
+    ]);
+
+    const documents = await getApprovalDocumentSummaries(approvals);
+
+    const mapped = approvals.map((a) => {
+      const document = documents.get(`${a.docType}:${a.docId}`);
+      const docNumber = document?.number ?? a.docId.slice(0, 8);
+
+      return {
+        id: a.id,
+        docType: a.docType,
+        docId: a.docId,
+        docNumber,
+        requestedByName: a.requestedByName,
+        status: a.status,
+        createdAt: a.createdAt,
+        decidedAt: a.decidedAt,
+        approverName: a.approverName,
+      };
+    });
+
+    return {
+      success: true,
+      data: {
+        approvals: mapped,
+        total,
+        counts: {
+          all: total,
+          pending,
+          approved,
+          rejected,
+          escalated,
+        },
+      },
+    };
+  } catch (error) {
+    console.error("listApprovals error:", error);
+    return { success: false, error: "Failed to list approvals" };
+  }
+}
+
+// ─── Get Approval Detail ──────────────────────────────────────────────────────
+
+export interface ApprovalDetail {
+  id: string;
+  docType: string;
+  docId: string;
+  orgId: string;
+  requestedById: string;
+  requestedByName: string | null;
+  approverId: string | null;
+  approverName: string | null;
+  status: string;
+  note: string | null;
+  createdAt: Date;
+  decidedAt: Date | null;
+  reopenImpact: import("@/lib/accounting").FiscalPeriodReopenImpact | null;
+  document: {
+    number: string;
+    entityName: string | null;
+    amount: number;
+    date: string;
+    month?: number;
+    year?: number;
+  } | null;
+}
+
+export async function getApprovalDetail(
+  requestId: string
+): Promise<ActionResult<ApprovalDetail>> {
+  try {
+    const { orgId, userId, role } = await requireOrgContext();
 
     const approval = await db.approvalRequest.findFirst({
       where: { id: requestId, orgId },
@@ -403,6 +596,11 @@ export async function approveRequest(
 ): Promise<ActionResult<undefined>> {
   try {
     const { orgId, userId, role } = await requireOrgContext();
+
+    const rateLimit = await rateLimitByOrg(orgId, RATE_LIMITS.voucherApprove);
+    if (!rateLimit.success) {
+      return { success: false, error: `Rate limit exceeded for approval. Retry after ${rateLimit.retryAfter ?? 60} seconds.` };
+    }
 
     const approval = await db.approvalRequest.findFirst({
       where: { id: requestId, orgId, status: { in: ["PENDING", "ESCALATED"] } },
@@ -549,7 +747,6 @@ export async function approveRequest(
                 documentDate: docDate,
                 orgId,
                 tx,
-                idempotencyKey: approval.docId,
               });
               voucherNumber = result.formattedNumber;
               await tx.voucher.update({

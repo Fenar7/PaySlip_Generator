@@ -14,8 +14,6 @@ import {
   SequenceEngineError,
   SequenceExhaustionError,
   SequenceNotFoundError,
-  SequenceIdempotencyConflictError,
-  SequenceContentionError,
 } from "./sequence-engine-errors";
 
 /**
@@ -23,16 +21,18 @@ import {
  *
  * Provides preview and consume operations for document sequences.
  * Built in Phase 1; consumed by lifecycle hooks in Phase 4–5.
- * Hardened in Phase 7/Sprint 7.1 for concurrency and idempotency.
+ * Hardened in Phase 7/Sprint 7.1 for concurrency.
  *
  * All mutations are atomic and run inside Prisma transactions.
  * Period contention is handled via retry on unique constraint violation.
  *
- * Idempotency:
- *  - If an idempotencyKey is provided, repeated calls with the same key
- *    return the previously consumed result without consuming a new number.
- *  - In-memory deduplication is best-effort; true idempotency requires
- *    the caller to guard on document-level state (e.g. invoiceNumber check).
+ * Idempotency (Phase 7/Sprint 7.1):
+ *  - Duplicate protection relies on document-level guards inside caller
+ *    transactions (e.g. re-reading invoiceNumber/voucherNumber before
+ *    consuming).  This is rollback-safe: if the outer transaction rolls
+ *    back, the guard sees the correct state on retry.
+ *  - There is no in-memory idempotency cache.  A cache would survive a
+ *    rolled-back outer transaction and poison retries with stale values.
  */
 
 interface PreviewParams {
@@ -46,14 +46,6 @@ interface ConsumeParams {
   documentDate: Date;
   orgId: string;
   tx?: Prisma.TransactionClient;
-  /** Optional idempotency key — repeated calls with the same key return the cached result without consuming a new number. */
-  idempotencyKey?: string;
-}
-
-const consumeIdempotencyCache = new Map<string, ConsumeResult>();
-
-function idempotencyCacheKey(orgId: string, sequenceId: string, key: string): string {
-  return `${orgId}:${sequenceId}:${key}`;
 }
 
 /**
@@ -122,14 +114,9 @@ export async function previewSequenceNumber(
  * Must be called inside a transaction for finalize-time assignment.
  *
  * Idempotency (Phase 7/Sprint 7.1):
- *  - If `idempotencyKey` is provided, repeated calls with the same key
- *    return the previously consumed result without consuming a new number.
- *  - The cache is per-process (non-persistent) and intended as a best-effort
- *    guard for same-instance retries. Cross-instance idempotency relies on
- *    the caller's document-level guard (e.g. checking invoiceNumber before
- *    consuming).
- *  - An explicit error is thrown if a different result is detected for the
- *    same key (which indicates a caller-level programming error).
+ *  - Duplicate protection relies on document-level guards inside caller
+ *    transactions.  There is no in-memory cache because a cache would
+ *    survive a rolled-back outer transaction and return stale results.
  */
 export async function consumeSequenceNumber(
   params: ConsumeParams
@@ -137,14 +124,6 @@ export async function consumeSequenceNumber(
   const { sequenceId, documentDate, orgId } = params;
 
   const executor = params.tx ?? db;
-
-  if (params.idempotencyKey) {
-    const cachedKey = idempotencyCacheKey(orgId, sequenceId, params.idempotencyKey);
-    const cached = consumeIdempotencyCache.get(cachedKey);
-    if (cached) {
-      return cached;
-    }
-  }
 
   const sequence = await executor.sequence.findFirst({
     where: { id: sequenceId, organizationId: orgId },
@@ -202,18 +181,11 @@ export async function consumeSequenceNumber(
 
   const formattedNumber = render(validation.tokens, context);
 
-  const result: ConsumeResult = {
+  return {
     formattedNumber,
     sequenceNumber,
     periodId: period.id,
   };
-
-  if (params.idempotencyKey) {
-    const cachedKey = idempotencyCacheKey(orgId, sequenceId, params.idempotencyKey);
-    consumeIdempotencyCache.set(cachedKey, result);
-  }
-
-  return result;
 }
 
 /**

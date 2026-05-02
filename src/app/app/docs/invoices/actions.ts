@@ -313,7 +313,6 @@ async function assignNextInvoiceNumber(
   orgId: string,
   documentDate: Date,
   tx: Prisma.TransactionClient,
-  idempotencyKey?: string,
 ): Promise<{
   invoiceNumber: string;
   sequenceId: string | null;
@@ -331,7 +330,6 @@ async function assignNextInvoiceNumber(
       documentDate,
       orgId,
       tx,
-      idempotencyKey,
     });
     return {
       invoiceNumber: result.formattedNumber,
@@ -889,7 +887,7 @@ export async function performIssueInvoice(
     const docDate = new Date(preexisting.invoiceDate);
 
     if (!current.invoiceNumber) {
-      const assigned = await assignNextInvoiceNumber(orgId, docDate, tx, invoiceId);
+      const assigned = await assignNextInvoiceNumber(orgId, docDate, tx);
       invoiceNumber = assigned.invoiceNumber;
       issueSequenceId = assigned.sequenceId;
       issuePeriodId = assigned.sequencePeriodId;

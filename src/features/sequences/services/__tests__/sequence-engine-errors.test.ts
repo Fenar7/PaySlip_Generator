@@ -3,7 +3,6 @@ import {
   SequenceEngineError,
   SequenceExhaustionError,
   SequenceNotFoundError,
-  SequenceIdempotencyConflictError,
   SequenceContentionError,
   SequencePeriodLockError,
 } from "../sequence-engine-errors";
@@ -27,12 +26,6 @@ describe("sequence-engine errors", () => {
     const err = new SequenceNotFoundError("seq-123");
     expect(err).toBeInstanceOf(SequenceEngineError);
     expect(err.message).toContain("seq-123");
-  });
-
-  it("SequenceIdempotencyConflictError includes the idempotency key", () => {
-    const err = new SequenceIdempotencyConflictError("doc-abc");
-    expect(err).toBeInstanceOf(SequenceEngineError);
-    expect(err.message).toContain("doc-abc");
   });
 
   it("SequenceContentionError includes the operation name", () => {
