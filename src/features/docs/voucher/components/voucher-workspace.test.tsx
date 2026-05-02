@@ -50,7 +50,7 @@ describe("Voucher workspace", () => {
   it("shows an error state when export validation fails", async () => {
     render(<VoucherPage />);
 
-    fireEvent.change(screen.getByLabelText(/voucher number/i), {
+    fireEvent.change(screen.getByLabelText(/counterparty/i), {
       target: { value: "" },
     });
 

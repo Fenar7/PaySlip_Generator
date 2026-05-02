@@ -2,7 +2,7 @@
 
 import { db } from "@/lib/db";
 import { requireOrgContext } from "@/lib/auth";
-import { nextDocumentNumber, nextDocumentNumberTx } from "@/lib/docs";
+import { nextDocumentNumberTx } from "@/lib/docs";
 import { getSchemaDriftActionMessage, isSchemaDriftError } from "@/lib/prisma-errors";
 import { revalidatePath } from "next/cache";
 import type { Prisma } from "@/generated/prisma/client";
@@ -10,6 +10,9 @@ import { postVoucherTx } from "@/lib/accounting";
 import { emitVoucherEvent } from "@/lib/document-events";
 import { syncVoucherToIndex } from "@/lib/docs-vault";
 import { checkUsageLimit } from "@/lib/usage-metering";
+import { consumeSequenceNumber } from "@/features/sequences/services/sequence-engine";
+import { getSequenceConfig } from "@/features/sequences/services/sequence-admin";
+import type { ConsumeResult } from "@/features/sequences/types";
 import { fromMinorUnits, normalizeMoney, sumMinorUnits } from "@/lib/money";
 
 export type ActionResult<T> = 
@@ -105,6 +108,51 @@ async function syncVoucherRecordToIndex(orgId: string, voucherId: string): Promi
   });
 }
 
+/**
+ * Assign the next official voucher number via the sequence engine.
+ * Falls back to legacy OrgDefaults numbering if no active sequence
+ * exists for the org (e.g. migration not yet run).
+ */
+async function assignNextVoucherNumber(
+  orgId: string,
+  voucherDate: string,
+  tx: Prisma.TransactionClient,
+): Promise<{
+  voucherNumber: string;
+  sequenceId: string | null;
+  sequencePeriodId: string | null;
+  sequenceNumber: number | null;
+}> {
+  const sequenceConfig = await getSequenceConfig({
+    orgId,
+    documentType: "VOUCHER",
+  });
+
+  if (sequenceConfig?.sequenceId) {
+    const docDate = new Date(`${voucherDate}T00:00:00`);
+    const result: ConsumeResult = await consumeSequenceNumber({
+      sequenceId: sequenceConfig.sequenceId,
+      documentDate: docDate,
+      orgId,
+      tx,
+    });
+    return {
+      voucherNumber: result.formattedNumber,
+      sequenceId: sequenceConfig.sequenceId,
+      sequencePeriodId: result.periodId,
+      sequenceNumber: result.sequenceNumber,
+    };
+  }
+
+  const legacyNumber = await nextDocumentNumberTx(tx, orgId, "voucher");
+  return {
+    voucherNumber: legacyNumber,
+    sequenceId: null,
+    sequencePeriodId: null,
+    sequenceNumber: null,
+  };
+}
+
 export async function saveVoucher(
   input: VoucherInput,
   status: "draft" | "approved" = "draft"
@@ -120,16 +168,27 @@ export async function saveVoucher(
       };
     }
     
-    // Phase 5 / Sprint 5.1: drafts do not consume official numbers.
-    // The real sequence number is assigned only on APPROVED (Sprint 5.2).
-    const voucherNumber =
-      status === "draft" ? null : await nextDocumentNumber(orgId, "voucher");
-    
+    // Phase 5 / Sprint 5.2: assign the official number at approval
+    // time via the sequence engine (or legacy fallback).  Sprint 5.1
+    // made drafts nullable; Sprint 5.2 connects approval to the engine.
+    let voucherNumber: string | null = null;
+    let issueSequenceId: string | null = null;
+    let issuePeriodId: string | null = null;
+    let issueSequenceNumber: number | null = null;
+
     const normalizedVoucher = normalizeVoucherLines(input.lines, {
       allowPartial: status === "draft",
     });
     
     const voucher = await db.$transaction(async (tx) => {
+      if (status === "approved") {
+        const assigned = await assignNextVoucherNumber(orgId, input.voucherDate, tx);
+        voucherNumber = assigned.voucherNumber;
+        issueSequenceId = assigned.sequenceId;
+        issuePeriodId = assigned.sequencePeriodId;
+        issueSequenceNumber = assigned.sequenceNumber;
+      }
+
       const created = await tx.voucher.create({
         data: {
           organizationId: orgId,
@@ -141,6 +200,9 @@ export async function saveVoucher(
           isMultiLine: input.isMultiLine ?? false,
           formData: input.formData as Prisma.InputJsonValue,
           totalAmount: normalizedVoucher.totalAmount,
+          sequenceId: issueSequenceId,
+          sequencePeriodId: issuePeriodId,
+          sequenceNumber: issueSequenceNumber,
           ...(normalizedVoucher.lines.length > 0
             ? {
                 lines: {
@@ -210,7 +272,7 @@ export async function saveVoucher(
 export async function updateVoucher(
   id: string,
   input: Partial<VoucherInput>
-): Promise<ActionResult<{ id: string }>> {
+): Promise<ActionResult<{ id: string; voucherNumber?: string }>> {
   try {
     const { orgId, userId } = await requireOrgContext();
     
@@ -238,6 +300,8 @@ export async function updateVoucher(
           allowPartial: (input.status ?? existing.status) === "draft",
         })
       : null;
+
+    let assignedVoucherNumber: string | undefined;
 
     await db.$transaction(async (tx) => {
       await tx.voucher.update({
@@ -272,15 +336,19 @@ export async function updateVoucher(
 
       const nextStatus = input.status ?? existing.status;
       if (nextStatus === "approved") {
-        // Phase 5 / Sprint 5.1: drafts may have null voucherNumber.
-        // Assign the next official number before transitioning to
-        // approved so no approved voucher is left unnumbered.
-        // Sprint 5.2 replaces this stopgap with sequence engine.
+        // Phase 5 / Sprint 5.2: assign the official number at approval
+        // time via the sequence engine (or legacy fallback).
         if (!existing.voucherNumber) {
-          const newNumber = await nextDocumentNumberTx(tx, orgId, "voucher");
+          const assigned = await assignNextVoucherNumber(orgId, input.voucherDate ?? new Date().toISOString().split("T")[0], tx);
+          assignedVoucherNumber = assigned.voucherNumber;
           await tx.voucher.update({
             where: { id },
-            data: { voucherNumber: newNumber },
+            data: {
+              voucherNumber: assigned.voucherNumber,
+              sequenceId: assigned.sequenceId,
+              sequencePeriodId: assigned.sequencePeriodId,
+              sequenceNumber: assigned.sequenceNumber,
+            },
           });
         }
         await postVoucherTx(tx, {
@@ -297,7 +365,9 @@ export async function updateVoucher(
 
     revalidatePath("/app/docs/vouchers");
     revalidatePath(`/app/docs/vouchers/${id}`);
-    return { success: true, data: { id } };
+    // Include the assigned voucherNumber when one was generated during
+    // approval, so the workspace can update live form/export state.
+    return { success: true, data: { id, voucherNumber: assignedVoucherNumber } };
   } catch (error) {
     if (isSchemaDriftError(error, "Voucher")) {
       console.warn(
