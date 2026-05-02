@@ -44,7 +44,7 @@ export const voucherDocumentSchema = z.object({
   title: z.string().trim().min(1),
   counterpartyLabel: z.string().trim().min(1),
   branding: brandingSchema,
-  voucherNumber: z.string().trim().min(1),
+  voucherNumber: z.string().trim().optional(),
   date: z.string().trim().min(1),
   counterpartyName: z.string().trim().min(1),
   amount: z.number().finite().positive(),
@@ -68,7 +68,7 @@ export const voucherFormSchema = z
     templateId: z.enum(["minimal-office", "traditional-ledger", "modern-card", "formal-bordered", "compact-receipt"]),
     voucherType: z.enum(["payment", "receipt"]),
     branding: brandingSchema,
-    voucherNumber: z.string().trim().min(1, "Voucher number is required."),
+    voucherNumber: z.string().trim().optional(),
     date: z.string().trim().min(1, "Date is required."),
     counterpartyName: z.string().trim().min(1, "Counterparty is required."),
     amount: z

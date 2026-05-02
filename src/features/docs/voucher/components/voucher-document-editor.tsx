@@ -66,7 +66,7 @@ export function VoucherDocumentEditor() {
               </p>
               <InlineTextField
                 name="voucherNumber"
-                placeholder="VCH-001"
+                placeholder="Voucher no."
                 className="mt-2 text-base font-medium"
               />
             </div>
