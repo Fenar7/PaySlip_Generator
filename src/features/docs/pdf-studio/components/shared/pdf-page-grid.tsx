@@ -40,6 +40,11 @@ function PdfPageThumbnail({
     disabled: mode === "select" || mode === "delete" || mode === "preview",
   });
 
+  // setActivatorNodeRef scopes drag initiation to the preview area only.
+  // Footer controls (rotate, delete) are siblings, not children, so they
+  // never bubble into the preview drag zone regardless of stopPropagation.
+  const { setActivatorNodeRef } = sortable;
+
   const style = {
     transform: CSS.Transform.toString(sortable.transform),
     transition: sortable.transition,
@@ -75,7 +80,18 @@ function PdfPageThumbnail({
       )}
       onClick={handleClick}
     >
-      <div className="relative overflow-hidden rounded-t-[0.65rem] bg-[var(--surface-soft)]">
+      {/* Preview area is the primary drag zone in reorder mode. */}
+      <div
+        ref={mode === "reorder" ? setActivatorNodeRef : undefined}
+        {...(mode === "reorder" ? sortable.attributes : {})}
+        {...(mode === "reorder" ? sortable.listeners : {})}
+        title={mode === "reorder" ? "Drag to reorder" : undefined}
+        className={cn(
+          "relative overflow-hidden rounded-t-[0.65rem] bg-[var(--surface-soft)]",
+          mode === "reorder" &&
+            "cursor-grab select-none active:cursor-grabbing hover:ring-2 hover:ring-inset hover:ring-[var(--accent)]/25",
+        )}
+      >
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           src={item.previewUrl}
@@ -177,11 +193,10 @@ function PdfPageThumbnail({
                   </svg>
                 </button>
               )}
+              {/* Visual drag affordance only — drag is activated from the preview area above. */}
               <div
-                {...sortable.attributes}
-                {...sortable.listeners}
-                className="flex h-6 w-6 cursor-grab items-center justify-center rounded-md text-[var(--muted-foreground)] transition-colors hover:bg-[var(--surface-soft)] hover:text-[var(--foreground)] active:cursor-grabbing"
-                title="Drag to reorder"
+                aria-hidden="true"
+                className="flex h-6 w-6 items-center justify-center rounded-md text-[var(--muted-foreground)]"
               >
                 <svg
                   className="h-3 w-3"
