@@ -89,3 +89,101 @@ export interface HealthCheckReport {
   failures: HealthCheckFailure[];
   timestamp: string;
 }
+
+// ─── Resequence Preview (Phase 6 / Sprint 6.1) ────────────────────────────────
+
+export type ResequenceOrderBy = "document_date" | "current_number";
+
+export interface ResequencePreviewInput {
+  orgId: string;
+  documentType: SequenceDocumentType;
+  startDate: Date;
+  endDate: Date;
+  orderBy: ResequenceOrderBy;
+  lockDate?: Date;
+}
+
+export type ResequenceRecordStatus =
+  | "unchanged"
+  | "renumbered"
+  | "blocked";
+
+export interface ResequenceRecordMapping {
+  documentId: string;
+  documentDate: Date;
+  oldNumber: string;
+  proposedNumber: string | null;
+  status: ResequenceRecordStatus;
+  reason: string | null;
+  oldCounter: number | null;
+  proposedCounter: number | null;
+  periodKey: string;
+}
+
+export interface ResequencePreviewSummary {
+  totalDocuments: number;
+  unchanged: number;
+  renumbered: number;
+  blocked: number;
+}
+
+export interface ResequencePreviewResult {
+  summary: ResequencePreviewSummary;
+  mappings: ResequenceRecordMapping[];
+  sequenceId: string;
+  formatString: string;
+  periodicity: SequencePeriodicity;
+  previewFingerprint: string;
+}
+
+// ─── Resequence Apply (Phase 6 / Sprint 6.2) ──────────────────────────────────
+
+export interface ResequenceApplyInput {
+  orgId: string;
+  documentType: SequenceDocumentType;
+  startDate: Date;
+  endDate: Date;
+  orderBy: ResequenceOrderBy;
+  lockDate?: Date;
+  expectedFingerprint: string;
+}
+
+export interface ResequenceApplyResult {
+  summary: { totalConsidered: number; applied: number; unchanged: number; blocked: number; failed: number };
+  appliedDocumentIds: string[];
+  preview: ResequencePreviewResult;
+}
+
+// ─── Diagnostics (Phase 6 / Sprint 6.3) ───────────────────────────────────────
+
+export interface SequenceDiagnosticsInput {
+  orgId: string;
+  documentType: SequenceDocumentType;
+  startDate: Date;
+  endDate: Date;
+  lockDate?: Date;
+}
+
+export interface GapRecord {
+  periodKey: string;
+  missingCounter: number;
+  beforeNumber: string | null;
+  afterNumber: string | null;
+}
+
+export interface IrregularityRecord {
+  documentId: string;
+  documentDate: Date;
+  oldNumber: string;
+  issue: string;
+  severity: "warning" | "critical";
+}
+
+export interface SequenceDiagnosticsResult {
+  summary: { totalDocuments: number; gaps: number; irregularities: number; warnings: number; criticals: number };
+  gaps: GapRecord[];
+  irregularities: IrregularityRecord[];
+  sequenceId: string;
+  formatString: string;
+  periodicity: SequencePeriodicity;
+}

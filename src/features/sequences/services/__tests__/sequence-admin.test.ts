@@ -31,6 +31,11 @@ vi.mock("@/lib/db", () => ({
   db: mockDb,
 }));
 
+vi.mock("@/lib/rate-limit", () => ({
+  rateLimitByOrg: vi.fn().mockResolvedValue({ success: true, remaining: 999 }),
+  RATE_LIMITS: { resequenceApply: { maxRequests: 5, window: "60 s" } },
+}));
+
 // Suppress next/headers since we read headers inside getAuditHeaders
 vi.mock("next/headers", () => ({
   headers: vi.fn().mockResolvedValue(new Map()),
@@ -43,8 +48,20 @@ import {
   seedSequenceContinuity,
   getSequenceAuditHistory,
   updateSequenceSettingsAtomic,
+  previewResequencePreview,
+  applyResequencePreview,
+  diagnoseSequence,
 } from "../sequence-admin";
 import { SequenceAdminError } from "../sequence-errors";
+
+const mockPreviewResequence = vi.fn();
+const mockApplyResequence = vi.fn();
+const mockDiagnoseSequence = vi.fn();
+vi.mock("../sequence-resequence", () => ({
+  previewResequence: (...args: unknown[]) => mockPreviewResequence(...args),
+  applyResequence: (...args: unknown[]) => mockApplyResequence(...args),
+  diagnoseSequence: (...args: unknown[]) => mockDiagnoseSequence(...args),
+}));
 
 describe("sequence-admin", () => {
   beforeEach(() => {
@@ -552,6 +569,115 @@ describe("sequence-admin", () => {
       await expect(
         getSequenceAuditHistory({ orgId: "org-2" })
       ).rejects.toThrow(/Cross-org access denied/);
+    });
+  });
+
+  describe("previewResequencePreview", () => {
+    const validInput = {
+      orgId: "org-1",
+      documentType: "INVOICE" as const,
+      startDate: new Date("2026-01-01"),
+      endDate: new Date("2026-12-31"),
+      orderBy: "document_date" as const,
+    };
+
+    it("requires owner role", async () => {
+      mockRequireRole.mockRejectedValue(
+        new Error("Insufficient permissions. Required: owner, Have: admin")
+      );
+
+      await expect(
+        previewResequencePreview(validInput)
+      ).rejects.toThrow(/Insufficient permissions/);
+    });
+
+    it("rejects cross-org preview", async () => {
+      mockRequireRole.mockResolvedValue({
+        userId: "user-1",
+        orgId: "org-1",
+        role: "owner",
+        representedId: null,
+        proxyGrantId: null,
+      });
+
+      await expect(
+        previewResequencePreview({ ...validInput, orgId: "org-2" })
+      ).rejects.toThrow(SequenceAdminError);
+
+      await expect(
+        previewResequencePreview({ ...validInput, orgId: "org-2" })
+      ).rejects.toThrow(/Cross-org access denied/);
+    });
+
+    it("allows owner to preview their own org", async () => {
+      mockRequireRole.mockResolvedValue({
+        userId: "user-1",
+        orgId: "org-1",
+        role: "owner",
+        representedId: null,
+        proxyGrantId: null,
+      });
+
+      mockPreviewResequence.mockResolvedValue({
+        summary: { totalDocuments: 0, unchanged: 0, renumbered: 0, blocked: 0 },
+        mappings: [],
+        sequenceId: "seq-1",
+        formatString: "INV/{YYYY}/{NNNNN}",
+        periodicity: "YEARLY",
+        previewFingerprint: "abc123",
+      });
+
+      const result = await previewResequencePreview(validInput);
+      expect(result.summary.totalDocuments).toBe(0);
+      expect(mockPreviewResequence).toHaveBeenCalledWith(validInput);
+    });
+  });
+
+  describe("applyResequencePreview", () => {
+    const validInput = { orgId: "org-1", documentType: "INVOICE" as const, startDate: new Date("2026-01-01"), endDate: new Date("2026-12-31"), orderBy: "document_date" as const, expectedFingerprint: "abc123" };
+
+    it("requires owner role", async () => {
+      mockRequireRole.mockRejectedValue(new Error("Insufficient permissions. Required: owner, Have: admin"));
+      await expect(applyResequencePreview(validInput)).rejects.toThrow(/Insufficient permissions/);
+    });
+
+    it("rejects cross-org apply", async () => {
+      mockRequireRole.mockResolvedValue({ userId: "user-1", orgId: "org-1", role: "owner", representedId: null, proxyGrantId: null });
+      await expect(applyResequencePreview({ ...validInput, orgId: "org-2" })).rejects.toThrow(/Cross-org access denied/);
+    });
+
+    it("allows owner to apply on their own org", async () => {
+      mockRequireRole.mockResolvedValue({ userId: "user-1", orgId: "org-1", role: "owner", representedId: null, proxyGrantId: null });
+      mockApplyResequence.mockResolvedValue({ summary: { totalConsidered: 0, applied: 0, unchanged: 0, blocked: 0, failed: 0 }, appliedDocumentIds: [], preview: { summary: { totalDocuments: 0, unchanged: 0, renumbered: 0, blocked: 0 }, mappings: [], sequenceId: "seq-1", formatString: "INV/{YYYY}/{NNNNN}", periodicity: "YEARLY", previewFingerprint: "abc123" } });
+      const result = await applyResequencePreview(validInput);
+      expect(result.summary.applied).toBe(0);
+      expect(mockApplyResequence).toHaveBeenCalledWith(validInput, expect.objectContaining({ actorId: "user-1" }));
+    });
+  });
+
+  describe("diagnoseSequence", () => {
+    const validInput = { orgId: "org-1", documentType: "INVOICE" as const, startDate: new Date("2026-01-01"), endDate: new Date("2026-12-31") };
+
+    it("requires authentication", async () => {
+      mockGetOrgContext.mockResolvedValue(null);
+      await expect(diagnoseSequence(validInput)).rejects.toThrow(SequenceAdminError);
+    });
+
+    it("rejects cross-org diagnostics", async () => {
+      mockGetOrgContext.mockResolvedValue({ userId: "user-1", orgId: "org-1", role: "member", representedId: null, proxyGrantId: null, proxyScope: [] });
+      await expect(diagnoseSequence({ ...validInput, orgId: "org-2" })).rejects.toThrow(/Cross-org access denied/);
+    });
+
+    it("allows org member to run diagnostics", async () => {
+      mockGetOrgContext.mockResolvedValue({ userId: "user-1", orgId: "org-1", role: "member", representedId: null, proxyGrantId: null, proxyScope: [] });
+      mockDiagnoseSequence.mockResolvedValue({
+        summary: { totalDocuments: 0, gaps: 0, irregularities: 0, warnings: 0, criticals: 0 },
+        gaps: [], irregularities: [],
+        sequenceId: "seq-1", formatString: "INV/{YYYY}/{NNNNN}", periodicity: "YEARLY",
+      });
+      const result = await diagnoseSequence(validInput);
+      expect(result.summary.totalDocuments).toBe(0);
+      expect(mockDiagnoseSequence).toHaveBeenCalledWith(validInput);
     });
   });
 });

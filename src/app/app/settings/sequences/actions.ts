@@ -5,9 +5,22 @@ import {
   updateSequenceSettingsAtomic,
   seedSequenceContinuity,
   getSequenceAuditHistory,
+  previewResequencePreview,
+  applyResequencePreview,
+  diagnoseSequence,
 } from "@/features/sequences/services/sequence-admin";
 import { previewSequenceNumber } from "@/features/sequences/services/sequence-engine";
-import type { SequenceDocumentType, SequencePeriodicity } from "@/features/sequences/types";
+import type {
+  SequenceDocumentType,
+  SequencePeriodicity,
+  ResequencePreviewInput,
+  ResequencePreviewResult,
+  ResequenceApplyInput,
+  ResequenceApplyResult,
+  SequenceDiagnosticsInput,
+  SequenceDiagnosticsResult,
+} from "@/features/sequences/types";
+import { ResequencePreviewInputSchema, ResequenceApplyInputSchema } from "@/features/sequences/schema";
 
 export interface SequenceSettingsData {
   documentType: SequenceDocumentType;
@@ -131,4 +144,24 @@ export async function getSequenceHistory(
     limit: 50,
     offset: 0,
   });
+}
+
+export async function previewResequence(
+  input: ResequencePreviewInput
+): Promise<ResequencePreviewResult> {
+  const parsed = ResequencePreviewInputSchema.parse(input);
+  return previewResequencePreview(parsed);
+}
+
+export async function applyResequence(
+  input: ResequenceApplyInput
+): Promise<ResequenceApplyResult> {
+  const parsed = ResequenceApplyInputSchema.parse(input);
+  return applyResequencePreview(parsed);
+}
+
+export async function diagnoseSequenceHealth(
+  input: SequenceDiagnosticsInput
+): Promise<SequenceDiagnosticsResult> {
+  return diagnoseSequence(input);
 }
