@@ -267,24 +267,24 @@ export async function postVoucherTx(
     orgId: input.orgId,
     source: "VOUCHER",
     sourceId: voucher.id,
-    sourceRef: voucher.voucherNumber,
+    sourceRef: voucher.voucherNumber ?? "DRAFT",
     entryDate: parseAccountingDate(voucher.voucherDate),
     actorId: input.actorId,
-    memo: `Voucher ${voucher.voucherNumber}`,
+    memo: `Voucher ${voucher.voucherNumber ?? "Draft"}`,
     lines:
       voucher.type === "payment"
         ? [
             {
               accountId: offsetAccountId,
               debit: roundMoney(voucher.totalAmount),
-              description: `Voucher ${voucher.voucherNumber}`,
+              description: `Voucher ${voucher.voucherNumber ?? "Draft"}`,
               entityType: "voucher",
               entityId: voucher.id,
             },
             {
               accountId: accounts[SYSTEM_ACCOUNT_KEYS.PRIMARY_BANK].id,
               credit: roundMoney(voucher.totalAmount),
-              description: `Cash out for voucher ${voucher.voucherNumber}`,
+              description: `Cash out for voucher ${voucher.voucherNumber ?? "Draft"}`,
               entityType: "voucher",
               entityId: voucher.id,
             },
@@ -293,14 +293,14 @@ export async function postVoucherTx(
             {
               accountId: accounts[SYSTEM_ACCOUNT_KEYS.PRIMARY_BANK].id,
               debit: roundMoney(voucher.totalAmount),
-              description: `Cash receipt for voucher ${voucher.voucherNumber}`,
+              description: `Cash receipt for voucher ${voucher.voucherNumber ?? "Draft"}`,
               entityType: "voucher",
               entityId: voucher.id,
             },
             {
               accountId: offsetAccountId,
               credit: roundMoney(voucher.totalAmount),
-              description: `Voucher ${voucher.voucherNumber}`,
+              description: `Voucher ${voucher.voucherNumber ?? "Draft"}`,
               entityType: "voucher",
               entityId: voucher.id,
             },

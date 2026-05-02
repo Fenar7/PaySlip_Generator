@@ -332,7 +332,7 @@ export async function syncVoucherToIndex(
   orgId: string,
   voucher: {
     id: string;
-    voucherNumber: string;
+    voucherNumber: string | null;
     status: string;
     voucherDate: string;
     totalAmount: number;

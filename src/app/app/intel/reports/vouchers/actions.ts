@@ -148,7 +148,7 @@ export async function exportVoucherReportCSV(
       "Status",
     ],
     allRows.map((r) => [
-      r.voucherNumber,
+      r.voucherNumber ?? "Draft",
       r.type,
       r.voucherDate,
       r.vendorName,
