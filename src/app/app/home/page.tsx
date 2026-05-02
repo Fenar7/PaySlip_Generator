@@ -168,7 +168,7 @@ export default async function AppHomePage() {
                     href={`/app/docs/vouchers/${v.id}`}
                     className="flex items-center justify-between rounded-lg px-2 py-1.5 text-xs hover:bg-slate-50"
                   >
-                    <span className="font-medium text-blue-600">{v.voucherNumber}</span>
+                    <span className="font-medium text-blue-600">{v.voucherNumber ?? "Draft"}</span>
                     <span className="max-w-[80px] truncate text-slate-500">{v.vendor?.name || "—"}</span>
                     <Badge label={v.type} />
                   </Link>

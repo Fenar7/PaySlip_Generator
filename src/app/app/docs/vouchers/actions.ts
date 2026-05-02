@@ -2,7 +2,7 @@
 
 import { db } from "@/lib/db";
 import { requireOrgContext } from "@/lib/auth";
-import { nextDocumentNumber } from "@/lib/docs";
+import { nextDocumentNumber, nextDocumentNumberTx } from "@/lib/docs";
 import { getSchemaDriftActionMessage, isSchemaDriftError } from "@/lib/prisma-errors";
 import { revalidatePath } from "next/cache";
 import type { Prisma } from "@/generated/prisma/client";
@@ -219,6 +219,7 @@ export async function updateVoucher(
       select: {
         id: true,
         status: true,
+        voucherNumber: true,
         accountingStatus: true,
         totalAmount: true,
       },
@@ -271,6 +272,17 @@ export async function updateVoucher(
 
       const nextStatus = input.status ?? existing.status;
       if (nextStatus === "approved") {
+        // Phase 5 / Sprint 5.1: drafts may have null voucherNumber.
+        // Assign the next official number before transitioning to
+        // approved so no approved voucher is left unnumbered.
+        // Sprint 5.2 replaces this stopgap with sequence engine.
+        if (!existing.voucherNumber) {
+          const newNumber = await nextDocumentNumberTx(tx, orgId, "voucher");
+          await tx.voucher.update({
+            where: { id },
+            data: { voucherNumber: newNumber },
+          });
+        }
         await postVoucherTx(tx, {
           orgId,
           voucherId: id,

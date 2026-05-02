@@ -110,7 +110,7 @@ async function VoucherTable({
                   href={`/app/docs/vouchers/${voucher.id}`}
                   className="font-medium text-blue-600 hover:underline"
                 >
-                  {voucher.voucherNumber}
+                  {voucher.voucherNumber ?? "Draft"}
                 </Link>
               </td>
               <td className="px-4 py-3">
