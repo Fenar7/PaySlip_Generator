@@ -36,6 +36,10 @@ import {
 } from "@/features/docs/pdf-studio/utils/scan-input";
 import { downloadBlob, downloadPdfBytes } from "@/features/docs/pdf-studio/utils/zip-builder";
 import {
+  getOcrReadiness,
+  buildOcrRestoreMessage,
+} from "@/features/docs/pdf-studio/utils/ocr-readiness";
+import {
   clearOcrWorkspaceSession,
   loadOcrWorkspaceSession,
   saveOcrWorkspaceSession,
@@ -81,6 +85,7 @@ export function OcrWorkspace() {
   const [error, setError] = useState<string | null>(null);
   const [statusMessage, setStatusMessage] = useState<string>("");
   const [isExportingPdf, setIsExportingPdf] = useState(false);
+  const [showExportConfirmDowngrade, setShowExportConfirmDowngrade] = useState(false);
   const [ocrScope, setOcrScope] = useState<OcrScope>("all");
   const [sessionStatus, setSessionStatus] = useState<string | undefined>(undefined);
   const [saveStatus, setSaveStatus] = useState<string | undefined>(undefined);
@@ -134,6 +139,17 @@ export function OcrWorkspace() {
     [sourceFile],
   );
   const canExport = resultCards.length > 0;
+  const ocrReadiness = useMemo(
+    () =>
+      images.length > 0
+        ? getOcrReadiness({ images, ocrEnabled: true, lowConfidenceThreshold: confidenceThreshold })
+        : null,
+    [images, confidenceThreshold],
+  );
+
+  const exportHasGaps =
+    ocrReadiness !== null &&
+    (ocrReadiness.exportAction === "confirm" || ocrReadiness.exportAction === "block");
   const largeFileRequiresPro =
     images.length > PDF_STUDIO_STARTER_OCR_PAGE_LIMIT &&
     (!plan || (plan.planId !== "pro" && plan.planId !== "enterprise"));
@@ -160,18 +176,8 @@ export function OcrWorkspace() {
           session.images.filter((img) => img.ocrStatus === "complete" && img.ocrText).length;
         const rerunRequiredCount = session.restoreCounts?.rerunRequiredCount ?? 0;
 
-        if (completeCount > 0 && rerunRequiredCount > 0) {
-          setSessionStatus(
-            `${completeCount} page${completeCount !== 1 ? "s" : ""} ha${completeCount === 1 ? "s" : "ve"} restored OCR text. ${rerunRequiredCount} page${rerunRequiredCount !== 1 ? "s" : ""} need${rerunRequiredCount === 1 ? "s" : ""} the source file re-uploaded before OCR can run again.`,
-          );
-        } else if (completeCount > 0) {
-          setSessionStatus(
-            `OCR text restored for all ${completeCount} page${completeCount !== 1 ? "s" : ""}. Re-upload the source file to modify results.`,
-          );
-        } else if (rerunRequiredCount > 0) {
-          setSessionStatus(
-            `${rerunRequiredCount} page${rerunRequiredCount !== 1 ? "s" : ""} still need${rerunRequiredCount === 1 ? "s" : ""} OCR. Re-upload the source file to continue.`,
-          );
+        if (completeCount > 0 || rerunRequiredCount > 0) {
+          setSessionStatus(buildOcrRestoreMessage(completeCount, rerunRequiredCount));
         }
       }
 
@@ -398,6 +404,10 @@ export function OcrWorkspace() {
     );
   }
 
+  function handleCancelExportDowngrade() {
+    setShowExportConfirmDowngrade(false);
+  }
+
   function handleRetry(imageId: string) {
     const image = images.find((img) => img.id === imageId);
     if (!image) return;
@@ -533,11 +543,24 @@ export function OcrWorkspace() {
     );
   }
 
-  async function handleDownloadSearchablePdf() {
+  async function handleDownloadSearchablePdf(overrideOcrGating = false) {
     if (!canExport) {
       return;
     }
 
+    if (!overrideOcrGating && ocrReadiness) {
+      if (ocrReadiness.exportAction === "block") {
+        setError(ocrReadiness.summary);
+        return;
+      }
+
+      if (ocrReadiness.exportAction === "confirm") {
+        setShowExportConfirmDowngrade(true);
+        return;
+      }
+    }
+
+    setShowExportConfirmDowngrade(false);
     setIsExportingPdf(true);
 
     try {
@@ -766,14 +789,29 @@ export function OcrWorkspace() {
                   <Button
                     type="button"
                     onClick={() => void handleDownloadSearchablePdf()}
-                    disabled={isExportingPdf}
+                    disabled={isExportingPdf || ocrReadiness?.exportAction === "block"}
                   >
                     {isExportingPdf
-                      ? "Generating PDF…"
-                      : "Download rasterized searchable copy"}
+                      ? "Generating PDF\u2026"
+                      : ocrReadiness?.exportAction === "block"
+                        ? "OCR still processing\u2026"
+                        : "Download rasterized searchable copy"}
                   </Button>
                 </div>
               </div>
+              {ocrReadiness?.exportAction === "block" ? (
+                <div className="mt-3 rounded-lg border border-orange-200 bg-orange-50 px-3 py-2 text-xs text-orange-700">
+                  Searchable PDF export will be available once OCR completes on all pages. TXT download is available now.
+                </div>
+              ) : exportHasGaps ? (
+                <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                  {ocrReadiness?.failedCount
+                    ? `${ocrReadiness.failedCount} page${ocrReadiness.failedCount !== 1 ? "s" : ""} failed OCR \u2014 those pages will not be searchable in the exported PDF.`
+                    : ocrReadiness?.inProgressCount
+                      ? `${ocrReadiness.inProgressCount} page${ocrReadiness.inProgressCount !== 1 ? "s" : ""} still processing \u2014 the exported PDF may be incomplete.`
+                      : "Some pages are not fully OCR-ready. The exported PDF may not be fully searchable."}
+                </div>
+              ) : null}
             </div>
           ) : null}
         </div>
@@ -812,6 +850,54 @@ export function OcrWorkspace() {
           </div>
         </div>
       </div>
+
+      {showExportConfirmDowngrade && ocrReadiness ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center px-3 py-4 sm:px-4 sm:py-6">
+          <div className="absolute inset-0 bg-[rgba(34,34,34,0.24)]" onClick={handleCancelExportDowngrade} />
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="ocr-export-downgrade-dialog-title"
+            className="relative max-h-[calc(100vh-1.5rem)] w-full max-w-[32rem] overflow-y-auto overflow-x-hidden rounded-2xl border border-[#e5e5e5] bg-white p-5 shadow-[0_8px_30px_rgba(0,0,0,0.12)] sm:p-6"
+          >
+            <div className="flex items-center gap-3">
+              <div className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-amber-100 bg-amber-50 text-amber-600">
+                <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+                  <line x1="12" y1="9" x2="12" y2="13" />
+                  <line x1="12" y1="17" x2="12.01" y2="17" />
+                </svg>
+              </div>
+              <h3 id="ocr-export-downgrade-dialog-title" className="text-lg font-semibold text-[#1a1a1a]">
+                PDF may not be fully searchable
+              </h3>
+            </div>
+            <p className="mt-3 text-sm leading-7 text-[#666]">
+              {ocrReadiness.summary}
+            </p>
+            <p className="mt-2 text-xs leading-6 text-[#888]">
+              Searchable PDF export requires completed OCR text on every page.
+              Affected pages will be image-only \u2014 not searchable \u2014 in the exported PDF.
+            </p>
+            <div className="mt-5 flex flex-col gap-2.5 sm:flex-row sm:gap-3">
+              <button
+                type="button"
+                onClick={handleCancelExportDowngrade}
+                className="inline-flex w-full items-center justify-center rounded-full border border-[#e5e5e5] bg-white px-5 py-3 text-sm font-medium text-[#1a1a1a] transition-colors hover:bg-[#f5f5f5] sm:w-auto"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => void handleDownloadSearchablePdf(true)}
+                className="inline-flex w-full items-center justify-center rounded-full border border-transparent bg-[var(--accent)] px-5 py-3 text-sm font-medium text-white transition-all hover:bg-[var(--accent-strong)] sm:w-auto"
+              >
+                Continue without OCR on affected pages
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }
