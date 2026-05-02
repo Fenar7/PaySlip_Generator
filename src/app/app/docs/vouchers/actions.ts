@@ -112,11 +112,15 @@ async function syncVoucherRecordToIndex(orgId: string, voucherId: string): Promi
  * Assign the next official voucher number via the sequence engine.
  * Falls back to legacy OrgDefaults numbering if no active sequence
  * exists for the org (e.g. migration not yet run).
+ *
+ * Phase 7/Sprint 7.1: idempotencyKey (voucherId) prevents double
+ * consumption on retry of the same voucher.
  */
 async function assignNextVoucherNumber(
   orgId: string,
   voucherDate: string,
   tx: Prisma.TransactionClient,
+  idempotencyKey?: string,
 ): Promise<{
   voucherNumber: string;
   sequenceId: string | null;
@@ -135,6 +139,7 @@ async function assignNextVoucherNumber(
       documentDate: docDate,
       orgId,
       tx,
+      idempotencyKey,
     });
     return {
       voucherNumber: result.formattedNumber,
@@ -338,8 +343,20 @@ export async function updateVoucher(
       if (nextStatus === "approved") {
         // Phase 5 / Sprint 5.2: assign the official number at approval
         // time via the sequence engine (or legacy fallback).
-        if (!existing.voucherNumber) {
-          const assigned = await assignNextVoucherNumber(orgId, input.voucherDate ?? new Date().toISOString().split("T")[0], tx);
+        // Phase 7/Sprint 7.1: re-read voucherNumber inside transaction
+        // to prevent TOCTOU double-numbering under concurrent calls.
+        const current = await tx.voucher.findUnique({
+          where: { id },
+          select: { voucherNumber: true },
+        });
+
+        if (!current?.voucherNumber) {
+          const assigned = await assignNextVoucherNumber(
+            orgId,
+            input.voucherDate ?? new Date().toISOString().split("T")[0],
+            tx,
+            id,
+          );
           assignedVoucherNumber = assigned.voucherNumber;
           await tx.voucher.update({
             where: { id },

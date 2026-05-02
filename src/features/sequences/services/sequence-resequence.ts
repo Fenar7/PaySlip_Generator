@@ -421,7 +421,7 @@ function periodKeyLabel(startDate: Date, periodicity: SequencePeriodicity): stri
   return startDate.toISOString().slice(0, 10);
 }
 
-// ─── Resequence Apply (Phase 6 / Sprint 6.2) ──────────────────────────────────
+// ─── Resequence Apply (Phase 6 / Sprint 6.2; hardened Phase 7/Sprint 7.1) ──────
 
 export async function applyResequence(
   input: ResequenceApplyInput,
@@ -458,6 +458,42 @@ export async function applyResequence(
   const appliedDocumentIds: string[] = [];
 
   await db.$transaction(async (tx) => {
+    // Phase 7/Sprint 7.1: lock the sequence row to prevent concurrent
+    // resequence applies.  A dummy touch on `updatedAt` acquires a
+    // PostgreSQL row-level exclusive lock for the transaction duration.
+    await tx.sequence.update({
+      where: { id: sequenceId },
+      data: { updatedAt: new Date() },
+    });
+
+    // Phase 7/Sprint 7.1: re-read current document numbers inside the
+    // transaction to detect drift since preview generation.
+    for (const m of renumbered) {
+      let currentDoc: { invoiceNumber?: string | null; voucherNumber?: string | null } | null = null;
+
+      if (documentType === "INVOICE") {
+        currentDoc = await tx.invoice.findUnique({
+          where: { id: m.documentId },
+          select: { invoiceNumber: true },
+        });
+        if (currentDoc && currentDoc.invoiceNumber !== m.oldNumber) {
+          throw new SequenceEngineError(
+            `Document ${m.documentId} was modified since preview (old: "${m.oldNumber}", current: "${currentDoc.invoiceNumber}"). Re-run the preview before applying.`
+          );
+        }
+      } else {
+        currentDoc = await tx.voucher.findUnique({
+          where: { id: m.documentId },
+          select: { voucherNumber: true },
+        });
+        if (currentDoc && currentDoc.voucherNumber !== m.oldNumber) {
+          throw new SequenceEngineError(
+            `Document ${m.documentId} was modified since preview (old: "${m.oldNumber}", current: "${currentDoc.voucherNumber}"). Re-run the preview before applying.`
+          );
+        }
+      }
+    }
+
     const periodCounters = new Map<string, number>();
     for (const m of renumbered) {
       if (m.proposedCounter !== null && (!periodCounters.has(m.periodKey) || m.proposedCounter > periodCounters.get(m.periodKey)!)) {
