@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { requireRole, getOrgContext } from "@/lib/auth/require-org";
 import { logAuditTx } from "@/lib/audit";
 import { headers } from "next/headers";
+import { rateLimitByOrg, RATE_LIMITS } from "@/lib/rate-limit";
 import { validateFormat, extractCounterFromFormat } from "../engine/tokenizer";
 import type {
   SequencePeriodicity,
@@ -582,6 +583,13 @@ export async function applyResequencePreview(
 ): Promise<ResequenceApplyResult> {
   const ctx = await requireOrgOwner();
   assertOrgMatch(ctx, input.orgId);
+
+  const rateLimit = await rateLimitByOrg(input.orgId, RATE_LIMITS.resequenceApply);
+  if (!rateLimit.success) {
+    throw new SequenceAdminError(
+      `Rate limit exceeded for resequence apply. Retry after ${rateLimit.retryAfter ?? 60} seconds.`
+    );
+  }
 
   const auditHeaders = await getAuditHeaders();
 

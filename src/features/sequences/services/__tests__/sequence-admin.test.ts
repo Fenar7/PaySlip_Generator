@@ -31,6 +31,11 @@ vi.mock("@/lib/db", () => ({
   db: mockDb,
 }));
 
+vi.mock("@/lib/rate-limit", () => ({
+  rateLimitByOrg: vi.fn().mockResolvedValue({ success: true, remaining: 999 }),
+  RATE_LIMITS: { resequenceApply: { maxRequests: 5, window: "60 s" } },
+}));
+
 // Suppress next/headers since we read headers inside getAuditHeaders
 vi.mock("next/headers", () => ({
   headers: vi.fn().mockResolvedValue(new Map()),

@@ -296,6 +296,9 @@ async function fetchFinalizedDocuments(
   }
 
   // VOUCHER
+  // voucherDate is a String field; date filtering relies on ISO-8601
+  // lexicographic ordering.  If non-ISO dates are stored, the filter
+  // may produce incomplete or incorrect results.
   const vouchers = await db.voucher.findMany({
     where: {
       organizationId: orgId,
@@ -428,6 +431,15 @@ export async function applyResequence(
       appliedDocumentIds: [],
       preview,
     };
+  }
+
+  // Guard against oversized transactions that could time out or lock tables.
+  // Large resequence batches should be narrowed by date range.
+  const MAX_APPLY_COUNT = 1000;
+  if (preview.summary.renumbered > MAX_APPLY_COUNT) {
+    throw new SequenceEngineError(
+      `Apply batch exceeds maximum of ${MAX_APPLY_COUNT} documents (${preview.summary.renumbered} eligible). Narrow the date range and try again.`
+    );
   }
 
   const renumbered = preview.mappings.filter((m) => m.status === "renumbered" && m.proposedNumber !== null);

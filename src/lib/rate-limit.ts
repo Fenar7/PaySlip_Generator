@@ -74,4 +74,6 @@ export const RATE_LIMITS = {
   pixelPrintSheet: { maxRequests: 10, window: "60 s" },
   ocrExtract: { maxRequests: 5, window: "60 s" },
   shareTokenValidation: { maxRequests: 20, window: "60 s" },
+  // Phase 6: Sequence platform
+  resequenceApply: { maxRequests: 5, window: "60 s" },
 } as const;
