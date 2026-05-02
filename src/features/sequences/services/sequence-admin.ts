@@ -10,6 +10,8 @@ import type {
   SequenceDocumentType,
   ResequencePreviewInput,
   ResequencePreviewResult,
+  ResequenceApplyInput,
+  ResequenceApplyResult,
 } from "../types";
 import type { OrgContext } from "@/lib/auth/require-org";
 import { SequenceAdminError } from "./sequence-errors";
@@ -573,4 +575,20 @@ export async function previewResequencePreview(
 
   const { previewResequence: preview } = await import("./sequence-resequence");
   return preview(input);
+}
+
+export async function applyResequencePreview(
+  input: ResequenceApplyInput
+): Promise<ResequenceApplyResult> {
+  const ctx = await requireOrgOwner();
+  assertOrgMatch(ctx, input.orgId);
+
+  const auditHeaders = await getAuditHeaders();
+
+  const { applyResequence: apply } = await import("./sequence-resequence");
+  return apply(input, {
+    actorId: ctx.userId,
+    ipAddress: auditHeaders.ipAddress,
+    userAgent: auditHeaders.userAgent,
+  });
 }

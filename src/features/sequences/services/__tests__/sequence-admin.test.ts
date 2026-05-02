@@ -44,12 +44,15 @@ import {
   getSequenceAuditHistory,
   updateSequenceSettingsAtomic,
   previewResequencePreview,
+  applyResequencePreview,
 } from "../sequence-admin";
 import { SequenceAdminError } from "../sequence-errors";
 
 const mockPreviewResequence = vi.fn();
+const mockApplyResequence = vi.fn();
 vi.mock("../sequence-resequence", () => ({
   previewResequence: (...args: unknown[]) => mockPreviewResequence(...args),
+  applyResequence: (...args: unknown[]) => mockApplyResequence(...args),
 }));
 
 describe("sequence-admin", () => {
@@ -613,11 +616,34 @@ describe("sequence-admin", () => {
         sequenceId: "seq-1",
         formatString: "INV/{YYYY}/{NNNNN}",
         periodicity: "YEARLY",
+        previewFingerprint: "abc123",
       });
 
       const result = await previewResequencePreview(validInput);
       expect(result.summary.totalDocuments).toBe(0);
       expect(mockPreviewResequence).toHaveBeenCalledWith(validInput);
+    });
+  });
+
+  describe("applyResequencePreview", () => {
+    const validInput = { orgId: "org-1", documentType: "INVOICE" as const, startDate: new Date("2026-01-01"), endDate: new Date("2026-12-31"), orderBy: "document_date" as const, expectedFingerprint: "abc123" };
+
+    it("requires owner role", async () => {
+      mockRequireRole.mockRejectedValue(new Error("Insufficient permissions. Required: owner, Have: admin"));
+      await expect(applyResequencePreview(validInput)).rejects.toThrow(/Insufficient permissions/);
+    });
+
+    it("rejects cross-org apply", async () => {
+      mockRequireRole.mockResolvedValue({ userId: "user-1", orgId: "org-1", role: "owner", representedId: null, proxyGrantId: null });
+      await expect(applyResequencePreview({ ...validInput, orgId: "org-2" })).rejects.toThrow(/Cross-org access denied/);
+    });
+
+    it("allows owner to apply on their own org", async () => {
+      mockRequireRole.mockResolvedValue({ userId: "user-1", orgId: "org-1", role: "owner", representedId: null, proxyGrantId: null });
+      mockApplyResequence.mockResolvedValue({ summary: { totalConsidered: 0, applied: 0, unchanged: 0, blocked: 0, failed: 0 }, appliedDocumentIds: [], preview: { summary: { totalDocuments: 0, unchanged: 0, renumbered: 0, blocked: 0 }, mappings: [], sequenceId: "seq-1", formatString: "INV/{YYYY}/{NNNNN}", periodicity: "YEARLY", previewFingerprint: "abc123" } });
+      const result = await applyResequencePreview(validInput);
+      expect(result.summary.applied).toBe(0);
+      expect(mockApplyResequence).toHaveBeenCalledWith(validInput, expect.objectContaining({ actorId: "user-1" }));
     });
   });
 });

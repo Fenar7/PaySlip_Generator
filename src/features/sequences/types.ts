@@ -133,4 +133,23 @@ export interface ResequencePreviewResult {
   sequenceId: string;
   formatString: string;
   periodicity: SequencePeriodicity;
+  previewFingerprint: string;
+}
+
+// ─── Resequence Apply (Phase 6 / Sprint 6.2) ──────────────────────────────────
+
+export interface ResequenceApplyInput {
+  orgId: string;
+  documentType: SequenceDocumentType;
+  startDate: Date;
+  endDate: Date;
+  orderBy: ResequenceOrderBy;
+  lockDate?: Date;
+  expectedFingerprint: string;
+}
+
+export interface ResequenceApplyResult {
+  summary: { totalConsidered: number; applied: number; unchanged: number; blocked: number; failed: number };
+  appliedDocumentIds: string[];
+  preview: ResequencePreviewResult;
 }

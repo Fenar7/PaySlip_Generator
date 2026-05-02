@@ -32,7 +32,6 @@ export const FormatStringSchema = z
   .max(128)
   .refine(
     (val) => {
-      // Must contain exactly one running number token {NNNNN} (with any padding width)
       const runningNumberMatches = val.match(/\{N+\}/g);
       return runningNumberMatches !== null && runningNumberMatches.length === 1;
     },
@@ -42,7 +41,6 @@ export const FormatStringSchema = z
   )
   .refine(
     (val) => {
-      // All braces must be balanced and contain valid tokens
       const tokens = val.match(/\{[A-Z]+\}/g) ?? [];
       const validTokens = ["PREFIX", "YYYY", "MM", "DD", "NNNNN", "FY"];
       return tokens.every((t) =>
@@ -91,3 +89,20 @@ export const ResequencePreviewInputSchema = z.object({
 });
 
 export type ResequencePreviewInput = z.infer<typeof ResequencePreviewInputSchema>;
+
+// ─── Resequence Apply (Phase 6 / Sprint 6.2) ──────────────────────────────────
+
+export const ResequenceApplyInputSchema = z.object({
+  orgId: z.string().min(1),
+  documentType: SequenceDocumentTypeSchema,
+  startDate: z.coerce.date(),
+  endDate: z.coerce.date(),
+  orderBy: ResequenceOrderBySchema.default("document_date"),
+  lockDate: z.coerce.date().optional(),
+  expectedFingerprint: z.string().min(1),
+}).refine((val) => val.startDate <= val.endDate, {
+  message: "startDate must be on or before endDate",
+  path: ["startDate"],
+});
+
+export type ResequenceApplyInput = z.infer<typeof ResequenceApplyInputSchema>;
