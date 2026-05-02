@@ -1,9 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, fireEvent } from "@testing-library/react";
 import { PdfPageGrid, type PageGridItem } from "@/features/docs/pdf-studio/components/shared/pdf-page-grid";
 
 // @dnd-kit requires a DndContext provider. The PdfPageGrid wraps its own.
-// We just test that the grid renders pages with proper structure.
 
 function makeItem(overrides: Partial<PageGridItem> = {}): PageGridItem {
   return {
@@ -59,10 +58,59 @@ describe("PdfPageGrid", () => {
     expect(screen.getByTitle("Delete page")).toBeInTheDocument();
   });
 
-  it("renders drag handle in reorder mode", () => {
+  it("preview area carries the drag-to-reorder title in reorder mode", () => {
     const pages = [makeItem()];
     render(<PdfPageGrid pages={pages} mode="reorder" />);
     expect(screen.getByTitle("Drag to reorder")).toBeInTheDocument();
+  });
+
+  it("preview area has cursor-grab class in reorder mode", () => {
+    const pages = [makeItem()];
+    render(<PdfPageGrid pages={pages} mode="reorder" />);
+    const previewZone = screen.getByTitle("Drag to reorder");
+    expect(previewZone.className).toContain("cursor-grab");
+  });
+
+  it("preview area does not have cursor-grab in non-reorder modes", () => {
+    const pages = [makeItem()];
+    render(<PdfPageGrid pages={pages} mode="preview" />);
+    // No element with drag-to-reorder title in preview mode
+    expect(screen.queryByTitle("Drag to reorder")).not.toBeInTheDocument();
+    // The image container should not carry cursor-grab
+    const img = screen.getByAltText("Page 1");
+    expect(img.parentElement?.className).not.toContain("cursor-grab");
+  });
+
+  // sortable.attributes (tabIndex, aria-*) go on the outer card; the footer
+  // blocks propagation so drag only fires from the preview area.
+  it("outer card carries dnd-kit tabIndex in reorder mode", () => {
+    const pages = [makeItem()];
+    render(<PdfPageGrid pages={pages} mode="reorder" />);
+    const previewZone = screen.getByTitle("Drag to reorder");
+    const card = previewZone.parentElement!;
+    expect(card.getAttribute("tabindex")).toBe("0");
+  });
+
+  it("rotate button fires callback without triggering drag", () => {
+    const pages = [makeItem()];
+    const onRotate = vi.fn();
+    render(<PdfPageGrid pages={pages} mode="reorder" onRotate={onRotate} />);
+    const btn = screen.getByTitle("Rotate 90°");
+    fireEvent.pointerDown(btn);
+    fireEvent.click(btn);
+    expect(onRotate).toHaveBeenCalledWith("page-1");
+    expect(onRotate).toHaveBeenCalledTimes(1);
+  });
+
+  it("delete button fires callback without triggering drag", () => {
+    const pages = [makeItem()];
+    const onDelete = vi.fn();
+    render(<PdfPageGrid pages={pages} mode="reorder" onDeletePage={onDelete} />);
+    const btn = screen.getByTitle("Delete page");
+    fireEvent.pointerDown(btn);
+    fireEvent.click(btn);
+    expect(onDelete).toHaveBeenCalledWith("page-1");
+    expect(onDelete).toHaveBeenCalledTimes(1);
   });
 
   it("does not render rotate or delete buttons in preview mode", () => {
@@ -75,7 +123,6 @@ describe("PdfPageGrid", () => {
   it("renders rotation style on pages with non-zero rotation", () => {
     const pages = [makeItem({ rotation: 90 })];
     render(<PdfPageGrid pages={pages} mode="preview" />);
-    // Check that the image has rotation transform via inline style
     const img = screen.getByAltText("Page 1");
     expect(img).toHaveAttribute("style");
     expect(img.getAttribute("style")).toContain("rotate(90deg)");
