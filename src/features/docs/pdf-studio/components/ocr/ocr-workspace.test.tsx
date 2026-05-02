@@ -1,10 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen, waitFor, fireEvent, act } from "@testing-library/react";
 import { OcrWorkspace } from "@/features/docs/pdf-studio/components/ocr/ocr-workspace";
+import type { ImageItem } from "@/features/docs/pdf-studio/types";
 
 // --- Mocks ---
 
 let mockPlanId = "starter";
+let mockOcrServiceStatus = "ready";
 
 vi.mock("@/hooks/use-active-org", () => ({
   useActiveOrg: () => ({ activeOrg: { id: "org-ocr" }, isLoading: false }),
@@ -27,7 +29,7 @@ vi.mock("@/features/docs/pdf-studio/lib/analytics", () => ({
 
 vi.mock("@/features/docs/pdf-studio/utils/ocr-processor", () => ({
   cancelAllOcr: vi.fn(),
-  getOcrServiceStatus: () => "ready",
+  getOcrServiceStatus: () => mockOcrServiceStatus,
   processImageForOcrDetailed: vi.fn(),
 }));
 
@@ -63,10 +65,45 @@ function getFileInput(container: HTMLElement): HTMLInputElement {
   return container.querySelector('input[type="file"]') as HTMLInputElement;
 }
 
+type PageSetup = {
+  id: string;
+  previewUrl: string;
+  name: string;
+  ocrStatus?: string;
+  ocrText?: string;
+  ocrConfidence?: number;
+  ocrErrorMessage?: string;
+};
+
+function setupUploadedPages(pages: PageSetup[]) {
+  vi.mocked(loadScanSourcePages).mockResolvedValue({
+    ok: true,
+    pages: pages.map((p) => ({ previewUrl: p.previewUrl, name: p.name })),
+    fileClass: "pdf",
+  } as unknown as Awaited<ReturnType<typeof loadScanSourcePages>>);
+
+  vi.mocked(buildImageItemsFromScanPages).mockReturnValue(
+    pages.map((p) => ({
+      id: p.id,
+      previewUrl: p.previewUrl,
+      rotation: 0,
+      name: p.name,
+      sizeBytes: 1024,
+      ...(p.ocrStatus ? { ocrStatus: p.ocrStatus as ImageItem["ocrStatus"] } : {}),
+      ...(p.ocrText !== undefined ? { ocrText: p.ocrText } : {}),
+      ...(p.ocrConfidence !== undefined ? { ocrConfidence: p.ocrConfidence } : {}),
+      ...(p.ocrErrorMessage ? { ocrErrorMessage: p.ocrErrorMessage } : {}),
+    })),
+  );
+
+  vi.mocked(dataUrlToBlob).mockReturnValue(new Blob(["x"]));
+}
+
 describe("OcrWorkspace", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockPlanId = "starter";
+    mockOcrServiceStatus = "ready";
   });
 
   afterEach(() => {
@@ -402,6 +439,107 @@ describe("OcrWorkspace", () => {
 
     await waitFor(() => {
       expect(clearOcrWorkspaceSession).toHaveBeenCalledWith("org-ocr");
+    });
+  });
+
+  describe("export gating", () => {
+    it("shows OCR still processing and blocks PDF export", async () => {
+      setupUploadedPages([
+        { id: "a", previewUrl: "data:image/png;base64,a", name: "p1.png", ocrStatus: "complete", ocrText: "done", ocrConfidence: 90 },
+        { id: "b", previewUrl: "data:image/png;base64,b", name: "p2.png", ocrStatus: "processing" },
+      ]);
+
+      const { container } = render(<OcrWorkspace />);
+      const file = new File(["dummy"], "scan.pdf", { type: "application/pdf" });
+      const input = getFileInput(container);
+      fireEvent.change(input, { target: { files: [file] } });
+
+      await waitFor(() => {
+        expect(screen.getByText(/OCR still processing…/i)).toBeInTheDocument();
+      });
+    });
+
+    it("shows unavailable banner when OCR service is unavailable", async () => {
+      mockOcrServiceStatus = "unavailable";
+      setupUploadedPages([
+        { id: "a", previewUrl: "data:image/png;base64,a", name: "p1.png", ocrStatus: "complete", ocrText: "done", ocrConfidence: 90 },
+      ]);
+
+      const { container } = render(<OcrWorkspace />);
+      const file = new File(["dummy"], "scan.pdf", { type: "application/pdf" });
+      const input = getFileInput(container);
+
+      await act(async () => {
+        fireEvent.change(input, { target: { files: [file] } });
+      });
+
+      await waitFor(() => {
+        expect(screen.getByText(/Export OCR output/i)).toBeInTheDocument();
+      });
+
+      expect(screen.getByText(/OCR unavailable/i)).toBeInTheDocument();
+      mockOcrServiceStatus = "ready";
+    });
+
+    it("allows export without blocking when all pages are complete", async () => {
+      setupUploadedPages([
+        { id: "a", previewUrl: "data:image/png;base64,a", name: "p1.png", ocrStatus: "complete", ocrText: "text A", ocrConfidence: 90 },
+        { id: "b", previewUrl: "data:image/png;base64,b", name: "p2.png", ocrStatus: "complete", ocrText: "text B", ocrConfidence: 85 },
+      ]);
+
+      const { container } = render(<OcrWorkspace />);
+      const file = new File(["dummy"], "scan.pdf", { type: "application/pdf" });
+      const input = getFileInput(container);
+
+      await act(async () => {
+        fireEvent.change(input, { target: { files: [file] } });
+      });
+
+      await waitFor(() => {
+        expect(screen.getByText(/Export OCR output/i)).toBeInTheDocument();
+      });
+
+      expect(screen.getByText(/Download rasterized searchable copy/i)).toBeInTheDocument();
+      expect(screen.queryByText(/OCR still processing/i)).not.toBeInTheDocument();
+    });
+
+    it("does not block TXT download when PDF export is blocked", async () => {
+      setupUploadedPages([
+        { id: "a", previewUrl: "data:image/png;base64,a", name: "p1.png", ocrStatus: "complete", ocrText: "done", ocrConfidence: 90 },
+        { id: "b", previewUrl: "data:image/png;base64,b", name: "p2.png", ocrStatus: "processing" },
+      ]);
+
+      const { container } = render(<OcrWorkspace />);
+      const file = new File(["dummy"], "scan.pdf", { type: "application/pdf" });
+      const input = getFileInput(container);
+
+      await act(async () => {
+        fireEvent.change(input, { target: { files: [file] } });
+      });
+
+      await waitFor(() => {
+        expect(screen.getByText(/Export OCR output/i)).toBeInTheDocument();
+      });
+
+      expect(screen.getByRole("button", { name: /Download TXT/i })).toBeInTheDocument();
+    });
+
+    it("does not block TXT download when PDF export is blocked", async () => {
+      setupUploadedPages([
+        { id: "a", previewUrl: "data:image/png;base64,a", name: "p1.png", ocrStatus: "complete", ocrText: "done", ocrConfidence: 90 },
+        { id: "b", previewUrl: "data:image/png;base64,b", name: "p2.png", ocrStatus: "processing" },
+      ]);
+
+      const { container } = render(<OcrWorkspace />);
+      const file = new File(["dummy"], "scan.pdf", { type: "application/pdf" });
+      const input = getFileInput(container);
+      fireEvent.change(input, { target: { files: [file] } });
+
+      await waitFor(() => {
+        expect(screen.getByText(/Export OCR output/i)).toBeInTheDocument();
+      });
+
+      expect(screen.getByRole("button", { name: /Download TXT/i })).toBeInTheDocument();
     });
   });
 });

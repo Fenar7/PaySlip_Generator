@@ -59,7 +59,7 @@ const OPENAPI_SPEC = {
       Voucher: {
         type: "object",
         properties: {
-          id: { type: "string" }, voucherNumber: { type: "string" }, voucherDate: { type: "string" },
+          id: { type: "string" }, voucherNumber: { type: "string", nullable: true }, voucherDate: { type: "string" },
           type: { type: "string" }, status: { type: "string" }, totalAmount: { type: "number" },
           vendorId: { type: "string", nullable: true },
         },
