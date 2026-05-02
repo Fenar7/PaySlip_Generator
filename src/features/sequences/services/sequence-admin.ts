@@ -13,6 +13,8 @@ import type {
   ResequencePreviewResult,
   ResequenceApplyInput,
   ResequenceApplyResult,
+  SequenceDiagnosticsInput,
+  SequenceDiagnosticsResult,
 } from "../types";
 import type { OrgContext } from "@/lib/auth/require-org";
 import { SequenceAdminError } from "./sequence-errors";
@@ -599,4 +601,12 @@ export async function applyResequencePreview(
     ipAddress: auditHeaders.ipAddress,
     userAgent: auditHeaders.userAgent,
   });
+}
+
+export async function diagnoseSequence(
+  input: SequenceDiagnosticsInput
+): Promise<SequenceDiagnosticsResult> {
+  await assertCallerOwnsOrg(input.orgId);
+  const { diagnoseSequence: diagnose } = await import("./sequence-resequence");
+  return diagnose(input);
 }

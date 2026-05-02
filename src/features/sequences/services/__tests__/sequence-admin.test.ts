@@ -50,14 +50,17 @@ import {
   updateSequenceSettingsAtomic,
   previewResequencePreview,
   applyResequencePreview,
+  diagnoseSequence,
 } from "../sequence-admin";
 import { SequenceAdminError } from "../sequence-errors";
 
 const mockPreviewResequence = vi.fn();
 const mockApplyResequence = vi.fn();
+const mockDiagnoseSequence = vi.fn();
 vi.mock("../sequence-resequence", () => ({
   previewResequence: (...args: unknown[]) => mockPreviewResequence(...args),
   applyResequence: (...args: unknown[]) => mockApplyResequence(...args),
+  diagnoseSequence: (...args: unknown[]) => mockDiagnoseSequence(...args),
 }));
 
 describe("sequence-admin", () => {
@@ -649,6 +652,32 @@ describe("sequence-admin", () => {
       const result = await applyResequencePreview(validInput);
       expect(result.summary.applied).toBe(0);
       expect(mockApplyResequence).toHaveBeenCalledWith(validInput, expect.objectContaining({ actorId: "user-1" }));
+    });
+  });
+
+  describe("diagnoseSequence", () => {
+    const validInput = { orgId: "org-1", documentType: "INVOICE" as const, startDate: new Date("2026-01-01"), endDate: new Date("2026-12-31") };
+
+    it("requires authentication", async () => {
+      mockGetOrgContext.mockResolvedValue(null);
+      await expect(diagnoseSequence(validInput)).rejects.toThrow(SequenceAdminError);
+    });
+
+    it("rejects cross-org diagnostics", async () => {
+      mockGetOrgContext.mockResolvedValue({ userId: "user-1", orgId: "org-1", role: "member", representedId: null, proxyGrantId: null, proxyScope: [] });
+      await expect(diagnoseSequence({ ...validInput, orgId: "org-2" })).rejects.toThrow(/Cross-org access denied/);
+    });
+
+    it("allows org member to run diagnostics", async () => {
+      mockGetOrgContext.mockResolvedValue({ userId: "user-1", orgId: "org-1", role: "member", representedId: null, proxyGrantId: null, proxyScope: [] });
+      mockDiagnoseSequence.mockResolvedValue({
+        summary: { totalDocuments: 0, gaps: 0, irregularities: 0, warnings: 0, criticals: 0 },
+        gaps: [], irregularities: [],
+        sequenceId: "seq-1", formatString: "INV/{YYYY}/{NNNNN}", periodicity: "YEARLY",
+      });
+      const result = await diagnoseSequence(validInput);
+      expect(result.summary.totalDocuments).toBe(0);
+      expect(mockDiagnoseSequence).toHaveBeenCalledWith(validInput);
     });
   });
 });
