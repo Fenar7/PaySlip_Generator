@@ -108,7 +108,7 @@ async function syncVoucherRecordToIndex(orgId: string, voucherId: string): Promi
 export async function saveVoucher(
   input: VoucherInput,
   status: "draft" | "approved" = "draft"
-): Promise<ActionResult<{ id: string; voucherNumber: string }>> {
+): Promise<ActionResult<{ id: string; voucherNumber: string | null }>> {
   try {
     const { orgId, userId } = await requireOrgContext();
 
@@ -120,7 +120,10 @@ export async function saveVoucher(
       };
     }
     
-    const voucherNumber = await nextDocumentNumber(orgId, "voucher");
+    // Phase 5 / Sprint 5.1: drafts do not consume official numbers.
+    // The real sequence number is assigned only on APPROVED (Sprint 5.2).
+    const voucherNumber =
+      status === "draft" ? null : await nextDocumentNumber(orgId, "voucher");
     
     const normalizedVoucher = normalizeVoucherLines(input.lines, {
       allowPartial: status === "draft",
@@ -319,7 +322,7 @@ export async function archiveVoucher(id: string): Promise<ActionResult<void>> {
   }
 }
 
-export async function duplicateVoucher(id: string): Promise<ActionResult<{ id: string; voucherNumber: string }>> {
+export async function duplicateVoucher(id: string): Promise<ActionResult<{ id: string; voucherNumber: string | null }>> {
   try {
     const { orgId } = await requireOrgContext();
 
@@ -340,13 +343,12 @@ export async function duplicateVoucher(id: string): Promise<ActionResult<{ id: s
       return { success: false, error: "Voucher not found" };
     }
     
-    const newNumber = await nextDocumentNumber(orgId, "voucher");
-    
+    // Phase 5: duplicates start as drafts — no official number consumed yet.
     const duplicate = await db.voucher.create({
       data: {
         organizationId: orgId,
         vendorId: existing.vendorId,
-        voucherNumber: newNumber,
+        voucherNumber: null,
         voucherDate: new Date().toISOString().split("T")[0],
         type: existing.type,
         status: "draft",
@@ -368,14 +370,14 @@ export async function duplicateVoucher(id: string): Promise<ActionResult<{ id: s
     
     // Phase 19.2: emit normalized document events
     void emitVoucherEvent(orgId, duplicate.id, "created", {
-      metadata: { duplicatedFrom: id, voucherNumber: newNumber },
+      metadata: { duplicatedFrom: id, voucherNumber: null },
     });
     void emitVoucherEvent(orgId, id, "duplicated", {
-      metadata: { newVoucherId: duplicate.id, newVoucherNumber: newNumber },
+      metadata: { newVoucherId: duplicate.id, newVoucherNumber: null },
     });
 
     revalidatePath("/app/docs/vouchers");
-    return { success: true, data: { id: duplicate.id, voucherNumber: newNumber } };
+    return { success: true, data: { id: duplicate.id, voucherNumber: null } };
   } catch (error) {
     console.error("duplicateVoucher error:", error);
     return { success: false, error: "Failed to duplicate voucher" };

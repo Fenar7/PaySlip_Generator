@@ -1404,7 +1404,7 @@ model Voucher {
   id               String           @id @default(cuid())
   organizationId   String
   vendorId         String?
-  voucherNumber    String
+  voucherNumber    String? // nullable — drafts do not consume official numbers (Phase 5)
   voucherDate      String
   type             String           @default("payment")
   status           String           @default("draft")
