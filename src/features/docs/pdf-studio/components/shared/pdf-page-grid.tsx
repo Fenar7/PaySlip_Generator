@@ -40,11 +40,6 @@ function PdfPageThumbnail({
     disabled: mode === "select" || mode === "delete" || mode === "preview",
   });
 
-  // setActivatorNodeRef scopes drag initiation to the preview area only.
-  // Footer controls (rotate, delete) are siblings, not children, so they
-  // never bubble into the preview drag zone regardless of stopPropagation.
-  const { setActivatorNodeRef } = sortable;
-
   const style = {
     transform: CSS.Transform.toString(sortable.transform),
     transition: sortable.transition,
@@ -67,6 +62,10 @@ function PdfPageThumbnail({
     <div
       ref={sortable.setNodeRef}
       style={style}
+      // sortable.listeners activates drag from anywhere on the card.
+      // The footer blocks propagation so drag only fires from the preview area.
+      {...(mode === "reorder" ? sortable.attributes : {})}
+      {...(mode === "reorder" ? sortable.listeners : {})}
       className={cn(
         "group relative flex flex-col rounded-xl border bg-white shadow-sm transition-all",
         sortable.isDragging
@@ -80,11 +79,8 @@ function PdfPageThumbnail({
       )}
       onClick={handleClick}
     >
-      {/* Preview area is the primary drag zone in reorder mode. */}
+      {/* Preview area: the visual drag zone in reorder mode. */}
       <div
-        ref={mode === "reorder" ? setActivatorNodeRef : undefined}
-        {...(mode === "reorder" ? sortable.attributes : {})}
-        {...(mode === "reorder" ? sortable.listeners : {})}
         title={mode === "reorder" ? "Drag to reorder" : undefined}
         className={cn(
           "relative overflow-hidden rounded-t-[0.65rem] bg-[var(--surface-soft)]",
@@ -127,7 +123,11 @@ function PdfPageThumbnail({
         )}
       </div>
 
-      <div className="space-y-1 px-2 py-1.5">
+      {/* Footer stops pointer propagation so pressing labels/buttons never starts a drag. */}
+      <div
+        className="space-y-1 px-2 py-1.5"
+        onPointerDown={mode === "reorder" ? (e) => e.stopPropagation() : undefined}
+      >
         <div className="flex items-center justify-between gap-2">
           <span className="text-[0.65rem] font-medium text-[var(--muted-foreground)]">
             Output {index + 1}

@@ -58,7 +58,6 @@ describe("PdfPageGrid", () => {
     expect(screen.getByTitle("Delete page")).toBeInTheDocument();
   });
 
-  // The drag affordance title moved to the preview area — the preview div is the drag activator.
   it("preview area carries the drag-to-reorder title in reorder mode", () => {
     const pages = [makeItem()];
     render(<PdfPageGrid pages={pages} mode="reorder" />);
@@ -82,30 +81,34 @@ describe("PdfPageGrid", () => {
     expect(img.parentElement?.className).not.toContain("cursor-grab");
   });
 
-  it("preview area is the drag activator (setActivatorNodeRef target) in reorder mode", () => {
+  // sortable.attributes (tabIndex, aria-*) go on the outer card; the footer
+  // blocks propagation so drag only fires from the preview area.
+  it("outer card carries dnd-kit tabIndex in reorder mode", () => {
     const pages = [makeItem()];
     render(<PdfPageGrid pages={pages} mode="reorder" />);
     const previewZone = screen.getByTitle("Drag to reorder");
-    // dnd-kit spreads sortable.attributes onto the activator node, which includes role and tabIndex
-    expect(previewZone.getAttribute("tabindex")).toBe("0");
+    const card = previewZone.parentElement!;
+    expect(card.getAttribute("tabindex")).toBe("0");
   });
 
-  it("rotate button fires callback and does not bubble to preview area", () => {
+  it("rotate button fires callback without triggering drag", () => {
     const pages = [makeItem()];
     const onRotate = vi.fn();
     render(<PdfPageGrid pages={pages} mode="reorder" onRotate={onRotate} />);
-    const rotateBtn = screen.getByTitle("Rotate 90°");
-    fireEvent.click(rotateBtn);
+    const btn = screen.getByTitle("Rotate 90°");
+    fireEvent.pointerDown(btn);
+    fireEvent.click(btn);
     expect(onRotate).toHaveBeenCalledWith("page-1");
     expect(onRotate).toHaveBeenCalledTimes(1);
   });
 
-  it("delete button fires callback and does not bubble to preview area", () => {
+  it("delete button fires callback without triggering drag", () => {
     const pages = [makeItem()];
     const onDelete = vi.fn();
     render(<PdfPageGrid pages={pages} mode="reorder" onDeletePage={onDelete} />);
-    const deleteBtn = screen.getByTitle("Delete page");
-    fireEvent.click(deleteBtn);
+    const btn = screen.getByTitle("Delete page");
+    fireEvent.pointerDown(btn);
+    fireEvent.click(btn);
     expect(onDelete).toHaveBeenCalledWith("page-1");
     expect(onDelete).toHaveBeenCalledTimes(1);
   });
