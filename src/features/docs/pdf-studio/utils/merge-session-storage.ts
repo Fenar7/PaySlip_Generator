@@ -1,12 +1,9 @@
 /**
  * Merge workspace session persistence.
  *
- * Invariants:
- * - source PDF bytes are too large for localStorage.
- * - Only lightweight metadata is persisted: filename, page order, rotations,
- *   source labels, and deletion state.
- * - Preview images are NOT stored — they depend on source files.
- * - On restore, the user is told clearly that source files must be re-uploaded.
+ * Invariant: source PDF bytes are too large for localStorage (5-10MB limit).
+ * Only metadata (filenames, page order, rotations, source labels) is persisted.
+ * On restore, the user sees what was recovered and what must be re-uploaded.
  */
 "use client";
 
