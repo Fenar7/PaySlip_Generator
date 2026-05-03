@@ -11,17 +11,13 @@ import {
   saveOnboardingSequences,
 } from "./actions";
 import type { SequenceCustomConfig, OnboardingSequenceState } from "./actions";
-import type { SequencePeriodicity } from "@/features/sequences/types";
-import { validateFormat, tokenize, extractCounterFromFormat } from "@/features/sequences/engine/tokenizer";
-import { render, buildRenderContext } from "@/features/sequences/engine/renderer";
-
-const PERIODICITY_LABELS: Record<SequencePeriodicity, string> = {
-  NONE: "No reset (continuous)",
-  MONTHLY: "Monthly",
-  YEARLY: "Yearly",
-  FINANCIAL_YEAR: "Financial Year",
-};
-
+import { SequenceBuilder, ContinuityBuilder } from "@/features/sequences/components/SequenceBuilder";
+import {
+  buildFormatString,
+  parseFormatString,
+  getDefaultBuilderConfig,
+} from "@/features/sequences/builder";
+import type { SequenceBuilderConfig } from "@/features/sequences/builder";
 function slugify(str: string) {
   return str
     .toLowerCase()
@@ -77,7 +73,6 @@ export function OnboardingPageClient({
     (!sequenceState?.invoice && sequenceState?.voucher);
 
   // When partial, detect whether the existing side is default or custom
-  // so the missing side defaults to the same mode.
   const existingPartialSide = hasPartialConfig
     ? (sequenceState?.invoice ? "INVOICE" : "VOUCHER")
     : null;
@@ -97,23 +92,36 @@ export function OnboardingPageClient({
     sequenceState?.voucher?.periodicity === "YEARLY";
 
   const [sequenceMode, setSequenceMode] = useState<"defaults" | "custom">(
-    // When partial and the existing side is custom, default to custom for missing
     (hasPartialConfig && !partialIsDefault) ? "custom"
     : (hasExistingConfig && !isDefaultConfig) ? "custom"
     : "defaults"
   );
-  const [invFormat, setInvFormat] = useState(
+
+  // Builder state for invoice
+  const [invBuilder, setInvBuilder] = useState<SequenceBuilderConfig>(() => {
+    if (sequenceState?.invoice?.formatString) {
+      const parsed = parseFormatString(sequenceState.invoice.formatString, "INV");
+      if (parsed) return parsed;
+    }
+    return getDefaultBuilderConfig("INVOICE");
+  });
+  const [invAdvanced, setInvAdvanced] = useState(false);
+  const [invRawFormat, setInvRawFormat] = useState(
     sequenceState?.invoice?.formatString ?? "INV/{YYYY}/{NNNNN}"
   );
-  const [invPeriodicity, setInvPeriodicity] = useState<SequencePeriodicity>(
-    sequenceState?.invoice?.periodicity ?? "YEARLY"
-  );
   const [invLatestUsed, setInvLatestUsed] = useState("");
-  const [vchFormat, setVchFormat] = useState(
+
+  // Builder state for voucher
+  const [vchBuilder, setVchBuilder] = useState<SequenceBuilderConfig>(() => {
+    if (sequenceState?.voucher?.formatString) {
+      const parsed = parseFormatString(sequenceState.voucher.formatString, "VCH");
+      if (parsed) return parsed;
+    }
+    return getDefaultBuilderConfig("VOUCHER");
+  });
+  const [vchAdvanced, setVchAdvanced] = useState(false);
+  const [vchRawFormat, setVchRawFormat] = useState(
     sequenceState?.voucher?.formatString ?? "VCH/{YYYY}/{NNNNN}"
-  );
-  const [vchPeriodicity, setVchPeriodicity] = useState<SequencePeriodicity>(
-    sequenceState?.voucher?.periodicity ?? "YEARLY"
   );
   const [vchLatestUsed, setVchLatestUsed] = useState("");
 
@@ -215,14 +223,14 @@ export function OnboardingPageClient({
           const customConfigs: SequenceCustomConfig[] = [
             {
               documentType: "INVOICE",
-              formatString: invFormat,
-              periodicity: invPeriodicity,
+              formatString: invAdvanced ? invRawFormat : buildFormatString(invBuilder),
+              periodicity: invBuilder.resetCycle,
               latestUsedNumber: invLatestUsed.trim() || undefined,
             },
             {
               documentType: "VOUCHER",
-              formatString: vchFormat,
-              periodicity: vchPeriodicity,
+              formatString: vchAdvanced ? vchRawFormat : buildFormatString(vchBuilder),
+              periodicity: vchBuilder.resetCycle,
               latestUsedNumber: vchLatestUsed.trim() || undefined,
             },
           ];
@@ -243,8 +251,7 @@ export function OnboardingPageClient({
 
   /**
    * When the user already has both sequences configured and re-enters
-   * onboarding, confirm the step without recreating (the action is
-   * idempotent so re-running is safe, but the UX stays clear).
+   * onboarding, confirm the step without recreating.
    */
   async function handleConfirmExisting() {
     setError("");
@@ -471,7 +478,7 @@ export function OnboardingPageClient({
           <div className="space-y-4">
             <h2 className="text-xl font-semibold text-[#1a1a1a]">Document Numbering</h2>
             <p className="text-sm text-[#666]">
-              Configure how invoice and voucher numbers are generated. You can change these later
+              Choose how invoice and voucher numbers look. You can change these later
               in settings.
             </p>
 
@@ -521,26 +528,28 @@ export function OnboardingPageClient({
                   </div>
                 )}
                 {!sequenceState?.invoice && (
-                  <CustomSequenceSection
-                    title="Invoice Numbering"
+                  <OnboardingSequenceSection
                     documentType="INVOICE"
-                    formatValue={invFormat}
-                    onFormatChange={setInvFormat}
-                    periodicityValue={invPeriodicity}
-                    onPeriodicityChange={setInvPeriodicity}
-                    latestUsedValue={invLatestUsed}
+                    builderConfig={invBuilder}
+                    onBuilderChange={setInvBuilder}
+                    rawFormat={invRawFormat}
+                    onRawFormatChange={setInvRawFormat}
+                    advancedMode={invAdvanced}
+                    onAdvancedModeChange={setInvAdvanced}
+                    latestUsed={invLatestUsed}
                     onLatestUsedChange={setInvLatestUsed}
                   />
                 )}
                 {!sequenceState?.voucher && (
-                  <CustomSequenceSection
-                    title="Voucher Numbering"
+                  <OnboardingSequenceSection
                     documentType="VOUCHER"
-                    formatValue={vchFormat}
-                    onFormatChange={setVchFormat}
-                    periodicityValue={vchPeriodicity}
-                    onPeriodicityChange={setVchPeriodicity}
-                    latestUsedValue={vchLatestUsed}
+                    builderConfig={vchBuilder}
+                    onBuilderChange={setVchBuilder}
+                    rawFormat={vchRawFormat}
+                    onRawFormatChange={setVchRawFormat}
+                    advancedMode={vchAdvanced}
+                    onAdvancedModeChange={setVchAdvanced}
+                    latestUsed={vchLatestUsed}
                     onLatestUsedChange={setVchLatestUsed}
                   />
                 )}
@@ -560,7 +569,7 @@ export function OnboardingPageClient({
                         : "border-[#e5e5e5] bg-white text-[#666] hover:border-[#dc2626]"
                     }`}
                   >
-                    <span className="font-medium">Use default sequencing</span>
+                    <span className="font-medium">Use recommended defaults</span>
                     <span className="block text-xs text-[#999] mt-0.5">
                       Invoice: INV/2026/00001 · Voucher: VCH/2026/00001
                     </span>
@@ -574,9 +583,9 @@ export function OnboardingPageClient({
                         : "border-[#e5e5e5] bg-white text-[#666] hover:border-[#dc2626]"
                     }`}
                   >
-                    <span className="font-medium">Customize sequencing now</span>
+                    <span className="font-medium">Customize numbering</span>
                     <span className="block text-xs text-[#999] mt-0.5">
-                      Set your own format and periodicity for invoices and vouchers
+                      Choose your own prefix, reset cycle, and number length
                     </span>
                   </button>
                 </div>
@@ -603,25 +612,27 @@ export function OnboardingPageClient({
 
             {sequenceMode === "custom" && !hasExistingConfig && !hasPartialConfig && (
               <div className="space-y-4">
-                <CustomSequenceSection
-                  title="Invoice Numbering"
+                <OnboardingSequenceSection
                   documentType="INVOICE"
-                  formatValue={invFormat}
-                  onFormatChange={setInvFormat}
-                  periodicityValue={invPeriodicity}
-                  onPeriodicityChange={setInvPeriodicity}
-                  latestUsedValue={invLatestUsed}
+                  builderConfig={invBuilder}
+                  onBuilderChange={setInvBuilder}
+                  rawFormat={invRawFormat}
+                  onRawFormatChange={setInvRawFormat}
+                  advancedMode={invAdvanced}
+                  onAdvancedModeChange={setInvAdvanced}
+                  latestUsed={invLatestUsed}
                   onLatestUsedChange={setInvLatestUsed}
                 />
                 <div className="border-t border-[#e5e5e5]" />
-                <CustomSequenceSection
-                  title="Voucher Numbering"
+                <OnboardingSequenceSection
                   documentType="VOUCHER"
-                  formatValue={vchFormat}
-                  onFormatChange={setVchFormat}
-                  periodicityValue={vchPeriodicity}
-                  onPeriodicityChange={setVchPeriodicity}
-                  latestUsedValue={vchLatestUsed}
+                  builderConfig={vchBuilder}
+                  onBuilderChange={setVchBuilder}
+                  rawFormat={vchRawFormat}
+                  onRawFormatChange={setVchRawFormat}
+                  advancedMode={vchAdvanced}
+                  onAdvancedModeChange={setVchAdvanced}
+                  latestUsed={vchLatestUsed}
                   onLatestUsedChange={setVchLatestUsed}
                 />
               </div>
@@ -707,103 +718,59 @@ function TemplateRadio({
   );
 }
 
-function CustomSequenceSection({
-  title,
+function OnboardingSequenceSection({
   documentType,
-  formatValue,
-  onFormatChange,
-  periodicityValue,
-  onPeriodicityChange,
-  latestUsedValue,
+  builderConfig,
+  onBuilderChange,
+  rawFormat,
+  onRawFormatChange,
+  advancedMode,
+  onAdvancedModeChange,
+  latestUsed,
   onLatestUsedChange,
 }: {
-  title: string;
-  documentType: string;
-  formatValue: string;
-  onFormatChange: (v: string) => void;
-  periodicityValue: SequencePeriodicity;
-  onPeriodicityChange: (v: SequencePeriodicity) => void;
-  latestUsedValue: string;
+  documentType: "INVOICE" | "VOUCHER";
+  builderConfig: SequenceBuilderConfig;
+  onBuilderChange: (c: SequenceBuilderConfig) => void;
+  rawFormat: string;
+  onRawFormatChange: (v: string) => void;
+  advancedMode: boolean;
+  onAdvancedModeChange: (v: boolean) => void;
+  latestUsed: string;
   onLatestUsedChange: (v: string) => void;
 }) {
-  const formatValidation = useMemo(() => validateFormat(formatValue), [formatValue]);
+  const formatString = useMemo(
+    () => (advancedMode ? rawFormat : buildFormatString(builderConfig)),
+    [advancedMode, rawFormat, builderConfig]
+  );
 
-  const preview = useMemo(() => {
-    if (!formatValidation.valid) return null;
-    try {
-      const tokens = tokenize(formatValue);
-      const prefix = documentType === "INVOICE" ? "INV" : "VCH";
-      // If a continuity seed is provided, preview the NEXT number after it.
-      // Otherwise preview the first number (counter = 1).
-      const seedCounter = latestUsedValue.trim()
-        ? extractCounterFromFormat(latestUsedValue.trim(), formatValue)
-        : null;
-      const nextCounter = seedCounter !== null ? seedCounter + 1 : 1;
-      const ctx = buildRenderContext(new Date(), prefix, nextCounter);
-      return render(tokens, ctx);
-    } catch {
-      return null;
-    }
-  }, [formatValue, formatValidation.valid, documentType, latestUsedValue]);
+  const docLabel = documentType === "INVOICE" ? "Invoice" : "Voucher";
 
   return (
-    <div className="space-y-3">
-      <h3 className="text-sm font-semibold text-[#1a1a1a]">{title}</h3>
+    <div className="space-y-4">
+      <h3 className="text-sm font-semibold text-[#1a1a1a]">{docLabel} Numbering</h3>
 
-      <div>
-        <label className="block text-sm text-[#666] mb-1">Format string</label>
-        <Input
-          value={formatValue}
-          onChange={(e) => onFormatChange(e.target.value)}
-          placeholder={`${documentType === "INVOICE" ? "INV" : "VCH"}/{YYYY}/{NNNNN}`}
+      <SequenceBuilder
+        documentType={documentType}
+        config={builderConfig}
+        onChange={onBuilderChange}
+        rawFormat={rawFormat}
+        onRawFormatChange={onRawFormatChange}
+        advancedMode={advancedMode}
+        onAdvancedModeChange={onAdvancedModeChange}
+      />
+
+      <div className="border-t border-[#e5e5e5] pt-4">
+        <ContinuityBuilder
+          documentType={documentType}
+          formatString={formatString}
+          lastUsedNumber={latestUsed}
+          onLastUsedNumberChange={onLatestUsedChange}
+          onSeed={() => {
+            /* seeding is handled at save time in onboarding */
+          }}
+          loading={false}
         />
-        <p className="text-xs text-[#999] mt-1">
-          Valid tokens: {"{YYYY}"}, {"{MM}"}, {"{DD}"}, {"{NNNNN}"}, {"{FY}"}
-        </p>
-      </div>
-
-      {!formatValidation.valid && formatValidation.errors.length > 0 && (
-        <div className="rounded bg-red-50 border border-red-200 px-3 py-2 text-xs text-red-700">
-          {formatValidation.errors.join("; ")}
-        </div>
-      )}
-
-      {preview && (
-        <div className="rounded bg-green-50 border border-green-200 px-3 py-1.5 text-xs text-green-800 flex items-center gap-2">
-          <span className="text-[#666]">Preview:</span>
-          <span className="font-mono font-medium">{preview}</span>
-        </div>
-      )}
-
-      <div>
-        <label className="block text-sm text-[#666] mb-1">Periodicity</label>
-        <select
-          value={periodicityValue}
-          onChange={(e) => onPeriodicityChange(e.target.value as SequencePeriodicity)}
-          className="block w-full rounded-xl border border-[#e5e5e5] bg-white px-3 py-2 text-sm text-[#1a1a1a] focus:outline-none focus:ring-2 focus:ring-[#dc2626] focus:ring-offset-0"
-        >
-          {Object.entries(PERIODICITY_LABELS).map(([value, label]) => (
-            <option key={value} value={value}>
-              {label}
-            </option>
-          ))}
-        </select>
-      </div>
-
-      <div>
-        <label className="block text-sm text-[#666] mb-1">
-          Latest already-used number{" "}
-          <span className="text-[#999] font-normal">(optional)</span>
-        </label>
-        <Input
-          value={latestUsedValue}
-          onChange={(e) => onLatestUsedChange(e.target.value)}
-          placeholder={`e.g. ${documentType === "INVOICE" ? "INV/2026/00042" : "VCH/2026/00042"}`}
-        />
-        <p className="text-xs text-[#999] mt-1">
-          If you&apos;ve already used numbers outside Slipwise, enter the latest used
-          number to continue from there. Must match the format above.
-        </p>
       </div>
     </div>
   );
