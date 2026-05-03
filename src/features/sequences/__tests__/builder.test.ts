@@ -7,6 +7,7 @@ import {
   buildNextPreview,
   validateBuilderConfig,
   getDefaultBuilderConfig,
+  derivePeriodicityFromFormat,
   RESET_CYCLE_LABELS,
 } from "../builder";
 import type { SequenceBuilderConfig } from "../builder";
@@ -91,9 +92,37 @@ describe("sequence builder", () => {
       expect(result).toBeNull();
     });
 
-    it("returns null for custom literal separators", () => {
+    it("returns null for hyphen separator format", () => {
+      const result = parseFormatString("INV-{YYYY}-{NNNNN}", "INV");
+      expect(result).toBeNull();
+    });
+
+    it("returns null for underscore separator format", () => {
+      const result = parseFormatString("INV_{YYYY}_{NNNNN}", "INV");
+      expect(result).toBeNull();
+    });
+
+    it("returns null for mixed custom literal separators", () => {
       const result = parseFormatString("INV-2026-00001", "INV");
       expect(result).toBeNull();
+    });
+  });
+
+  describe("derivePeriodicityFromFormat", () => {
+    it("derives YEARLY from YYYY token", () => {
+      expect(derivePeriodicityFromFormat("INV/{YYYY}/{NNNNN}")).toBe("YEARLY");
+    });
+
+    it("derives MONTHLY from MM token", () => {
+      expect(derivePeriodicityFromFormat("INV/{YYYY}/{MM}/{NNNNN}")).toBe("MONTHLY");
+    });
+
+    it("derives FINANCIAL_YEAR from FY token", () => {
+      expect(derivePeriodicityFromFormat("VCH/{FY}/{NNNNN}")).toBe("FINANCIAL_YEAR");
+    });
+
+    it("derives NONE when no date tokens", () => {
+      expect(derivePeriodicityFromFormat("DOC/{NNNNN}")).toBe("NONE");
     });
   });
 

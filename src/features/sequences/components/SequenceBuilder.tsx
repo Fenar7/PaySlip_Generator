@@ -37,7 +37,9 @@ export function SequenceBuilder({
 }: SequenceBuilderProps) {
   const formatString = useMemo(() => buildFormatString(config), [config]);
   const validation = useMemo(() => validateBuilderConfig(config), [config]);
-  const preview = useMemo(() => renderPreview(formatString, 1), [formatString]);
+  // In advanced mode, preview and validation must follow the raw format being edited.
+  const activeFormatString = advancedMode ? rawFormat : formatString;
+  const preview = useMemo(() => renderPreview(activeFormatString, 1), [activeFormatString]);
 
   const documentLabel = documentType === "INVOICE" ? "Invoice" : "Voucher";
 
@@ -73,7 +75,6 @@ export function SequenceBuilder({
         <AdvancedEditor
           rawFormat={rawFormat}
           onRawFormatChange={onRawFormatChange}
-          preview={preview}
         />
       ) : (
         <BuilderFields
@@ -243,13 +244,12 @@ function BuilderFields({
 function AdvancedEditor({
   rawFormat,
   onRawFormatChange,
-  preview,
 }: {
   rawFormat: string;
   onRawFormatChange: (v: string) => void;
-  preview: string | null;
 }) {
   const validation = useMemo(() => validateFormat(rawFormat), [rawFormat]);
+  const preview = useMemo(() => renderPreview(rawFormat, 1), [rawFormat]);
 
   return (
     <div className="space-y-3">

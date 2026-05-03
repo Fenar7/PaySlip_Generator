@@ -25,6 +25,7 @@ import {
   buildFormatString,
   parseFormatString,
   getDefaultBuilderConfig,
+  derivePeriodicityFromFormat,
 } from "@/features/sequences/builder";
 import type { SequenceBuilderConfig } from "@/features/sequences/builder";
 import type { SequenceSupportOverview } from "@/features/sequences/services/sequence-admin";
@@ -119,10 +120,16 @@ export default function SequenceSettingsPage() {
     setSuccess(null);
 
     try {
-      const formatString = documentType === "INVOICE"
+      const isAdvanced = documentType === "INVOICE" ? invoiceAdvanced : voucherAdvanced;
+      const rawOrBuilt = documentType === "INVOICE"
         ? (invoiceAdvanced ? invoiceRawFormat : buildFormatString(invoiceBuilder))
         : (voucherAdvanced ? voucherRawFormat : buildFormatString(voucherBuilder));
-      const periodicity = documentType === "INVOICE" ? invoiceBuilder.resetCycle : voucherBuilder.resetCycle;
+      const formatString = rawOrBuilt;
+      // In advanced mode, derive periodicity from the actual format tokens
+      // so the saved periodicity always matches the format string.
+      const periodicity = isAdvanced
+        ? derivePeriodicityFromFormat(formatString)
+        : (documentType === "INVOICE" ? invoiceBuilder.resetCycle : voucherBuilder.resetCycle);
 
       await updateSequenceSettings(activeOrg.id, {
         documentType,

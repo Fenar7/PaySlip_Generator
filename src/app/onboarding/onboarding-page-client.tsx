@@ -16,6 +16,7 @@ import {
   buildFormatString,
   parseFormatString,
   getDefaultBuilderConfig,
+  derivePeriodicityFromFormat,
 } from "@/features/sequences/builder";
 import type { SequenceBuilderConfig } from "@/features/sequences/builder";
 function slugify(str: string) {
@@ -224,13 +225,17 @@ export function OnboardingPageClient({
             {
               documentType: "INVOICE",
               formatString: invAdvanced ? invRawFormat : buildFormatString(invBuilder),
-              periodicity: invBuilder.resetCycle,
+              periodicity: invAdvanced
+                ? derivePeriodicityFromFormat(invRawFormat)
+                : invBuilder.resetCycle,
               latestUsedNumber: invLatestUsed.trim() || undefined,
             },
             {
               documentType: "VOUCHER",
               formatString: vchAdvanced ? vchRawFormat : buildFormatString(vchBuilder),
-              periodicity: vchBuilder.resetCycle,
+              periodicity: vchAdvanced
+                ? derivePeriodicityFromFormat(vchRawFormat)
+                : vchBuilder.resetCycle,
               latestUsedNumber: vchLatestUsed.trim() || undefined,
             },
           ];

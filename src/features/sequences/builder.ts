@@ -129,10 +129,10 @@ export function parseFormatString(
   for (let i = 1; i < tokens.length; i++) {
     const token = tokens[i];
     if (token.type === "literal" && token.value.length > 0) {
-      // Allow "/" or empty, but if there are other separators mixed in, it's advanced
+      // Builder only supports "/" as separator. Any other literal
+      // (including "-" or "_") means the format is custom/advanced.
       const nonSlash = token.value.replace(/\//g, "");
-      if (nonSlash.length > 0 && !/^[_\-]+$/.test(nonSlash)) {
-        // Some other literal text exists; this is a custom format
+      if (nonSlash.length > 0) {
         return null;
       }
     }
@@ -224,6 +224,23 @@ export function buildNextPreview(
 
   const preview = renderPreview(formatString, nextCounter);
   return { preview, nextCounter };
+}
+
+/**
+ * Derive the appropriate periodicity from a format string by inspecting
+ * its date tokens. This is the single source of truth for periodicity
+ * derivation so advanced-mode saves stay consistent.
+ */
+export function derivePeriodicityFromFormat(formatString: string): SequencePeriodicity {
+  const tokens = tokenize(formatString);
+  const hasFY = tokens.some((t) => t.type === "token" && t.value === "FY");
+  const hasMonth = tokens.some((t) => t.type === "token" && t.value === "MM");
+  const hasYear = tokens.some((t) => t.type === "token" && t.value === "YYYY");
+
+  if (hasFY) return "FINANCIAL_YEAR";
+  if (hasMonth) return "MONTHLY";
+  if (hasYear) return "YEARLY";
+  return "NONE";
 }
 
 /**

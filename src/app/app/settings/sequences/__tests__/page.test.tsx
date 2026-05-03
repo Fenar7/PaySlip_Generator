@@ -158,6 +158,34 @@ describe("SequenceSettingsPage", () => {
     expect(screen.getByPlaceholderText("e.g. INV/2026/00042")).toBeInTheDocument();
   });
 
+  it("saves advanced-mode format with derived periodicity", async () => {
+    mockUpdateSequenceSettings.mockResolvedValue({ success: true });
+    render(<SequenceSettingsPage />);
+
+    await waitFor(() => {
+      expect(screen.getAllByText("Edit numbering").length).toBeGreaterThan(0);
+    });
+
+    fireEvent.click(screen.getAllByText("Edit numbering")[0]);
+    fireEvent.click(screen.getByText("Advanced format editor"));
+
+    const formatInput = screen.getByPlaceholderText("INV/{YYYY}/{NNNNN}");
+    fireEvent.change(formatInput, { target: { value: "REC/{YYYY}/{MM}/{NNNNN}" } });
+
+    fireEvent.click(screen.getByText("Save changes"));
+
+    await waitFor(() => {
+      expect(mockUpdateSequenceSettings).toHaveBeenCalledWith(
+        "org-1",
+        expect.objectContaining({
+          documentType: "INVOICE",
+          formatString: "REC/{YYYY}/{MM}/{NNNNN}",
+          periodicity: "MONTHLY",
+        })
+      );
+    });
+  });
+
   it("shows next number preview in continuity section", async () => {
     mockSeedSequenceSetting.mockResolvedValue({ nextPreview: "INV/2026/00043" });
     render(<SequenceSettingsPage />);
