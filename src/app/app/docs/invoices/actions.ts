@@ -25,6 +25,7 @@ import {
 import { formatIsoDate, parseAccountingDate, toAccountingNumber } from "@/lib/accounting/utils";
 import { consumeSequenceNumber } from "@/features/sequences/services/sequence-engine";
 import { getSequenceConfig } from "@/features/sequences/services/sequence-admin";
+import { rateLimitByOrg, RATE_LIMITS } from "@/lib/rate-limit";
 import type { ConsumeResult } from "@/features/sequences/types";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -304,6 +305,9 @@ async function reverseInvoiceInventoryTx(
  *
  * Returns the formatted number and, when the sequence engine is used,
  * the sequence details needed to link the invoice row.
+ *
+ * Phase 7/Sprint 7.1: idempotencyKey (documentId) prevents double
+ * consumption on retry of the same invoice.
  */
 async function assignNextInvoiceNumber(
   orgId: string,
@@ -841,40 +845,55 @@ function canTransition(from: string, to: string): boolean {
  *
  * The caller is responsible for authz (org scoping, status check)
  * before invoking this helper.
+ *
+ * Phase 7/Sprint 7.1: re-reads invoice number inside the transaction
+ * to prevent concurrent issue calls from assigning duplicate numbers
+ * (TOCTOU hardening). The sequence engine idempotency key (invoiceId)
+ * also guards against double-consumption on retry.
  */
 export async function performIssueInvoice(
   orgId: string,
   actorId: string,
   invoiceId: string,
 ): Promise<{ invoiceNumber: string }> {
-  const existing = await db.invoice.findFirst({
+  const preexisting = await db.invoice.findFirst({
     where: { id: invoiceId, organizationId: orgId },
     include: { lineItems: { where: { inventoryItemId: { not: null } } } },
   });
 
-  if (!existing) {
+  if (!preexisting) {
     throw new Error("Invoice not found");
   }
 
-  if (!canTransition(existing.status, "ISSUED")) {
-    throw new Error(`Cannot issue invoice in ${existing.status} status`);
+  if (!canTransition(preexisting.status, "ISSUED")) {
+    throw new Error(`Cannot issue invoice in ${preexisting.status} status`);
   }
 
-  let invoiceNumber: string;
+  let invoiceNumber = "";
   let issueSequenceId: string | null = null;
   let issuePeriodId: string | null = null;
   let issueSequenceNumber: number | null = null;
 
   await db.$transaction(async (tx) => {
-    if (!existing.invoiceNumber) {
-      const docDate = new Date(existing.invoiceDate);
+    const current = await tx.invoice.findUnique({
+      where: { id: invoiceId },
+      select: { invoiceNumber: true, status: true },
+    });
+
+    if (!current) {
+      throw new Error("Invoice not found inside transaction");
+    }
+
+    const docDate = new Date(preexisting.invoiceDate);
+
+    if (!current.invoiceNumber) {
       const assigned = await assignNextInvoiceNumber(orgId, docDate, tx);
       invoiceNumber = assigned.invoiceNumber;
       issueSequenceId = assigned.sequenceId;
       issuePeriodId = assigned.sequencePeriodId;
       issueSequenceNumber = assigned.sequenceNumber;
     } else {
-      invoiceNumber = existing.invoiceNumber;
+      invoiceNumber = current.invoiceNumber;
     }
 
     await tx.invoice.update({
@@ -882,7 +901,7 @@ export async function performIssueInvoice(
       data: {
         status: "ISSUED",
         issuedAt: new Date(),
-        ...(!existing.invoiceNumber
+        ...(!current.invoiceNumber
           ? {
               invoiceNumber,
               sequenceId: issueSequenceId,
@@ -896,7 +915,7 @@ export async function performIssueInvoice(
     await tx.invoiceStateEvent.create({
       data: {
         invoiceId,
-        fromStatus: existing.status,
+        fromStatus: preexisting.status,
         toStatus: "ISSUED",
         actorId,
       },
@@ -920,7 +939,7 @@ export async function performIssueInvoice(
       orgId,
       actorId,
       invoiceId,
-      lineItems: existing.lineItems,
+      lineItems: preexisting.lineItems,
     });
   });
 
@@ -933,8 +952,8 @@ export async function performIssueInvoice(
     actorId,
     payload: {
       invoiceNumber,
-      totalAmount: existing.totalAmount,
-      customerId: existing.customerId,
+      totalAmount: preexisting.totalAmount,
+      customerId: preexisting.customerId,
     },
   });
 
@@ -955,6 +974,12 @@ export async function performIssueInvoice(
 export async function issueInvoice(id: string): Promise<ActionResult<void>> {
   try {
     const { orgId, userId } = await requireOrgContext();
+
+    const rateLimit = await rateLimitByOrg(orgId, RATE_LIMITS.invoiceIssue);
+    if (!rateLimit.success) {
+      return { success: false, error: `Rate limit exceeded for invoice issue. Retry after ${rateLimit.retryAfter ?? 60} seconds.` };
+    }
+
     await performIssueInvoice(orgId, userId, id);
     return { success: true, data: undefined };
   } catch (error) {

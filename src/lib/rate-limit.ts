@@ -76,4 +76,9 @@ export const RATE_LIMITS = {
   shareTokenValidation: { maxRequests: 20, window: "60 s" },
   // Phase 6: Sequence platform
   resequenceApply: { maxRequests: 5, window: "60 s" },
+  // Phase 7/Sprint 7.1: Concurrency hardening
+  invoiceIssue: { maxRequests: 30, window: "60 s" },
+  voucherApprove: { maxRequests: 30, window: "60 s" },
+  // Phase 7/Sprint 7.2: Diagnostics tooling
+  diagnostics: { maxRequests: 10, window: "60 s" },
 } as const;
