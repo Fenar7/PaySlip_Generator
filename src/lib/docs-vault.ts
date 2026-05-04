@@ -303,7 +303,7 @@ export async function syncInvoiceToIndex(
   orgId: string,
   invoice: {
     id: string;
-    invoiceNumber: string;
+    invoiceNumber: string | null;
     status: string;
     invoiceDate: string;
     totalAmount: number;
@@ -316,7 +316,7 @@ export async function syncInvoiceToIndex(
     orgId,
     docType: "invoice",
     documentId: invoice.id,
-    documentNumber: invoice.invoiceNumber,
+    documentNumber: invoice.invoiceNumber ?? "",
     titleOrSummary: `Invoice ${invoice.invoiceNumber ?? "Draft"}`,
     counterpartyLabel: invoice.customer?.name ?? null,
     status: invoice.status,
