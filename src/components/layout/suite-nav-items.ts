@@ -1,8 +1,28 @@
+import type { LucideIcon } from "lucide-react";
+import {
+  Home,
+  FileText,
+  Database,
+  CreditCard,
+  BookOpen,
+  Workflow,
+  BarChart3,
+  Package,
+  ShoppingCart,
+  ShieldCheck,
+  Users,
+  BookMarked,
+  ImageIcon,
+  Receipt,
+  Handshake,
+} from "lucide-react";
+
 export interface NavItem {
   href: string;
   label: string;
   suite: string;
   badge?: string;
+  icon?: LucideIcon;
   children?: { href: string; label: string }[];
 }
 
@@ -11,11 +31,13 @@ export const suiteNavItems: NavItem[] = [
     href: "/app/home",
     label: "Home",
     suite: "home",
+    icon: Home,
   },
   {
     href: "/app/docs",
     label: "Docs",
     suite: "docs",
+    icon: FileText,
     children: [
       { href: "/app/docs/invoices/new", label: "Invoice Studio" },
       { href: "/app/docs/vouchers/new", label: "Voucher Studio" },
@@ -25,7 +47,7 @@ export const suiteNavItems: NavItem[] = [
       { href: "/app/docs/templates", label: "Templates" },
       { href: "/app/docs/templates/marketplace", label: "Template Marketplace" },
       { href: "/app/docs/templates/publisher/payouts", label: "Publisher Payouts" },
-      { href: "/app/docs/pdf-studio",        label: "PDF Studio" },
+      { href: "/app/docs/pdf-studio", label: "PDF Studio" },
       { href: "/app/settings/sequences/history", label: "Sequence History" },
     ],
   },
@@ -33,6 +55,7 @@ export const suiteNavItems: NavItem[] = [
     href: "/app/data",
     label: "Master Data",
     suite: "data",
+    icon: Database,
     children: [
       { href: "/app/data/customers", label: "Customers" },
       { href: "/app/data/vendors", label: "Vendors" },
@@ -44,6 +67,7 @@ export const suiteNavItems: NavItem[] = [
     href: "/app/pay",
     label: "Pay",
     suite: "pay",
+    icon: CreditCard,
     children: [
       { href: "/app/pay/receivables", label: "Receivables" },
       { href: "/app/pay/proofs", label: "Payment Proofs" },
@@ -61,6 +85,7 @@ export const suiteNavItems: NavItem[] = [
     href: "/app/books",
     label: "Books",
     suite: "books",
+    icon: BookOpen,
     children: [
       { href: "/app/books", label: "Overview" },
       { href: "/app/books/chart-of-accounts", label: "Chart of Accounts" },
@@ -87,6 +112,7 @@ export const suiteNavItems: NavItem[] = [
     href: "/app/flow",
     label: "Flow",
     suite: "flow",
+    icon: Workflow,
     children: [
       { href: "/app/flow/tickets", label: "Tickets" },
       { href: "/app/flow/approvals", label: "Approvals" },
@@ -100,6 +126,7 @@ export const suiteNavItems: NavItem[] = [
     href: "/app/intel",
     label: "Intel",
     suite: "intel",
+    icon: BarChart3,
     children: [
       { href: "/app/intel/dashboard", label: "Dashboard" },
       { href: "/app/intel/reports", label: "Reports" },
@@ -121,6 +148,7 @@ export const suiteNavItems: NavItem[] = [
     href: "/app/inventory/items",
     label: "Inventory",
     suite: "inventory",
+    icon: Package,
     children: [
       { href: "/app/inventory/items", label: "Items" },
       { href: "/app/inventory/warehouses", label: "Warehouses" },
@@ -132,6 +160,7 @@ export const suiteNavItems: NavItem[] = [
     href: "/app/procurement/po",
     label: "Procurement",
     suite: "procurement",
+    icon: ShoppingCart,
     children: [
       { href: "/app/procurement/po", label: "Purchase Orders" },
       { href: "/app/procurement/grn", label: "Goods Receipts" },
@@ -142,6 +171,7 @@ export const suiteNavItems: NavItem[] = [
     href: "/app/compliance",
     label: "Compliance",
     suite: "compliance",
+    icon: ShieldCheck,
     children: [
       { href: "/app/compliance", label: "Overview" },
       { href: "/app/compliance/global", label: "Global Tax Engine" },
@@ -156,6 +186,7 @@ export const suiteNavItems: NavItem[] = [
     href: "/app/crm",
     label: "CRM",
     suite: "crm",
+    icon: Users,
     children: [
       { href: "/app/crm", label: "Dashboard" },
       { href: "/app/data/customers", label: "Customers" },
@@ -166,6 +197,7 @@ export const suiteNavItems: NavItem[] = [
     href: "/app/sop",
     label: "Knowledge Base",
     suite: "sop",
+    icon: BookMarked,
     children: [
       { href: "/app/sop", label: "All SOPs" },
       { href: "/app/sop/new", label: "+ New SOP" },
@@ -175,6 +207,7 @@ export const suiteNavItems: NavItem[] = [
     href: "/app/pixel",
     label: "Pixel",
     suite: "pixel",
+    icon: ImageIcon,
     children: [
       { href: "/app/pixel/passport", label: "Passport Photo" },
       { href: "/app/pixel/resize", label: "Resize & Compress" },
@@ -187,6 +220,7 @@ export const suiteNavItems: NavItem[] = [
     href: "/app/billing",
     label: "Billing",
     suite: "billing",
+    icon: Receipt,
     children: [
       { href: "/app/billing", label: "Plan & Usage" },
       { href: "/app/billing/history", label: "Billing History" },
@@ -196,6 +230,7 @@ export const suiteNavItems: NavItem[] = [
     href: "/app/partner",
     label: "Partner",
     suite: "partner",
+    icon: Handshake,
     children: [
       { href: "/app/partner", label: "Dashboard" },
       { href: "/app/partner/clients", label: "Managed Clients" },

@@ -13,7 +13,7 @@ interface AppShellProps {
 
 export function AppShell({ children, orgName, initialUser }: AppShellProps) {
   return (
-    <div className="flex h-screen overflow-hidden">
+    <div className="flex h-screen overflow-hidden bg-[var(--surface-base)]">
       {/* Sidebar */}
       <div className="hidden lg:flex lg:flex-shrink-0">
         <AppSidebar />
@@ -22,7 +22,7 @@ export function AppShell({ children, orgName, initialUser }: AppShellProps) {
       {/* Main area */}
       <div className="flex flex-1 flex-col overflow-hidden">
         <AppTopbar orgName={orgName} initialUser={initialUser} />
-        <main className="flex-1 overflow-y-auto bg-[var(--background)]">
+        <main className="flex-1 overflow-y-auto bg-[var(--surface-base)]">
           {children}
         </main>
       </div>
