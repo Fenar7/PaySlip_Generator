@@ -13,6 +13,12 @@ vi.mock("@/lib/db", () => ({
       findMany: vi.fn(),
       create: vi.fn(),
     },
+    invoice: {
+      count: vi.fn(),
+    },
+    voucher: {
+      count: vi.fn(),
+    },
   },
 }));
 
@@ -278,6 +284,7 @@ describe("sequence-history", () => {
           name: "Invoice Main",
           documentType: "INVOICE",
           isActive: true,
+          formats: [],
           _count: { snapshots: 3 },
         },
         {
@@ -285,6 +292,7 @@ describe("sequence-history", () => {
           name: "Voucher Default",
           documentType: "VOUCHER",
           isActive: true,
+          formats: [],
           _count: { snapshots: 1 },
         },
         {
@@ -292,9 +300,14 @@ describe("sequence-history", () => {
           name: "Invoice Legacy",
           documentType: "INVOICE",
           isActive: false,
+          formats: [],
           _count: { snapshots: 2 },
         },
       ] as any);
+
+      vi.mocked(db.sequenceSnapshot.findFirst).mockResolvedValue(null);
+      vi.mocked(db.invoice.count).mockResolvedValue(0);
+      vi.mocked(db.voucher.count).mockResolvedValue(0);
 
       const groups = await listAllOrgSnapshots(ORG_ID);
 

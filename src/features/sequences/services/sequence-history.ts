@@ -56,6 +56,10 @@ export interface OrgSnapshotGroup {
     sequenceName: string;
     isActive: boolean;
     snapshotCount: number;
+    documentCount: number;
+    lastChangeAt: string | null;
+    formatString: string | null;
+    nextPreview: string | null;
   }[];
 }
 
@@ -281,11 +285,8 @@ export async function listAllOrgSnapshots(
   const sequences = await db.sequence.findMany({
     where: { organizationId: orgId },
     orderBy: [{ documentType: "asc" }, { createdAt: "desc" }],
-    select: {
-      id: true,
-      name: true,
-      documentType: true,
-      isActive: true,
+    include: {
+      formats: { where: { isDefault: true }, take: 1 },
       _count: { select: { snapshots: true } },
     },
   });
@@ -294,11 +295,48 @@ export async function listAllOrgSnapshots(
 
   for (const seq of sequences) {
     const group = grouped.get(seq.documentType) ?? [];
+
+    const format = seq.formats[0];
+    const latestSnapshot = await db.sequenceSnapshot.findFirst({
+      where: { sequenceId: seq.id },
+      orderBy: { version: "desc" },
+      select: { createdAt: true },
+    });
+
+    // Count documents linked to this sequence
+    const documentCount =
+      seq.documentType === "INVOICE"
+        ? await db.invoice.count({
+            where: { organizationId: orgId, sequenceId: seq.id },
+          })
+        : await db.voucher.count({
+            where: { organizationId: orgId, sequenceId: seq.id },
+          });
+
+    let nextPreview: string | null = null;
+    if (format) {
+      try {
+        const { previewSequenceNumber } = await import("./sequence-engine");
+        const preview = await previewSequenceNumber({
+          sequenceId: seq.id,
+          documentDate: new Date(),
+          orgId,
+        });
+        nextPreview = preview.preview;
+      } catch {
+        nextPreview = null;
+      }
+    }
+
     group.push({
       sequenceId: seq.id,
       sequenceName: seq.name,
       isActive: seq.isActive,
       snapshotCount: seq._count.snapshots,
+      documentCount,
+      lastChangeAt: latestSnapshot?.createdAt?.toISOString() ?? null,
+      formatString: format?.formatString ?? null,
+      nextPreview,
     });
     grouped.set(seq.documentType, group);
   }
