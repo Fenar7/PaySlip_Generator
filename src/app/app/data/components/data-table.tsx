@@ -144,7 +144,7 @@ export function DataTable<T extends { id: string }>({
                     </td>
                   ))}
                   <td className="px-5 py-3.5 text-right">
-                    <div className="flex items-center justify-end gap-2 opacity-0 transition-opacity group-hover:opacity-100">
+                    <div className="flex items-center justify-end gap-2 opacity-100 transition-opacity sm:opacity-0 sm:group-hover:opacity-100 focus-within:opacity-100">
                       <Link
                         href={`${editPath}/${item.id}`}
                         className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-[var(--brand-primary)] transition-colors hover:bg-[var(--surface-selected)]"
