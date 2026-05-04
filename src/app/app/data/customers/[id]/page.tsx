@@ -1,6 +1,8 @@
 import { notFound } from "next/navigation";
 import { getCustomer } from "../../actions";
 import { CustomerForm } from "../../components/customer-form";
+import { DetailLayout, DetailRailCard, MetadataField } from "@/components/layout/detail-layout";
+import { StatusBadge } from "@/components/dashboard/status-badge";
 
 export const metadata = {
   title: "Edit Customer | Slipwise",
@@ -13,15 +15,30 @@ export default async function EditCustomerPage({
 }) {
   const { id } = await params;
   const customer = await getCustomer(id);
-  
+
   if (!customer) {
     notFound();
   }
-  
+
   return (
-    <div>
-      <h1 className="mb-6 text-2xl font-semibold text-slate-900">Edit Customer</h1>
+    <DetailLayout
+      rail={
+        <DetailRailCard title="Customer Info">
+          <dl className="space-y-3">
+            <MetadataField label="Name" value={customer.name} />
+            {customer.email && <MetadataField label="Email" value={customer.email} />}
+            {customer.phone && <MetadataField label="Phone" value={customer.phone} />}
+            {customer.gstin && <MetadataField label="GSTIN" value={customer.gstin} />}
+            {customer.taxId && <MetadataField label="Tax ID" value={customer.taxId} />}
+            {customer.address && (
+              <MetadataField label="Address" value={<span className="whitespace-pre-line">{customer.address}</span>} />
+            )}
+          </dl>
+        </DetailRailCard>
+      }
+    >
+      <h1 className="mb-6 text-xl font-semibold text-[var(--text-primary)]">Edit Customer</h1>
       <CustomerForm customer={customer} />
-    </div>
+    </DetailLayout>
   );
 }
