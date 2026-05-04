@@ -86,7 +86,7 @@ describe("upsertDocumentIndex", () => {
     });
 
     expect(call.create).toMatchObject({
-      orgId: ORG_ID,
+      organization: { connect: { id: ORG_ID } },
       docType: "invoice",
       documentId: "inv-1",
       documentNumber: "INV-001",

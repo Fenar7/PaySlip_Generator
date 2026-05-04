@@ -75,7 +75,7 @@ export async function upsertDocumentIndex(
       },
     },
     create: {
-      orgId: payload.orgId,
+      organization: { connect: { id: payload.orgId } },
       docType: payload.docType,
       documentId: payload.documentId,
       documentNumber,
@@ -347,7 +347,7 @@ export async function syncInvoiceToIndex(
     orgId,
     docType: "invoice",
     documentId: invoice.id,
-    documentNumber: invoice.invoiceNumber,
+    documentNumber: invoice.invoiceNumber ?? "",
     titleOrSummary: `Invoice ${invoice.invoiceNumber ?? "Draft"}`,
     counterpartyLabel: invoice.customer?.name ?? null,
     status: invoice.status,

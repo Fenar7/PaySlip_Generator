@@ -973,7 +973,7 @@ export async function performIssueInvoice(
   return { invoiceNumber };
 }
 
-export async function issueInvoice(id: string): Promise<ActionResult<void>> {
+export async function issueInvoice(id: string): Promise<ActionResult<{ invoiceNumber: string }>> {
   try {
     const { orgId, userId } = await requireOrgContext();
 
@@ -982,8 +982,8 @@ export async function issueInvoice(id: string): Promise<ActionResult<void>> {
       return { success: false, error: `Rate limit exceeded for invoice issue. Retry after ${rateLimit.retryAfter ?? 60} seconds.` };
     }
 
-    await performIssueInvoice(orgId, userId, id);
-    return { success: true, data: undefined };
+    const { invoiceNumber } = await performIssueInvoice(orgId, userId, id);
+    return { success: true, data: { invoiceNumber } };
   } catch (error) {
     console.error("issueInvoice error:", error);
     return { success: false, error: error instanceof Error ? error.message : "Failed to issue invoice" };
