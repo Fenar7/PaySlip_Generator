@@ -308,8 +308,8 @@ function SequenceFolderCard({
 function buildQuery(params: Record<string, string | number | undefined>): string {
   const parts: string[] = [];
   for (const [key, val] of Object.entries(params)) {
-    if (val !== undefined && val !== "" && val !== null) {
-      parts.push(`${key}=${encodeURIComponent(String(val))}`);
+    if (val !== undefined && val !== null && val !== "" && val !== "undefined") {
+      parts.push(`${encodeURIComponent(key)}=${encodeURIComponent(String(val))}`);
     }
   }
   return parts.join("&");
@@ -337,10 +337,11 @@ function StatusFilterChips({ currentStatus, extraParams }: { currentStatus?: str
     <div className="flex flex-wrap gap-2">
       {statuses.map((s) => {
         const isActive = currentStatus === s.value || (!currentStatus && !s.value);
-        // Build href preserving other params
-        const params = new URLSearchParams(base as Record<string, string>);
+        const params = new URLSearchParams();
+        for (const [k, v] of Object.entries(base)) {
+          if (v !== undefined && v !== "") params.set(k, v);
+        }
         if (s.value) params.set("status", s.value);
-        else params.delete("status");
         const qs = params.toString();
 
         return (
@@ -393,7 +394,7 @@ function AdvancedFilters({
       {/* Filter panel */}
       {show && (
         <form method="GET" className="mt-3 rounded-lg border-2 border-red-200 bg-white p-4">
-          {Array.from(base.entries()).map(([k, v]) => (<input key={k} type="hidden" name={k} value={v} />))}
+          {Array.from(base.entries()).filter(([, v]) => v !== "undefined" && v !== "").map(([k, v]) => (<input key={k} type="hidden" name={k} value={v} />))}
           <div className="grid gap-3 sm:grid-cols-4">
             <div>
               <label className="mb-1 block text-xs font-medium text-slate-500">Date From</label>
@@ -458,10 +459,6 @@ export default async function InvoicesPage({
   const amountMax = params.amountMax ? parseFloat(params.amountMax) : undefined;
   const sequenceId = params.sequenceId;
 
-  const extraParams: Record<string, string | undefined> = {};
-  if (params.search) extraParams.search = params.search;
-  extraParams.view = view;
-
   return (
     <div className="min-h-screen bg-slate-50">
       <div className="mx-auto max-w-6xl px-4 py-8">
@@ -486,7 +483,7 @@ export default async function InvoicesPage({
           {/* Tab bar */}
           <div className="flex items-center rounded-xl bg-white p-1 shadow-sm border border-slate-200">
             <Link
-              href={`/app/docs/invoices?${buildQuery({ status: params.status, search: params.search })}`}
+              href={`/app/docs/invoices?${buildQuery({ search: params.search || undefined })}`}
               className={`flex items-center gap-1.5 rounded-lg px-3.5 py-2 text-sm font-medium transition-all ${
                 view === "list"
                   ? "bg-slate-900 text-white shadow-sm"
@@ -497,7 +494,7 @@ export default async function InvoicesPage({
               List
             </Link>
             <Link
-              href={`/app/docs/invoices?${buildQuery({ view: "sequence", search: params.search })}`}
+              href={`/app/docs/invoices?${buildQuery({ view: "sequence", search: params.search || undefined })}`}
               className={`flex items-center gap-1.5 rounded-lg px-3.5 py-2 text-sm font-medium transition-all ${
                 view === "sequence"
                   ? "bg-slate-900 text-white shadow-sm"
@@ -511,12 +508,12 @@ export default async function InvoicesPage({
 
           {/* Search */}
           <form method="GET" className="relative flex-1 max-w-xs">
-            {params.status && <input type="hidden" name="status" value={params.status} />}
+            {status && status !== "undefined" && <input type="hidden" name="status" value={status} />}
             {view !== "list" && <input type="hidden" name="view" value={view} />}
-            {dateFrom && <input type="hidden" name="dateFrom" value={dateFrom} />}
-            {dateTo && <input type="hidden" name="dateTo" value={dateTo} />}
-            {params.amountMin && <input type="hidden" name="amountMin" value={params.amountMin} />}
-            {params.amountMax && <input type="hidden" name="amountMax" value={params.amountMax} />}
+            {dateFrom && dateFrom !== "undefined" && <input type="hidden" name="dateFrom" value={dateFrom} />}
+            {dateTo && dateTo !== "undefined" && <input type="hidden" name="dateTo" value={dateTo} />}
+            {params.amountMin && params.amountMin !== "undefined" && <input type="hidden" name="amountMin" value={params.amountMin} />}
+            {params.amountMax && params.amountMax !== "undefined" && <input type="hidden" name="amountMax" value={params.amountMax} />}
             <input
               type="text" name="search" defaultValue={params.search || ""} placeholder="Search invoices..."
               className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 pl-9 text-sm text-slate-700 placeholder-slate-400 focus:border-red-400 focus:outline-none focus:ring-1 focus:ring-red-400"
@@ -527,9 +524,9 @@ export default async function InvoicesPage({
           {/* Filter button */}
           <AdvancedFilters
             current={{ dateFrom, dateTo, amountMin: params.amountMin, amountMax: params.amountMax, sequenceId }}
-            extraParams={{ status: params.status, search: params.search, view }}
+            extraParams={{ status: status || undefined, search: params.search || undefined, view }}
             show={params.filters === "open"}
-            toggle={buildQuery({ status: params.status, search: params.search, view, filters: "open" })}
+            toggle={buildQuery({ status: status || undefined, search: params.search || undefined, view, filters: "open" })}
           />
         </div>
 
@@ -538,7 +535,7 @@ export default async function InvoicesPage({
         {/* Status filter chips (list view only) */}
         {view === "list" && (
           <div className="mb-4">
-            <StatusFilterChips currentStatus={status} extraParams={{ ...extraParams, search: params.search }} />
+            <StatusFilterChips currentStatus={status} extraParams={{ view: params.view, search: params.search || undefined }} />
           </div>
         )}
 
