@@ -861,6 +861,13 @@ export function InvoiceWorkspace({
       try {
         const result = await issueInvoice(targetId);
         if (result.success) {
+          const issuedNumber = result.data.invoiceNumber;
+          methods.setValue("invoiceNumber", issuedNumber, {
+            shouldDirty: false,
+            shouldTouch: false,
+            shouldValidate: true,
+          });
+          setSavedInvoiceNumber(issuedNumber);
           toast.success("Invoice issued successfully");
         } else {
           toast.error(result.error || "Failed to issue invoice");

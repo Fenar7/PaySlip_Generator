@@ -14,6 +14,9 @@ vi.mock("@/lib/db", () => ({
     invoiceStateEvent: {
       create: vi.fn(),
     },
+    publicInvoiceToken: {
+      create: vi.fn(),
+    },
     stockEvent: {
       findMany: vi.fn(),
     },
@@ -69,9 +72,22 @@ vi.mock("@/lib/usage-metering", () => ({
   checkUsageLimit: vi.fn(),
 }));
 
+vi.mock("@/lib/rate-limit", () => ({
+  rateLimitByOrg: vi.fn(),
+  RATE_LIMITS: { invoiceIssue: { maxRequests: 30, window: "60 s" } },
+}));
+
 vi.mock("@/lib/inventory/stock-events", () => ({
   getOutboundUnitCostTx: vi.fn().mockResolvedValue(125),
   recordStockEventTx: vi.fn().mockResolvedValue(undefined),
+}));
+
+vi.mock("@/features/sequences/services/sequence-engine", () => ({
+  consumeSequenceNumber: vi.fn(),
+}));
+
+vi.mock("@/features/sequences/services/sequence-admin", () => ({
+  getSequenceConfig: vi.fn(),
 }));
 
 import { requireOrgContext } from "@/lib/auth";
@@ -80,7 +96,10 @@ import { nextDocumentNumber } from "@/lib/docs";
 import { reverseJournalEntryTx } from "@/lib/accounting";
 import { recordStockEventTx } from "@/lib/inventory/stock-events";
 import { checkUsageLimit } from "@/lib/usage-metering";
-import { cancelInvoice, listInvoices, reissueInvoice, saveInvoice } from "../actions";
+import { rateLimitByOrg } from "@/lib/rate-limit";
+import { consumeSequenceNumber } from "@/features/sequences/services/sequence-engine";
+import { getSequenceConfig } from "@/features/sequences/services/sequence-admin";
+import { cancelInvoice, issueInvoice, listInvoices, reissueInvoice, saveInvoice } from "../actions";
 
 const ORG_ID = "org-1";
 const USER_ID = "user-1";
@@ -377,6 +396,63 @@ describe("invoice accounting transitions", () => {
         eventType: "RETURN_IN",
         referenceId: "inv-1",
         createdByUserId: USER_ID,
+      }),
+    );
+  });
+
+  it("returns the assigned invoice number when issuing a draft invoice", async () => {
+    vi.mocked(rateLimitByOrg).mockResolvedValue({ success: true, remaining: 999 });
+
+    vi.mocked(getSequenceConfig).mockResolvedValue({
+      sequenceId: "seq-1",
+      documentType: "INVOICE" as const,
+      name: "Invoice",
+      formatString: "INV-{SEQ}",
+      periodicity: "MONTHLY" as const,
+      startCounter: 1,
+      counterPadding: 4,
+    });
+
+    vi.mocked(consumeSequenceNumber).mockResolvedValue({
+      formattedNumber: "INV-0001",
+      sequenceNumber: 1,
+      periodId: "per-1",
+    });
+
+    vi.mocked(db.invoice.findFirst).mockResolvedValue({
+      id: "inv-1",
+      organizationId: ORG_ID,
+      invoiceNumber: null,
+      invoiceDate: new Date("2026-01-15"),
+      status: "DRAFT",
+      totalAmount: 1000,
+      lineItems: [],
+    } as any);
+
+    vi.mocked(db.invoice.findUnique).mockResolvedValue({
+      id: "inv-1",
+      invoiceNumber: null,
+      status: "DRAFT",
+    } as any);
+
+    vi.mocked(db.invoice.update).mockResolvedValue({} as any);
+    vi.mocked(db.invoiceStateEvent.create).mockResolvedValue({} as any);
+    vi.mocked(db.publicInvoiceToken.create).mockResolvedValue({} as any);
+
+    const result = await issueInvoice("inv-1");
+
+    expect(result.success).toBe(true);
+    expect(result.success && result.data.invoiceNumber).toBe("INV-0001");
+    expect(db.invoice.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: "inv-1" },
+        data: expect.objectContaining({
+          status: "ISSUED",
+          invoiceNumber: "INV-0001",
+          sequenceId: "seq-1",
+          sequencePeriodId: "per-1",
+          sequenceNumber: 1,
+        }),
       }),
     );
   });

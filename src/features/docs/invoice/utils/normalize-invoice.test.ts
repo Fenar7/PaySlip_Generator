@@ -35,4 +35,33 @@ describe("normalizeInvoice", () => {
     expect(document.terms).toBeUndefined();
     expect(document.visibility.showPaymentSummary).toBe(false);
   });
+
+  it('shows "Draft" when invoiceNumber is empty', () => {
+    const document = normalizeInvoice(invoiceDefaultValues);
+    expect(document.invoiceNumber).toBe("Draft");
+  });
+
+  it("shows the real invoice number when one is assigned", () => {
+    const document = normalizeInvoice({
+      ...invoiceDefaultValues,
+      invoiceNumber: "INV-2026-0042",
+    });
+    expect(document.invoiceNumber).toBe("INV-2026-0042");
+  });
+
+  it("shows the trimmed invoice number when whitespace is present", () => {
+    const document = normalizeInvoice({
+      ...invoiceDefaultValues,
+      invoiceNumber: "  INV-2026-0073  ",
+    });
+    expect(document.invoiceNumber).toBe("INV-2026-0073");
+  });
+
+  it('shows "Draft" when invoiceNumber is only whitespace', () => {
+    const document = normalizeInvoice({
+      ...invoiceDefaultValues,
+      invoiceNumber: "   ",
+    });
+    expect(document.invoiceNumber).toBe("Draft");
+  });
 });
