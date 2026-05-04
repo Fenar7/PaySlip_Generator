@@ -26,16 +26,20 @@ import {
   parseFormatString,
   getDefaultBuilderConfig,
   derivePeriodicityFromFormat,
+  renderPreview,
 } from "@/features/sequences/builder";
 import type { SequenceBuilderConfig } from "@/features/sequences/builder";
+import { getDefaultSequenceConfig } from "@/features/sequences/default-config";
 import type { SequenceSupportOverview } from "@/features/sequences/services/sequence-admin";
 import type { SequenceDocumentType, HealthCheckReport, HealthCheckFailure } from "@/features/sequences/types";
 
 export default function SequenceSettingsPage() {
   const { activeOrg, isLoading: isOrgLoading } = useActiveOrg();
   const [canEditSettings, setCanEditSettings] = useState<boolean | null>(null);
-  const role = activeOrg?.role ?? "viewer";
-  const isOwner = canEditSettings ?? (role === "owner");
+  // Server-validated editability only. No client-side fallback to avoid
+  // split-brain when localStorage and server userOrgPreference drift.
+  const isOwner = canEditSettings === true;
+  const editabilityKnown = canEditSettings !== null;
 
   const [invoiceSettings, setInvoiceSettings] = useState<SequenceSettingsData | null>(null);
   const [voucherSettings, setVoucherSettings] = useState<SequenceSettingsData | null>(null);
@@ -252,7 +256,7 @@ export default function SequenceSettingsPage() {
         <h2 className="text-xl font-semibold text-[#1a1a1a]">Document Numbering</h2>
         <p className="text-sm text-[#666] mt-1">
           Choose how invoice and voucher numbers look and behave.
-          {isOwner ? "" : " Only the owner can edit these settings."}
+          {editabilityKnown && !isOwner ? " Only the owner can edit these settings." : ""}
         </p>
       </div>
 
@@ -513,6 +517,9 @@ function SequenceConfigCard({
   children?: React.ReactNode;
 }) {
   if (!settings) {
+    const recommended = getDefaultSequenceConfig(documentType);
+    const recommendedPreview = renderPreview(recommended.formatString, recommended.startCounter);
+
     return (
       <Card>
         <CardHeader>
@@ -528,6 +535,21 @@ function SequenceConfigCard({
                   ? `This organization has not set up ${documentType === "INVOICE" ? "invoice" : "voucher"} numbering yet.`
                   : `${documentType === "INVOICE" ? "Invoice" : "Voucher"} numbering has not been set up for this organization yet.`}
               </p>
+              <div className="rounded-xl border border-[#e5e5e5] bg-[#fafafa] px-4 py-3 space-y-2">
+                <p className="text-xs font-semibold uppercase tracking-wide text-[#999]">
+                  Recommended default
+                </p>
+                <p className="text-sm text-[#1a1a1a]">
+                  {documentType === "INVOICE" ? "Invoices" : "Vouchers"} will start as{" "}
+                  <span className="rounded border border-[#e5e5e5] bg-white px-1.5 py-0.5 font-mono">
+                    {recommendedPreview ?? recommended.formatString}
+                  </span>{" "}
+                  and reset every year.
+                </p>
+                <p className="text-xs text-[#666]">
+                  You can keep this recommended setup or customize the prefix, reset cycle, and number length.
+                </p>
+              </div>
               {isOwner ? (
                 <div className="flex flex-wrap gap-2">
                   <Button

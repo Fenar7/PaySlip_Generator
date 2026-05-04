@@ -292,6 +292,8 @@ describe("SequenceSettingsPage", () => {
 
     expect(screen.getByText("Use recommended defaults")).toBeInTheDocument();
     expect(screen.getByText("Customize numbering")).toBeInTheDocument();
+    expect(screen.getByText("Recommended default")).toBeInTheDocument();
+    expect(screen.getByText("INV/2026/00001")).toBeInTheDocument();
     expect(screen.queryByText(/Run the migration script/i)).not.toBeInTheDocument();
   });
 
