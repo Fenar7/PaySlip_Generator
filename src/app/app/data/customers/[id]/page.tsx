@@ -2,7 +2,6 @@ import { notFound } from "next/navigation";
 import { getCustomer } from "../../actions";
 import { CustomerForm } from "../../components/customer-form";
 import { DetailLayout, DetailRailCard, MetadataField } from "@/components/layout/detail-layout";
-import { StatusBadge } from "@/components/dashboard/status-badge";
 
 export const metadata = {
   title: "Edit Customer | Slipwise",
