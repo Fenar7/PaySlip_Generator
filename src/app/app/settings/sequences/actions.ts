@@ -14,6 +14,7 @@ import {
 import {
   configureInitialSequences,
 } from "@/app/onboarding/actions";
+import { getOrgContext } from "@/lib/auth/require-org";
 import { getDefaultSequenceConfig } from "@/features/sequences/default-config";
 import type { SequenceSupportOverview } from "@/features/sequences/services/sequence-admin";
 import { previewSequenceNumber } from "@/features/sequences/services/sequence-engine";
@@ -44,7 +45,10 @@ export interface SequenceSettingsData {
 
 export async function getSequenceSettings(
   orgId: string
-): Promise<{ invoice: SequenceSettingsData | null; voucher: SequenceSettingsData | null }> {
+): Promise<{ invoice: SequenceSettingsData | null; voucher: SequenceSettingsData | null; canEdit: boolean }> {
+  const context = await getOrgContext();
+  const canEdit = context?.orgId === orgId && context.role === "owner";
+
   const [invoice, voucher] = await Promise.all([
     getSequenceConfig({ orgId, documentType: "INVOICE" }),
     getSequenceConfig({ orgId, documentType: "VOUCHER" }),
@@ -95,6 +99,7 @@ export async function getSequenceSettings(
           nextPreview: voucherPreview?.preview ?? null,
         }
       : null,
+    canEdit,
   };
 }
 

@@ -3,14 +3,9 @@ import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 
 // Mock hooks
 const mockUseActiveOrg = vi.fn();
-const mockUsePermissions = vi.fn();
 
 vi.mock("@/hooks/use-active-org", () => ({
   useActiveOrg: () => mockUseActiveOrg(),
-}));
-
-vi.mock("@/hooks/use-permissions", () => ({
-  usePermissions: () => mockUsePermissions(),
 }));
 
 // Mock server actions
@@ -39,8 +34,10 @@ import SequenceSettingsPage from "../page";
 describe("SequenceSettingsPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockUseActiveOrg.mockReturnValue({ activeOrg: { id: "org-1" }, isLoading: false });
-    mockUsePermissions.mockReturnValue({ role: "owner" });
+    mockUseActiveOrg.mockReturnValue({
+      activeOrg: { id: "org-1", role: "owner" },
+      isLoading: false,
+    });
     mockGetSequenceSettings.mockResolvedValue({
       invoice: {
         documentType: "INVOICE",
@@ -64,6 +61,7 @@ describe("SequenceSettingsPage", () => {
         currentCounter: 10,
         nextPreview: "VCH/2026/00011",
       },
+      canEdit: true,
     });
   });
 
@@ -228,7 +226,35 @@ describe("SequenceSettingsPage", () => {
   });
 
   it("does not show edit buttons for non-owner", async () => {
-    mockUsePermissions.mockReturnValue({ role: "member" });
+    mockUseActiveOrg.mockReturnValue({
+      activeOrg: { id: "org-1", role: "member" },
+      isLoading: false,
+    });
+    mockGetSequenceSettings.mockResolvedValue({
+      invoice: {
+        documentType: "INVOICE",
+        name: "Invoice Sequence",
+        periodicity: "YEARLY",
+        isActive: true,
+        formatString: "INV/{YYYY}/{NNNNN}",
+        startCounter: 1,
+        counterPadding: 5,
+        currentCounter: 42,
+        nextPreview: "INV/2026/00043",
+      },
+      voucher: {
+        documentType: "VOUCHER",
+        name: "Voucher Sequence",
+        periodicity: "YEARLY",
+        isActive: true,
+        formatString: "VCH/{YYYY}/{NNNNN}",
+        startCounter: 1,
+        counterPadding: 5,
+        currentCounter: 10,
+        nextPreview: "VCH/2026/00011",
+      },
+      canEdit: false,
+    });
     render(<SequenceSettingsPage />);
 
     await waitFor(() => {
@@ -253,6 +279,7 @@ describe("SequenceSettingsPage", () => {
         currentCounter: 10,
         nextPreview: "VCH/2026/00011",
       },
+      canEdit: true,
     });
 
     render(<SequenceSettingsPage />);
@@ -283,6 +310,7 @@ describe("SequenceSettingsPage", () => {
           currentCounter: 10,
           nextPreview: "VCH/2026/00011",
         },
+        canEdit: true,
       })
       .mockResolvedValueOnce({
         invoice: {
@@ -307,6 +335,7 @@ describe("SequenceSettingsPage", () => {
           currentCounter: 10,
           nextPreview: "VCH/2026/00011",
         },
+        canEdit: true,
       });
     mockInitializeSequenceSettings.mockResolvedValue({ success: true, created: ["INVOICE"] });
 

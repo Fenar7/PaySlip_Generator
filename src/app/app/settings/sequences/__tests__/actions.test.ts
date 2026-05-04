@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mockGetSequenceConfig = vi.fn();
 const mockUpdateSequenceSettingsAtomic = vi.fn();
@@ -8,6 +8,7 @@ const mockPreviewResequencePreview = vi.fn();
 const mockApplyResequencePreview = vi.fn();
 const mockConfigureInitialSequences = vi.fn();
 const mockGetDefaultSequenceConfig = vi.fn();
+const mockGetOrgContext = vi.fn();
 
 vi.mock("@/features/sequences/services/sequence-admin", () => ({
   getSequenceConfig: (...args: unknown[]) => mockGetSequenceConfig(...args),
@@ -23,17 +24,37 @@ vi.mock("@/features/sequences/services/sequence-engine", () => ({
 
 vi.mock("@/app/onboarding/actions", () => ({
   configureInitialSequences: (...args: unknown[]) => mockConfigureInitialSequences(...args),
+}));
+
+vi.mock("@/features/sequences/default-config", () => ({
   getDefaultSequenceConfig: (...args: unknown[]) => mockGetDefaultSequenceConfig(...args),
+}));
+
+vi.mock("@/lib/auth/require-org", () => ({
+  getOrgContext: (...args: unknown[]) => mockGetOrgContext(...args),
 }));
 
 import { getSequenceSettings, initializeSequenceSettings, updateSequenceSettings, getSequenceHistory, previewResequence, applyResequence } from "../actions";
 
 describe("sequence settings actions", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockGetOrgContext.mockResolvedValue({
+      userId: "user-1",
+      orgId: "org-1",
+      role: "owner",
+      representedId: null,
+      proxyGrantId: null,
+      proxyScope: [],
+    });
+  });
+
   it("returns null sequences when none exist", async () => {
     mockGetSequenceConfig.mockResolvedValue(null);
     const result = await getSequenceSettings("org-1");
     expect(result.invoice).toBeNull();
     expect(result.voucher).toBeNull();
+    expect(result.canEdit).toBe(true);
   });
 
   it("returns settings with previews", async () => {
@@ -45,6 +66,7 @@ describe("sequence settings actions", () => {
     const result = await getSequenceSettings("org-1");
     expect(result.invoice?.formatString).toBe("INV/{YYYY}/{NNNNN}");
     expect(result.invoice?.nextPreview).toBe("INV/2026/00043");
+    expect(result.canEdit).toBe(true);
   });
 
   it("updateSequenceSettings delegates atomically", async () => {
@@ -81,6 +103,7 @@ describe("sequence settings actions", () => {
   it("initializeSequenceSettings uses the recommended default when no custom config is supplied", async () => {
     mockGetDefaultSequenceConfig.mockReturnValue({
       documentType: "VOUCHER",
+      name: "Default Voucher Sequence",
       formatString: "VCH/{YYYY}/{NNNNN}",
       periodicity: "YEARLY",
       startCounter: 1,

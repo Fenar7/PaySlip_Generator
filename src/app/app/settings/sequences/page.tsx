@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useActiveOrg } from "@/hooks/use-active-org";
-import { usePermissions } from "@/hooks/use-permissions";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -34,8 +33,9 @@ import type { SequenceDocumentType, HealthCheckReport, HealthCheckFailure } from
 
 export default function SequenceSettingsPage() {
   const { activeOrg, isLoading: isOrgLoading } = useActiveOrg();
-  const { role } = usePermissions();
-  const isOwner = role === "owner";
+  const [canEditSettings, setCanEditSettings] = useState<boolean | null>(null);
+  const role = activeOrg?.role ?? "viewer";
+  const isOwner = canEditSettings ?? (role === "owner");
 
   const [invoiceSettings, setInvoiceSettings] = useState<SequenceSettingsData | null>(null);
   const [voucherSettings, setVoucherSettings] = useState<SequenceSettingsData | null>(null);
@@ -91,6 +91,7 @@ export default function SequenceSettingsPage() {
       const data = await getSequenceSettings(activeOrg.id);
       setInvoiceSettings(data.invoice);
       setVoucherSettings(data.voucher);
+      setCanEditSettings(data.canEdit);
 
       if (data.invoice?.formatString) {
         const parsed = parseFormatString(data.invoice.formatString, "INV");
@@ -576,7 +577,7 @@ function SequenceConfigCard({
       <CardContent className="space-y-4">
         {!isEditing ? (
           <SequenceSummary
-            documentType={documentType.toLowerCase() as "invoice" | "voucher"}
+            documentType={documentType}
             config={builderConfig}
             nextPreview={settings.nextPreview}
             latestIssuedNumber={settings.currentCounter}
