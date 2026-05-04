@@ -11,7 +11,7 @@ import { reconcileInvoicePayment, validatePaymentAmount } from "@/lib/invoice-re
 import { postInvoiceIssueTx, postInvoicePaymentTx, reverseJournalEntryTx } from "@/lib/accounting";
 import { fireWorkflowTrigger } from "@/lib/flow/workflow-engine";
 import { emitInvoiceEvent } from "@/lib/document-events";
-import { syncInvoiceToIndex } from "@/lib/docs-vault";
+import { syncInvoiceToIndex, removeDocumentFromIndex } from "@/lib/docs-vault";
 import { checkUsageLimit } from "@/lib/usage-metering";
 import { getOutboundUnitCostTx, recordStockEventTx } from "@/lib/inventory/stock-events";
 import {
@@ -698,6 +698,8 @@ export async function deleteInvoice(id: string): Promise<ActionResult<void>> {
     }
 
     await db.invoice.delete({ where: { id } });
+
+    await removeDocumentFromIndex(orgId, "invoice", id);
 
     revalidatePath("/app/docs/invoices");
     return { success: true, data: undefined };
