@@ -472,6 +472,9 @@ export async function duplicateVoucher(id: string): Promise<ActionResult<{ id: s
       metadata: { newVoucherId: duplicate.id, newVoucherNumber: null },
     });
 
+    // Phase 19.1: Sync duplicate to DocumentIndex
+    await syncVoucherRecordToIndex(orgId, duplicate.id);
+
     revalidatePath("/app/docs/vouchers");
     return { success: true, data: { id: duplicate.id, voucherNumber: null } };
   } catch (error) {

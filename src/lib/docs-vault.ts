@@ -35,7 +35,7 @@ export interface DocumentIndexPayload {
   orgId: string;
   docType: DocType;
   documentId: string;
-  documentNumber: string;
+  documentNumber: string | null;
   titleOrSummary: string;
   counterpartyLabel?: string | null;
   status: string;
@@ -45,13 +45,27 @@ export interface DocumentIndexPayload {
   archivedAt?: Date | null;
 }
 
+const DRAFT_PLACEHOLDER = "(Draft)";
+
+function resolveDocumentNumber(raw: string | null): string {
+  if (!raw || raw.trim() === "") return DRAFT_PLACEHOLDER;
+  return raw;
+}
+
 /**
  * Upsert a document into the DocumentIndex.
  * Idempotent — safe to call on every create, update, and archive action.
+ *
+ * Handles draft documents that lack an official number at creation time
+ * by using a "(Draft)" placeholder.  The placeholder is replaced with the
+ * real official number when the document transitions to finalized status
+ * (e.g. DRAFT→ISSUED for invoices, draft→approved for vouchers).
  */
 export async function upsertDocumentIndex(
   payload: DocumentIndexPayload
 ): Promise<void> {
+  const documentNumber = resolveDocumentNumber(payload.documentNumber);
+
   await db.documentIndex.upsert({
     where: {
       orgId_docType_documentId: {
@@ -64,7 +78,7 @@ export async function upsertDocumentIndex(
       orgId: payload.orgId,
       docType: payload.docType,
       documentId: payload.documentId,
-      documentNumber: payload.documentNumber,
+      documentNumber,
       titleOrSummary: payload.titleOrSummary,
       counterpartyLabel: payload.counterpartyLabel ?? null,
       status: payload.status,
@@ -74,7 +88,7 @@ export async function upsertDocumentIndex(
       archivedAt: payload.archivedAt ?? null,
     },
     update: {
-      documentNumber: payload.documentNumber,
+      documentNumber,
       titleOrSummary: payload.titleOrSummary,
       counterpartyLabel: payload.counterpartyLabel ?? null,
       status: payload.status,
@@ -296,6 +310,23 @@ export async function getDocsSummary(): Promise<DocsSummary> {
   };
 }
 
+// ─── Index removal ──────────────────────────────────────────────────────────
+
+/**
+ * Remove a document from the DocumentIndex.
+ * Safe to call when permanently deleting a document (e.g. draft delete)
+ * so the index does not retain orphaned entries.
+ */
+export async function removeDocumentFromIndex(
+  orgId: string,
+  docType: DocType,
+  documentId: string,
+): Promise<void> {
+  await db.documentIndex.deleteMany({
+    where: { orgId, docType, documentId },
+  });
+}
+
 // ─── Sync helpers for specific document types ────────────────────────────────
 
 /** Sync a single invoice into DocumentIndex. Safe to call from invoice actions. */
@@ -303,7 +334,7 @@ export async function syncInvoiceToIndex(
   orgId: string,
   invoice: {
     id: string;
-    invoiceNumber: string;
+    invoiceNumber: string | null;
     status: string;
     invoiceDate: string;
     totalAmount: number;
@@ -342,11 +373,12 @@ export async function syncVoucherToIndex(
   }
 ): Promise<void> {
   const typeLabel = voucher.type === "receipt" ? "Receipt" : "Payment";
+  const displayNumber = voucher.voucherNumber ?? null;
   await upsertDocumentIndex({
     orgId,
     docType: "voucher",
     documentId: voucher.id,
-    documentNumber: voucher.voucherNumber,
+    documentNumber: displayNumber,
     titleOrSummary: `${typeLabel} Voucher ${voucher.voucherNumber ?? "Draft"}`,
     counterpartyLabel: voucher.vendor?.name ?? null,
     status: voucher.status,

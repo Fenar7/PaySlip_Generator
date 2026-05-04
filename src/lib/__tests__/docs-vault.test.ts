@@ -15,6 +15,7 @@ vi.mock("@/lib/db", () => ({
       upsert: vi.fn(),
       findMany: vi.fn(),
       count: vi.fn(),
+      deleteMany: vi.fn(),
     },
     invoice: {
       findMany: vi.fn(),
@@ -37,6 +38,7 @@ import {
   syncVoucherToIndex,
   syncSalarySlipToIndex,
   syncQuoteToIndex,
+  removeDocumentFromIndex,
 } from "@/lib/docs-vault";
 
 // Convenience: typed access to the mocked db.documentIndex
@@ -44,6 +46,7 @@ const di = db.documentIndex as unknown as {
   upsert: ReturnType<typeof vi.fn>;
   findMany: ReturnType<typeof vi.fn>;
   count: ReturnType<typeof vi.fn>;
+  deleteMany: ReturnType<typeof vi.fn>;
 };
 const invoiceModel = db.invoice as unknown as {
   findMany: ReturnType<typeof vi.fn>;
@@ -126,6 +129,69 @@ describe("upsertDocumentIndex", () => {
 
     const call = di.upsert.mock.calls[0][0];
     expect(call.create.amount).toBe(0);
+  });
+
+  it("resolves null documentNumber to '(Draft)' placeholder on create", async () => {
+    await upsertDocumentIndex({
+      orgId: ORG_ID,
+      docType: "invoice",
+      documentId: "inv-draft-1",
+      documentNumber: null,
+      titleOrSummary: "Invoice Draft",
+      status: "DRAFT",
+      primaryDate: new Date("2026-05-01"),
+      amount: 1500,
+    });
+
+    const call = di.upsert.mock.calls[0][0];
+    expect(call.create.documentNumber).toBe("(Draft)");
+    expect(call.update.documentNumber).toBe("(Draft)");
+  });
+
+  it("resolves null documentNumber to '(Draft)' placeholder on update", async () => {
+    await upsertDocumentIndex({
+      orgId: ORG_ID,
+      docType: "voucher",
+      documentId: "v-draft-1",
+      documentNumber: null,
+      titleOrSummary: "Payment Voucher Draft",
+      status: "draft",
+      primaryDate: new Date("2026-05-02"),
+    });
+
+    const call = di.upsert.mock.calls[0][0];
+    expect(call.update.documentNumber).toBe("(Draft)");
+  });
+
+  it("resolves empty string documentNumber to '(Draft)' placeholder", async () => {
+    await upsertDocumentIndex({
+      orgId: ORG_ID,
+      docType: "invoice",
+      documentId: "inv-empty",
+      documentNumber: "",
+      titleOrSummary: "Invoice Empty Num",
+      status: "DRAFT",
+      primaryDate: new Date("2026-05-03"),
+    });
+
+    const call = di.upsert.mock.calls[0][0];
+    expect(call.create.documentNumber).toBe("(Draft)");
+  });
+
+  it("preserves non-null official numbers unchanged", async () => {
+    await upsertDocumentIndex({
+      orgId: ORG_ID,
+      docType: "invoice",
+      documentId: "inv-issued-1",
+      documentNumber: "INV-2026-00123",
+      titleOrSummary: "Invoice INV-2026-00123",
+      status: "ISSUED",
+      primaryDate: new Date("2026-05-04"),
+      amount: 9999,
+    });
+
+    const call = di.upsert.mock.calls[0][0];
+    expect(call.create.documentNumber).toBe("INV-2026-00123");
   });
 });
 
@@ -435,6 +501,111 @@ describe("syncSalarySlipToIndex", () => {
 
     const call = di.upsert.mock.calls[0][0];
     expect(call.create.amount).toBe(75000);
+  });
+});
+
+// ─── Null-number draft handling (regression guard for invoice issue crash) ────
+
+describe("syncInvoiceToIndex — draft with null invoiceNumber", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("passes null invoiceNumber through upsert boundary without crashing", async () => {
+    await syncInvoiceToIndex(ORG_ID, {
+      id: "inv-draft",
+      invoiceNumber: null,
+      status: "DRAFT",
+      invoiceDate: "2026-05-01",
+      totalAmount: 5000,
+      archivedAt: null,
+      customer: { name: "Client X" },
+    });
+
+    const call = di.upsert.mock.calls[0][0];
+    expect(call.create.documentNumber).toBe("(Draft)");
+    expect(call.create.status).toBe("DRAFT");
+    expect(call.create.titleOrSummary).toBe("Invoice Draft");
+    expect(call.create.counterpartyLabel).toBe("Client X");
+  });
+});
+
+describe("syncVoucherToIndex — draft with null voucherNumber", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("passes null voucherNumber through upsert boundary without crashing", async () => {
+    await syncVoucherToIndex(ORG_ID, {
+      id: "v-draft",
+      voucherNumber: null,
+      status: "draft",
+      voucherDate: "2026-05-02",
+      totalAmount: 3000,
+      type: "payment",
+      archivedAt: null,
+      vendor: { name: "Vendor Y" },
+    });
+
+    const call = di.upsert.mock.calls[0][0];
+    expect(call.create.documentNumber).toBe("(Draft)");
+    expect(call.create.status).toBe("draft");
+    expect(call.create.titleOrSummary).toContain("Draft");
+  });
+});
+
+describe("syncInvoiceToIndex — finalized invoice with real number", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("uses the real invoiceNumber without placeholder", async () => {
+    await syncInvoiceToIndex(ORG_ID, {
+      id: "inv-issued",
+      invoiceNumber: "INV-2026-00042",
+      status: "ISSUED",
+      invoiceDate: "2026-05-03",
+      totalAmount: 12000,
+      archivedAt: null,
+    });
+
+    const call = di.upsert.mock.calls[0][0];
+    expect(call.create.documentNumber).toBe("INV-2026-00042");
+    expect(call.create.titleOrSummary).toContain("INV-2026-00042");
+    expect(call.create.status).toBe("ISSUED");
+  });
+});
+
+describe("syncVoucherToIndex — approved voucher with real number", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("uses the real voucherNumber without placeholder", async () => {
+    await syncVoucherToIndex(ORG_ID, {
+      id: "v-approved",
+      voucherNumber: "VOU-2026-00015",
+      status: "approved",
+      voucherDate: "2026-05-04",
+      totalAmount: 4500,
+      type: "receipt",
+      archivedAt: null,
+    });
+
+    const call = di.upsert.mock.calls[0][0];
+    expect(call.create.documentNumber).toBe("VOU-2026-00015");
+    expect(call.create.titleOrSummary).toContain("VOU-2026-00015");
+  });
+});
+
+// ─── removeDocumentFromIndex ──────────────────────────────────────────────────
+
+describe("removeDocumentFromIndex", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("calls db.documentIndex.deleteMany with correct where clause", async () => {
+    await removeDocumentFromIndex(ORG_ID, "invoice", "inv-del-1");
+
+    expect(di.deleteMany).toHaveBeenCalledOnce();
+    expect(di.deleteMany).toHaveBeenCalledWith({
+      where: {
+        orgId: ORG_ID,
+        docType: "invoice",
+        documentId: "inv-del-1",
+      },
+    });
   });
 });
 
