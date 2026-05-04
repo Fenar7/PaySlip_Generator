@@ -32,7 +32,7 @@ import type { SequenceSupportOverview } from "@/features/sequences/services/sequ
 import type { SequenceDocumentType, HealthCheckReport, HealthCheckFailure } from "@/features/sequences/types";
 
 export default function SequenceSettingsPage() {
-  const { activeOrg } = useActiveOrg();
+  const { activeOrg, isLoading: isOrgLoading } = useActiveOrg();
   const { role } = usePermissions();
   const isOwner = role === "owner";
 
@@ -77,7 +77,12 @@ export default function SequenceSettingsPage() {
   const [showAdvancedSection, setShowAdvancedSection] = useState(false);
 
   const loadSettings = useCallback(async () => {
-    if (!activeOrg?.id) return;
+    if (!activeOrg?.id) {
+      // Defensive: don't stay stuck in loading if org isn't available yet.
+      // The effect will re-run once activeOrg resolves.
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     try {
       const data = await getSequenceSettings(activeOrg.id);
@@ -155,6 +160,14 @@ export default function SequenceSettingsPage() {
     const settings = type === "INVOICE" ? invoiceSettings : voucherSettings;
     return settings?.formatString ?? (type === "INVOICE" ? "INV/{YYYY}/{NNNNN}" : "VCH/{YYYY}/{NNNNN}");
   };
+
+  if (isOrgLoading) {
+    return (
+      <div className="py-8">
+        <p className="text-[#666]">Loading organization...</p>
+      </div>
+    );
+  }
 
   if (loading) {
     return (
