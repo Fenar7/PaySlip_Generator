@@ -11,6 +11,11 @@ import {
   getSequenceSupportOverview,
   runHealthCheck,
 } from "@/features/sequences/services/sequence-admin";
+import {
+  configureInitialSequences,
+} from "@/app/onboarding/actions";
+import { getOrgContext } from "@/lib/auth/require-org";
+import { getDefaultSequenceConfig } from "@/features/sequences/default-config";
 import type { SequenceSupportOverview } from "@/features/sequences/services/sequence-admin";
 import { previewSequenceNumber } from "@/features/sequences/services/sequence-engine";
 import type {
@@ -40,7 +45,10 @@ export interface SequenceSettingsData {
 
 export async function getSequenceSettings(
   orgId: string
-): Promise<{ invoice: SequenceSettingsData | null; voucher: SequenceSettingsData | null }> {
+): Promise<{ invoice: SequenceSettingsData | null; voucher: SequenceSettingsData | null; canEdit: boolean }> {
+  const context = await getOrgContext();
+  const canEdit = context?.orgId === orgId && context.role === "owner";
+
   const [invoice, voucher] = await Promise.all([
     getSequenceConfig({ orgId, documentType: "INVOICE" }),
     getSequenceConfig({ orgId, documentType: "VOUCHER" }),
@@ -91,6 +99,7 @@ export async function getSequenceSettings(
           nextPreview: voucherPreview?.preview ?? null,
         }
       : null,
+    canEdit,
   };
 }
 
@@ -107,6 +116,35 @@ export async function updateSequenceSettings(
     documentType: params.documentType,
     formatString: params.formatString,
     periodicity: params.periodicity,
+  });
+}
+
+export async function initializeSequenceSettings(
+  orgId: string,
+  params: {
+    documentType: SequenceDocumentType;
+    formatString?: string;
+    periodicity?: SequencePeriodicity;
+    latestUsedNumber?: string;
+  }
+) {
+  const customConfig =
+    params.formatString && params.periodicity
+      ? {
+          documentType: params.documentType,
+          formatString: params.formatString,
+          periodicity: params.periodicity,
+          latestUsedNumber: params.latestUsedNumber,
+        }
+      : {
+          ...getDefaultSequenceConfig(params.documentType),
+          latestUsedNumber: params.latestUsedNumber,
+        };
+
+  return configureInitialSequences({
+    organizationId: orgId,
+    customConfigs: [customConfig],
+    markOnboardingComplete: false,
   });
 }
 

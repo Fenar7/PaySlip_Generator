@@ -7,32 +7,7 @@ import { headers } from "next/headers";
 import { calculatePeriodBoundaries } from "@/features/sequences/engine/periodicity";
 import { validateFormat, extractCounterFromFormat } from "@/features/sequences/engine/tokenizer";
 import type { SequenceDocumentType, SequencePeriodicity } from "@/features/sequences/types";
-
-const DEFAULT_SEQUENCE_CONFIGS: Array<{
-  documentType: SequenceDocumentType;
-  name: string;
-  formatString: string;
-  periodicity: SequencePeriodicity;
-  startCounter: number;
-  counterPadding: number;
-}> = [
-  {
-    documentType: "INVOICE",
-    name: "Default Invoice Sequence",
-    formatString: "INV/{YYYY}/{NNNNN}",
-    periodicity: "YEARLY",
-    startCounter: 1,
-    counterPadding: 5,
-  },
-  {
-    documentType: "VOUCHER",
-    name: "Default Voucher Sequence",
-    formatString: "VCH/{YYYY}/{NNNNN}",
-    periodicity: "YEARLY",
-    startCounter: 1,
-    counterPadding: 5,
-  },
-];
+import { DEFAULT_SEQUENCE_CONFIGS } from "@/features/sequences/default-config";
 
 export interface SequenceCustomConfig {
   documentType: SequenceDocumentType;
@@ -103,12 +78,14 @@ function validateCustomConfig(config: SequenceCustomConfig): void {
   }
 }
 
-export async function saveOnboardingSequences({
+export async function configureInitialSequences({
   organizationId,
   customConfigs,
+  markOnboardingComplete = false,
 }: {
   organizationId: string;
   customConfigs?: SequenceCustomConfig[];
+  markOnboardingComplete?: boolean;
 }) {
   const ctx = await requireRole("owner");
 
@@ -202,13 +179,29 @@ export async function saveOnboardingSequences({
     });
   }
 
-  // Mark the Document Numbering onboarding step complete server-side.
-  // This is authoritative — onboarding completion must not rely on
-  // client-only state.  Uses the strict variant so a persistence failure
-  // here surfaces as an error rather than silently returning success.
-  await completeOnboardingStepStrict(ctx.userId, "documentNumbering");
+  if (markOnboardingComplete) {
+    // Mark the Document Numbering onboarding step complete server-side.
+    // This is authoritative — onboarding completion must not rely on
+    // client-only state. Uses the strict variant so a persistence failure
+    // here surfaces as an error rather than silently returning success.
+    await completeOnboardingStepStrict(ctx.userId, "documentNumbering");
+  }
 
   return { success: true, created };
+}
+
+export async function saveOnboardingSequences({
+  organizationId,
+  customConfigs,
+}: {
+  organizationId: string;
+  customConfigs?: SequenceCustomConfig[];
+}) {
+  return configureInitialSequences({
+    organizationId,
+    customConfigs,
+    markOnboardingComplete: true,
+  });
 }
 
 /**

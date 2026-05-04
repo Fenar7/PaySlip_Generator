@@ -1,10 +1,19 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { getOrgsForUser, type OrgWithRole } from "@/app/app/actions/org-actions";
+import type { OrgWithRole } from "@/app/app/actions/org-actions";
 import { useSupabaseSession } from "./use-supabase-session";
 
-const ACTIVE_ORG_KEY = "slipwise_active_org_id";
+interface OrgListResponse {
+  orgs: Array<{
+    orgId: string;
+    name: string;
+    slug: string;
+    role: string;
+    joinedAt: string;
+  }>;
+  activeOrgId: string | null;
+}
 
 export function useActiveOrg() {
   const { user, isPending } = useSupabaseSession();
@@ -15,23 +24,32 @@ export function useActiveOrg() {
   useEffect(() => {
     if (!user?.id) return;
 
-    getOrgsForUser(user.id).then((userOrgs) => {
-      setOrgs(userOrgs);
-      const storedId =
-        typeof window !== "undefined"
-          ? localStorage.getItem(ACTIVE_ORG_KEY)
-          : null;
-      const active =
-        userOrgs.find((o) => o.id === storedId) ?? userOrgs[0] ?? null;
-      setActiveOrgState(active);
-    });
+    // Active org must come from the same server-side preference the auth context
+    // uses, otherwise settings pages can render a different org than the server
+    // will authorize.
+    fetch("/api/org/list")
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data: OrgListResponse | null) => {
+        const mappedOrgs: OrgWithRole[] = (data?.orgs ?? []).map((o) => ({
+          id: o.orgId,
+          name: o.name,
+          slug: o.slug,
+          logo: null,
+          role: o.role,
+        }));
+        setOrgs(mappedOrgs);
+        const serverActive =
+          mappedOrgs.find((o) => o.id === data?.activeOrgId) ?? mappedOrgs[0] ?? null;
+        setActiveOrgState(serverActive);
+      })
+      .catch(() => {
+        setOrgs([]);
+        setActiveOrgState(null);
+      });
   }, [user?.id]);
 
   const setActiveOrg = useCallback((org: OrgWithRole) => {
     setActiveOrgState(org);
-    if (typeof window !== "undefined") {
-      localStorage.setItem(ACTIVE_ORG_KEY, org.id);
-    }
   }, []);
 
   // Loading while session is resolving, or user is set but orgs not yet fetched
