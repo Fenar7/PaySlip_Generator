@@ -18,6 +18,14 @@ import { getOrgContext } from "@/lib/auth/require-org";
 import { getDefaultSequenceConfig } from "@/features/sequences/default-config";
 import type { SequenceSupportOverview } from "@/features/sequences/services/sequence-admin";
 import { previewSequenceNumber } from "@/features/sequences/services/sequence-engine";
+import {
+  getSequenceSnapshots,
+  getSnapshot,
+  getCurrentSequenceState,
+  listAllOrgSnapshots,
+  backfillSnapshotIfNeeded,
+} from "@/features/sequences/services/sequence-history";
+import type { SequenceSnapshotEntry, OrgSnapshotGroup } from "@/features/sequences/services/sequence-history";
 import type {
   SequenceDocumentType,
   SequencePeriodicity,
@@ -32,6 +40,7 @@ import type {
 import { ResequencePreviewInputSchema, ResequenceApplyInputSchema, SequenceDiagnosticsInputSchema } from "@/features/sequences/schema";
 
 export interface SequenceSettingsData {
+  sequenceId: string;
   documentType: SequenceDocumentType;
   name: string;
   periodicity: SequencePeriodicity;
@@ -75,6 +84,7 @@ export async function getSequenceSettings(
   return {
     invoice: invoice
       ? {
+          sequenceId: invoice.sequenceId,
           documentType: "INVOICE",
           name: invoice.name,
           periodicity: invoice.periodicity,
@@ -88,6 +98,7 @@ export async function getSequenceSettings(
       : null,
     voucher: voucher
       ? {
+          sequenceId: voucher.sequenceId,
           documentType: "VOUCHER",
           name: voucher.name,
           periodicity: voucher.periodicity,
@@ -221,4 +232,46 @@ export async function runSequenceHealthCheck(
   documentType: SequenceDocumentType
 ): Promise<HealthCheckReport> {
   return runHealthCheck({ orgId, documentType });
+}
+
+// ─── Sequence History Browsing ─────────────────────────────────────────────
+
+export async function getSequenceHistorySnapshots(
+  orgId: string,
+  sequenceId: string,
+): Promise<SequenceSnapshotEntry[]> {
+  const ctx = await getOrgContext();
+  await backfillSnapshotIfNeeded(orgId, sequenceId, ctx?.userId ?? "");
+  return getSequenceSnapshots(orgId, sequenceId);
+}
+
+export async function getSequenceHistorySnapshot(
+  orgId: string,
+  snapshotId: string,
+): Promise<SequenceSnapshotEntry | null> {
+  return getSnapshot(orgId, snapshotId);
+}
+
+export async function getSequenceCurrentState(
+  orgId: string,
+  sequenceId: string,
+) {
+  return getCurrentSequenceState(orgId, sequenceId);
+}
+
+export async function getAllSequenceSnapshots(
+  orgId: string,
+): Promise<OrgSnapshotGroup[]> {
+  const ctx = await getOrgContext();
+  const userId = ctx?.userId ?? "";
+  // Backfill all sequences that don't have snapshots yet
+  const sequences = await listAllOrgSnapshots(orgId);
+  for (const group of sequences) {
+    for (const seq of group.sequences) {
+      if (seq.snapshotCount === 0) {
+        await backfillSnapshotIfNeeded(orgId, seq.sequenceId, userId);
+      }
+    }
+  }
+  return listAllOrgSnapshots(orgId);
 }

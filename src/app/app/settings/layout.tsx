@@ -21,6 +21,7 @@ const navItems = [
   { label: "Entity Groups", href: "/app/settings/entities" },
   { label: "Audit Log", href: "/app/settings/audit" },
   { label: "Document Numbering", href: "/app/settings/sequences" },
+  { label: "Sequence History", href: "/app/settings/sequences/history" },
 ];
 
 export default function SettingsLayout({ children }: { children: React.ReactNode }) {

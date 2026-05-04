@@ -41,6 +41,7 @@ model Profile {
   arrangements         PaymentArrangement[]
   oauthAuthorizations  OAuthAuthorization[]
   flashReportSchedules FlashReportSchedule[]
+  sequenceSnapshots    SequenceSnapshot[]
 
   @@map("profiles")
 }
@@ -103,6 +104,7 @@ model Organization {
   invoices                     Invoice[]
   vouchers                     Voucher[]
   sequences                    Sequence[]
+  sequenceSnapshots            SequenceSnapshot[]
   salarySlips                  SalarySlip[]
   salaryPresets                SalaryPreset[]
   attachments                  FileAttachment[]
@@ -416,6 +418,13 @@ enum SequencePeriodStatus {
   CLOSED
 }
 
+enum SequenceChangeType {
+  CREATED
+  UPDATED
+  DEACTIVATED
+  REACTIVATED
+}
+
 model Sequence {
   id             String               @id @default(cuid())
   organizationId String
@@ -426,11 +435,12 @@ model Sequence {
   createdAt      DateTime             @default(now())
   updatedAt      DateTime             @updatedAt
 
-  organization Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  organization Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   formats      SequenceFormat[]
   periods      SequencePeriod[]
-  invoices     Invoice[]         @relation("InvoiceSequence")
-  vouchers     Voucher[]         @relation("VoucherSequence")
+  snapshots    SequenceSnapshot[]
+  invoices     Invoice[]          @relation("InvoiceSequence")
+  vouchers     Voucher[]          @relation("VoucherSequence")
 
   @@index([organizationId, documentType])
   @@index([organizationId, isActive])
@@ -469,6 +479,41 @@ model SequencePeriod {
   @@unique([sequenceId, startDate, endDate])
   @@index([sequenceId, status])
   @@map("sequence_period")
+}
+
+model SequenceSnapshot {
+  id              String              @id @default(cuid())
+  organizationId  String
+  sequenceId      String
+  version         Int
+
+  name            String
+  documentType    SequenceDocumentType
+  periodicity     SequencePeriodicity
+  isActive        Boolean
+
+  formatString    String
+  startCounter    Int
+  counterPadding  Int
+  totalConsumed   Int                 @default(0)
+
+  periodsSnapshot Json
+
+  changeType      SequenceChangeType
+  changeSummary   String?
+  changedById     String   @db.Uuid
+  changeNote      String?
+
+  createdAt       DateTime            @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  sequence     Sequence     @relation(fields: [sequenceId], references: [id], onDelete: Cascade)
+  changedBy    Profile      @relation(fields: [changedById], references: [id])
+
+  @@unique([sequenceId, version])
+  @@index([organizationId, documentType])
+  @@index([sequenceId, createdAt(sort: Desc)])
+  @@map("sequence_snapshot")
 }
 
 // ─── Phase 16: SW Books — Accounting Foundation ────────────────────────────────

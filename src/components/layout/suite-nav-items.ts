@@ -25,7 +25,8 @@ export const suiteNavItems: NavItem[] = [
       { href: "/app/docs/templates", label: "Templates" },
       { href: "/app/docs/templates/marketplace", label: "Template Marketplace" },
       { href: "/app/docs/templates/publisher/payouts", label: "Publisher Payouts" },
-      { href: "/app/docs/pdf-studio", label: "PDF Studio" },
+      { href: "/app/docs/pdf-studio",        label: "PDF Studio" },
+      { href: "/app/settings/sequences/history", label: "Sequence History" },
     ],
   },
   {

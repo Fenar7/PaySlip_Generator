@@ -21,6 +21,7 @@ import {
   SequenceSummary,
   ContinuityBuilder,
 } from "@/features/sequences/components/SequenceBuilder";
+import { SequenceHistoryPanel } from "@/features/sequences/components/sequence-history-panel";
 import {
   buildFormatString,
   parseFormatString,
@@ -285,6 +286,7 @@ export default function SequenceSettingsPage() {
             isEditing={editingType === "INVOICE"}
             isOwner={isOwner}
             saving={saving === "INVOICE"}
+            orgId={activeOrg?.id}
             onInitializeDefault={() => handleInitialize("INVOICE", "defaults")}
             onEdit={() => {
               setEditingType("INVOICE");
@@ -331,6 +333,7 @@ export default function SequenceSettingsPage() {
             isEditing={editingType === "VOUCHER"}
             isOwner={isOwner}
             saving={saving === "VOUCHER"}
+            orgId={activeOrg?.id}
             onInitializeDefault={() => handleInitialize("VOUCHER", "defaults")}
             onEdit={() => {
               setEditingType("VOUCHER");
@@ -498,6 +501,7 @@ function SequenceConfigCard({
   isEditing,
   isOwner,
   saving,
+  orgId,
   onInitializeDefault,
   onEdit,
   onCancel,
@@ -510,6 +514,7 @@ function SequenceConfigCard({
   isEditing: boolean;
   isOwner: boolean;
   saving: boolean;
+  orgId?: string;
   onInitializeDefault: () => void;
   onEdit: () => void;
   onCancel: () => void;
@@ -625,6 +630,32 @@ function SequenceConfigCard({
               </>
             )}
           </div>
+        )}
+
+        {/* History section */}
+        {!isEditing && settings.sequenceId && orgId && (
+          <details className="group mt-4 border-t border-slate-100 pt-4">
+            <summary className="flex cursor-pointer items-center gap-2 text-xs font-medium text-slate-500 hover:text-slate-700">
+              <svg
+                className="h-3.5 w-3.5 transition-transform group-open:rotate-90"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <polyline points="9 18 15 12 9 6" />
+              </svg>
+              Version History
+            </summary>
+            <div className="mt-3">
+              <SequenceHistoryPanel
+                orgId={orgId}
+                sequenceId={settings.sequenceId}
+              />
+            </div>
+          </details>
         )}
       </CardContent>
     </Card>

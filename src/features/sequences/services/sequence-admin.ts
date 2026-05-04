@@ -6,6 +6,7 @@ import { logAuditTx, logAudit } from "@/lib/audit";
 import { headers } from "next/headers";
 import { rateLimitByOrg, RATE_LIMITS } from "@/lib/rate-limit";
 import { validateFormat, extractCounterFromFormat } from "../engine/tokenizer";
+import { createSnapshot } from "./sequence-history";
 import type {
   SequencePeriodicity,
   SequenceDocumentType,
@@ -155,6 +156,17 @@ export async function updateSequenceFormat(params: {
   const auditHeaders = await getAuditHeaders();
 
   await db.$transaction(async (tx) => {
+    await createSnapshot({
+      sequenceId: sequence.id,
+      orgId: params.orgId,
+      changedById: ctx.userId,
+      changeType: "UPDATED",
+      changeSummary: oldFormat
+        ? `Format changed from "${oldFormat.formatString}" to "${params.formatString}"`
+        : `Format initialized as "${params.formatString}"`,
+      tx,
+    });
+
     if (oldFormat) {
       await tx.sequenceFormat.update({
         where: { id: oldFormat.id },
@@ -222,6 +234,15 @@ export async function updateSequencePeriodicity(params: {
   const auditHeaders = await getAuditHeaders();
 
   await db.$transaction(async (tx) => {
+    await createSnapshot({
+      sequenceId: sequence.id,
+      orgId: params.orgId,
+      changedById: ctx.userId,
+      changeType: "UPDATED",
+      changeSummary: `Periodicity changed from "${oldPeriodicity}" to "${params.periodicity}"`,
+      tx,
+    });
+
     await tx.sequence.update({
       where: { id: sequence.id },
       data: { periodicity: params.periodicity },
@@ -304,6 +325,15 @@ export async function seedSequenceContinuity(params: {
   const auditHeaders = await getAuditHeaders();
 
   await db.$transaction(async (tx) => {
+    await createSnapshot({
+      sequenceId: sequence.id,
+      orgId: params.orgId,
+      changedById: ctx.userId,
+      changeType: "UPDATED",
+      changeSummary: `Continuity seeded: counter adjusted to ${seededCounter} from "${params.latestUsedNumber}"`,
+      tx,
+    });
+
     if (period) {
       await tx.sequencePeriod.update({
         where: { id: period.id },
@@ -372,6 +402,17 @@ export async function updateSequenceSettingsAtomic(params: {
   const auditHeaders = await getAuditHeaders();
 
   await db.$transaction(async (tx) => {
+    await createSnapshot({
+      sequenceId: sequence.id,
+      orgId: params.orgId,
+      changedById: ctx.userId,
+      changeType: "UPDATED",
+      changeSummary: oldFormat
+        ? `Format and periodicity changed: "${oldFormat.formatString}" → "${params.formatString}", "${oldPeriodicity}" → "${params.periodicity}"`
+        : `Settings initialized: "${params.formatString}", "${params.periodicity}"`,
+      tx,
+    });
+
     // 1. Format change: version the old default, create new default
     if (oldFormat) {
       await tx.sequenceFormat.update({
