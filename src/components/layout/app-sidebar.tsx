@@ -2,10 +2,12 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { motion } from "motion/react";
 import { cn } from "@/lib/utils";
 import { Logo } from "@/components/foundation/logo";
 import { getNavigationContext } from "./navigation-context";
 import { Settings } from "lucide-react";
+import { staggerContainer, staggerItem } from "@/components/foundation/motion-primitives";
 
 export function AppSidebar() {
   const pathname = usePathname();
@@ -20,14 +22,19 @@ export function AppSidebar() {
 
       {/* Navigation */}
       <nav className="flex-1 overflow-y-auto px-2.5 py-3">
-        <ul className="space-y-0.5">
+        <motion.ul
+          className="space-y-0.5"
+          variants={staggerContainer}
+          initial="hidden"
+          animate="visible"
+        >
           {switcherItems.map((item) => {
             const isActive = item.isActive;
             const isDisabled = item.badge === "Soon";
             const Icon = item.icon;
 
             return (
-              <li key={item.href}>
+              <motion.li key={item.href} variants={staggerItem}>
                 {isDisabled ? (
                   <div className="flex cursor-not-allowed items-center gap-2.5 rounded-lg px-3 py-2 opacity-40">
                     {Icon && <Icon className="h-4 w-4 shrink-0 text-[var(--sidebar-text-muted)]" />}
@@ -66,7 +73,12 @@ export function AppSidebar() {
                       )}
                     </Link>
                     {isActive && item.children && (
-                      <ul className="mt-0.5 ml-[26px] space-y-0.5 border-l border-[var(--border-soft)] pl-3">
+                      <motion.ul
+                        initial={{ opacity: 0, height: 0 }}
+                        animate={{ opacity: 1, height: "auto" }}
+                        transition={{ duration: 0.2, ease: "easeOut" }}
+                        className="mt-0.5 ml-[26px] space-y-0.5 border-l border-[var(--border-soft)] pl-3 overflow-hidden"
+                      >
                         {item.children.map((child) => {
                           const childActive = pathname === child.href || pathname.startsWith(`${child.href}/`);
                           return (
@@ -88,14 +100,14 @@ export function AppSidebar() {
                             </li>
                           );
                         })}
-                      </ul>
+                      </motion.ul>
                     )}
                   </div>
                 )}
-              </li>
+              </motion.li>
             );
           })}
-        </ul>
+        </motion.ul>
       </nav>
 
       {/* Bottom: Settings link */}

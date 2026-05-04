@@ -8,6 +8,7 @@ import { Avatar } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
 import { Logo } from "@/components/foundation/logo";
 import { OrgSwitcher } from "@/components/org/org-switcher";
+import { motion } from "motion/react";
 
 import { NotificationBell } from "@/features/flow/components/notification-bell";
 import { ProxyBanner } from "@/features/access/components/proxy-banner";
@@ -40,7 +41,12 @@ export function AppTopbar({ orgName, initialUser }: AppTopbarProps) {
   return (
     <>
       <ProxyBanner />
-      <header className="sticky top-0 z-20 border-b border-[var(--topbar-border)] bg-[var(--topbar-bg)] backdrop-blur supports-[backdrop-filter]:bg-white/85">
+      <motion.header
+        initial={{ opacity: 0, y: -4 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.25, ease: "easeOut" }}
+        className="sticky top-0 z-20 border-b border-[var(--topbar-border)] bg-[var(--topbar-bg)] backdrop-blur supports-[backdrop-filter]:bg-white/85"
+      >
         <div className="flex h-[var(--topbar-height,56px)] items-center gap-4 px-4 sm:px-6">
           {/* Mobile logo */}
           <div className="flex items-center gap-3 lg:hidden">
@@ -84,7 +90,9 @@ export function AppTopbar({ orgName, initialUser }: AppTopbarProps) {
           <div className="flex items-center gap-2 sm:gap-3 shrink-0">
             <OrgSwitcher initialOrgName={orgName} />
             <div className="h-5 w-px bg-[var(--border-soft)] hidden sm:block" />
-            <NotificationBell />
+            <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+              <NotificationBell />
+            </motion.div>
             {isPending ? (
               <div className="h-8 w-8 animate-pulse rounded-full border border-[var(--border-soft)] bg-[var(--surface-subtle)]" />
             ) : hasAuthenticatedUser ? (
@@ -93,12 +101,13 @@ export function AppTopbar({ orgName, initialUser }: AppTopbarProps) {
                 <span className="hidden sm:block text-sm font-medium text-[var(--text-primary)] max-w-[120px] truncate">
                   {resolvedName}
                 </span>
-                <button
+                <motion.button
                   onClick={handleSignOut}
+                  whileTap={{ scale: 0.97 }}
                   className="ml-1 rounded-lg border border-[var(--border-default)] bg-white px-3 py-1.5 text-xs font-medium text-[var(--text-secondary)] transition-colors hover:bg-[var(--surface-subtle)] hover:text-[var(--text-primary)]"
                 >
                   Sign out
-                </button>
+                </motion.button>
               </div>
             ) : (
               <Link
@@ -137,7 +146,7 @@ export function AppTopbar({ orgName, initialUser }: AppTopbarProps) {
             })}
           </div>
         </nav>
-      </header>
+      </motion.header>
     </>
   );
 }
