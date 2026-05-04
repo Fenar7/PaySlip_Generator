@@ -77,48 +77,62 @@ function TypeFilterChips({ currentType, extraParams }: { currentType?: string; e
 function AdvancedFilters({
   current,
   extraParams,
+  show,
+  toggle,
 }: {
   current: { dateFrom?: string; dateTo?: string; amountMin?: string; amountMax?: string };
   extraParams?: Record<string, string | undefined>;
+  show: boolean;
+  toggle: string;
 }) {
   const base = new URLSearchParams(extraParams as Record<string, string>);
   base.delete("dateFrom"); base.delete("dateTo"); base.delete("amountMin"); base.delete("amountMax");
-  const hasActive = current.dateFrom || current.dateTo || current.amountMin || current.amountMax;
+  base.delete("filters");
+
+  const activeCount = [current.dateFrom, current.dateTo, current.amountMin, current.amountMax].filter(Boolean).length;
 
   return (
-    <details className="group mb-4" open={hasActive}>
-      <summary className="flex cursor-pointer items-center gap-2 text-xs font-medium text-slate-500 hover:text-slate-700">
-        <svg className="h-3.5 w-3.5 transition-transform group-open:rotate-90" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="9 18 15 12 9 6" /></svg>
-        Advanced Filters {hasActive && <span className="rounded-full bg-blue-100 px-1.5 py-0 text-xs text-blue-600">active</span>}
-      </summary>
-      <form method="GET" className="mt-3">
-        {Array.from(base.entries()).map(([k, v]) => (<input key={k} type="hidden" name={k} value={v} />))}
-        <div className="grid gap-3 rounded-lg border border-slate-200 bg-white p-4 sm:grid-cols-3">
-          <div>
-            <label className="mb-1 block text-xs font-medium text-slate-500">Date From</label>
-            <input type="date" name="dateFrom" defaultValue={current.dateFrom || ""} className="w-full rounded border border-slate-200 px-3 py-1.5 text-sm focus:border-red-400 focus:outline-none" />
-          </div>
-          <div>
-            <label className="mb-1 block text-xs font-medium text-slate-500">Date To</label>
-            <input type="date" name="dateTo" defaultValue={current.dateTo || ""} className="w-full rounded border border-slate-200 px-3 py-1.5 text-sm focus:border-red-400 focus:outline-none" />
-          </div>
-          <div className="flex items-end gap-2">
-            <div className="flex-1">
-              <label className="mb-1 block text-xs font-medium text-slate-500">Amount Min</label>
+    <>
+      <a
+        href={show ? `?${base.toString()}` : `?${toggle}`}
+        className={`inline-flex items-center gap-1.5 rounded-lg border px-3 py-2 text-sm font-medium transition-colors ${
+          show ? "border-red-300 bg-red-50 text-red-700" : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
+        }`}
+      >
+        <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="4" y1="21" x2="4" y2="14" /><line x1="4" y1="10" x2="4" y2="3" /><line x1="12" y1="21" x2="12" y2="12" /><line x1="12" y1="8" x2="12" y2="3" /><line x1="20" y1="21" x2="20" y2="16" /><line x1="20" y1="12" x2="20" y2="3" /><line x1="1" y1="14" x2="7" y2="14" /><line x1="9" y1="8" x2="15" y2="8" /><line x1="17" y1="16" x2="23" y2="16" /></svg>
+        Filters
+        {activeCount > 0 && (
+          <span className="flex h-4 min-w-[16px] items-center justify-center rounded-full bg-red-600 px-1 text-[10px] font-bold text-white">{activeCount}</span>
+        )}
+      </a>
+      {show && (
+        <form method="GET" className="mt-3 rounded-lg border-2 border-red-200 bg-white p-4">
+          {Array.from(base.entries()).map(([k, v]) => (<input key={k} type="hidden" name={k} value={v} />))}
+          <div className="grid gap-3 sm:grid-cols-4">
+            <div>
+              <label className="mb-1 block text-xs font-medium text-slate-500">Date From</label>
+              <input type="date" name="dateFrom" defaultValue={current.dateFrom || ""} className="w-full rounded border border-slate-200 px-3 py-1.5 text-sm focus:border-red-400 focus:outline-none" />
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-medium text-slate-500">Date To</label>
+              <input type="date" name="dateTo" defaultValue={current.dateTo || ""} className="w-full rounded border border-slate-200 px-3 py-1.5 text-sm focus:border-red-400 focus:outline-none" />
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-medium text-slate-500">Amount Min (₹)</label>
               <input type="number" name="amountMin" defaultValue={current.amountMin || ""} placeholder="0" className="w-full rounded border border-slate-200 px-3 py-1.5 text-sm focus:border-red-400 focus:outline-none" />
             </div>
-            <div className="flex-1">
-              <label className="mb-1 block text-xs font-medium text-slate-500">Amount Max</label>
+            <div>
+              <label className="mb-1 block text-xs font-medium text-slate-500">Amount Max (₹)</label>
               <input type="number" name="amountMax" defaultValue={current.amountMax || ""} placeholder="∞" className="w-full rounded border border-slate-200 px-3 py-1.5 text-sm focus:border-red-400 focus:outline-none" />
             </div>
           </div>
-        </div>
-        <div className="mt-3 flex gap-2">
-          <button type="submit" className="rounded-lg bg-red-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-red-700">Apply Filters</button>
-          {hasActive && <Link href={base.toString() ? `/app/docs/vouchers?${base.toString()}` : "/app/docs/vouchers"} className="rounded-lg border border-slate-200 px-4 py-1.5 text-sm text-slate-600 hover:bg-slate-50">Clear All</Link>}
-        </div>
-      </form>
-    </details>
+          <div className="mt-3 flex gap-2">
+            <button type="submit" className="rounded-lg bg-red-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-red-700">Apply</button>
+            <a href={`?${base.toString()}`} className="rounded-lg border border-slate-200 px-4 py-1.5 text-sm text-slate-600 hover:bg-slate-50">Reset</a>
+          </div>
+        </form>
+      )}
+    </>
   );
 }
 
@@ -317,7 +331,7 @@ function VoucherActions({ voucherId }: { voucherId: string }) {
 export default async function VouchersPage({
   searchParams,
 }: {
-  searchParams: Promise<{ type?: string; search?: string; page?: string; view?: string; dateFrom?: string; dateTo?: string; amountMin?: string; amountMax?: string }>;
+  searchParams: Promise<{ type?: string; search?: string; page?: string; view?: string; dateFrom?: string; dateTo?: string; amountMin?: string; amountMax?: string; filters?: string }>;
 }) {
   const params = await searchParams;
   const page = parseInt(params.page || "1", 10);
@@ -348,16 +362,30 @@ export default async function VouchersPage({
           </div>
         </div>
 
-        {/* View toggle + Search */}
-        <div className="mb-4 flex items-center gap-4 flex-wrap">
-          <div className="flex rounded-lg border border-slate-200 bg-white p-0.5">
-            <Link href={`/app/docs/vouchers?${buildQuery({ ...extraParams, view: undefined, type: params.type, search: params.search })}`}
-              className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${view === "list" ? "bg-red-600 text-white" : "text-slate-600 hover:text-slate-900"}`}>List</Link>
-            <Link href={`/app/docs/vouchers?${buildQuery({ ...extraParams, view: "sequence", type: undefined, search: params.search })}`}
-              className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${view === "sequence" ? "bg-red-600 text-white" : "text-slate-600 hover:text-slate-900"}`}>Sequence</Link>
+        {/* Toolbar: tabs + search + filter button */}
+        <div className="mb-4 flex items-center gap-3">
+          <div className="flex items-center rounded-xl bg-white p-1 shadow-sm border border-slate-200">
+            <Link
+              href={`/app/docs/vouchers?${buildQuery({ type: params.type, search: params.search })}`}
+              className={`flex items-center gap-1.5 rounded-lg px-3.5 py-2 text-sm font-medium transition-all ${
+                view === "list" ? "bg-slate-900 text-white shadow-sm" : "text-slate-500 hover:text-slate-700"
+              }`}
+            >
+              <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="8" y1="6" x2="21" y2="6" /><line x1="8" y1="12" x2="21" y2="12" /><line x1="8" y1="18" x2="21" y2="18" /><line x1="3" y1="6" x2="3.01" y2="6" /><line x1="3" y1="12" x2="3.01" y2="12" /><line x1="3" y1="18" x2="3.01" y2="18" /></svg>
+              List
+            </Link>
+            <Link
+              href={`/app/docs/vouchers?${buildQuery({ view: "sequence", search: params.search })}`}
+              className={`flex items-center gap-1.5 rounded-lg px-3.5 py-2 text-sm font-medium transition-all ${
+                view === "sequence" ? "bg-slate-900 text-white shadow-sm" : "text-slate-500 hover:text-slate-700"
+              }`}
+            >
+              <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z" /></svg>
+              Folders
+            </Link>
           </div>
 
-          <form method="GET" className="relative max-w-sm flex-1">
+          <form method="GET" className="relative flex-1 max-w-xs">
             {params.type && <input type="hidden" name="type" value={params.type} />}
             {view !== "list" && <input type="hidden" name="view" value={view} />}
             {dateFrom && <input type="hidden" name="dateFrom" value={dateFrom} />}
@@ -365,11 +393,16 @@ export default async function VouchersPage({
             {params.amountMin && <input type="hidden" name="amountMin" value={params.amountMin} />}
             {params.amountMax && <input type="hidden" name="amountMax" value={params.amountMax} />}
             <input type="text" name="search" defaultValue={params.search || ""} placeholder="Search vouchers..."
-              className="w-full rounded-lg border border-slate-200 bg-white px-4 py-2 pl-9 text-sm text-slate-700 placeholder-slate-400 focus:border-red-400 focus:outline-none focus:ring-1 focus:ring-red-400" />
-            <svg className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-            </svg>
+              className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 pl-9 text-sm text-slate-700 placeholder-slate-400 focus:border-red-400 focus:outline-none focus:ring-1 focus:ring-red-400" />
+            <svg className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>
           </form>
+
+          <AdvancedFilters
+            current={{ dateFrom, dateTo, amountMin: params.amountMin, amountMax: params.amountMax }}
+            extraParams={{ type: params.type, search: params.search, view }}
+            show={params.filters === "open"}
+            toggle={buildQuery({ type: params.type, search: params.search, view, filters: "open" })}
+          />
         </div>
 
         {/* Type filter chips (list view only) */}
@@ -378,9 +411,6 @@ export default async function VouchersPage({
             <TypeFilterChips currentType={type} extraParams={{ search: params.search, view }} />
           </div>
         )}
-
-        {/* Advanced filters */}
-        <AdvancedFilters current={{ dateFrom, dateTo, amountMin: params.amountMin, amountMax: params.amountMax }} extraParams={{ type: params.type, search: params.search, view }} />
 
         {/* Content */}
         <Suspense fallback={<div className="py-8 text-center text-slate-500">Loading...</div>}>
