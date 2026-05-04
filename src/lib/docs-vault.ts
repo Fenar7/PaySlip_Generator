@@ -61,7 +61,7 @@ export async function upsertDocumentIndex(
       },
     },
     create: {
-      orgId: payload.orgId,
+      organization: { connect: { id: payload.orgId } },
       docType: payload.docType,
       documentId: payload.documentId,
       documentNumber: payload.documentNumber,
