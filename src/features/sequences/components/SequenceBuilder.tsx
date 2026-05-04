@@ -354,8 +354,10 @@ export interface ContinuityBuilderProps {
   formatString: string;
   lastUsedNumber: string;
   onLastUsedNumberChange: (v: string) => void;
-  onSeed: () => void;
-  loading: boolean;
+  onSeed?: () => void;
+  loading?: boolean;
+  showAction?: boolean;
+  actionLabel?: string;
 }
 
 export function ContinuityBuilder({
@@ -364,7 +366,9 @@ export function ContinuityBuilder({
   lastUsedNumber,
   onLastUsedNumberChange,
   onSeed,
-  loading,
+  loading = false,
+  showAction = true,
+  actionLabel,
 }: ContinuityBuilderProps) {
   const { preview, error } = useMemo(
     () => buildNextPreview(formatString, lastUsedNumber || undefined),
@@ -407,13 +411,15 @@ export function ContinuityBuilder({
         </div>
       )}
 
-      <Button
-        onClick={onSeed}
-        disabled={loading || !lastUsedNumber.trim() || !!error}
-        variant="primary"
-      >
-        {loading ? "Saving…" : `Continue from this ${docLabel} number`}
-      </Button>
+      {showAction && onSeed ? (
+        <Button
+          onClick={onSeed}
+          disabled={loading || !lastUsedNumber.trim() || !!error}
+          variant="primary"
+        >
+          {loading ? "Saving…" : actionLabel ?? `Continue from this ${docLabel} number`}
+        </Button>
+      ) : null}
     </div>
   );
 }

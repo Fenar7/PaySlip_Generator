@@ -15,6 +15,7 @@ vi.mock("@/hooks/use-permissions", () => ({
 
 // Mock server actions
 const mockGetSequenceSettings = vi.fn();
+const mockInitializeSequenceSettings = vi.fn();
 const mockUpdateSequenceSettings = vi.fn();
 const mockSeedSequenceSetting = vi.fn();
 const mockGetSequenceHistory = vi.fn();
@@ -24,6 +25,7 @@ const mockDiagnoseSequenceHealth = vi.fn();
 
 vi.mock("../actions", () => ({
   getSequenceSettings: (...args: unknown[]) => mockGetSequenceSettings(...args),
+  initializeSequenceSettings: (...args: unknown[]) => mockInitializeSequenceSettings(...args),
   updateSequenceSettings: (...args: unknown[]) => mockUpdateSequenceSettings(...args),
   seedSequenceSetting: (...args: unknown[]) => mockSeedSequenceSetting(...args),
   getSequenceHistory: (...args: unknown[]) => mockGetSequenceHistory(...args),
@@ -37,7 +39,7 @@ import SequenceSettingsPage from "../page";
 describe("SequenceSettingsPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockUseActiveOrg.mockReturnValue({ activeOrg: { id: "org-1" } });
+    mockUseActiveOrg.mockReturnValue({ activeOrg: { id: "org-1" }, isLoading: false });
     mockUsePermissions.mockReturnValue({ role: "owner" });
     mockGetSequenceSettings.mockResolvedValue({
       invoice: {
@@ -235,6 +237,95 @@ describe("SequenceSettingsPage", () => {
 
     expect(screen.queryByText("Edit numbering")).not.toBeInTheDocument();
     expect(screen.queryByText("Continue from your last used number")).not.toBeInTheDocument();
+  });
+
+  it("shows owner setup actions when a sequence is missing", async () => {
+    mockGetSequenceSettings.mockResolvedValue({
+      invoice: null,
+      voucher: {
+        documentType: "VOUCHER",
+        name: "Voucher Sequence",
+        periodicity: "YEARLY",
+        isActive: true,
+        formatString: "VCH/{YYYY}/{NNNNN}",
+        startCounter: 1,
+        counterPadding: 5,
+        currentCounter: 10,
+        nextPreview: "VCH/2026/00011",
+      },
+    });
+
+    render(<SequenceSettingsPage />);
+
+    await waitFor(() => {
+      expect(
+        screen.getByText("This organization has not set up invoice numbering yet.")
+      ).toBeInTheDocument();
+    });
+
+    expect(screen.getByText("Use recommended defaults")).toBeInTheDocument();
+    expect(screen.getByText("Customize numbering")).toBeInTheDocument();
+    expect(screen.queryByText(/Run the migration script/i)).not.toBeInTheDocument();
+  });
+
+  it("initializes a missing sequence from recommended defaults", async () => {
+    mockGetSequenceSettings
+      .mockResolvedValueOnce({
+        invoice: null,
+        voucher: {
+          documentType: "VOUCHER",
+          name: "Voucher Sequence",
+          periodicity: "YEARLY",
+          isActive: true,
+          formatString: "VCH/{YYYY}/{NNNNN}",
+          startCounter: 1,
+          counterPadding: 5,
+          currentCounter: 10,
+          nextPreview: "VCH/2026/00011",
+        },
+      })
+      .mockResolvedValueOnce({
+        invoice: {
+          documentType: "INVOICE",
+          name: "Invoice Sequence",
+          periodicity: "YEARLY",
+          isActive: true,
+          formatString: "INV/{YYYY}/{NNNNN}",
+          startCounter: 1,
+          counterPadding: 5,
+          currentCounter: 0,
+          nextPreview: "INV/2026/00001",
+        },
+        voucher: {
+          documentType: "VOUCHER",
+          name: "Voucher Sequence",
+          periodicity: "YEARLY",
+          isActive: true,
+          formatString: "VCH/{YYYY}/{NNNNN}",
+          startCounter: 1,
+          counterPadding: 5,
+          currentCounter: 10,
+          nextPreview: "VCH/2026/00011",
+        },
+      });
+    mockInitializeSequenceSettings.mockResolvedValue({ success: true, created: ["INVOICE"] });
+
+    render(<SequenceSettingsPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Use recommended defaults")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByText("Use recommended defaults"));
+
+    await waitFor(() => {
+      expect(mockInitializeSequenceSettings).toHaveBeenCalledWith("org-1", {
+        documentType: "INVOICE",
+        formatString: undefined,
+        periodicity: undefined,
+        latestUsedNumber: undefined,
+      });
+    });
   });
 
   it("toggles history and troubleshooting section", async () => {

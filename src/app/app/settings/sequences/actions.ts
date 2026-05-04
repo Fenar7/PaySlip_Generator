@@ -11,6 +11,10 @@ import {
   getSequenceSupportOverview,
   runHealthCheck,
 } from "@/features/sequences/services/sequence-admin";
+import {
+  configureInitialSequences,
+  getDefaultSequenceConfig,
+} from "@/app/onboarding/actions";
 import type { SequenceSupportOverview } from "@/features/sequences/services/sequence-admin";
 import { previewSequenceNumber } from "@/features/sequences/services/sequence-engine";
 import type {
@@ -107,6 +111,35 @@ export async function updateSequenceSettings(
     documentType: params.documentType,
     formatString: params.formatString,
     periodicity: params.periodicity,
+  });
+}
+
+export async function initializeSequenceSettings(
+  orgId: string,
+  params: {
+    documentType: SequenceDocumentType;
+    formatString?: string;
+    periodicity?: SequencePeriodicity;
+    latestUsedNumber?: string;
+  }
+) {
+  const customConfig =
+    params.formatString && params.periodicity
+      ? {
+          documentType: params.documentType,
+          formatString: params.formatString,
+          periodicity: params.periodicity,
+          latestUsedNumber: params.latestUsedNumber,
+        }
+      : {
+          ...getDefaultSequenceConfig(params.documentType),
+          latestUsedNumber: params.latestUsedNumber,
+        };
+
+  return configureInitialSequences({
+    organizationId: orgId,
+    customConfigs: [customConfig],
+    markOnboardingComplete: false,
   });
 }
 

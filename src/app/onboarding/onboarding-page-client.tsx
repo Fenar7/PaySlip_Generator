@@ -771,10 +771,7 @@ function OnboardingSequenceSection({
           formatString={formatString}
           lastUsedNumber={latestUsed}
           onLastUsedNumberChange={onLatestUsedChange}
-          onSeed={() => {
-            /* seeding is handled at save time in onboarding */
-          }}
-          loading={false}
+          showAction={false}
         />
       </div>
     </div>

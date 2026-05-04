@@ -6,6 +6,8 @@ const mockPreviewSequenceNumber = vi.fn();
 const mockGetSequenceAuditHistory = vi.fn();
 const mockPreviewResequencePreview = vi.fn();
 const mockApplyResequencePreview = vi.fn();
+const mockConfigureInitialSequences = vi.fn();
+const mockGetDefaultSequenceConfig = vi.fn();
 
 vi.mock("@/features/sequences/services/sequence-admin", () => ({
   getSequenceConfig: (...args: unknown[]) => mockGetSequenceConfig(...args),
@@ -19,7 +21,12 @@ vi.mock("@/features/sequences/services/sequence-engine", () => ({
   previewSequenceNumber: (...args: unknown[]) => mockPreviewSequenceNumber(...args),
 }));
 
-import { getSequenceSettings, updateSequenceSettings, getSequenceHistory, previewResequence, applyResequence } from "../actions";
+vi.mock("@/app/onboarding/actions", () => ({
+  configureInitialSequences: (...args: unknown[]) => mockConfigureInitialSequences(...args),
+  getDefaultSequenceConfig: (...args: unknown[]) => mockGetDefaultSequenceConfig(...args),
+}));
+
+import { getSequenceSettings, initializeSequenceSettings, updateSequenceSettings, getSequenceHistory, previewResequence, applyResequence } from "../actions";
 
 describe("sequence settings actions", () => {
   it("returns null sequences when none exist", async () => {
@@ -44,6 +51,62 @@ describe("sequence settings actions", () => {
     mockUpdateSequenceSettingsAtomic.mockResolvedValue({ success: true });
     const result = await updateSequenceSettings("org-1", { documentType: "INVOICE", formatString: "REC/{YYYY}/{NNNNN}", periodicity: "MONTHLY" });
     expect(result.success).toBe(true);
+  });
+
+  it("initializeSequenceSettings uses explicit custom config when provided", async () => {
+    mockConfigureInitialSequences.mockResolvedValue({ success: true, created: ["INVOICE"] });
+
+    const result = await initializeSequenceSettings("org-1", {
+      documentType: "INVOICE",
+      formatString: "REC/{YYYY}/{NNNNN}",
+      periodicity: "YEARLY",
+      latestUsedNumber: "REC/2026/00042",
+    });
+
+    expect(result.success).toBe(true);
+    expect(mockConfigureInitialSequences).toHaveBeenCalledWith({
+      organizationId: "org-1",
+      customConfigs: [
+        {
+          documentType: "INVOICE",
+          formatString: "REC/{YYYY}/{NNNNN}",
+          periodicity: "YEARLY",
+          latestUsedNumber: "REC/2026/00042",
+        },
+      ],
+      markOnboardingComplete: false,
+    });
+  });
+
+  it("initializeSequenceSettings uses the recommended default when no custom config is supplied", async () => {
+    mockGetDefaultSequenceConfig.mockReturnValue({
+      documentType: "VOUCHER",
+      formatString: "VCH/{YYYY}/{NNNNN}",
+      periodicity: "YEARLY",
+      startCounter: 1,
+      counterPadding: 5,
+    });
+    mockConfigureInitialSequences.mockResolvedValue({ success: true, created: ["VOUCHER"] });
+
+    const result = await initializeSequenceSettings("org-1", {
+      documentType: "VOUCHER",
+    });
+
+    expect(result.success).toBe(true);
+    expect(mockConfigureInitialSequences).toHaveBeenCalledWith({
+      organizationId: "org-1",
+      customConfigs: [
+        {
+          documentType: "VOUCHER",
+          formatString: "VCH/{YYYY}/{NNNNN}",
+          periodicity: "YEARLY",
+          startCounter: 1,
+          counterPadding: 5,
+          latestUsedNumber: undefined,
+        },
+      ],
+      markOnboardingComplete: false,
+    });
   });
 
   it("getSequenceHistory filters by documentType", async () => {

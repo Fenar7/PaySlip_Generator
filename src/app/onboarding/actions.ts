@@ -43,6 +43,26 @@ export interface SequenceCustomConfig {
   counterPadding?: number;
 }
 
+export function getDefaultSequenceConfig(
+  documentType: SequenceDocumentType
+): SequenceCustomConfig {
+  const config = DEFAULT_SEQUENCE_CONFIGS.find(
+    (entry) => entry.documentType === documentType
+  );
+
+  if (!config) {
+    throw new Error(`No default sequence config found for ${documentType}`);
+  }
+
+  return {
+    documentType: config.documentType,
+    formatString: config.formatString,
+    periodicity: config.periodicity,
+    startCounter: config.startCounter,
+    counterPadding: config.counterPadding,
+  };
+}
+
 async function getAuditHeaders() {
   const hdrs = await headers();
   return {
@@ -103,12 +123,14 @@ function validateCustomConfig(config: SequenceCustomConfig): void {
   }
 }
 
-export async function saveOnboardingSequences({
+export async function configureInitialSequences({
   organizationId,
   customConfigs,
+  markOnboardingComplete = false,
 }: {
   organizationId: string;
   customConfigs?: SequenceCustomConfig[];
+  markOnboardingComplete?: boolean;
 }) {
   const ctx = await requireRole("owner");
 
@@ -202,13 +224,29 @@ export async function saveOnboardingSequences({
     });
   }
 
-  // Mark the Document Numbering onboarding step complete server-side.
-  // This is authoritative — onboarding completion must not rely on
-  // client-only state.  Uses the strict variant so a persistence failure
-  // here surfaces as an error rather than silently returning success.
-  await completeOnboardingStepStrict(ctx.userId, "documentNumbering");
+  if (markOnboardingComplete) {
+    // Mark the Document Numbering onboarding step complete server-side.
+    // This is authoritative — onboarding completion must not rely on
+    // client-only state. Uses the strict variant so a persistence failure
+    // here surfaces as an error rather than silently returning success.
+    await completeOnboardingStepStrict(ctx.userId, "documentNumbering");
+  }
 
   return { success: true, created };
+}
+
+export async function saveOnboardingSequences({
+  organizationId,
+  customConfigs,
+}: {
+  organizationId: string;
+  customConfigs?: SequenceCustomConfig[];
+}) {
+  return configureInitialSequences({
+    organizationId,
+    customConfigs,
+    markOnboardingComplete: true,
+  });
 }
 
 /**

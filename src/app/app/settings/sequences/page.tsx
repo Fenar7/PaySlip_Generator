@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
   getSequenceSettings,
+  initializeSequenceSettings,
   updateSequenceSettings,
   seedSequenceSetting,
   getSequenceHistory,
@@ -51,6 +52,8 @@ export default function SequenceSettingsPage() {
   const [voucherAdvanced, setVoucherAdvanced] = useState(false);
   const [invoiceRawFormat, setInvoiceRawFormat] = useState("INV/{YYYY}/{NNNNN}");
   const [voucherRawFormat, setVoucherRawFormat] = useState("VCH/{YYYY}/{NNNNN}");
+  const [invoiceSetupSeed, setInvoiceSetupSeed] = useState("");
+  const [voucherSetupSeed, setVoucherSetupSeed] = useState("");
 
   // Continuity seed state
   const [seedDocType, setSeedDocType] = useState<SequenceDocumentType>("INVOICE");
@@ -78,9 +81,9 @@ export default function SequenceSettingsPage() {
 
   const loadSettings = useCallback(async () => {
     if (!activeOrg?.id) {
-      // Defensive: don't stay stuck in loading if org isn't available yet.
-      // The effect will re-run once activeOrg resolves.
-      setLoading(false);
+      if (!isOrgLoading) {
+        setLoading(false);
+      }
       return;
     }
     setLoading(true);
@@ -112,11 +115,27 @@ export default function SequenceSettingsPage() {
     } finally {
       setLoading(false);
     }
-  }, [activeOrg?.id]);
+  }, [activeOrg?.id, isOrgLoading]);
 
   useEffect(() => {
     loadSettings();
   }, [loadSettings]);
+
+  const availableSeedDocTypes = [
+    invoiceSettings ? "INVOICE" : null,
+    voucherSettings ? "VOUCHER" : null,
+  ].filter(Boolean) as SequenceDocumentType[];
+
+  useEffect(() => {
+    if (availableSeedDocTypes.length === 0) {
+      return;
+    }
+
+    if (!availableSeedDocTypes.includes(seedDocType)) {
+      setSeedDocType(availableSeedDocTypes[0]);
+      setSeedNumber("");
+    }
+  }, [availableSeedDocTypes, seedDocType]);
 
   const handleSave = async (documentType: "INVOICE" | "VOUCHER") => {
     if (!activeOrg?.id || !isOwner) return;
@@ -150,6 +169,55 @@ export default function SequenceSettingsPage() {
     } catch (err) {
       setError(
         err instanceof Error ? err.message : "Failed to update sequence settings"
+      );
+    } finally {
+      setSaving(null);
+    }
+  };
+
+  const handleInitialize = async (
+    documentType: "INVOICE" | "VOUCHER",
+    mode: "defaults" | "custom"
+  ) => {
+    if (!activeOrg?.id || !isOwner) return;
+
+    setSaving(documentType);
+    setError(null);
+    setSuccess(null);
+
+    try {
+      const isAdvanced = documentType === "INVOICE" ? invoiceAdvanced : voucherAdvanced;
+      const builderConfig = documentType === "INVOICE" ? invoiceBuilder : voucherBuilder;
+      const formatString = documentType === "INVOICE"
+        ? (isAdvanced ? invoiceRawFormat : buildFormatString(invoiceBuilder))
+        : (isAdvanced ? voucherRawFormat : buildFormatString(voucherBuilder));
+      const periodicity = isAdvanced
+        ? derivePeriodicityFromFormat(formatString)
+        : builderConfig.resetCycle;
+      const latestUsedNumber = documentType === "INVOICE"
+        ? invoiceSetupSeed.trim() || undefined
+        : voucherSetupSeed.trim() || undefined;
+
+      await initializeSequenceSettings(activeOrg.id, {
+        documentType,
+        formatString: mode === "custom" ? formatString : undefined,
+        periodicity: mode === "custom" ? periodicity : undefined,
+        latestUsedNumber,
+      });
+
+      setSuccess(
+        `${documentType === "INVOICE" ? "Invoice" : "Voucher"} numbering set up successfully`
+      );
+      setEditingType(null);
+      if (documentType === "INVOICE") {
+        setInvoiceSetupSeed("");
+      } else {
+        setVoucherSetupSeed("");
+      }
+      await loadSettings();
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : "Failed to initialize sequence settings"
       );
     } finally {
       setSaving(null);
@@ -212,24 +280,42 @@ export default function SequenceSettingsPage() {
             isEditing={editingType === "INVOICE"}
             isOwner={isOwner}
             saving={saving === "INVOICE"}
+            onInitializeDefault={() => handleInitialize("INVOICE", "defaults")}
             onEdit={() => {
               setEditingType("INVOICE");
               setError(null);
               setSuccess(null);
             }}
             onCancel={() => setEditingType(null)}
-            onSave={() => handleSave("INVOICE")}
+            onSave={() =>
+              invoiceSettings
+                ? handleSave("INVOICE")
+                : handleInitialize("INVOICE", "custom")
+            }
           >
             {editingType === "INVOICE" && (
-              <SequenceBuilder
-                documentType="INVOICE"
-                config={invoiceBuilder}
-                onChange={setInvoiceBuilder}
-                rawFormat={invoiceRawFormat}
-                onRawFormatChange={setInvoiceRawFormat}
-                advancedMode={invoiceAdvanced}
-                onAdvancedModeChange={setInvoiceAdvanced}
-              />
+              <div className="space-y-4">
+                <SequenceBuilder
+                  documentType="INVOICE"
+                  config={invoiceBuilder}
+                  onChange={setInvoiceBuilder}
+                  rawFormat={invoiceRawFormat}
+                  onRawFormatChange={setInvoiceRawFormat}
+                  advancedMode={invoiceAdvanced}
+                  onAdvancedModeChange={setInvoiceAdvanced}
+                />
+                {!invoiceSettings && (
+                  <div className="border-t border-[#e5e5e5] pt-4">
+                    <ContinuityBuilder
+                      documentType="INVOICE"
+                      formatString={invoiceAdvanced ? invoiceRawFormat : buildFormatString(invoiceBuilder)}
+                      lastUsedNumber={invoiceSetupSeed}
+                      onLastUsedNumberChange={setInvoiceSetupSeed}
+                      showAction={false}
+                    />
+                  </div>
+                )}
+              </div>
             )}
           </SequenceConfigCard>
 
@@ -240,31 +326,49 @@ export default function SequenceSettingsPage() {
             isEditing={editingType === "VOUCHER"}
             isOwner={isOwner}
             saving={saving === "VOUCHER"}
+            onInitializeDefault={() => handleInitialize("VOUCHER", "defaults")}
             onEdit={() => {
               setEditingType("VOUCHER");
               setError(null);
               setSuccess(null);
             }}
             onCancel={() => setEditingType(null)}
-            onSave={() => handleSave("VOUCHER")}
+            onSave={() =>
+              voucherSettings
+                ? handleSave("VOUCHER")
+                : handleInitialize("VOUCHER", "custom")
+            }
           >
             {editingType === "VOUCHER" && (
-              <SequenceBuilder
-                documentType="VOUCHER"
-                config={voucherBuilder}
-                onChange={setVoucherBuilder}
-                rawFormat={voucherRawFormat}
-                onRawFormatChange={setVoucherRawFormat}
-                advancedMode={voucherAdvanced}
-                onAdvancedModeChange={setVoucherAdvanced}
-              />
+              <div className="space-y-4">
+                <SequenceBuilder
+                  documentType="VOUCHER"
+                  config={voucherBuilder}
+                  onChange={setVoucherBuilder}
+                  rawFormat={voucherRawFormat}
+                  onRawFormatChange={setVoucherRawFormat}
+                  advancedMode={voucherAdvanced}
+                  onAdvancedModeChange={setVoucherAdvanced}
+                />
+                {!voucherSettings && (
+                  <div className="border-t border-[#e5e5e5] pt-4">
+                    <ContinuityBuilder
+                      documentType="VOUCHER"
+                      formatString={voucherAdvanced ? voucherRawFormat : buildFormatString(voucherBuilder)}
+                      lastUsedNumber={voucherSetupSeed}
+                      onLastUsedNumberChange={setVoucherSetupSeed}
+                      showAction={false}
+                    />
+                  </div>
+                )}
+              </div>
             )}
           </SequenceConfigCard>
         </div>
       </section>
 
       {/* ── B. Continue from existing numbers ── */}
-      {isOwner && (
+      {isOwner && availableSeedDocTypes.length > 0 && (
         <section className="space-y-4">
           <h3 className="text-sm font-semibold uppercase tracking-wider text-[#999]">
             Continue from existing numbers
@@ -284,8 +388,8 @@ export default function SequenceSettingsPage() {
                   }}
                   className="block w-40 rounded-xl border border-[#e5e5e5] bg-white px-3 py-2 text-sm text-[#1a1a1a] focus:outline-none focus:ring-2 focus:ring-[#dc2626]"
                 >
-                  <option value="INVOICE">Invoice</option>
-                  <option value="VOUCHER">Voucher</option>
+                  {invoiceSettings ? <option value="INVOICE">Invoice</option> : null}
+                  {voucherSettings ? <option value="VOUCHER">Voucher</option> : null}
                 </select>
               </div>
 
@@ -389,6 +493,7 @@ function SequenceConfigCard({
   isEditing,
   isOwner,
   saving,
+  onInitializeDefault,
   onEdit,
   onCancel,
   onSave,
@@ -400,6 +505,7 @@ function SequenceConfigCard({
   isEditing: boolean;
   isOwner: boolean;
   saving: boolean;
+  onInitializeDefault: () => void;
   onEdit: () => void;
   onCancel: () => void;
   onSave: () => void;
@@ -408,11 +514,48 @@ function SequenceConfigCard({
   if (!settings) {
     return (
       <Card>
-        <CardContent className="py-6">
-          <p className="text-sm text-[#666]">
-            No {documentType === "INVOICE" ? "invoice" : "voucher"} numbering configured yet.
-            Run the migration script to set up the initial sequence.
-          </p>
+        <CardHeader>
+          <CardTitle className="text-base">
+            {documentType === "INVOICE" ? "Invoice Numbering" : "Voucher Numbering"}
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {!isEditing ? (
+            <>
+              <p className="text-sm text-[#666]">
+                {isOwner
+                  ? `This organization has not set up ${documentType === "INVOICE" ? "invoice" : "voucher"} numbering yet.`
+                  : `${documentType === "INVOICE" ? "Invoice" : "Voucher"} numbering has not been set up for this organization yet.`}
+              </p>
+              {isOwner ? (
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    onClick={onInitializeDefault}
+                    disabled={saving}
+                    variant="primary"
+                    size="sm"
+                  >
+                    {saving ? "Setting up…" : "Use recommended defaults"}
+                  </Button>
+                  <Button onClick={onEdit} variant="secondary" size="sm">
+                    Customize numbering
+                  </Button>
+                </div>
+              ) : null}
+            </>
+          ) : (
+            <>
+              {children}
+              <div className="flex gap-2 pt-2">
+                <Button onClick={onSave} disabled={saving} variant="primary" size="sm">
+                  {saving ? "Saving…" : "Create numbering"}
+                </Button>
+                <Button onClick={onCancel} variant="ghost" size="sm">
+                  Cancel
+                </Button>
+              </div>
+            </>
+          )}
         </CardContent>
       </Card>
     );
