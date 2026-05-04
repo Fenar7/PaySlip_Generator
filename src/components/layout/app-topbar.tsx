@@ -7,6 +7,7 @@ import { signOutSupabaseBrowser } from "@/lib/supabase/client";
 import { Avatar } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
 import { Logo } from "@/components/foundation/logo";
+import { OrgSwitcher } from "@/components/org/org-switcher";
 
 import { NotificationBell } from "@/features/flow/components/notification-bell";
 import { ProxyBanner } from "@/features/access/components/proxy-banner";
@@ -52,18 +53,13 @@ export function AppTopbar({ orgName, initialUser }: AppTopbarProps) {
               <span className="text-[0.7rem] font-semibold uppercase tracking-[0.2em] text-[var(--text-muted)]">
                 {suiteLabel === "Home" ? "Slipwise" : suiteLabel}
               </span>
-              {orgName ? (
-                <span className="slipwise-chip px-2 py-0.5 text-[0.65rem] font-medium">
-                  {orgName}
-                </span>
-              ) : null}
             </div>
             <h1 className="mt-0.5 truncate text-base font-semibold text-[var(--text-primary)]">
               {pageTitle}
             </h1>
           </div>
 
-          {/* Breadcrumbs - desktop only below title area */}
+          {/* Breadcrumbs - desktop only */}
           <nav className="hidden xl:flex flex-wrap items-center gap-2 text-xs text-[var(--text-muted)] min-w-0 flex-1 px-4">
             {breadcrumbs.map((crumb, index) => (
               <div key={`${crumb.label}-${index}`} className="flex items-center gap-2 shrink-0">
@@ -86,6 +82,8 @@ export function AppTopbar({ orgName, initialUser }: AppTopbarProps) {
 
           {/* Right utilities */}
           <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+            <OrgSwitcher initialOrgName={orgName} />
+            <div className="h-5 w-px bg-[var(--border-soft)] hidden sm:block" />
             <NotificationBell />
             {isPending ? (
               <div className="h-8 w-8 animate-pulse rounded-full border border-[var(--border-soft)] bg-[var(--surface-subtle)]" />
