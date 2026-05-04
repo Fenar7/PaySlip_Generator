@@ -240,7 +240,8 @@ export async function getSequenceHistorySnapshots(
   orgId: string,
   sequenceId: string,
 ): Promise<SequenceSnapshotEntry[]> {
-  await backfillSnapshotIfNeeded(orgId, sequenceId, "");
+  const ctx = await getOrgContext();
+  await backfillSnapshotIfNeeded(orgId, sequenceId, ctx?.userId ?? "");
   return getSequenceSnapshots(orgId, sequenceId);
 }
 
@@ -261,12 +262,14 @@ export async function getSequenceCurrentState(
 export async function getAllSequenceSnapshots(
   orgId: string,
 ): Promise<OrgSnapshotGroup[]> {
+  const ctx = await getOrgContext();
+  const userId = ctx?.userId ?? "";
   // Backfill all sequences that don't have snapshots yet
   const sequences = await listAllOrgSnapshots(orgId);
   for (const group of sequences) {
     for (const seq of group.sequences) {
       if (seq.snapshotCount === 0) {
-        await backfillSnapshotIfNeeded(orgId, seq.sequenceId, "");
+        await backfillSnapshotIfNeeded(orgId, seq.sequenceId, userId);
       }
     }
   }
