@@ -9,7 +9,7 @@ export const metadata = {
 
 async function EmployeesTable({ search, page }: { search?: string; page: number }) {
   const { employees, total, totalPages } = await listEmployees({ search, page, limit: 20 });
-  
+
   return (
     <DataTable
       data={employees}
@@ -36,17 +36,24 @@ export default async function EmployeesPage({
 }) {
   const params = await searchParams;
   const page = parseInt(params.page || "1", 10);
-  
+
   return (
-    <div>
+    <div className="mx-auto max-w-6xl px-4 py-6 sm:px-6">
       <PageHeader
         title="Employees"
         description="Manage your employees for payslips"
         addLink="/app/data/employees/new"
         addLabel="Add Employee"
       />
-      
-      <Suspense fallback={<div className="py-8 text-center text-slate-500">Loading...</div>}>
+
+      <Suspense
+        fallback={
+          <div className="flex items-center justify-center py-12 text-[var(--text-muted)]">
+            <div className="mr-2 h-5 w-5 animate-spin rounded-full border-2 border-[var(--border-soft)] border-t-[var(--brand-primary)]" />
+            Loading...
+          </div>
+        }
+      >
         <EmployeesTable search={params.search} page={page} />
       </Suspense>
     </div>

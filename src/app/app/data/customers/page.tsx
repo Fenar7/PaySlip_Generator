@@ -9,7 +9,7 @@ export const metadata = {
 
 async function CustomersTable({ search, page }: { search?: string; page: number }) {
   const { customers, total, totalPages } = await listCustomers({ search, page, limit: 20 });
-  
+
   return (
     <DataTable
       data={customers}
@@ -36,17 +36,24 @@ export default async function CustomersPage({
 }) {
   const params = await searchParams;
   const page = parseInt(params.page || "1", 10);
-  
+
   return (
-    <div>
+    <div className="mx-auto max-w-6xl px-4 py-6 sm:px-6">
       <PageHeader
         title="Customers"
         description="Manage your customers for invoices"
         addLink="/app/data/customers/new"
         addLabel="Add Customer"
       />
-      
-      <Suspense fallback={<div className="py-8 text-center text-slate-500">Loading...</div>}>
+
+      <Suspense
+        fallback={
+          <div className="flex items-center justify-center py-12 text-[var(--text-muted)]">
+            <div className="mr-2 h-5 w-5 animate-spin rounded-full border-2 border-[var(--border-soft)] border-t-[var(--brand-primary)]" />
+            Loading...
+          </div>
+        }
+      >
         <CustomersTable search={params.search} page={page} />
       </Suspense>
     </div>
