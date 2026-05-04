@@ -745,16 +745,33 @@ export async function listInvoices(params?: {
   page?: number;
   limit?: number;
   includeArchived?: boolean;
+  dateFrom?: string;
+  dateTo?: string;
+  sequenceId?: string;
+  amountMin?: number;
+  amountMax?: number;
+  customerId?: string;
 }) {
   const { orgId } = await requireOrgContext();
   const page = params?.page ?? 1;
   const limit = params?.limit ?? 20;
   const skip = (page - 1) * limit;
 
-  const where = {
+  const dateFrom = params?.dateFrom ? new Date(`${params.dateFrom}T00:00:00`) : undefined;
+  const dateTo = params?.dateTo ? new Date(`${params.dateTo}T23:59:59`) : undefined;
+
+  const where: Record<string, unknown> = {
     organizationId: orgId,
     ...(params?.status && { status: params.status }),
     ...(params?.includeArchived !== true && { archivedAt: null }),
+    ...(dateFrom && { invoiceDate: { gte: dateFrom } }),
+    ...(dateTo && params?.dateFrom
+      ? { invoiceDate: { ...(dateFrom ? { gte: dateFrom } : {}), lte: dateTo } }
+      : dateTo ? { invoiceDate: { lte: dateTo } } : {}),
+    ...(params?.sequenceId && { sequenceId: params.sequenceId }),
+    ...(params?.amountMin !== undefined && { totalAmount: { gte: params.amountMin } }),
+    ...(params?.amountMax !== undefined && { totalAmount: { lte: params.amountMax } }),
+    ...(params?.customerId && { customerId: params.customerId }),
     ...(params?.search && {
       OR: [
         { invoiceNumber: { contains: params.search, mode: "insensitive" as const } },
@@ -762,6 +779,15 @@ export async function listInvoices(params?: {
       ],
     }),
   };
+
+  // Clean up compound date filter
+  if (dateFrom && dateTo) {
+    where.invoiceDate = { gte: dateFrom, lte: dateTo };
+  } else if (dateFrom) {
+    where.invoiceDate = { gte: dateFrom };
+  } else if (dateTo) {
+    where.invoiceDate = { lte: dateTo };
+  }
 
   const [invoices, total] = await Promise.all([
     db.invoice.findMany({

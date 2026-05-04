@@ -1,8 +1,10 @@
 import { Suspense } from "react";
 import Link from "next/link";
-import { listInvoices, archiveInvoice, duplicateInvoice } from "./actions";
+import { listInvoices, archiveInvoice, duplicateInvoice, getInvoice } from "./actions";
 import type { InvoiceStatus } from "./actions";
 import { CopyInvoiceLinkButton } from "./copy-link-button";
+import { getSequenceConfig } from "@/features/sequences/services/sequence-admin";
+import { requireOrgContext } from "@/lib/auth";
 
 export const metadata = {
   title: "Invoice Vault | Slipwise",
@@ -34,15 +36,14 @@ function formatTicketCategory(category: string) {
 }
 
 function AttentionSummary({
-  invoice,
+  proofs,
+  tickets,
 }: {
-  invoice: {
-    proofs?: Array<{ id: string }>;
-    tickets?: Array<{ id: string; status: string; category: string }>;
-  };
+  proofs?: Array<{ id: string }>;
+  tickets?: Array<{ id: string; status: string; category: string }>;
 }) {
-  const pendingProofs = invoice.proofs ?? [];
-  const activeTickets = invoice.tickets ?? [];
+  const pendingProofs = proofs ?? [];
+  const activeTickets = tickets ?? [];
 
   if (pendingProofs.length === 0 && activeTickets.length === 0) {
     return <span className="text-sm text-slate-400">No open customer actions</span>;
@@ -81,30 +82,38 @@ function formatCurrency(amount: number) {
 function getDueDateColor(dueDate: string | null, status: string): string {
   if (!dueDate) return "text-slate-500";
   if (status === "PAID") return "text-green-600";
-
   const now = new Date();
   const due = new Date(dueDate);
   const diffDays = Math.ceil((due.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
-
   if (diffDays < 0 && status !== "PAID") return "text-red-600 font-medium";
   if (diffDays <= 7) return "text-amber-600 font-medium";
   return "text-slate-500";
 }
 
+// ─── Invoice Table (List View) ──────────────────────────────────────────────────
+
 async function InvoiceTable({
   status,
   search,
   page,
+  dateFrom,
+  dateTo,
+  sequenceId,
+  amountMin,
+  amountMax,
 }: {
   status?: InvoiceStatus;
   search?: string;
   page: number;
+  dateFrom?: string;
+  dateTo?: string;
+  sequenceId?: string;
+  amountMin?: number;
+  amountMax?: number;
 }) {
   const { invoices, total, totalPages } = await listInvoices({
-    status,
-    search,
-    page,
-    limit: 20,
+    status, search, page, limit: 20,
+    dateFrom, dateTo, sequenceId, amountMin, amountMax,
   });
 
   if (invoices.length === 0) {
@@ -115,12 +124,9 @@ async function InvoiceTable({
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
           </svg>
         </div>
-        <h3 className="text-lg font-medium text-slate-900">No invoices yet</h3>
-        <p className="mt-1 text-sm text-slate-500">Create your first invoice to get started.</p>
-        <Link
-          href="/app/docs/invoices/new"
-          className="mt-4 inline-flex items-center rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700"
-        >
+        <h3 className="text-lg font-medium text-slate-900">No invoices found</h3>
+        <p className="mt-1 text-sm text-slate-500">Try adjusting your filters or create a new invoice.</p>
+        <Link href="/app/docs/invoices/new" className="mt-4 inline-flex items-center rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700">
           Create Invoice
         </Link>
       </div>
@@ -138,7 +144,7 @@ async function InvoiceTable({
             <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">Due Date</th>
             <th className="px-4 py-3 text-right text-xs font-medium uppercase tracking-wider text-slate-500">Amount</th>
             <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">Status</th>
-            <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">Customer Activity</th>
+            <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">Activity</th>
             <th className="px-4 py-3 text-right text-xs font-medium uppercase tracking-wider text-slate-500">Actions</th>
           </tr>
         </thead>
@@ -150,61 +156,27 @@ async function InvoiceTable({
                   {invoice.invoiceNumber ?? "Draft"}
                 </Link>
               </td>
-              <td className="px-4 py-3 text-sm text-slate-900">
-                {invoice.customer?.name || "—"}
-              </td>
-              <td className="px-4 py-3 text-sm text-slate-500">
-                {invoice.invoiceDate}
-              </td>
-              <td className={`px-4 py-3 text-sm ${getDueDateColor(invoice.dueDate, invoice.status)}`}>
-                {invoice.dueDate || "—"}
-              </td>
-              <td className="px-4 py-3 text-right text-sm font-medium text-slate-900">
-                {formatCurrency(invoice.totalAmount)}
-              </td>
+              <td className="px-4 py-3 text-sm text-slate-900">{invoice.customer?.name || "—"}</td>
+              <td className="px-4 py-3 text-sm text-slate-500">{invoice.invoiceDate}</td>
+              <td className={`px-4 py-3 text-sm ${getDueDateColor(invoice.dueDate, invoice.status)}`}>{invoice.dueDate || "—"}</td>
+              <td className="px-4 py-3 text-right text-sm font-medium text-slate-900">{formatCurrency(invoice.totalAmount)}</td>
+              <td className="px-4 py-3"><StatusBadge status={invoice.status} /></td>
               <td className="px-4 py-3">
-                <StatusBadge status={invoice.status} />
-              </td>
-              <td className="px-4 py-3">
-                <AttentionSummary invoice={invoice} />
+                <AttentionSummary proofs={invoice.proofs as Array<{ id: string }> | undefined} tickets={invoice.tickets as Array<{ id: string; status: string; category: string }> | undefined} />
               </td>
               <td className="px-4 py-3 text-right">
-                <InvoiceActions
-                  invoiceId={invoice.id}
-                  status={invoice.status}
-                  token={invoice.publicTokens?.[0]?.token}
-                  pendingProofId={invoice.proofs?.[0]?.id}
-                  activeTicketId={invoice.tickets?.[0]?.id}
-                />
+                <InvoiceActions invoiceId={invoice.id} status={invoice.status} token={(invoice.publicTokens as Array<{token: string}> | undefined)?.[0]?.token} />
               </td>
             </tr>
           ))}
         </tbody>
       </table>
-
-      {/* Pagination */}
       {totalPages > 1 && (
         <div className="flex items-center justify-between border-t border-slate-200 px-4 py-3">
-          <p className="text-sm text-slate-500">
-            Showing {(page - 1) * 20 + 1} to {Math.min(page * 20, total)} of {total}
-          </p>
+          <p className="text-sm text-slate-500">Showing {(page - 1) * 20 + 1} to {Math.min(page * 20, total)} of {total}</p>
           <div className="flex gap-2">
-            {page > 1 && (
-              <Link
-                href={`?page=${page - 1}`}
-                className="rounded px-3 py-1 text-sm text-slate-600 hover:bg-slate-100"
-              >
-                Previous
-              </Link>
-            )}
-            {page < totalPages && (
-              <Link
-                href={`?page=${page + 1}`}
-                className="rounded px-3 py-1 text-sm text-slate-600 hover:bg-slate-100"
-              >
-                Next
-              </Link>
-            )}
+            {page > 1 && <Link href={`?${buildQuery({ status, search, page: page - 1, dateFrom, dateTo, sequenceId, amountMin, amountMax })}`} className="rounded px-3 py-1 text-sm text-slate-600 hover:bg-slate-100">Previous</Link>}
+            {page < totalPages && <Link href={`?${buildQuery({ status, search, page: page + 1, dateFrom, dateTo, sequenceId, amountMin, amountMax })}`} className="rounded px-3 py-1 text-sm text-slate-600 hover:bg-slate-100">Next</Link>}
           </div>
         </div>
       )}
@@ -212,67 +184,140 @@ async function InvoiceTable({
   );
 }
 
-function InvoiceActions({
-  invoiceId,
-  status,
-  token,
-  pendingProofId,
-  activeTicketId,
-}: {
-  invoiceId: string;
-  status: string;
-  token?: string;
-  pendingProofId?: string;
-  activeTicketId?: string;
-}) {
+// ─── Sequence Folder View ──────────────────────────────────────────────────────
+
+async function InvoiceSequenceView({ search }: { search?: string }) {
+  const { orgId } = await requireOrgContext();
+  const sequence = await getSequenceConfig({ orgId, documentType: "INVOICE" });
+
+  const { invoices: drafts } = await listInvoices({
+    status: "DRAFT",
+    search,
+    limit: 100,
+  });
+
+  let sequenceInvoices: Awaited<ReturnType<typeof listInvoices>>["invoices"] = [];
+  if (sequence?.sequenceId) {
+    const result = await listInvoices({
+      sequenceId: sequence.sequenceId,
+      search,
+      limit: 100,
+    });
+    sequenceInvoices = result.invoices;
+  }
+
+  if (drafts.length === 0 && sequenceInvoices.length === 0) {
+    return (
+      <div className="rounded-lg border border-dashed border-slate-300 bg-white p-12 text-center">
+        <div className="mx-auto mb-4 h-12 w-12 rounded-full bg-slate-100 flex items-center justify-center">
+          <svg className="h-6 w-6 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+          </svg>
+        </div>
+        <h3 className="text-lg font-medium text-slate-900">No invoices yet</h3>
+        <p className="mt-1 text-sm text-slate-500">Create your first invoice to get started.</p>
+      </div>
+    );
+  }
+
   return (
-    <div className="flex flex-wrap items-center justify-end gap-2">
-      <Link
-        href={`/app/docs/invoices/${invoiceId}`}
-        className="text-sm text-slate-600 hover:text-slate-900"
-      >
-        Open
-      </Link>
-      {pendingProofId && (
-        <Link
-          href={`/app/pay/proofs/${pendingProofId}`}
-          className="text-sm font-medium text-amber-700 hover:text-amber-900"
-        >
-          Review Proof
-        </Link>
+    <div className="space-y-3">
+      {/* Drafts folder */}
+      {drafts.length > 0 && <SequenceFolderCard label="Drafts" subtitle={`${drafts.length} unissued invoice${drafts.length !== 1 ? "s" : ""}, no number assigned yet`} icon="📝" defaultExpanded invoices={drafts} />}
+
+      {/* Sequence folder */}
+      {sequence?.sequenceId && sequenceInvoices.length > 0 && (
+        <SequenceFolderCard
+          label={sequence.name ?? "Invoice Sequence"}
+          subtitle={sequence.formatString ? `${sequence.formatString} · ${sequenceInvoices.length} invoice${sequenceInvoices.length !== 1 ? "s" : ""}` : `${sequenceInvoices.length} invoice${sequenceInvoices.length !== 1 ? "s" : ""}`}
+          icon="📁"
+          defaultExpanded={drafts.length === 0}
+          invoices={sequenceInvoices}
+        />
       )}
-      {activeTicketId && (
-        <Link
-          href={`/app/flow/tickets/${activeTicketId}`}
-          className="text-sm font-medium text-blue-600 hover:text-blue-800"
-        >
-          Open Ticket
-        </Link>
-      )}
-      {token && <CopyInvoiceLinkButton token={token} />}
-      <form action={async () => {
-        "use server";
-        await duplicateInvoice(invoiceId);
-      }}>
-        <button type="submit" className="text-sm text-slate-600 hover:text-slate-900">
-          Duplicate
-        </button>
-      </form>
-      {status === "DRAFT" && (
-        <form action={async () => {
-          "use server";
-          await archiveInvoice(invoiceId);
-        }}>
-          <button type="submit" className="text-sm text-red-600 hover:text-red-800">
-            Archive
-          </button>
-        </form>
+
+      {/* Orphaned issued invoices (no sequence, but issued) */}
+      {sequenceInvoices.length === 0 && drafts.length > 0 && (
+        <div className="rounded-lg border border-slate-200 bg-white p-4 text-center text-sm text-slate-400">
+          No issued invoices with this sequence yet. Drafts are above.
+        </div>
       )}
     </div>
   );
 }
 
-function StatusFilterChips({ currentStatus }: { currentStatus?: string }) {
+function SequenceFolderCard({
+  label, subtitle, icon, defaultExpanded, invoices,
+}: {
+  label: string;
+  subtitle: string;
+  icon: string;
+  defaultExpanded?: boolean;
+  invoices: Awaited<ReturnType<typeof listInvoices>>["invoices"];
+}) {
+  return (
+    <details className="group rounded-lg border border-slate-200 bg-white" open={defaultExpanded}>
+      <summary className="flex cursor-pointer items-center gap-3 px-4 py-3.5 hover:bg-slate-50">
+        <span className="text-lg">{icon}</span>
+        <div className="flex-1">
+          <span className="text-sm font-medium text-slate-900">{label}</span>
+          <p className="text-xs text-slate-400">{subtitle}</p>
+        </div>
+        <svg className="h-4 w-4 text-slate-400 transition-transform group-open:rotate-90" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <polyline points="9 18 15 12 9 6" />
+        </svg>
+      </summary>
+      <div className="border-t border-slate-100 overflow-x-auto">
+        <table className="w-full">
+          <thead>
+            <tr className="border-b border-slate-100 bg-slate-50/50">
+              <th className="px-4 py-2 text-left text-xs font-medium text-slate-500">Invoice #</th>
+              <th className="px-4 py-2 text-left text-xs font-medium text-slate-500">Customer</th>
+              <th className="px-4 py-2 text-left text-xs font-medium text-slate-500">Date</th>
+              <th className="px-4 py-2 text-right text-xs font-medium text-slate-500">Amount</th>
+              <th className="px-4 py-2 text-left text-xs font-medium text-slate-500">Status</th>
+              <th className="px-4 py-2 w-8"></th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-50">
+            {invoices.map((inv) => (
+              <tr key={inv.id} className="hover:bg-slate-50">
+                <td className="px-4 py-2">
+                  <Link href={`/app/docs/invoices/${inv.id}`} className="text-sm font-medium text-blue-600 hover:underline">
+                    {inv.invoiceNumber ?? "Draft"}
+                  </Link>
+                </td>
+                <td className="px-4 py-2 text-sm text-slate-700">{inv.customer?.name || "—"}</td>
+                <td className="px-4 py-2 text-sm text-slate-500">{inv.invoiceDate}</td>
+                <td className="px-4 py-2 text-right text-sm font-medium text-slate-900">{formatCurrency(inv.totalAmount)}</td>
+                <td className="px-4 py-2"><StatusBadge status={inv.status} /></td>
+                <td className="px-4 py-2">
+                  <Link href={`/app/docs/invoices/${inv.id}`} className="text-xs text-slate-400 hover:text-slate-600">Open</Link>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </details>
+  );
+}
+
+// ─── Query Builder ─────────────────────────────────────────────────────────────
+
+function buildQuery(params: Record<string, string | number | undefined>): string {
+  const parts: string[] = [];
+  for (const [key, val] of Object.entries(params)) {
+    if (val !== undefined && val !== "" && val !== null) {
+      parts.push(`${key}=${encodeURIComponent(String(val))}`);
+    }
+  }
+  return parts.join("&");
+}
+
+// ─── Filters ───────────────────────────────────────────────────────────────────
+
+function StatusFilterChips({ currentStatus, extraParams }: { currentStatus?: string; extraParams?: Record<string, string | undefined> }) {
   const statuses = [
     { value: "", label: "All" },
     { value: "DRAFT", label: "Draft" },
@@ -286,33 +331,131 @@ function StatusFilterChips({ currentStatus }: { currentStatus?: string }) {
     { value: "CANCELLED", label: "Cancelled" },
   ];
 
+  const base = extraParams ?? {};
+
   return (
     <div className="flex flex-wrap gap-2">
-      {statuses.map((s) => (
-        <Link
-          key={s.value}
-          href={s.value ? `?status=${s.value}` : "?"}
-          className={`rounded-full px-3 py-1 text-sm font-medium transition-colors ${
-            currentStatus === s.value || (!currentStatus && !s.value)
-              ? "bg-red-600 text-white"
-              : "bg-slate-100 text-slate-700 hover:bg-slate-200"
-          }`}
-        >
-          {s.label}
-        </Link>
-      ))}
+      {statuses.map((s) => {
+        const isActive = currentStatus === s.value || (!currentStatus && !s.value);
+        // Build href preserving other params
+        const params = new URLSearchParams(base as Record<string, string>);
+        if (s.value) params.set("status", s.value);
+        else params.delete("status");
+        const qs = params.toString();
+
+        return (
+          <Link
+            key={s.value}
+            href={`/app/docs/invoices${qs ? `?${qs}` : ""}`}
+            className={`rounded-full px-3 py-1 text-sm font-medium transition-colors ${isActive ? "bg-red-600 text-white" : "bg-slate-100 text-slate-700 hover:bg-slate-200"}`}
+          >
+            {s.label}
+          </Link>
+        );
+      })}
     </div>
   );
 }
 
+function AdvancedFilters({
+  current,
+  extraParams,
+}: {
+  current: { dateFrom?: string; dateTo?: string; amountMin?: string; amountMax?: string; sequenceId?: string };
+  extraParams?: Record<string, string | undefined>;
+}) {
+  const base = new URLSearchParams(extraParams as Record<string, string>);
+  if (current.dateFrom) base.delete("dateFrom");
+  if (current.dateTo) base.delete("dateTo");
+  if (current.amountMin) base.delete("amountMin");
+  if (current.amountMax) base.delete("amountMax");
+  if (current.sequenceId) base.delete("sequenceId");
+
+  const hasActive = current.dateFrom || current.dateTo || current.amountMin || current.amountMax || current.sequenceId;
+
+  return (
+    <details className="group mb-4" open={hasActive}>
+      <summary className="flex cursor-pointer items-center gap-2 text-xs font-medium text-slate-500 hover:text-slate-700">
+        <svg className="h-3.5 w-3.5 transition-transform group-open:rotate-90" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="9 18 15 12 9 6" /></svg>
+        Advanced Filters {hasActive && <span className="rounded-full bg-blue-100 px-1.5 py-0 text-xs text-blue-600">active</span>}
+      </summary>
+      <form method="GET" className="mt-3">
+        {/* Preserve other params */}
+        {Array.from(base.entries()).map(([k, v]) => (
+          <input key={k} type="hidden" name={k} value={v} />
+        ))}
+        <div className="grid gap-3 rounded-lg border border-slate-200 bg-white p-4 sm:grid-cols-3">
+          <div>
+            <label className="mb-1 block text-xs font-medium text-slate-500">Date From</label>
+            <input type="date" name="dateFrom" defaultValue={current.dateFrom || ""} className="w-full rounded border border-slate-200 px-3 py-1.5 text-sm focus:border-red-400 focus:outline-none" />
+          </div>
+          <div>
+            <label className="mb-1 block text-xs font-medium text-slate-500">Date To</label>
+            <input type="date" name="dateTo" defaultValue={current.dateTo || ""} className="w-full rounded border border-slate-200 px-3 py-1.5 text-sm focus:border-red-400 focus:outline-none" />
+          </div>
+          <div className="flex items-end gap-2">
+            <div className="flex-1">
+              <label className="mb-1 block text-xs font-medium text-slate-500">Amount Min</label>
+              <input type="number" name="amountMin" defaultValue={current.amountMin || ""} placeholder="0" className="w-full rounded border border-slate-200 px-3 py-1.5 text-sm focus:border-red-400 focus:outline-none" />
+            </div>
+            <div className="flex-1">
+              <label className="mb-1 block text-xs font-medium text-slate-500">Amount Max</label>
+              <input type="number" name="amountMax" defaultValue={current.amountMax || ""} placeholder="∞" className="w-full rounded border border-slate-200 px-3 py-1.5 text-sm focus:border-red-400 focus:outline-none" />
+            </div>
+          </div>
+        </div>
+        <div className="mt-3 flex gap-2">
+          <button type="submit" className="rounded-lg bg-red-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-red-700">Apply Filters</button>
+          {hasActive && (
+            <Link href={base.toString() ? `/app/docs/invoices?${base.toString()}` : "/app/docs/invoices"} className="rounded-lg border border-slate-200 px-4 py-1.5 text-sm text-slate-600 hover:bg-slate-50">
+              Clear All
+            </Link>
+          )}
+        </div>
+      </form>
+    </details>
+  );
+}
+
+// ─── Actions ───────────────────────────────────────────────────────────────────
+
+function InvoiceActions({ invoiceId, status, token }: { invoiceId: string; status: string; token?: string }) {
+  return (
+    <div className="flex flex-wrap items-center justify-end gap-2">
+      <Link href={`/app/docs/invoices/${invoiceId}`} className="text-sm text-slate-600 hover:text-slate-900">Open</Link>
+      {token && <CopyInvoiceLinkButton token={token} />}
+      <form action={async () => { "use server"; await duplicateInvoice(invoiceId); }}>
+        <button type="submit" className="text-sm text-slate-600 hover:text-slate-900">Duplicate</button>
+      </form>
+      {status === "DRAFT" && (
+        <form action={async () => { "use server"; await archiveInvoice(invoiceId); }}>
+          <button type="submit" className="text-sm text-red-600 hover:text-red-800">Archive</button>
+        </form>
+      )}
+    </div>
+  );
+}
+
+// ─── Main Page ─────────────────────────────────────────────────────────────────
+
 export default async function InvoicesPage({
   searchParams,
 }: {
-  searchParams: Promise<{ status?: string; search?: string; page?: string }>;
+  searchParams: Promise<{ status?: string; search?: string; page?: string; view?: string; dateFrom?: string; dateTo?: string; amountMin?: string; amountMax?: string; sequenceId?: string }>;
 }) {
   const params = await searchParams;
   const page = parseInt(params.page || "1", 10);
   const status = params.status as InvoiceStatus | undefined;
+  const view = params.view === "sequence" ? "sequence" : "list";
+  const dateFrom = params.dateFrom;
+  const dateTo = params.dateTo;
+  const amountMin = params.amountMin ? parseFloat(params.amountMin) : undefined;
+  const amountMax = params.amountMax ? parseFloat(params.amountMax) : undefined;
+  const sequenceId = params.sequenceId;
+
+  const extraParams: Record<string, string | undefined> = {};
+  if (params.search) extraParams.search = params.search;
+  extraParams.view = view;
 
   return (
     <div className="min-h-screen bg-slate-50">
@@ -323,46 +466,67 @@ export default async function InvoicesPage({
             <h1 className="text-2xl font-semibold text-slate-900">Invoice Vault</h1>
             <p className="mt-1 text-sm text-slate-500">Manage and track all your invoices</p>
           </div>
-          <Link
-            href="/app/docs/invoices/new"
-            className="rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 transition-colors"
-          >
-            Create Invoice
-          </Link>
+          <div className="flex items-center gap-3">
+            <Link href="/app/settings/sequences/history" className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50">
+              Sequence History
+            </Link>
+            <Link href="/app/docs/invoices/new" className="rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 transition-colors">
+              Create Invoice
+            </Link>
+          </div>
         </div>
 
-        {/* Search */}
-        <form method="GET">
-          {params.status && <input type="hidden" name="status" value={params.status} />}
-          <div className="relative mb-4 max-w-sm">
+        {/* View toggle + Search */}
+        <div className="mb-4 flex items-center gap-4 flex-wrap">
+          <div className="flex rounded-lg border border-slate-200 bg-white p-0.5">
+            <Link
+              href={`/app/docs/invoices?${buildQuery({ ...extraParams, view: undefined, status: params.status, search: params.search })}`}
+              className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${view === "list" ? "bg-red-600 text-white" : "text-slate-600 hover:text-slate-900"}`}
+            >
+              List
+            </Link>
+            <Link
+              href={`/app/docs/invoices?${buildQuery({ ...extraParams, view: "sequence", status: undefined, search: params.search })}`}
+              className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${view === "sequence" ? "bg-red-600 text-white" : "text-slate-600 hover:text-slate-900"}`}
+            >
+              Sequence
+            </Link>
+          </div>
+
+          <form method="GET" className="relative max-w-sm flex-1">
+            {params.status && <input type="hidden" name="status" value={params.status} />}
+            {view !== "list" && <input type="hidden" name="view" value={view} />}
+            {dateFrom && <input type="hidden" name="dateFrom" value={dateFrom} />}
+            {dateTo && <input type="hidden" name="dateTo" value={dateTo} />}
+            {params.amountMin && <input type="hidden" name="amountMin" value={params.amountMin} />}
+            {params.amountMax && <input type="hidden" name="amountMax" value={params.amountMax} />}
             <input
-              type="text"
-              name="search"
-              defaultValue={params.search || ""}
-              placeholder="Search invoices..."
+              type="text" name="search" defaultValue={params.search || ""} placeholder="Search invoices..."
               className="w-full rounded-lg border border-slate-200 bg-white px-4 py-2 pl-9 text-sm text-slate-700 placeholder-slate-400 focus:border-red-400 focus:outline-none focus:ring-1 focus:ring-red-400"
             />
             <svg className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
             </svg>
-            {params.search && (
-              <a href={params.status ? `/app/docs/invoices?status=${params.status}` : "/app/docs/invoices"} className="absolute right-3 top-2.5 text-slate-400 hover:text-slate-600">
-                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </a>
-            )}
-          </div>
-        </form>
-
-        {/* Filters */}
-        <div className="mb-4">
-          <StatusFilterChips currentStatus={status} />
+          </form>
         </div>
 
-        {/* Table */}
-        <Suspense fallback={<div className="py-8 text-center text-slate-500">Loading invoices...</div>}>
-          <InvoiceTable status={status} search={params.search} page={page} />
+        {/* Status filter chips (list view only) */}
+        {view === "list" && (
+          <div className="mb-4">
+            <StatusFilterChips currentStatus={status} extraParams={{ ...extraParams, search: params.search }} />
+          </div>
+        )}
+
+        {/* Advanced filters */}
+        <AdvancedFilters current={{ dateFrom, dateTo, amountMin: params.amountMin, amountMax: params.amountMax, sequenceId }} extraParams={{ status: params.status, search: params.search, view }} />
+
+        {/* Content */}
+        <Suspense fallback={<div className="py-8 text-center text-slate-500">Loading...</div>}>
+          {view === "sequence" ? (
+            <InvoiceSequenceView search={params.search} />
+          ) : (
+            <InvoiceTable status={status} search={params.search} page={page} dateFrom={dateFrom} dateTo={dateTo} sequenceId={sequenceId} amountMin={amountMin} amountMax={amountMax} />
+          )}
         </Suspense>
       </div>
     </div>

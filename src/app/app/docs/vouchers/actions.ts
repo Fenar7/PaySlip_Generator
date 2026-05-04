@@ -501,17 +501,30 @@ export async function listVouchers(params?: {
   search?: string;
   page?: number;
   limit?: number;
+  dateFrom?: string;
+  dateTo?: string;
+  sequenceId?: string;
+  amountMin?: number;
+  amountMax?: number;
+  vendorId?: string;
 }) {
   const { orgId } = await requireOrgContext();
   const page = params?.page ?? 1;
   const limit = params?.limit ?? 20;
   const skip = (page - 1) * limit;
-  
-  const where = {
+
+  const dateFrom = params?.dateFrom ? new Date(`${params.dateFrom}T00:00:00`) : undefined;
+  const dateTo = params?.dateTo ? new Date(`${params.dateTo}T23:59:59`) : undefined;
+
+  const where: Record<string, unknown> = {
     organizationId: orgId,
     archivedAt: null,
     ...(params?.type && { type: params.type }),
     ...(params?.status && { status: params.status }),
+    ...(params?.sequenceId && { sequenceId: params.sequenceId }),
+    ...(params?.amountMin !== undefined && { totalAmount: { gte: params.amountMin } }),
+    ...(params?.amountMax !== undefined && { totalAmount: { lte: params.amountMax } }),
+    ...(params?.vendorId && { vendorId: params.vendorId }),
     ...(params?.search && {
       OR: [
         { voucherNumber: { contains: params.search, mode: "insensitive" as const } },
@@ -519,6 +532,14 @@ export async function listVouchers(params?: {
       ],
     }),
   };
+
+  if (dateFrom && dateTo) {
+    where.voucherDate = { gte: dateFrom, lte: dateTo };
+  } else if (dateFrom) {
+    where.voucherDate = { gte: dateFrom };
+  } else if (dateTo) {
+    where.voucherDate = { lte: dateTo };
+  }
   
   const [vouchers, total] = await Promise.all([
     db.voucher.findMany({
