@@ -190,6 +190,10 @@ function VoucherPanel({
       if (savedId) {
         const result = await updateVoucher(savedId, input);
         if (result.success) {
+          if (result.data.voucherNumber) {
+            setSavedNumber(result.data.voucherNumber);
+            setValue("voucherNumber", result.data.voucherNumber);
+          }
           toast.success("Voucher approved");
         } else {
           toast.error(result.error || "Failed to approve voucher");
@@ -210,7 +214,7 @@ function VoucherPanel({
     } finally {
       setIsSaving(false);
     }
-  }, [getValues, savedId, trigger]);
+  }, [getValues, savedId, setValue, trigger]);
 
   async function prepareDocument() {
     const isValid = await trigger();
@@ -547,7 +551,7 @@ function VoucherPanel({
                       <TextField<VoucherFormValues>
                         name="voucherNumber"
                         label="Voucher number"
-                        required
+                        placeholder="Assigned when approved"
                       />
                       <TextField<VoucherFormValues>
                         name="date"

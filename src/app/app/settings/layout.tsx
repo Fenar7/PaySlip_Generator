@@ -20,15 +20,17 @@ const navItems = [
   { label: "Enterprise", href: "/app/settings/enterprise" },
   { label: "Entity Groups", href: "/app/settings/entities" },
   { label: "Audit Log", href: "/app/settings/audit" },
+  { label: "Document Numbering", href: "/app/settings/sequences" },
+  { label: "Sequence History", href: "/app/settings/sequences/history" },
 ];
 
 export default function SettingsLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   return (
-    <div className="max-w-5xl mx-auto px-6 py-8">
-      <h1 className="text-2xl font-semibold text-[#1a1a1a] mb-8">Settings</h1>
-      <div className="flex gap-8">
-        <nav className="w-48 shrink-0">
+    <div className="mx-auto max-w-7xl px-6 py-8">
+      <h1 className="mb-8 text-2xl font-semibold text-[#1a1a1a]">Settings</h1>
+      <div className="grid gap-8 lg:grid-cols-[220px_minmax(0,1fr)] xl:grid-cols-[240px_minmax(0,1fr)]">
+        <nav className="shrink-0 lg:sticky lg:top-6 lg:self-start">
           <ul className="space-y-1">
             {navItems.map(item => (
               <li key={item.href}>
@@ -47,7 +49,7 @@ export default function SettingsLayout({ children }: { children: React.ReactNode
             ))}
           </ul>
         </nav>
-        <div className="flex-1 min-w-0">{children}</div>
+        <div className="min-w-0">{children}</div>
       </div>
     </div>
   );

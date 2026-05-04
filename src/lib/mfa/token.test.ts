@@ -21,12 +21,15 @@ describe("signMfaToken + verifyMfaToken", () => {
 
   it("rejects an expired token", async () => {
     const userId = "user-456";
-    // Create a token that is already expired by manipulating the system clock
     const token = signMfaToken(userId);
-    // Wait for expiration (but 5 minutes is too long for tests)
-    // Instead, we test tampered token which will also fail verification
-    const tampered = token.replace(/.$/, "x");
-    const result = await verifyMfaToken(tampered, process.env.TOTP_SESSION_SECRET!);
+
+    // Fast-forward past the 5-minute expiry
+    const originalDateNow = Date.now;
+    Date.now = () => originalDateNow() + 6 * 60 * 1000;
+
+    const result = await verifyMfaToken(token, process.env.TOTP_SESSION_SECRET!);
+    Date.now = originalDateNow;
+
     expect(result).toBeNull();
   });
 

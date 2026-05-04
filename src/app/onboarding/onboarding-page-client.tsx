@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -8,8 +8,17 @@ import {
   saveOnboardingBranding,
   saveOnboardingFinancials,
   saveOnboardingTemplates,
+  saveOnboardingSequences,
 } from "./actions";
-
+import type { SequenceCustomConfig, OnboardingSequenceState } from "./actions";
+import { SequenceBuilder, ContinuityBuilder } from "@/features/sequences/components/SequenceBuilder";
+import {
+  buildFormatString,
+  parseFormatString,
+  getDefaultBuilderConfig,
+  derivePeriodicityFromFormat,
+} from "@/features/sequences/builder";
+import type { SequenceBuilderConfig } from "@/features/sequences/builder";
 function slugify(str: string) {
   return str
     .toLowerCase()
@@ -17,15 +26,27 @@ function slugify(str: string) {
     .replace(/^-|-$/g, "");
 }
 
-export function OnboardingPageClient() {
+export function OnboardingPageClient({
+  orgId: initialOrgId,
+  orgName: initialOrgName,
+  sequenceState,
+}: {
+  orgId?: string;
+  orgName?: string;
+  sequenceState?: OnboardingSequenceState;
+} = {}) {
   const router = useRouter();
-  const [step, setStep] = useState(1);
-  const [orgId, setOrgId] = useState("");
+  const isResuming = !!initialOrgId;
+
+  // When resuming, we already have an org — skip to the numbering step.
+  const startingStep = isResuming ? 5 : 1;
+  const [step, setStep] = useState(startingStep);
+  const [orgId, setOrgId] = useState(initialOrgId ?? "");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
   // Step 1
-  const [orgName, setOrgName] = useState("");
+  const [orgName, setOrgName] = useState(initialOrgName ?? "");
   const [industry, setIndustry] = useState("Freelance");
 
   // Step 2
@@ -44,6 +65,66 @@ export function OnboardingPageClient() {
   const [invoiceTemplate, setInvoiceTemplate] = useState("minimal");
   const [slipTemplate, setSlipTemplate] = useState("modern-premium");
   const [voucherTemplate, setVoucherTemplate] = useState("minimal-office");
+
+  // Step 5 — Document Numbering
+  // Derive initial values from hydrated sequence state for re-entry.
+  const hasExistingConfig = !!(sequenceState?.invoice && sequenceState?.voucher);
+  const hasPartialConfig =
+    (sequenceState?.invoice && !sequenceState?.voucher) ||
+    (!sequenceState?.invoice && sequenceState?.voucher);
+
+  // When partial, detect whether the existing side is default or custom
+  const existingPartialSide = hasPartialConfig
+    ? (sequenceState?.invoice ? "INVOICE" : "VOUCHER")
+    : null;
+  const existingPartialConfig = existingPartialSide
+    ? sequenceState?.invoice ?? sequenceState?.voucher
+    : null;
+  const partialIsDefault =
+    existingPartialConfig?.formatString ===
+      (existingPartialSide === "INVOICE" ? "INV/{YYYY}/{NNNNN}" : "VCH/{YYYY}/{NNNNN}") &&
+    existingPartialConfig?.periodicity === "YEARLY";
+
+  const isDefaultConfig =
+    hasExistingConfig &&
+    sequenceState?.invoice?.formatString === "INV/{YYYY}/{NNNNN}" &&
+    sequenceState?.invoice?.periodicity === "YEARLY" &&
+    sequenceState?.voucher?.formatString === "VCH/{YYYY}/{NNNNN}" &&
+    sequenceState?.voucher?.periodicity === "YEARLY";
+
+  const [sequenceMode, setSequenceMode] = useState<"defaults" | "custom">(
+    (hasPartialConfig && !partialIsDefault) ? "custom"
+    : (hasExistingConfig && !isDefaultConfig) ? "custom"
+    : "defaults"
+  );
+
+  // Builder state for invoice
+  const [invBuilder, setInvBuilder] = useState<SequenceBuilderConfig>(() => {
+    if (sequenceState?.invoice?.formatString) {
+      const parsed = parseFormatString(sequenceState.invoice.formatString, "INV");
+      if (parsed) return parsed;
+    }
+    return getDefaultBuilderConfig("INVOICE");
+  });
+  const [invAdvanced, setInvAdvanced] = useState(false);
+  const [invRawFormat, setInvRawFormat] = useState(
+    sequenceState?.invoice?.formatString ?? "INV/{YYYY}/{NNNNN}"
+  );
+  const [invLatestUsed, setInvLatestUsed] = useState("");
+
+  // Builder state for voucher
+  const [vchBuilder, setVchBuilder] = useState<SequenceBuilderConfig>(() => {
+    if (sequenceState?.voucher?.formatString) {
+      const parsed = parseFormatString(sequenceState.voucher.formatString, "VCH");
+      if (parsed) return parsed;
+    }
+    return getDefaultBuilderConfig("VOUCHER");
+  });
+  const [vchAdvanced, setVchAdvanced] = useState(false);
+  const [vchRawFormat, setVchRawFormat] = useState(
+    sequenceState?.voucher?.formatString ?? "VCH/{YYYY}/{NNNNN}"
+  );
+  const [vchLatestUsed, setVchLatestUsed] = useState("");
 
   const slug = slugify(orgName);
 
@@ -134,6 +215,66 @@ export function OnboardingPageClient() {
     }
   }
 
+  async function handleStep5() {
+    setError("");
+    setLoading(true);
+    try {
+      if (orgId) {
+        if (sequenceMode === "custom") {
+          const customConfigs: SequenceCustomConfig[] = [
+            {
+              documentType: "INVOICE",
+              formatString: invAdvanced ? invRawFormat : buildFormatString(invBuilder),
+              periodicity: invAdvanced
+                ? derivePeriodicityFromFormat(invRawFormat)
+                : invBuilder.resetCycle,
+              latestUsedNumber: invLatestUsed.trim() || undefined,
+            },
+            {
+              documentType: "VOUCHER",
+              formatString: vchAdvanced ? vchRawFormat : buildFormatString(vchBuilder),
+              periodicity: vchAdvanced
+                ? derivePeriodicityFromFormat(vchRawFormat)
+                : vchBuilder.resetCycle,
+              latestUsedNumber: vchLatestUsed.trim() || undefined,
+            },
+          ];
+          await saveOnboardingSequences({ organizationId: orgId, customConfigs });
+        } else {
+          await saveOnboardingSequences({ organizationId: orgId });
+        }
+      }
+      setStep(6);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      setError(msg || "Could not save document numbering. Please try again.");
+      console.error("[saveOnboardingSequences error]", err);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  /**
+   * When the user already has both sequences configured and re-enters
+   * onboarding, confirm the step without recreating.
+   */
+  async function handleConfirmExisting() {
+    setError("");
+    setLoading(true);
+    try {
+      if (orgId) {
+        await saveOnboardingSequences({ organizationId: orgId });
+      }
+      setStep(6);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      setError(msg || "Could not confirm document numbering. Please try again.");
+      console.error("[handleConfirmExisting error]", err);
+    } finally {
+      setLoading(false);
+    }
+  }
+
   return (
     <div className="min-h-screen flex flex-col items-center justify-center px-4 py-12">
       <div className="mb-8 text-center">
@@ -145,16 +286,16 @@ export function OnboardingPageClient() {
         </span>
       </div>
 
-      {step < 5 && (
+      {step < 6 && (
         <div className="w-full max-w-[480px] mb-6">
           <div className="flex justify-between text-xs text-[#999] mb-2">
-            <span>Step {step} of 4</span>
-            <span>{["Org Setup", "Branding", "Financials", "Templates"][step - 1]}</span>
+            <span>Step {step} of 5</span>
+            <span>{["Org Setup", "Branding", "Financials", "Templates", "Numbering"][step - 1]}</span>
           </div>
           <div className="h-1 bg-[#e5e5e5] rounded-full">
             <div
               className="h-1 bg-[#dc2626] rounded-full transition-all duration-300"
-              style={{ width: `${step * 25}%` }}
+              style={{ width: `${step * 20}%` }}
             />
           </div>
         </div>
@@ -332,13 +473,199 @@ export function OnboardingPageClient() {
                 ← Back
               </Button>
               <Button className="flex-1" onClick={handleStep4} disabled={loading}>
-                {loading ? "Saving…" : "Finish setup →"}
+                {loading ? "Saving…" : "Continue →"}
               </Button>
             </div>
           </div>
         )}
 
         {step === 5 && (
+          <div className="space-y-4">
+            <h2 className="text-xl font-semibold text-[#1a1a1a]">Document Numbering</h2>
+            <p className="text-sm text-[#666]">
+              Choose how invoice and voucher numbers look. You can change these later
+              in settings.
+            </p>
+
+            {hasExistingConfig && !hasPartialConfig && (
+              <div className="rounded-lg bg-blue-50 border border-blue-200 p-4 space-y-2">
+                <p className="text-sm font-medium text-blue-700">
+                  Numbering already configured
+                </p>
+                <div className="grid grid-cols-2 gap-3 text-sm">
+                  <div className="bg-white rounded border border-blue-100 p-2">
+                    <p className="text-xs text-[#999]">Invoice</p>
+                    <p className="font-mono text-xs text-[#1a1a1a]">
+                      {sequenceState?.invoice?.formatString ?? "—"}
+                    </p>
+                    <p className="text-xs text-[#999]">{sequenceState?.invoice?.periodicity ?? "—"}</p>
+                  </div>
+                  <div className="bg-white rounded border border-blue-100 p-2">
+                    <p className="text-xs text-[#999]">Voucher</p>
+                    <p className="font-mono text-xs text-[#1a1a1a]">
+                      {sequenceState?.voucher?.formatString ?? "—"}
+                    </p>
+                    <p className="text-xs text-[#999]">{sequenceState?.voucher?.periodicity ?? "—"}</p>
+                  </div>
+                </div>
+                <p className="text-xs text-blue-600">
+                  Click Confirm and continue to complete this step. You can change these in Settings later.
+                </p>
+              </div>
+            )}
+
+            {hasPartialConfig && (
+              <div className="rounded-lg bg-amber-50 border border-amber-200 p-3 space-y-3">
+                <p className="text-sm text-amber-700">
+                  One document type is already configured, the other is missing. The
+                  existing configuration is shown below — complete the missing type to
+                  finish.
+                </p>
+                {existingPartialConfig && (
+                  <div className="bg-white rounded border border-amber-100 p-2 text-sm">
+                    <p className="text-xs text-[#999]">
+                      {existingPartialSide} (already configured)
+                    </p>
+                    <p className="font-mono text-xs text-[#1a1a1a]">
+                      {existingPartialConfig.formatString}
+                    </p>
+                    <p className="text-xs text-[#999]">{existingPartialConfig.periodicity}</p>
+                  </div>
+                )}
+                {!sequenceState?.invoice && (
+                  <OnboardingSequenceSection
+                    documentType="INVOICE"
+                    builderConfig={invBuilder}
+                    onBuilderChange={setInvBuilder}
+                    rawFormat={invRawFormat}
+                    onRawFormatChange={setInvRawFormat}
+                    advancedMode={invAdvanced}
+                    onAdvancedModeChange={setInvAdvanced}
+                    latestUsed={invLatestUsed}
+                    onLatestUsedChange={setInvLatestUsed}
+                  />
+                )}
+                {!sequenceState?.voucher && (
+                  <OnboardingSequenceSection
+                    documentType="VOUCHER"
+                    builderConfig={vchBuilder}
+                    onBuilderChange={setVchBuilder}
+                    rawFormat={vchRawFormat}
+                    onRawFormatChange={setVchRawFormat}
+                    advancedMode={vchAdvanced}
+                    onAdvancedModeChange={setVchAdvanced}
+                    latestUsed={vchLatestUsed}
+                    onLatestUsedChange={setVchLatestUsed}
+                  />
+                )}
+              </div>
+            )}
+
+            {!hasExistingConfig && !hasPartialConfig && (
+              <div className="space-y-3">
+                <label className="text-sm font-medium text-[#1a1a1a]">Numbering mode</label>
+                <div className="grid gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setSequenceMode("defaults")}
+                    className={`w-full rounded-md border px-4 py-3 text-left text-sm transition-colors ${
+                      sequenceMode === "defaults"
+                        ? "border-[#dc2626] bg-red-50 text-[#1a1a1a]"
+                        : "border-[#e5e5e5] bg-white text-[#666] hover:border-[#dc2626]"
+                    }`}
+                  >
+                    <span className="font-medium">Use recommended defaults</span>
+                    <span className="block text-xs text-[#999] mt-0.5">
+                      Invoice: INV/2026/00001 · Voucher: VCH/2026/00001
+                    </span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSequenceMode("custom")}
+                    className={`w-full rounded-md border px-4 py-3 text-left text-sm transition-colors ${
+                      sequenceMode === "custom"
+                        ? "border-[#dc2626] bg-red-50 text-[#1a1a1a]"
+                        : "border-[#e5e5e5] bg-white text-[#666] hover:border-[#dc2626]"
+                    }`}
+                  >
+                    <span className="font-medium">Customize numbering</span>
+                    <span className="block text-xs text-[#999] mt-0.5">
+                      Choose your own prefix, reset cycle, and number length
+                    </span>
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {sequenceMode === "defaults" && !hasExistingConfig && !hasPartialConfig && (
+              <div className="bg-[#f8f8f8] rounded-lg p-4 space-y-3">
+                <p className="text-sm font-medium text-[#1a1a1a]">Default sequences</p>
+                <div className="grid grid-cols-2 gap-3 text-sm">
+                  <div className="bg-white rounded border border-[#e5e5e5] p-3">
+                    <p className="text-[#666]">Invoice format</p>
+                    <p className="font-mono text-[#1a1a1a]">INV/&#123;YYYY&#125;/&#123;NNNNN&#125;</p>
+                    <p className="text-xs text-[#999] mt-0.5">Resets yearly, starts at 1</p>
+                  </div>
+                  <div className="bg-white rounded border border-[#e5e5e5] p-3">
+                    <p className="text-[#666]">Voucher format</p>
+                    <p className="font-mono text-[#1a1a1a]">VCH/&#123;YYYY&#125;/&#123;NNNNN&#125;</p>
+                    <p className="text-xs text-[#999] mt-0.5">Resets yearly, starts at 1</p>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {sequenceMode === "custom" && !hasExistingConfig && !hasPartialConfig && (
+              <div className="space-y-4">
+                <OnboardingSequenceSection
+                  documentType="INVOICE"
+                  builderConfig={invBuilder}
+                  onBuilderChange={setInvBuilder}
+                  rawFormat={invRawFormat}
+                  onRawFormatChange={setInvRawFormat}
+                  advancedMode={invAdvanced}
+                  onAdvancedModeChange={setInvAdvanced}
+                  latestUsed={invLatestUsed}
+                  onLatestUsedChange={setInvLatestUsed}
+                />
+                <div className="border-t border-[#e5e5e5]" />
+                <OnboardingSequenceSection
+                  documentType="VOUCHER"
+                  builderConfig={vchBuilder}
+                  onBuilderChange={setVchBuilder}
+                  rawFormat={vchRawFormat}
+                  onRawFormatChange={setVchRawFormat}
+                  advancedMode={vchAdvanced}
+                  onAdvancedModeChange={setVchAdvanced}
+                  latestUsed={vchLatestUsed}
+                  onLatestUsedChange={setVchLatestUsed}
+                />
+              </div>
+            )}
+
+            {error && (
+              <div className="rounded-lg bg-red-50 border border-red-200 px-3 py-2 text-sm text-red-700">
+                {error}
+              </div>
+            )}
+            <div className="flex gap-3">
+              {!isResuming && (
+                <Button variant="secondary" className="flex-1" onClick={() => setStep(4)}>
+                  ← Back
+                </Button>
+              )}
+              <Button
+                className="flex-1"
+                onClick={hasExistingConfig ? handleConfirmExisting : handleStep5}
+                disabled={loading}
+              >
+                {loading ? "Saving…" : hasExistingConfig ? "Confirm & continue →" : "Finish setup →"}
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {step === 6 && (
           <div className="text-center space-y-4">
             <div className="text-5xl">🎉</div>
             <h2 className="text-xl font-semibold text-[#1a1a1a]">You&apos;re all set!</h2>
@@ -350,6 +677,7 @@ export function OnboardingPageClient() {
               <li>✅ Brand identity configured</li>
               <li>✅ Financial details saved</li>
               <li>✅ Default templates selected</li>
+              <li>✅ Document numbering configured</li>
             </ul>
             <Button className="w-full" onClick={() => router.push("/app/home")}>
               Go to dashboard →
@@ -390,6 +718,61 @@ function TemplateRadio({
             <span className="font-medium capitalize">{opt.replace(/-/g, " ")}</span>
           </button>
         ))}
+      </div>
+    </div>
+  );
+}
+
+function OnboardingSequenceSection({
+  documentType,
+  builderConfig,
+  onBuilderChange,
+  rawFormat,
+  onRawFormatChange,
+  advancedMode,
+  onAdvancedModeChange,
+  latestUsed,
+  onLatestUsedChange,
+}: {
+  documentType: "INVOICE" | "VOUCHER";
+  builderConfig: SequenceBuilderConfig;
+  onBuilderChange: (c: SequenceBuilderConfig) => void;
+  rawFormat: string;
+  onRawFormatChange: (v: string) => void;
+  advancedMode: boolean;
+  onAdvancedModeChange: (v: boolean) => void;
+  latestUsed: string;
+  onLatestUsedChange: (v: string) => void;
+}) {
+  const formatString = useMemo(
+    () => (advancedMode ? rawFormat : buildFormatString(builderConfig)),
+    [advancedMode, rawFormat, builderConfig]
+  );
+
+  const docLabel = documentType === "INVOICE" ? "Invoice" : "Voucher";
+
+  return (
+    <div className="space-y-4">
+      <h3 className="text-sm font-semibold text-[#1a1a1a]">{docLabel} Numbering</h3>
+
+      <SequenceBuilder
+        documentType={documentType}
+        config={builderConfig}
+        onChange={onBuilderChange}
+        rawFormat={rawFormat}
+        onRawFormatChange={onRawFormatChange}
+        advancedMode={advancedMode}
+        onAdvancedModeChange={onAdvancedModeChange}
+      />
+
+      <div className="border-t border-[#e5e5e5] pt-4">
+        <ContinuityBuilder
+          documentType={documentType}
+          formatString={formatString}
+          lastUsedNumber={latestUsed}
+          onLastUsedNumberChange={onLatestUsedChange}
+          showAction={false}
+        />
       </div>
     </div>
   );

@@ -133,7 +133,7 @@ export function normalizeInvoice(values: InvoiceFormValues): InvoiceDocument {
     clientTaxId: visibility.showClientTaxId
       ? values.clientTaxId.trim() || undefined
       : undefined,
-    invoiceNumber: values.invoiceNumber.trim(),
+    invoiceNumber: values.invoiceNumber?.trim() || "Draft",
     invoiceDate: formatDate(values.invoiceDate) || values.invoiceDate,
     dueDate: visibility.showDueDate ? formatDate(values.dueDate) : undefined,
     placeOfSupply: visibility.showPlaceOfSupply

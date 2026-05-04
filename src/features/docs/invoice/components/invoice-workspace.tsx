@@ -561,8 +561,7 @@ function InvoicePanel({ customers = [], inventoryItems = [] }: InvoicePanelProps
                 <TextField<InvoiceFormValues>
                   name="invoiceNumber"
                   label="Invoice number"
-                  required
-                  placeholder="INV-2026-031"
+                  placeholder="Assigned when issued"
                 />
                 <div className="grid gap-4 sm:grid-cols-2">
                   <TextField<InvoiceFormValues>
@@ -862,6 +861,13 @@ export function InvoiceWorkspace({
       try {
         const result = await issueInvoice(targetId);
         if (result.success) {
+          const issuedNumber = result.data.invoiceNumber;
+          methods.setValue("invoiceNumber", issuedNumber, {
+            shouldDirty: false,
+            shouldTouch: false,
+            shouldValidate: true,
+          });
+          setSavedInvoiceNumber(issuedNumber);
           toast.success("Invoice issued successfully");
         } else {
           toast.error(result.error || "Failed to issue invoice");
@@ -892,15 +898,20 @@ export function InvoiceWorkspace({
 function convertInvoiceToFormValues(invoice: ExistingInvoice): InvoiceFormValues {
   const formData = invoice.formData as Record<string, unknown> | null;
   
-  // If formData contains full form values, use them
   if (formData && typeof formData === "object" && "templateId" in formData) {
-    return formData as InvoiceFormValues;
+    // Override invoiceNumber from the DB row — the DB row is
+    // authoritative after issue (Sprint 4.2).  formData may still
+    // carry the stale draft placeholder from Sprint 4.1.
+    return {
+      ...(formData as InvoiceFormValues),
+      invoiceNumber: invoice.invoiceNumber ?? "",
+    };
   }
   
   // Otherwise, construct from database fields with defaults
   return {
     ...invoiceDefaultValues,
-    invoiceNumber: invoice.invoiceNumber,
+    invoiceNumber: invoice.invoiceNumber ?? "",
     invoiceDate: invoice.invoiceDate,
     dueDate: invoice.dueDate || "",
     notes: invoice.notes || "",

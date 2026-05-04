@@ -12,51 +12,110 @@ interface AuditParams {
   entityType?: string;
   entityId?: string;
   metadata?: Record<string, unknown>;
+  /** Optional: when calling from inside a transaction, read headers before tx and pass them in. */
+  ipAddress?: string | null;
+  userAgent?: string | null;
 }
 
 export async function logAudit(params: AuditParams): Promise<void> {
   try {
-    const hdrs = await headers();
-    const ipAddress =
-      hdrs.get("x-forwarded-for") || hdrs.get("x-real-ip") || null;
-    const userAgent = hdrs.get("user-agent") || null;
-    const activeProxy =
-      params.representedId || params.proxyGrantId
-        ? null
-        : await db.proxyGrant.findFirst({
-            where: {
-              orgId: params.orgId,
-              actorId: params.actorId,
-              status: "ACTIVE",
-              expiresAt: { gt: new Date() },
-            },
-            orderBy: { createdAt: "desc" },
-            select: {
-              id: true,
-              representedId: true,
-            },
-          });
-
-    await db.auditLog.create({
-      data: {
-        orgId: params.orgId,
-        actorId: params.actorId,
-        representedId:
-          params.representedId ?? activeProxy?.representedId ?? null,
-        proxyGrantId: params.proxyGrantId ?? activeProxy?.id ?? null,
-        action: params.action,
-        entityType: params.entityType ?? null,
-        entityId: params.entityId ?? null,
-        metadata:
-          (params.metadata as Prisma.InputJsonValue) ?? Prisma.DbNull,
-        ipAddress,
-        userAgent,
-      },
-    });
+    await logAuditUnsafe(params);
   } catch (error) {
     // Fire-and-forget: never block the user action
     console.error("[AUDIT] Failed to log:", error);
   }
+}
+
+/**
+ * Strict audit logging that throws on failure.
+ * Use for high-risk mutations (sequence changes, resequencing) where
+ * audit persistence is a hard requirement.
+ */
+export async function logAuditStrict(params: AuditParams): Promise<void> {
+  await logAuditUnsafe(params);
+}
+
+async function logAuditUnsafe(params: AuditParams): Promise<void> {
+  const hdrs = await headers();
+  const ipAddress = params.ipAddress ?? (hdrs.get("x-forwarded-for") || hdrs.get("x-real-ip") || null);
+  const userAgent = params.userAgent ?? (hdrs.get("user-agent") || null);
+  const activeProxy =
+    params.representedId || params.proxyGrantId
+      ? null
+      : await db.proxyGrant.findFirst({
+          where: {
+            orgId: params.orgId,
+            actorId: params.actorId,
+            status: "ACTIVE",
+            expiresAt: { gt: new Date() },
+          },
+          orderBy: { createdAt: "desc" },
+          select: {
+            id: true,
+            representedId: true,
+          },
+        });
+
+  await db.auditLog.create({
+    data: {
+      orgId: params.orgId,
+      actorId: params.actorId,
+      representedId:
+        params.representedId ?? activeProxy?.representedId ?? null,
+      proxyGrantId: params.proxyGrantId ?? activeProxy?.id ?? null,
+      action: params.action,
+      entityType: params.entityType ?? null,
+      entityId: params.entityId ?? null,
+      metadata:
+        (params.metadata as Prisma.InputJsonValue) ?? Prisma.DbNull,
+      ipAddress,
+      userAgent,
+    },
+  });
+}
+
+/**
+ * Transactional strict audit logging.
+ * Use inside db.$transaction() so the audit row commits atomically with the mutation.
+ * Read request headers BEFORE entering the transaction and pass them via ipAddress/userAgent.
+ */
+export async function logAuditTx(
+  tx: Prisma.TransactionClient,
+  params: AuditParams
+): Promise<void> {
+  const activeProxy =
+    params.representedId || params.proxyGrantId
+      ? null
+      : await tx.proxyGrant.findFirst({
+          where: {
+            orgId: params.orgId,
+            actorId: params.actorId,
+            status: "ACTIVE",
+            expiresAt: { gt: new Date() },
+          },
+          orderBy: { createdAt: "desc" },
+          select: {
+            id: true,
+            representedId: true,
+          },
+        });
+
+  await tx.auditLog.create({
+    data: {
+      orgId: params.orgId,
+      actorId: params.actorId,
+      representedId:
+        params.representedId ?? activeProxy?.representedId ?? null,
+      proxyGrantId: params.proxyGrantId ?? activeProxy?.id ?? null,
+      action: params.action,
+      entityType: params.entityType ?? null,
+      entityId: params.entityId ?? null,
+      metadata:
+        (params.metadata as Prisma.InputJsonValue) ?? Prisma.DbNull,
+      ipAddress: params.ipAddress ?? null,
+      userAgent: params.userAgent ?? null,
+    },
+  });
 }
 
 export const AUDIT_ACTION_LABELS: Record<string, string> = {
@@ -130,6 +189,15 @@ export const AUDIT_ACTION_LABELS: Record<string, string> = {
   "totp.enabled": "Enabled authenticator app 2FA",
   "totp.disabled": "Disabled authenticator app 2FA",
   "recovery_code.used": "Used a recovery code",
+  "sequence.created": "Created document sequence",
+  "sequence.edited": "Edited document sequence",
+  "sequence.periodicity_changed": "Changed sequence periodicity",
+  "sequence.future_activated": "Activated future sequence format",
+  "sequence.continuity_seeded": "Seeded sequence continuity",
+  "sequence.resequence_previewed": "Previewed resequence batch",
+  "sequence.resequence_confirmed": "Confirmed resequence batch",
+  "sequence.locked_attempt_blocked": "Blocked sequence change on locked period",
+  "sequence.diagnostics_ran": "Ran sequence diagnostics",
 };
 export function getAuditCategory(action: string): string {
   if (
@@ -149,6 +217,7 @@ export function getAuditCategory(action: string): string {
   if (action.startsWith("gst.")) return "Compliance";
   if (action.startsWith("audit.")) return "System";
   if (action.startsWith("org.")) return "Settings";
+  if (action.startsWith("sequence.")) return "Sequences";
   if (action.startsWith("marketplace.")) return "Marketplace";
   if (
     action.startsWith("cron.") ||

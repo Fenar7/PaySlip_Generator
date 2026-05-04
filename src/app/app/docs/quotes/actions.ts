@@ -12,7 +12,7 @@ import {
 } from "@/lib/quotes";
 import { revalidatePath } from "next/cache";
 import { emitQuoteEvent } from "@/lib/document-events";
-import { syncQuoteToIndex } from "@/lib/docs-vault";
+import { syncQuoteToIndex, removeDocumentFromIndex } from "@/lib/docs-vault";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -242,6 +242,8 @@ export async function deleteQuote(quoteId: string): Promise<ActionResult<void>> 
     }
 
     await db.quote.delete({ where: { id: quoteId } });
+
+    await removeDocumentFromIndex(orgId, "quote", quoteId);
 
     revalidatePath("/app/docs/quotes");
     return { success: true, data: undefined };

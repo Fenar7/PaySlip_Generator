@@ -50,7 +50,14 @@ describe("Voucher workspace", () => {
   it("shows an error state when export validation fails", async () => {
     render(<VoucherPage />);
 
-    fireEvent.change(screen.getByLabelText(/voucher number/i), {
+    // Switch to Document view so inline edit fields are visible in jsdom
+    // (preview is hidden by default on non-desktop viewports).
+    const documentViewButtons = screen.getAllByRole("button", { name: /document/i });
+    fireEvent.click(documentViewButtons[documentViewButtons.length - 1]);
+
+    // Counterparty field has placeholder "Name" and is the first such input
+    // in the default payment voucher layout.
+    fireEvent.change(screen.getAllByPlaceholderText("Name")[0], {
       target: { value: "" },
     });
 

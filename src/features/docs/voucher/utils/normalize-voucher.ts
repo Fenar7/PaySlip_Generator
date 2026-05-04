@@ -38,7 +38,7 @@ export function normalizeVoucher(values: VoucherFormValues): VoucherDocument {
     title: isPayment ? "Payment Voucher" : "Receipt Voucher",
     counterpartyLabel: isPayment ? "Paid to" : "Received from",
     branding: values.branding,
-    voucherNumber: values.voucherNumber.trim(),
+    voucherNumber: values.voucherNumber?.trim() || "Draft",
     date: formatDate(values.date),
     counterpartyName: values.counterpartyName.trim(),
     amount,

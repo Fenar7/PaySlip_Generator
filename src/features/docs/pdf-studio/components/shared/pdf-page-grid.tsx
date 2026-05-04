@@ -17,6 +17,7 @@ interface PdfPageThumbnailProps {
   item: PageGridItem;
   index: number;
   mode: "select" | "reorder" | "delete" | "preview";
+  disabled?: boolean;
   isSelected?: boolean;
   isMarkedForDeletion?: boolean;
   onToggleSelect?: (id: string) => void;
@@ -29,6 +30,7 @@ function PdfPageThumbnail({
   item,
   index,
   mode,
+  disabled = false,
   isSelected = false,
   isMarkedForDeletion = false,
   onToggleSelect,
@@ -42,10 +44,13 @@ function PdfPageThumbnail({
 
   const style = {
     transform: CSS.Transform.toString(sortable.transform),
+    // dnd-kit manages sort animations; never CSS-transition the transform to
+    // avoid the jump/glitch on drag release.
     transition: sortable.transition,
   };
 
   const handleClick = () => {
+    if (disabled) return;
     if (mode === "select") onToggleSelect?.(item.id);
     if (mode === "delete") onToggleSelect?.(item.id);
   };
@@ -62,8 +67,15 @@ function PdfPageThumbnail({
     <div
       ref={sortable.setNodeRef}
       style={style}
+      // sortable.listeners activates drag from anywhere on the card.
+      // The footer div stops propagation so drag only fires from the preview area.
+      {...(mode === "reorder" ? sortable.attributes : {})}
+      {...(mode === "reorder" ? sortable.listeners : {})}
       className={cn(
-        "group relative flex flex-col rounded-xl border bg-white shadow-sm transition-all",
+        "group relative flex flex-col rounded-xl border bg-white shadow-sm",
+        // Only transition shadow/border — never transition transform, which
+        // would fight dnd-kit and produce a jump/glitch on drag release.
+        "transition-[box-shadow,border-color]",
         sortable.isDragging
           ? "z-50 shadow-lg ring-2 ring-[var(--accent)] ring-offset-2"
           : isMarkedForDeletion
@@ -71,22 +83,32 @@ function PdfPageThumbnail({
             : isSelected
               ? "border-[var(--accent)] ring-2 ring-[rgba(220,38,38,0.15)]"
               : "border-[var(--border-soft)] hover:shadow-md",
-        (mode === "select" || mode === "delete") && "cursor-pointer"
+        mode === "reorder" && "hover:ring-2 hover:ring-[var(--accent)] hover:ring-offset-1",
+        (mode === "select" || mode === "delete") && !disabled && "cursor-pointer",
+        disabled && "cursor-not-allowed opacity-70"
       )}
       onClick={handleClick}
+      aria-disabled={disabled || undefined}
     >
-      <div className="relative overflow-hidden rounded-t-[0.65rem] bg-[var(--surface-soft)]">
+      {/* Preview area: drag zone in reorder mode with centered drag icon on hover. */}
+      <div
+        title={mode === "reorder" ? "Drag to reorder" : undefined}
+        className={cn(
+          "relative overflow-hidden rounded-t-[0.65rem] bg-[var(--surface-soft)]",
+          mode === "reorder" && "cursor-grab select-none active:cursor-grabbing",
+        )}
+      >
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           src={item.previewUrl}
           alt={`Page ${index + 1}`}
-        className={cn(
-          "aspect-[3/4] w-full object-contain",
-          isMarkedForDeletion && "opacity-30",
-        )}
-        style={previewStyle}
-        draggable={false}
-      />
+          className={cn(
+            "aspect-[3/4] w-full object-contain",
+            isMarkedForDeletion && "opacity-30",
+          )}
+          style={previewStyle}
+          draggable={false}
+        />
         {isMarkedForDeletion && (
           <div className="absolute inset-0 flex items-center justify-center bg-red-500/10">
             <span className="text-2xl">🗑️</span>
@@ -109,9 +131,45 @@ function PdfPageThumbnail({
             </svg>
           </div>
         )}
+        {/* Rotation angle badge — shows cumulative user-applied rotation for this page */}
+        {item.rotation != null && item.rotation !== 0 && !isMarkedForDeletion && (
+          <div
+            data-testid="rotation-badge"
+            className="absolute bottom-1.5 left-1.5 rounded bg-[var(--accent)] px-1 py-0.5 text-[0.55rem] font-semibold leading-none text-white shadow-sm"
+          >
+            {item.rotation}°
+          </div>
+        )}
+        {/* Drag affordance badge — fades in on hover, hidden while actively dragging */}
+        {mode === "reorder" && !sortable.isDragging && (
+          <div className="pointer-events-none absolute inset-0 flex items-center justify-center opacity-0 transition-opacity duration-150 group-hover:opacity-100">
+            <div className="flex items-center justify-center rounded-full bg-black/30 p-2 backdrop-blur-[2px]">
+              <svg
+                className="h-5 w-5 text-white"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="M5 9l-3 3 3 3" />
+                <path d="M9 5l3-3 3 3" />
+                <path d="M15 19l-3 3-3-3" />
+                <path d="M19 9l3 3-3 3" />
+                <line x1="2" y1="12" x2="22" y2="12" />
+                <line x1="12" y1="2" x2="12" y2="22" />
+              </svg>
+            </div>
+          </div>
+        )}
       </div>
 
-      <div className="space-y-1 px-2 py-1.5">
+      {/* Footer stops pointer propagation so pressing labels/buttons never starts a drag. */}
+      <div
+        className="space-y-1 px-2 py-1.5"
+        onPointerDown={mode === "reorder" ? (e) => e.stopPropagation() : undefined}
+      >
         <div className="flex items-center justify-between gap-2">
           <span className="text-[0.65rem] font-medium text-[var(--muted-foreground)]">
             Output {index + 1}
@@ -177,11 +235,10 @@ function PdfPageThumbnail({
                   </svg>
                 </button>
               )}
+              {/* Visual drag affordance in footer — drag activates from the preview area above. */}
               <div
-                {...sortable.attributes}
-                {...sortable.listeners}
-                className="flex h-6 w-6 cursor-grab items-center justify-center rounded-md text-[var(--muted-foreground)] transition-colors hover:bg-[var(--surface-soft)] hover:text-[var(--foreground)] active:cursor-grabbing"
-                title="Drag to reorder"
+                aria-hidden="true"
+                className="flex h-6 w-6 items-center justify-center rounded-md text-[var(--muted-foreground)]"
               >
                 <svg
                   className="h-3 w-3"
@@ -226,6 +283,7 @@ import {
 interface PdfPageGridProps {
   pages: PageGridItem[];
   mode: "select" | "reorder" | "delete" | "preview";
+  disabled?: boolean;
   selectedIds?: Set<string>;
   deletedIds?: Set<string>;
   onToggleSelect?: (id: string) => void;
@@ -237,6 +295,7 @@ interface PdfPageGridProps {
 export function PdfPageGrid({
   pages,
   mode,
+  disabled = false,
   selectedIds = new Set(),
   deletedIds = new Set(),
   onToggleSelect,
@@ -293,6 +352,7 @@ export function PdfPageGrid({
               item={page}
               index={idx}
               mode={mode}
+              disabled={disabled}
               isSelected={selectedIds.has(page.id)}
               isMarkedForDeletion={deletedIds.has(page.id)}
               onToggleSelect={onToggleSelect}

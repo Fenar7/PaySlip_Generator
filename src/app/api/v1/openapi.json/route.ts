@@ -34,7 +34,7 @@ const OPENAPI_SPEC = {
       Invoice: {
         type: "object",
         properties: {
-          id: { type: "string" }, invoiceNumber: { type: "string" }, invoiceDate: { type: "string" },
+          id: { type: "string" }, invoiceNumber: { type: "string", nullable: true }, invoiceDate: { type: "string" },
           dueDate: { type: "string", nullable: true }, status: { type: "string", enum: ["DRAFT", "ISSUED", "VIEWED", "DUE", "PARTIALLY_PAID", "PAID", "OVERDUE", "DISPUTED", "CANCELLED", "REISSUED"] },
           totalAmount: { type: "number" }, customerId: { type: "string", nullable: true }, notes: { type: "string", nullable: true },
           createdAt: { type: "string", format: "date-time" }, updatedAt: { type: "string", format: "date-time" },
@@ -59,7 +59,7 @@ const OPENAPI_SPEC = {
       Voucher: {
         type: "object",
         properties: {
-          id: { type: "string" }, voucherNumber: { type: "string" }, voucherDate: { type: "string" },
+          id: { type: "string" }, voucherNumber: { type: "string", nullable: true }, voucherDate: { type: "string" },
           type: { type: "string" }, status: { type: "string" }, totalAmount: { type: "number" },
           vendorId: { type: "string", nullable: true },
         },
@@ -110,7 +110,7 @@ const OPENAPI_SPEC = {
       post: {
         summary: "Create invoice",
         tags: ["Invoices"],
-        requestBody: { required: true, content: { "application/json": { schema: { type: "object", required: ["invoiceNumber", "invoiceDate"], properties: { invoiceNumber: { type: "string" }, invoiceDate: { type: "string" }, dueDate: { type: "string" }, customerId: { type: "string" }, notes: { type: "string" }, lineItems: { type: "array", items: { $ref: "#/components/schemas/InvoiceLineItem" } } } } } } },
+        requestBody: { required: true, content: { "application/json": { schema: { type: "object", required: ["invoiceDate"], properties: { invoiceNumber: { type: "string", nullable: true }, invoiceDate: { type: "string" }, dueDate: { type: "string" }, customerId: { type: "string" }, notes: { type: "string" }, lineItems: { type: "array", items: { $ref: "#/components/schemas/InvoiceLineItem" } } } } } } },
         responses: { "201": { description: "Invoice created" } },
       },
     },

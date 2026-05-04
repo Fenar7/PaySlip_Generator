@@ -30,7 +30,7 @@ export const voucherDefaultValues: VoucherFormValues = {
     phone: "+91 98765 43210",
     accentColor: "#c69854",
   },
-  voucherNumber: "PV-2026-014",
+  voucherNumber: "", // assigned when approved — drafts have no official number (Phase 5)
   date: "2026-03-25",
   counterpartyName: "Rahul Menon",
   amount: "1850",

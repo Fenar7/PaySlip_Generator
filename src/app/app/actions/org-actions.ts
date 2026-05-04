@@ -2,6 +2,7 @@
 
 import { db } from "@/lib/db";
 import { createSupabaseServer } from "@/lib/supabase/server";
+import { completeOnboardingStep } from "@/lib/onboarding-tracker";
 
 export interface OrgWithRole {
   id: string;
@@ -69,5 +70,8 @@ export async function createOrg({
       role: "owner",
     },
   });
+  // Record the org setup milestone in the onboarding tracker.
+  // Non-strict — org creation succeeds regardless of tracker write.
+  await completeOnboardingStep(user.id, "orgSetup");
   return org;
 }

@@ -120,4 +120,115 @@ describe("pdf page operations", () => {
 
     expect(exportedDocument.getPages()[0].getRotation().angle).toBe(180);
   });
+
+  it("repeated right rotations compose correctly through a full 360°", () => {
+    const sourceDocument = buildPdfSourceDocument({
+      bytes: new Uint8Array(),
+      name: "test.pdf",
+      pages: [{ pageIndex: 0, previewBytes: 1, previewUrl: "", widthPt: 400, heightPt: 600, sourcePdfName: "test.pdf" }],
+      sourceIndex: 0,
+    });
+    const [page] = buildPdfPageDescriptors([sourceDocument]);
+    const ids = new Set([page.id]);
+
+    const after90 = rotatePdfPageDescriptors([page], ids, 90);
+    expect(after90[0].rotation).toBe(90);
+
+    const after180 = rotatePdfPageDescriptors(after90, ids, 90);
+    expect(after180[0].rotation).toBe(180);
+
+    const after270 = rotatePdfPageDescriptors(after180, ids, 90);
+    expect(after270[0].rotation).toBe(270);
+
+    const after360 = rotatePdfPageDescriptors(after270, ids, 90);
+    expect(after360[0].rotation).toBe(0);
+  });
+
+  it("left rotation delta composes correctly", () => {
+    const sourceDocument = buildPdfSourceDocument({
+      bytes: new Uint8Array(),
+      name: "test.pdf",
+      pages: [{ pageIndex: 0, previewBytes: 1, previewUrl: "", widthPt: 400, heightPt: 600, sourcePdfName: "test.pdf" }],
+      sourceIndex: 0,
+    });
+    const [page] = buildPdfPageDescriptors([sourceDocument]);
+    const ids = new Set([page.id]);
+
+    const after = rotatePdfPageDescriptors([page], ids, -90);
+    expect(after[0].rotation).toBe(270);
+
+    const after2 = rotatePdfPageDescriptors(after, ids, -90);
+    expect(after2[0].rotation).toBe(180);
+  });
+
+  it("only selected pages are rotated; unselected pages are unchanged", () => {
+    const sourceDocument = buildPdfSourceDocument({
+      bytes: new Uint8Array(),
+      name: "test.pdf",
+      pages: Array.from({ length: 3 }, (_, pageIndex) => ({
+        pageIndex,
+        previewBytes: 1,
+        previewUrl: "",
+        widthPt: 400,
+        heightPt: 600,
+        sourcePdfName: "test.pdf",
+      })),
+      sourceIndex: 0,
+    });
+    const pages = buildPdfPageDescriptors([sourceDocument]);
+    const selectedIds = new Set([pages[0].id, pages[2].id]);
+
+    const rotated = rotatePdfPageDescriptors(pages, selectedIds, 90);
+
+    expect(rotated[0].rotation).toBe(90);
+    expect(rotated[1].rotation).toBe(0);
+    expect(rotated[2].rotation).toBe(90);
+  });
+
+  it("all-pages rotation (whole-document) rotates every page", () => {
+    const sourceDocument = buildPdfSourceDocument({
+      bytes: new Uint8Array(),
+      name: "test.pdf",
+      pages: Array.from({ length: 3 }, (_, pageIndex) => ({
+        pageIndex,
+        previewBytes: 1,
+        previewUrl: "",
+        widthPt: 400,
+        heightPt: 600,
+        sourcePdfName: "test.pdf",
+      })),
+      sourceIndex: 0,
+    });
+    const pages = buildPdfPageDescriptors([sourceDocument]);
+    const allIds = new Set(pages.map((p) => p.id));
+
+    const rotated = rotatePdfPageDescriptors(pages, allIds, 90);
+
+    expect(rotated.every((p) => p.rotation === 90)).toBe(true);
+  });
+
+  it("export preserves zero rotation on unselected pages when only some pages are rotated", async () => {
+    const sourceDocument = buildPdfSourceDocument({
+      bytes: await createPdfBytes(2),
+      name: "partial.pdf",
+      pages: Array.from({ length: 2 }, (_, pageIndex) => ({
+        pageIndex,
+        previewBytes: 1,
+        previewUrl: "",
+        widthPt: 400,
+        heightPt: 600,
+        sourcePdfName: "partial.pdf",
+      })),
+      sourceIndex: 0,
+    });
+
+    const pages = buildPdfPageDescriptors([sourceDocument]);
+    const rotated = rotatePdfPageDescriptors(pages, new Set([pages[0].id]), 90);
+
+    const exportedBytes = await exportPdfFromPageDescriptors(rotated, [sourceDocument]);
+    const exportedDocument = await PDFDocument.load(exportedBytes);
+
+    expect(exportedDocument.getPages()[0].getRotation().angle).toBe(90);
+    expect(exportedDocument.getPages()[1].getRotation().angle).toBe(0);
+  });
 });

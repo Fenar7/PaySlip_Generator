@@ -1,0 +1,277 @@
+"use server";
+
+import {
+  getSequenceConfig,
+  updateSequenceSettingsAtomic,
+  seedSequenceContinuity,
+  getSequenceAuditHistory,
+  previewResequencePreview,
+  applyResequencePreview,
+  diagnoseSequence,
+  getSequenceSupportOverview,
+  runHealthCheck,
+} from "@/features/sequences/services/sequence-admin";
+import {
+  configureInitialSequences,
+} from "@/app/onboarding/actions";
+import { getOrgContext } from "@/lib/auth/require-org";
+import { getDefaultSequenceConfig } from "@/features/sequences/default-config";
+import type { SequenceSupportOverview } from "@/features/sequences/services/sequence-admin";
+import { previewSequenceNumber } from "@/features/sequences/services/sequence-engine";
+import {
+  getSequenceSnapshots,
+  getSnapshot,
+  getCurrentSequenceState,
+  listAllOrgSnapshots,
+  backfillSnapshotIfNeeded,
+} from "@/features/sequences/services/sequence-history";
+import type { SequenceSnapshotEntry, OrgSnapshotGroup } from "@/features/sequences/services/sequence-history";
+import type {
+  SequenceDocumentType,
+  SequencePeriodicity,
+  ResequencePreviewInput,
+  ResequencePreviewResult,
+  ResequenceApplyInput,
+  ResequenceApplyResult,
+  SequenceDiagnosticsInput,
+  SequenceDiagnosticsResult,
+  HealthCheckReport,
+} from "@/features/sequences/types";
+import { ResequencePreviewInputSchema, ResequenceApplyInputSchema, SequenceDiagnosticsInputSchema } from "@/features/sequences/schema";
+
+export interface SequenceSettingsData {
+  sequenceId: string;
+  documentType: SequenceDocumentType;
+  name: string;
+  periodicity: SequencePeriodicity;
+  isActive: boolean;
+  formatString: string | null;
+  startCounter: number | null;
+  counterPadding: number | null;
+  currentCounter: number | null;
+  nextPreview: string | null;
+}
+
+export async function getSequenceSettings(
+  orgId: string
+): Promise<{ invoice: SequenceSettingsData | null; voucher: SequenceSettingsData | null; canEdit: boolean }> {
+  const context = await getOrgContext();
+  const canEdit = context?.orgId === orgId && context.role === "owner";
+
+  const [invoice, voucher] = await Promise.all([
+    getSequenceConfig({ orgId, documentType: "INVOICE" }),
+    getSequenceConfig({ orgId, documentType: "VOUCHER" }),
+  ]);
+
+  const now = new Date();
+
+  const invoicePreview = invoice?.sequenceId
+    ? await previewSequenceNumber({
+        sequenceId: invoice.sequenceId,
+        documentDate: now,
+        orgId,
+      }).catch(() => null)
+    : null;
+
+  const voucherPreview = voucher?.sequenceId
+    ? await previewSequenceNumber({
+        sequenceId: voucher.sequenceId,
+        documentDate: now,
+        orgId,
+      }).catch(() => null)
+    : null;
+
+  return {
+    invoice: invoice
+      ? {
+          sequenceId: invoice.sequenceId,
+          documentType: "INVOICE",
+          name: invoice.name,
+          periodicity: invoice.periodicity,
+          isActive: invoice.isActive,
+          formatString: invoice.formatString,
+          startCounter: invoice.startCounter,
+          counterPadding: invoice.counterPadding,
+          currentCounter: invoice.currentCounter,
+          nextPreview: invoicePreview?.preview ?? null,
+        }
+      : null,
+    voucher: voucher
+      ? {
+          sequenceId: voucher.sequenceId,
+          documentType: "VOUCHER",
+          name: voucher.name,
+          periodicity: voucher.periodicity,
+          isActive: voucher.isActive,
+          formatString: voucher.formatString,
+          startCounter: voucher.startCounter,
+          counterPadding: voucher.counterPadding,
+          currentCounter: voucher.currentCounter,
+          nextPreview: voucherPreview?.preview ?? null,
+        }
+      : null,
+    canEdit,
+  };
+}
+
+export async function updateSequenceSettings(
+  orgId: string,
+  params: {
+    documentType: SequenceDocumentType;
+    formatString: string;
+    periodicity: SequencePeriodicity;
+  }
+) {
+  return updateSequenceSettingsAtomic({
+    orgId,
+    documentType: params.documentType,
+    formatString: params.formatString,
+    periodicity: params.periodicity,
+  });
+}
+
+export async function initializeSequenceSettings(
+  orgId: string,
+  params: {
+    documentType: SequenceDocumentType;
+    formatString?: string;
+    periodicity?: SequencePeriodicity;
+    latestUsedNumber?: string;
+  }
+) {
+  const customConfig =
+    params.formatString && params.periodicity
+      ? {
+          documentType: params.documentType,
+          formatString: params.formatString,
+          periodicity: params.periodicity,
+          latestUsedNumber: params.latestUsedNumber,
+        }
+      : {
+          ...getDefaultSequenceConfig(params.documentType),
+          latestUsedNumber: params.latestUsedNumber,
+        };
+
+  return configureInitialSequences({
+    organizationId: orgId,
+    customConfigs: [customConfig],
+    markOnboardingComplete: false,
+  });
+}
+
+export async function previewSequenceSetting(
+  orgId: string,
+  params: {
+    sequenceId: string;
+    documentDate: Date;
+  }
+) {
+  return previewSequenceNumber({
+    sequenceId: params.sequenceId,
+    documentDate: params.documentDate,
+    orgId,
+  });
+}
+
+export async function seedSequenceSetting(
+  orgId: string,
+  params: {
+    documentType: SequenceDocumentType;
+    latestUsedNumber: string;
+  }
+) {
+  return seedSequenceContinuity({
+    orgId,
+    documentType: params.documentType,
+    latestUsedNumber: params.latestUsedNumber,
+  });
+}
+
+export async function getSequenceHistory(
+  orgId: string,
+  documentType?: SequenceDocumentType
+) {
+  return getSequenceAuditHistory({
+    orgId,
+    documentType,
+    limit: 50,
+    offset: 0,
+  });
+}
+
+export async function previewResequence(
+  input: ResequencePreviewInput
+): Promise<ResequencePreviewResult> {
+  const parsed = ResequencePreviewInputSchema.parse(input);
+  return previewResequencePreview(parsed);
+}
+
+export async function applyResequence(
+  input: ResequenceApplyInput
+): Promise<ResequenceApplyResult> {
+  const parsed = ResequenceApplyInputSchema.parse(input);
+  return applyResequencePreview(parsed);
+}
+
+export async function diagnoseSequenceHealth(
+  input: SequenceDiagnosticsInput
+): Promise<SequenceDiagnosticsResult> {
+  const parsed = SequenceDiagnosticsInputSchema.parse(input);
+  return diagnoseSequence(parsed);
+}
+
+export async function getSupportOverview(
+  orgId: string,
+  documentType: SequenceDocumentType
+): Promise<SequenceSupportOverview | null> {
+  return getSequenceSupportOverview({ orgId, documentType });
+}
+
+export async function runSequenceHealthCheck(
+  orgId: string,
+  documentType: SequenceDocumentType
+): Promise<HealthCheckReport> {
+  return runHealthCheck({ orgId, documentType });
+}
+
+// ─── Sequence History Browsing ─────────────────────────────────────────────
+
+export async function getSequenceHistorySnapshots(
+  orgId: string,
+  sequenceId: string,
+): Promise<SequenceSnapshotEntry[]> {
+  const ctx = await getOrgContext();
+  await backfillSnapshotIfNeeded(orgId, sequenceId, ctx?.userId ?? "");
+  return getSequenceSnapshots(orgId, sequenceId);
+}
+
+export async function getSequenceHistorySnapshot(
+  orgId: string,
+  snapshotId: string,
+): Promise<SequenceSnapshotEntry | null> {
+  return getSnapshot(orgId, snapshotId);
+}
+
+export async function getSequenceCurrentState(
+  orgId: string,
+  sequenceId: string,
+) {
+  return getCurrentSequenceState(orgId, sequenceId);
+}
+
+export async function getAllSequenceSnapshots(
+  orgId: string,
+): Promise<OrgSnapshotGroup[]> {
+  const ctx = await getOrgContext();
+  const userId = ctx?.userId ?? "";
+  // Backfill all sequences that don't have snapshots yet
+  const sequences = await listAllOrgSnapshots(orgId);
+  for (const group of sequences) {
+    for (const seq of group.sequences) {
+      if (seq.snapshotCount === 0) {
+        await backfillSnapshotIfNeeded(orgId, seq.sequenceId, userId);
+      }
+    }
+  }
+  return listAllOrgSnapshots(orgId);
+}

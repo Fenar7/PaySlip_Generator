@@ -28,6 +28,7 @@ const MODULE_LABELS: Record<Module, string> = {
   settings_roles: "Role Management",
   settings_proxy: "Proxy Access",
   settings_audit: "Audit Log",
+  settings_sequences: "Document Numbering",
 };
 
 const MODULE_GROUPS: { label: string; modules: Module[] }[] = [
@@ -49,7 +50,7 @@ const MODULE_GROUPS: { label: string; modules: Module[] }[] = [
   },
   {
     label: "Settings",
-    modules: ["settings_users", "settings_roles", "settings_proxy", "settings_audit"],
+    modules: ["settings_users", "settings_roles", "settings_proxy", "settings_audit", "settings_sequences"],
   },
 ];
 

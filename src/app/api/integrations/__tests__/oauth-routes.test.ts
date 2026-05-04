@@ -3,6 +3,7 @@ import { NextRequest } from "next/server";
 
 vi.mock("@/lib/auth", () => ({
   getOrgContext: vi.fn(),
+  hasRole: vi.fn().mockReturnValue(true),
 }));
 
 vi.mock("@/lib/supabase/server", () => ({

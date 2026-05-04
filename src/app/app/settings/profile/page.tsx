@@ -1,21 +1,46 @@
 "use client";
 import { useState, useEffect } from "react";
 import { useSupabaseSession } from "@/hooks/use-supabase-session";
-import { createSupabaseBrowser } from "@/lib/supabase/client";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { getProfileSettings, saveProfileSettings } from "./actions";
 
 export default function ProfileSettingsPage() {
-  const { user, isPending } = useSupabaseSession();
+  const { isPending } = useSupabaseSession();
   const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState("");
 
   useEffect(() => {
-    if (user?.user_metadata.name) setName(user.user_metadata.name);
-  }, [user]);
+    let cancelled = false;
+
+    async function loadProfile() {
+      try {
+        const data = await getProfileSettings();
+        if (cancelled) return;
+        setName(data.name);
+        setEmail(data.email);
+      } catch (err) {
+        if (cancelled) return;
+        setError(
+          err instanceof Error ? err.message : "Could not load your profile."
+        );
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      }
+    }
+
+    loadProfile();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   async function handleSave(e: React.FormEvent) {
     e.preventDefault();
@@ -23,32 +48,36 @@ export default function ProfileSettingsPage() {
     setSuccess(false);
     setSaving(true);
     try {
-      const supabase = createSupabaseBrowser();
-      const { error: updateError } = await supabase.auth.updateUser({ data: { name } });
-      if (updateError) {
-        setError(updateError.message ?? "Could not save changes. Please try again.");
-      } else {
-        setSuccess(true);
-      }
-    } catch {
-      setError("Could not save changes. Please try again.");
+      await saveProfileSettings({ name });
+      setSuccess(true);
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Could not save changes. Please try again."
+      );
     } finally {
       setSaving(false);
     }
   }
 
-  if (isPending) return <div className="animate-pulse h-32 bg-[#f5f5f5] rounded-xl" />;
+  if (isPending || loading) {
+    return (
+      <div className="animate-pulse h-48 rounded-2xl border border-[var(--border-strong)] bg-[#f8f8f8]" />
+    );
+  }
 
   return (
-    <div className="space-y-6">
-      <Card>
+    <div className="space-y-6 max-w-3xl">
+      <Card className="overflow-hidden">
         <CardHeader>
           <h2 className="text-lg font-semibold text-[#1a1a1a]">Profile</h2>
           <p className="text-sm text-[#666]">Update your personal information</p>
         </CardHeader>
         <CardContent>
-          <form onSubmit={handleSave} className="space-y-4 max-w-md">
+          <form onSubmit={handleSave} className="space-y-5 max-w-2xl">
             <Input
+              id="profile-name"
               label="Full name"
               value={name}
               onChange={e => setName(e.target.value)}
@@ -57,7 +86,7 @@ export default function ProfileSettingsPage() {
             <div>
               <label className="block text-sm font-medium text-[#1a1a1a] mb-1">Email</label>
               <p className="text-sm text-[#666] bg-[#f8f8f8] border border-[#e5e5e5] rounded-md px-3 py-2">
-                {user?.email}
+                {email}
               </p>
               <p className="text-xs text-[#999] mt-1">
                 Email cannot be changed here. Contact support if needed.

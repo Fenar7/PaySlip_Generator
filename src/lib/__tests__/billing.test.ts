@@ -179,6 +179,8 @@ describe("billing helpers", () => {
   });
 
   it("fails clearly when plan mapping is missing during a plan change", async () => {
+    delete process.env.RAZORPAY_PLAN_PRO_MONTHLY;
+
     vi.mocked(db.subscription.findUnique).mockResolvedValue({
       orgId: "org-1",
       planId: "starter",
