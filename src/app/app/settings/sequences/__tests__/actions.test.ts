@@ -93,11 +93,12 @@ describe("sequence settings actions", () => {
     });
 
     expect(result.success).toBe(true);
-    expect(mockConfigureInitialSequences).toHaveBeenCalledWith({
+    expect(mockConfigureInitialSequences).toHaveBeenLastCalledWith({
       organizationId: "org-1",
       customConfigs: [
         {
           documentType: "VOUCHER",
+          name: "Default Voucher Sequence",
           formatString: "VCH/{YYYY}/{NNNNN}",
           periodicity: "YEARLY",
           startCounter: 1,

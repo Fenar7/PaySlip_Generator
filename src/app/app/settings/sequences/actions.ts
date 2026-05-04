@@ -13,8 +13,8 @@ import {
 } from "@/features/sequences/services/sequence-admin";
 import {
   configureInitialSequences,
-  getDefaultSequenceConfig,
 } from "@/app/onboarding/actions";
+import { getDefaultSequenceConfig } from "@/features/sequences/default-config";
 import type { SequenceSupportOverview } from "@/features/sequences/services/sequence-admin";
 import { previewSequenceNumber } from "@/features/sequences/services/sequence-engine";
 import type {
