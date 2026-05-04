@@ -21,7 +21,7 @@ import {
   tooltipStyle,
   tooltipLabelStyle,
   tooltipItemStyle,
-} from "./chart-theme";
+} from "@/components/charts/chart-theme";
 
 interface RevenueTrendPoint {
   month: string;
