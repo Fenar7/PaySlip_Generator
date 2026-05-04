@@ -43,7 +43,7 @@ export function AppTopbar({ orgName, initialUser }: AppTopbarProps) {
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-2">
               <span className="text-[0.7rem] font-semibold uppercase tracking-[0.28em] text-[var(--muted-foreground)]">
-                {suiteLabel === "Home" ? "Slipwise One" : `SW> ${suiteLabel}`}
+                {suiteLabel === "Home" ? "Slipwise" : `SW> ${suiteLabel}`}
               </span>
               {orgName ? (
                 <span className="slipwise-chip px-2.5 py-1 text-[0.7rem] font-medium">

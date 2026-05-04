@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
+import { Logo } from "@/components/foundation/logo";
 import { getNavigationContext } from "./navigation-context";
 
 export function AppSidebar() {
@@ -10,15 +11,10 @@ export function AppSidebar() {
   const { switcherItems } = getNavigationContext(pathname);
 
   return (
-    <aside className="flex h-full w-[var(--sidebar-width,240px)] flex-col border-r border-[var(--border-soft)] bg-[#1a1a1a]">
+    <aside className="flex h-full w-[var(--sidebar-width,240px)] flex-col border-r border-[var(--sidebar-border)] bg-[var(--sidebar-bg)]">
       {/* Logo */}
-      <div className="flex h-14 items-center border-b border-white/10 px-5">
-        <Link href="/app/home" className="flex items-center gap-2">
-          <span className="rounded-lg bg-[var(--accent)] px-2 py-1 text-[0.65rem] font-black uppercase tracking-widest text-white">
-            SW
-          </span>
-          <span className="text-sm font-semibold text-white/80">Slipwise One</span>
-        </Link>
+      <div className="flex h-[var(--topbar-height,56px)] items-center border-b border-[var(--sidebar-border)] px-4">
+        <Logo variant="full" />
       </div>
 
       {/* Navigation */}
@@ -31,11 +27,9 @@ export function AppSidebar() {
             return (
               <li key={item.href}>
                 {isDisabled ? (
-                  <div
-                    className="flex cursor-not-allowed items-center justify-between rounded-xl px-3 py-2.5 opacity-40"
-                  >
-                    <span className="text-sm font-medium text-white/70">{item.label}</span>
-                    <span className="rounded-full bg-white/10 px-2 py-0.5 text-[0.6rem] font-semibold uppercase tracking-wider text-white/50">
+                  <div className="flex cursor-not-allowed items-center justify-between rounded-lg px-3 py-2 opacity-40">
+                    <span className="text-sm font-medium text-[var(--sidebar-text-muted)]">{item.label}</span>
+                    <span className="rounded-full bg-[var(--surface-subtle)] px-2 py-0.5 text-[0.6rem] font-semibold uppercase tracking-wider text-[var(--text-muted)]">
                       Soon
                     </span>
                   </div>
@@ -44,31 +38,40 @@ export function AppSidebar() {
                     <Link
                       href={item.href}
                       className={cn(
-                        "flex items-center rounded-xl px-3 py-2.5 text-sm font-medium transition-colors",
+                        "flex items-center rounded-lg px-3 py-2 text-sm font-medium transition-colors",
                         isActive
-                          ? "bg-[var(--accent)] text-white"
-                          : "text-white/70 hover:bg-white/10 hover:text-white"
+                          ? "bg-[var(--sidebar-surface-active)] text-[var(--sidebar-text-active)]"
+                          : "text-[var(--sidebar-text)] hover:bg-[var(--sidebar-surface-hover)] hover:text-[var(--sidebar-text-active)]"
                       )}
                     >
-                      {item.label}
+                      {isActive && (
+                        <span
+                          className="mr-2.5 h-1.5 w-1.5 rounded-full shrink-0"
+                          style={{ background: "var(--sidebar-accent-indicator)" }}
+                        />
+                      )}
+                      <span className={cn(isActive ? "font-semibold" : "font-medium")}>{item.label}</span>
                     </Link>
                     {isActive && item.children && (
-                      <ul className="mt-0.5 ml-3 space-y-0.5">
-                        {item.children.map((child) => (
-                          <li key={child.href}>
-                            <Link
-                             href={child.href}
-                             className={cn(
-                                "flex items-center rounded-lg px-3 py-2 text-xs transition-colors",
-                                pathname === child.href || pathname.startsWith(`${child.href}/`)
-                                  ? "text-white font-medium"
-                                  : "text-white/50 hover:text-white/80"
-                              )}
-                            >
-                              {child.label}
-                            </Link>
-                          </li>
-                        ))}
+                      <ul className="mt-0.5 ml-4 space-y-0.5 border-l border-[var(--border-soft)] pl-2">
+                        {item.children.map((child) => {
+                          const childActive = pathname === child.href || pathname.startsWith(`${child.href}/`);
+                          return (
+                            <li key={child.href}>
+                              <Link
+                                href={child.href}
+                                className={cn(
+                                  "flex items-center rounded-md px-3 py-1.5 text-xs transition-colors",
+                                  childActive
+                                    ? "font-medium text-[var(--brand-primary)]"
+                                    : "text-[var(--text-muted)] hover:text-[var(--text-secondary)]"
+                                )}
+                              >
+                                {child.label}
+                              </Link>
+                            </li>
+                          );
+                        })}
                       </ul>
                     )}
                   </>
@@ -80,10 +83,10 @@ export function AppSidebar() {
       </nav>
 
       {/* Bottom: Settings link */}
-      <div className="border-t border-white/10 p-3">
+      <div className="border-t border-[var(--sidebar-border)] p-3">
         <Link
           href="/app/settings/profile"
-          className="flex items-center rounded-xl px-3 py-2.5 text-sm font-medium text-white/50 hover:bg-white/10 hover:text-white transition-colors"
+          className="flex items-center rounded-lg px-3 py-2 text-sm font-medium text-[var(--sidebar-text-muted)] hover:bg-[var(--sidebar-surface-hover)] hover:text-[var(--sidebar-text-active)] transition-colors"
         >
           Settings
         </Link>
