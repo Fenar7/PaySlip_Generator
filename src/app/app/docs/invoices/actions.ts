@@ -757,30 +757,30 @@ export async function listInvoices(params?: {
   const limit = params?.limit ?? 20;
   const skip = (page - 1) * limit;
 
-  const dateFrom = params?.dateFrom ? new Date(`${params.dateFrom}T00:00:00`) : undefined;
-  const dateTo = params?.dateTo ? new Date(`${params.dateTo}T23:59:59`) : undefined;
+  const safeSearch = params?.search && params.search !== "undefined" ? params.search : undefined;
+  const safeStatus = params?.status && params.status !== ("undefined" as unknown as InvoiceStatus) ? params.status : undefined;
+  const safeSequenceId = params?.sequenceId && params.sequenceId !== "undefined" ? params.sequenceId : undefined;
+
+  const dateFrom = params?.dateFrom && params.dateFrom !== "undefined" ? new Date(`${params.dateFrom}T00:00:00`) : undefined;
+  const dateTo = params?.dateTo && params.dateTo !== "undefined" ? new Date(`${params.dateTo}T23:59:59`) : undefined;
 
   const where: Record<string, unknown> = {
     organizationId: orgId,
-    ...(params?.status && { status: params.status }),
+    ...(safeStatus && { status: safeStatus }),
     ...(params?.includeArchived !== true && { archivedAt: null }),
-    ...(dateFrom && { invoiceDate: { gte: dateFrom } }),
-    ...(dateTo && params?.dateFrom
-      ? { invoiceDate: { ...(dateFrom ? { gte: dateFrom } : {}), lte: dateTo } }
-      : dateTo ? { invoiceDate: { lte: dateTo } } : {}),
-    ...(params?.sequenceId && { sequenceId: params.sequenceId }),
-    ...(params?.amountMin !== undefined && { totalAmount: { gte: params.amountMin } }),
-    ...(params?.amountMax !== undefined && { totalAmount: { lte: params.amountMax } }),
-    ...(params?.customerId && { customerId: params.customerId }),
-    ...(params?.search && {
+    ...(safeSequenceId && { sequenceId: safeSequenceId }),
+    ...(params?.amountMin !== undefined && !isNaN(params.amountMin) && { totalAmount: { gte: params.amountMin } }),
+    ...(params?.amountMax !== undefined && !isNaN(params.amountMax) && { totalAmount: { lte: params.amountMax } }),
+    ...(params?.customerId && params.customerId !== "undefined" && { customerId: params.customerId }),
+    ...(safeSearch && {
       OR: [
-        { invoiceNumber: { contains: params.search, mode: "insensitive" as const } },
-        { customer: { name: { contains: params.search, mode: "insensitive" as const } } },
+        { invoiceNumber: { contains: safeSearch, mode: "insensitive" as const } },
+        { customer: { name: { contains: safeSearch, mode: "insensitive" as const } } },
       ],
     }),
   };
 
-  // Clean up compound date filter
+  // Date range filter
   if (dateFrom && dateTo) {
     where.invoiceDate = { gte: dateFrom, lte: dateTo };
   } else if (dateFrom) {

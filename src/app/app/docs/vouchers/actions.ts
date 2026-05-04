@@ -513,22 +513,28 @@ export async function listVouchers(params?: {
   const limit = params?.limit ?? 20;
   const skip = (page - 1) * limit;
 
-  const dateFrom = params?.dateFrom ? new Date(`${params.dateFrom}T00:00:00`) : undefined;
-  const dateTo = params?.dateTo ? new Date(`${params.dateTo}T23:59:59`) : undefined;
+  const safeSearch = params?.search && params.search !== "undefined" ? params.search : undefined;
+  const safeType = params?.type && params.type !== "undefined" ? params.type : undefined;
+  const safeStatus = params?.status && params.status !== "undefined" ? params.status : undefined;
+  const safeSequenceId = params?.sequenceId && params.sequenceId !== "undefined" ? params.sequenceId : undefined;
+  const safeVendorId = params?.vendorId && params.vendorId !== "undefined" ? params.vendorId : undefined;
+
+  const dateFrom = params?.dateFrom && params.dateFrom !== "undefined" ? new Date(`${params.dateFrom}T00:00:00`) : undefined;
+  const dateTo = params?.dateTo && params.dateTo !== "undefined" ? new Date(`${params.dateTo}T23:59:59`) : undefined;
 
   const where: Record<string, unknown> = {
     organizationId: orgId,
     archivedAt: null,
-    ...(params?.type && { type: params.type }),
-    ...(params?.status && { status: params.status }),
-    ...(params?.sequenceId && { sequenceId: params.sequenceId }),
-    ...(params?.amountMin !== undefined && { totalAmount: { gte: params.amountMin } }),
-    ...(params?.amountMax !== undefined && { totalAmount: { lte: params.amountMax } }),
-    ...(params?.vendorId && { vendorId: params.vendorId }),
-    ...(params?.search && {
+    ...(safeType && { type: safeType }),
+    ...(safeStatus && { status: safeStatus }),
+    ...(safeSequenceId && { sequenceId: safeSequenceId }),
+    ...(params?.amountMin !== undefined && !isNaN(params.amountMin) && { totalAmount: { gte: params.amountMin } }),
+    ...(params?.amountMax !== undefined && !isNaN(params.amountMax) && { totalAmount: { lte: params.amountMax } }),
+    ...(safeVendorId && { vendorId: safeVendorId }),
+    ...(safeSearch && {
       OR: [
-        { voucherNumber: { contains: params.search, mode: "insensitive" as const } },
-        { vendor: { name: { contains: params.search, mode: "insensitive" as const } } },
+        { voucherNumber: { contains: safeSearch, mode: "insensitive" as const } },
+        { vendor: { name: { contains: safeSearch, mode: "insensitive" as const } } },
       ],
     }),
   };
