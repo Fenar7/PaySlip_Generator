@@ -6,6 +6,25 @@ import { listSalarySlips } from "@/app/app/docs/salary-slips/actions";
 import { createSupabaseServer } from "@/lib/supabase/server";
 import { countPasskeysForUser } from "@/lib/passkey/db";
 import { PasskeyAdoptionPrompt } from "./passkey-adoption-prompt";
+import {
+  QuickActionCard,
+  DashboardSection,
+  ContentPanel,
+  ActivityItem,
+  ActivityList,
+  StatusBadge,
+} from "@/components/dashboard";
+import {
+  FileText,
+  Receipt,
+  Banknote,
+  Sparkles,
+  Users,
+  Building2,
+  UserCircle,
+  List,
+  ArrowRight,
+} from "lucide-react";
 
 export const metadata: Metadata = { title: "Home | Slipwise" };
 
@@ -13,60 +32,48 @@ const quickActions = [
   {
     label: "New Invoice",
     href: "/app/docs/invoices/new",
-    icon: "📄",
+    icon: FileText,
     description: "Create a professional invoice",
-    color: "bg-blue-50 border-blue-200 hover:bg-blue-100",
   },
   {
     label: "New Voucher",
     href: "/app/docs/vouchers/new",
-    icon: "🧾",
+    icon: Receipt,
     description: "Payment or receipt voucher",
-    color: "bg-green-50 border-green-200 hover:bg-green-100",
   },
   {
     label: "New Salary Slip",
     href: "/app/docs/salary-slips/new",
-    icon: "💰",
+    icon: Banknote,
     description: "Generate salary slip",
-    color: "bg-purple-50 border-purple-200 hover:bg-purple-100",
   },
   {
     label: "Template Store",
     href: "/app/docs/templates",
-    icon: "✨",
+    icon: Sparkles,
     description: "Browse document templates",
-    color: "bg-amber-50 border-amber-200 hover:bg-amber-100",
   },
 ];
 
 const dataLinks = [
-  { label: "Customers", href: "/app/data/customers", icon: "👥" },
-  { label: "Vendors", href: "/app/data/vendors", icon: "🏢" },
-  { label: "Employees", href: "/app/data/employees", icon: "👤" },
-  { label: "Salary Presets", href: "/app/data/salary-presets", icon: "📋" },
+  { label: "Customers", href: "/app/data/customers", icon: Users },
+  { label: "Vendors", href: "/app/data/vendors", icon: Building2 },
+  { label: "Employees", href: "/app/data/employees", icon: UserCircle },
+  { label: "Salary Presets", href: "/app/data/salary-presets", icon: List },
 ];
 
-const STATUS_COLORS: Record<string, string> = {
-  DRAFT: "bg-slate-100 text-slate-700",
-  ISSUED: "bg-blue-100 text-blue-700",
-  PAID: "bg-green-100 text-green-700",
-  OVERDUE: "bg-red-100 text-red-700",
-  DUE: "bg-yellow-100 text-yellow-700",
-  PARTIALLY_PAID: "bg-orange-100 text-orange-700",
-  draft: "bg-slate-100 text-slate-700",
-  released: "bg-green-100 text-green-700",
-  payment: "bg-red-100 text-red-700",
-  receipt: "bg-green-100 text-green-700",
+const STATUS_VARIANTS: Record<string, "default" | "success" | "warning" | "danger" | "neutral"> = {
+  DRAFT: "neutral",
+  ISSUED: "info",
+  PAID: "success",
+  OVERDUE: "danger",
+  DUE: "warning",
+  PARTIALLY_PAID: "warning",
+  draft: "neutral",
+  released: "success",
+  payment: "danger",
+  receipt: "success",
 };
-
-function Badge({ label }: { label: string }) {
-  return (
-    <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium capitalize ${STATUS_COLORS[label] || "bg-slate-100 text-slate-700"}`}>
-      {label.replace("_", " ")}
-    </span>
-  );
-}
 
 async function getCurrentUserPasskeyCount(): Promise<number> {
   const supabase = await createSupabaseServer();
@@ -92,151 +99,161 @@ export default async function AppHomePage() {
   const passkeyCount = passkeyCountData.status === "fulfilled" ? passkeyCountData.value : 1;
 
   return (
-    <div className="min-h-screen bg-slate-50">
-      <div className="mx-auto max-w-5xl px-4 py-8">
-        <div className="mb-8">
-          <h1 className="text-2xl font-semibold text-slate-900">Good day 👋</h1>
-          <p className="mt-1 text-sm text-slate-500">What would you like to create today?</p>
-        </div>
+    <div className="mx-auto max-w-6xl px-4 py-6 sm:px-6">
+      {/* Greeting */}
+      <div className="mb-8">
+        <h1 className="text-xl font-semibold text-[var(--text-primary)]">Good day</h1>
+        <p className="mt-1 text-sm text-[var(--text-muted)]">What would you like to create today?</p>
+      </div>
 
-        <PasskeyAdoptionPrompt show={passkeyCount === 0} />
+      <PasskeyAdoptionPrompt show={passkeyCount === 0} />
 
-        {/* Quick Actions */}
-        <div className="mb-8 grid grid-cols-2 gap-4 sm:grid-cols-4">
+      {/* Quick Actions */}
+      <DashboardSection className="mb-8">
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
           {quickActions.map((action) => (
-            <Link
+            <QuickActionCard
               key={action.href}
               href={action.href}
-              className={`flex flex-col items-center rounded-xl border p-5 text-center transition-colors ${action.color}`}
-            >
-              <span className="mb-2 text-3xl">{action.icon}</span>
-              <span className="font-semibold text-slate-800">{action.label}</span>
-              <span className="mt-1 text-xs text-slate-500">{action.description}</span>
-            </Link>
+              label={action.label}
+              description={action.description}
+              icon={action.icon}
+              variant="default"
+            />
           ))}
         </div>
+      </DashboardSection>
 
-        <div className="mb-6 grid gap-6 sm:grid-cols-3">
-          {/* Invoice Vault Panel */}
-          <div className="rounded-xl border border-slate-200 bg-white p-5">
+      {/* Vault Panels */}
+      <DashboardSection className="mb-8">
+        <div className="grid gap-4 sm:grid-cols-3">
+          {/* Invoices */}
+          <ContentPanel>
             <div className="mb-3 flex items-center justify-between">
-              <h2 className="text-sm font-semibold uppercase tracking-wider text-slate-500">Invoices</h2>
-              <span className="rounded-full bg-blue-50 px-2.5 py-0.5 text-xs font-medium text-blue-700">
+              <h3 className="text-xs font-semibold uppercase tracking-[0.15em] text-[var(--text-muted)]">
+                Invoices
+              </h3>
+              <span className="rounded-full bg-[var(--surface-subtle)] px-2.5 py-0.5 text-xs font-medium text-[var(--text-secondary)]">
                 {invoices.total} total
               </span>
             </div>
-            <div className="space-y-2">
-              {invoices.invoices.length === 0 ? (
-                <p className="text-xs text-slate-400">No invoices yet</p>
-              ) : (
-                invoices.invoices.map((inv) => (
-                  <Link
-                    key={inv.id}
-                    href={`/app/docs/invoices/${inv.id}`}
-                    className="flex items-center justify-between rounded-lg px-2 py-1.5 text-xs hover:bg-slate-50"
-                  >
-                    <span className="font-medium text-blue-600">{inv.invoiceNumber ?? "Draft"}</span>
-                    <span className="max-w-[80px] truncate text-slate-500">{inv.customer?.name || "—"}</span>
-                    <Badge label={inv.status} />
-                  </Link>
-                ))
-              )}
-            </div>
-            <Link href="/app/docs/invoices" className="mt-3 flex items-center text-xs text-slate-500 hover:text-slate-700">
+            <ActivityList
+              emptyMessage="No invoices yet"
+              emptyDescription="Create your first invoice to get started"
+            >
+              {invoices.invoices.map((inv) => (
+                <ActivityItem
+                  key={inv.id}
+                  href={`/app/docs/invoices/${inv.id}`}
+                  title={inv.invoiceNumber ?? "Draft"}
+                  meta={inv.customer?.name || "—"}
+                  badge={
+                    <StatusBadge variant={STATUS_VARIANTS[inv.status] ?? "neutral"}>
+                      {inv.status.replace("_", " ")}
+                    </StatusBadge>
+                  }
+                />
+              ))}
+            </ActivityList>
+            <Link
+              href="/app/docs/invoices"
+              className="mt-3 inline-flex items-center text-xs font-medium text-[var(--text-muted)] hover:text-[var(--brand-primary)] transition-colors"
+            >
               View all invoices
-              <svg className="ml-1 h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-              </svg>
+              <ArrowRight className="ml-1 h-3 w-3" />
             </Link>
-          </div>
+          </ContentPanel>
 
-          {/* Voucher Vault Panel */}
-          <div className="rounded-xl border border-slate-200 bg-white p-5">
+          {/* Vouchers */}
+          <ContentPanel>
             <div className="mb-3 flex items-center justify-between">
-              <h2 className="text-sm font-semibold uppercase tracking-wider text-slate-500">Vouchers</h2>
-              <span className="rounded-full bg-green-50 px-2.5 py-0.5 text-xs font-medium text-green-700">
+              <h3 className="text-xs font-semibold uppercase tracking-[0.15em] text-[var(--text-muted)]">
+                Vouchers
+              </h3>
+              <span className="rounded-full bg-[var(--surface-subtle)] px-2.5 py-0.5 text-xs font-medium text-[var(--text-secondary)]">
                 {vouchers.total} total
               </span>
             </div>
-            <div className="space-y-2">
-              {vouchers.vouchers.length === 0 ? (
-                <p className="text-xs text-slate-400">No vouchers yet</p>
-              ) : (
-                vouchers.vouchers.map((v) => (
-                  <Link
-                    key={v.id}
-                    href={`/app/docs/vouchers/${v.id}`}
-                    className="flex items-center justify-between rounded-lg px-2 py-1.5 text-xs hover:bg-slate-50"
-                  >
-                    <span className="font-medium text-blue-600">{v.voucherNumber ?? "Draft"}</span>
-                    <span className="max-w-[80px] truncate text-slate-500">{v.vendor?.name || "—"}</span>
-                    <Badge label={v.type} />
-                  </Link>
-                ))
-              )}
-            </div>
-            <Link href="/app/docs/vouchers" className="mt-3 flex items-center text-xs text-slate-500 hover:text-slate-700">
+            <ActivityList emptyMessage="No vouchers yet">
+              {vouchers.vouchers.map((v) => (
+                <ActivityItem
+                  key={v.id}
+                  href={`/app/docs/vouchers/${v.id}`}
+                  title={v.voucherNumber ?? "Draft"}
+                  meta={v.vendor?.name || "—"}
+                  badge={
+                    <StatusBadge variant={STATUS_VARIANTS[v.type] ?? "neutral"}>
+                      {v.type}
+                    </StatusBadge>
+                  }
+                />
+              ))}
+            </ActivityList>
+            <Link
+              href="/app/docs/vouchers"
+              className="mt-3 inline-flex items-center text-xs font-medium text-[var(--text-muted)] hover:text-[var(--brand-primary)] transition-colors"
+            >
               View all vouchers
-              <svg className="ml-1 h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-              </svg>
+              <ArrowRight className="ml-1 h-3 w-3" />
             </Link>
-          </div>
+          </ContentPanel>
 
-          {/* Salary Slips Panel */}
-          <div className="rounded-xl border border-slate-200 bg-white p-5">
+          {/* Salary Slips */}
+          <ContentPanel>
             <div className="mb-3 flex items-center justify-between">
-              <h2 className="text-sm font-semibold uppercase tracking-wider text-slate-500">Salary Slips</h2>
-              <span className="rounded-full bg-purple-50 px-2.5 py-0.5 text-xs font-medium text-purple-700">
+              <h3 className="text-xs font-semibold uppercase tracking-[0.15em] text-[var(--text-muted)]">
+                Salary Slips
+              </h3>
+              <span className="rounded-full bg-[var(--surface-subtle)] px-2.5 py-0.5 text-xs font-medium text-[var(--text-secondary)]">
                 {slips.total} total
               </span>
             </div>
-            <div className="space-y-2">
-              {slips.salarySlips.length === 0 ? (
-                <p className="text-xs text-slate-400">No slips yet</p>
-              ) : (
-                slips.salarySlips.map((s) => (
-                  <Link
-                    key={s.id}
-                    href={`/app/docs/salary-slips/${s.id}`}
-                    className="flex items-center justify-between rounded-lg px-2 py-1.5 text-xs hover:bg-slate-50"
-                  >
-                    <span className="font-medium text-blue-600">{s.slipNumber}</span>
-                    <span className="max-w-[80px] truncate text-slate-500">{s.employee?.name || "—"}</span>
-                    <Badge label={s.status} />
-                  </Link>
-                ))
-              )}
-            </div>
-            <Link href="/app/docs/salary-slips" className="mt-3 flex items-center text-xs text-slate-500 hover:text-slate-700">
+            <ActivityList emptyMessage="No slips yet">
+              {slips.salarySlips.map((s) => (
+                <ActivityItem
+                  key={s.id}
+                  href={`/app/docs/salary-slips/${s.id}`}
+                  title={s.slipNumber}
+                  meta={s.employee?.name || "—"}
+                  badge={
+                    <StatusBadge variant={STATUS_VARIANTS[s.status] ?? "neutral"}>
+                      {s.status.replace("_", " ")}
+                    </StatusBadge>
+                  }
+                />
+              ))}
+            </ActivityList>
+            <Link
+              href="/app/docs/salary-slips"
+              className="mt-3 inline-flex items-center text-xs font-medium text-[var(--text-muted)] hover:text-[var(--brand-primary)] transition-colors"
+            >
               View all slips
-              <svg className="ml-1 h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-              </svg>
+              <ArrowRight className="ml-1 h-3 w-3" />
             </Link>
-          </div>
+          </ContentPanel>
         </div>
+      </DashboardSection>
 
-        {/* Master Data */}
-        <div className="rounded-xl border border-slate-200 bg-white p-5">
-          <h2 className="mb-4 text-sm font-semibold uppercase tracking-wider text-slate-500">Master Data</h2>
+      {/* Master Data */}
+      <DashboardSection title="Master Data" subtitle="Manage your business entities">
+        <ContentPanel>
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
             {dataLinks.map((link) => (
               <Link
                 key={link.href}
                 href={link.href}
-                className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm text-slate-700 transition-colors hover:bg-slate-50"
+                className="group flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-[var(--text-secondary)] transition-colors hover:bg-[var(--surface-subtle)] hover:text-[var(--text-primary)]"
               >
-                <span>{link.icon}</span>
+                <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[var(--surface-subtle)] text-[var(--text-muted)] transition-colors group-hover:bg-[var(--surface-selected)] group-hover:text-[var(--brand-primary)]">
+                  <link.icon className="h-4 w-4" />
+                </span>
                 {link.label}
-                <svg className="ml-auto h-4 w-4 text-slate-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                </svg>
+                <ArrowRight className="ml-auto h-4 w-4 text-[var(--border-default)] transition-colors group-hover:text-[var(--brand-primary)]" />
               </Link>
             ))}
           </div>
-        </div>
-      </div>
+        </ContentPanel>
+      </DashboardSection>
     </div>
   );
 }
