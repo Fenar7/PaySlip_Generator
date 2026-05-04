@@ -9,7 +9,7 @@ export const metadata = {
 
 async function VendorsTable({ search, page }: { search?: string; page: number }) {
   const { vendors, total, totalPages } = await listVendors({ search, page, limit: 20 });
-  
+
   return (
     <DataTable
       data={vendors}
@@ -36,17 +36,24 @@ export default async function VendorsPage({
 }) {
   const params = await searchParams;
   const page = parseInt(params.page || "1", 10);
-  
+
   return (
-    <div>
+    <div className="mx-auto max-w-6xl px-4 py-6 sm:px-6">
       <PageHeader
         title="Vendors"
         description="Manage your vendors for expenses"
         addLink="/app/data/vendors/new"
         addLabel="Add Vendor"
       />
-      
-      <Suspense fallback={<div className="py-8 text-center text-slate-500">Loading...</div>}>
+
+      <Suspense
+        fallback={
+          <div className="flex items-center justify-center py-12 text-[var(--text-muted)]">
+            <div className="mr-2 h-5 w-5 animate-spin rounded-full border-2 border-[var(--border-soft)] border-t-[var(--brand-primary)]" />
+            Loading...
+          </div>
+        }
+      >
         <VendorsTable search={params.search} page={page} />
       </Suspense>
     </div>
