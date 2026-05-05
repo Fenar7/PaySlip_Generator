@@ -1,10 +1,18 @@
 "use client";
 import { useState, useEffect } from "react";
 import { useActiveOrg } from "@/hooks/use-active-org";
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
+import {
+  SettingsCard,
+  SettingsCardHeader,
+  SettingsCardContent,
+  SettingsSectionHeader,
+  SettingsFormField,
+  SettingsSaveBar,
+  SettingsReadOnlyField,
+} from "@/components/settings/settings-primitives";
 import { getOrgSettings, saveOrgBranding, saveOrgFinancials } from "../actions";
+import { Palette, Building2, Landmark } from "lucide-react";
 
 export default function OrganizationSettingsPage() {
   const { activeOrg } = useActiveOrg();
@@ -21,7 +29,7 @@ export default function OrganizationSettingsPage() {
 
   useEffect(() => {
     if (activeOrg?.id) {
-      getOrgSettings(activeOrg.id).then(data => {
+      getOrgSettings(activeOrg.id).then((data) => {
         if (data?.branding) {
           setAccentColor(data.branding.accentColor);
           setFontFamily(data.branding.fontFamily);
@@ -46,6 +54,7 @@ export default function OrganizationSettingsPage() {
     await saveOrgBranding({ organizationId: activeOrg.id, accentColor, fontFamily });
     setSaving(null);
     setSuccess("branding");
+    setTimeout(() => setSuccess(null), 3000);
   }
 
   async function handleSaveFinancials(e: React.FormEvent) {
@@ -64,132 +73,168 @@ export default function OrganizationSettingsPage() {
     });
     setSaving(null);
     setSuccess("financials");
+    setTimeout(() => setSuccess(null), 3000);
   }
 
   if (!activeOrg) {
     return (
-      <div className="text-sm text-[#666]">
-        No active organization. Complete onboarding first.
+      <div className="slipwise-panel p-6">
+        <p className="text-sm text-[var(--text-muted)]">
+          No active organization. Complete onboarding first.
+        </p>
       </div>
     );
   }
 
   return (
     <div className="space-y-6">
-      <Card>
-        <CardHeader>
-          <h2 className="text-lg font-semibold text-[#1a1a1a]">Organization</h2>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-3 max-w-md">
-            <div>
-              <label className="block text-sm font-medium text-[#1a1a1a] mb-1">Name</label>
-              <p className="text-sm bg-[#f8f8f8] border border-[#e5e5e5] rounded-md px-3 py-2 text-[#666]">
-                {activeOrg.name}
-              </p>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-[#1a1a1a] mb-1">Slug</label>
-              <p className="text-sm font-mono bg-[#f8f8f8] border border-[#e5e5e5] rounded-md px-3 py-2 text-[#666]">
-                {activeOrg.slug}
-              </p>
-            </div>
-            <p className="text-xs text-[#999]">
-              Contact support to change organization name or slug.
-            </p>
+      {/* Organization Identity */}
+      <SettingsCard>
+        <SettingsCardHeader>
+          <div className="flex items-center gap-2.5">
+            <Building2 className="h-4 w-4 text-[var(--brand-primary)]" />
+            <SettingsSectionHeader
+              title="Organization Identity"
+              description="Core organization details. Contact support to change name or slug."
+            />
           </div>
-        </CardContent>
-      </Card>
+        </SettingsCardHeader>
+        <SettingsCardContent>
+          <div className="grid gap-5 sm:grid-cols-2 max-w-2xl">
+            <SettingsReadOnlyField
+              label="Organization Name"
+              value={activeOrg.name}
+            />
+            <SettingsReadOnlyField
+              label="Slug"
+              value={<span className="font-mono text-xs">{activeOrg.slug}</span>}
+            />
+          </div>
+        </SettingsCardContent>
+      </SettingsCard>
 
-      <Card>
-        <CardHeader>
-          <h2 className="text-lg font-semibold text-[#1a1a1a]">Brand identity</h2>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={handleSaveBranding} className="space-y-4 max-w-md">
-            <div>
-              <label className="block text-sm font-medium text-[#1a1a1a] mb-1">Accent color</label>
+      {/* Brand Identity */}
+      <SettingsCard>
+        <SettingsCardHeader>
+          <div className="flex items-center gap-2.5">
+            <Palette className="h-4 w-4 text-[var(--brand-primary)]" />
+            <SettingsSectionHeader
+              title="Brand Identity"
+              description="Customize how Slipwise looks for your organization."
+            />
+          </div>
+        </SettingsCardHeader>
+        <SettingsCardContent>
+          <form onSubmit={handleSaveBranding} className="space-y-5 max-w-xl">
+            <SettingsFormField
+              label="Accent color"
+              hint="Used for buttons, links, and highlights across your workspace."
+            >
               <div className="flex items-center gap-3">
                 <input
                   type="color"
                   value={accentColor}
-                  onChange={e => setAccentColor(e.target.value)}
-                  className="w-10 h-10 rounded cursor-pointer border border-[#e5e5e5]"
+                  onChange={(e) => setAccentColor(e.target.value)}
+                  className="h-10 w-10 cursor-pointer rounded-lg border border-[var(--border-soft)] bg-white p-0.5"
                 />
-                <span className="text-sm font-mono text-[#666]">{accentColor}</span>
+                <span className="font-mono text-sm text-[var(--text-secondary)]">{accentColor}</span>
               </div>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-[#1a1a1a] mb-1">Font family</label>
+            </SettingsFormField>
+
+            <SettingsFormField label="Font family">
               <select
                 value={fontFamily}
-                onChange={e => setFontFamily(e.target.value)}
-                className="w-full border border-[#e5e5e5] rounded-md px-3 py-2 text-sm text-[#1a1a1a] bg-white focus:outline-none focus:ring-2 focus:ring-[#dc2626]"
+                onChange={(e) => setFontFamily(e.target.value)}
+                className="w-full rounded-lg border border-[var(--border-soft)] bg-white px-3 py-2 text-sm text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--focus-ring)]"
               >
-                {["Inter", "Roboto", "Poppins", "Playfair Display"].map(f => (
+                {["Inter", "Roboto", "Poppins", "Playfair Display"].map((f) => (
                   <option key={f}>{f}</option>
                 ))}
               </select>
-            </div>
-            {success === "branding" && <p className="text-sm text-green-600">✓ Branding saved</p>}
-            <Button type="submit" disabled={saving === "branding"}>
-              {saving === "branding" ? "Saving…" : "Save branding"}
-            </Button>
-          </form>
-        </CardContent>
-      </Card>
+            </SettingsFormField>
 
-      <Card>
-        <CardHeader>
-          <h2 className="text-lg font-semibold text-[#1a1a1a]">Financial details</h2>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={handleSaveFinancials} className="space-y-4 max-w-md">
-            <Input
-              label="Bank name"
-              value={bankName}
-              onChange={e => setBankName(e.target.value)}
+            <SettingsSaveBar
+              saving={saving === "branding"}
+              saved={success === "branding"}
+              saveLabel="Save branding"
             />
-            <Input
-              label="Account number"
-              value={bankAccount}
-              onChange={e => setBankAccount(e.target.value)}
+          </form>
+        </SettingsCardContent>
+      </SettingsCard>
+
+      {/* Financial Details */}
+      <SettingsCard>
+        <SettingsCardHeader>
+          <div className="flex items-center gap-2.5">
+            <Landmark className="h-4 w-4 text-[var(--brand-primary)]" />
+            <SettingsSectionHeader
+              title="Financial Details"
+              description="Banking and tax information used on documents and reports."
             />
-            <Input
-              label="IFSC code"
-              value={bankIFSC}
-              onChange={e => setBankIFSC(e.target.value)}
-            />
-            <Input
-              label="Tax ID / PAN"
-              value={taxId}
-              onChange={e => setTaxId(e.target.value)}
-            />
-            <Input
-              label="GSTIN"
-              value={gstin}
-              onChange={e => setGstin(e.target.value)}
-            />
-            <div>
-              <label className="block text-sm font-medium text-[#1a1a1a] mb-1">
-                Business address
-              </label>
+          </div>
+        </SettingsCardHeader>
+        <SettingsCardContent>
+          <form onSubmit={handleSaveFinancials} className="space-y-5 max-w-xl">
+            <div className="grid gap-5 sm:grid-cols-2">
+              <SettingsFormField label="Bank name">
+                <Input
+                  value={bankName}
+                  onChange={(e) => setBankName(e.target.value)}
+                  placeholder="e.g. HDFC Bank"
+                />
+              </SettingsFormField>
+              <SettingsFormField label="IFSC code">
+                <Input
+                  value={bankIFSC}
+                  onChange={(e) => setBankIFSC(e.target.value)}
+                  placeholder="e.g. HDFC0001234"
+                />
+              </SettingsFormField>
+            </div>
+
+            <SettingsFormField label="Account number">
+              <Input
+                value={bankAccount}
+                onChange={(e) => setBankAccount(e.target.value)}
+                placeholder="Enter account number"
+              />
+            </SettingsFormField>
+
+            <div className="grid gap-5 sm:grid-cols-2">
+              <SettingsFormField label="Tax ID / PAN">
+                <Input
+                  value={taxId}
+                  onChange={(e) => setTaxId(e.target.value)}
+                  placeholder="Enter tax ID"
+                />
+              </SettingsFormField>
+              <SettingsFormField label="GSTIN">
+                <Input
+                  value={gstin}
+                  onChange={(e) => setGstin(e.target.value)}
+                  placeholder="Enter GSTIN"
+                />
+              </SettingsFormField>
+            </div>
+
+            <SettingsFormField label="Business address">
               <textarea
                 value={businessAddress}
-                onChange={e => setBusinessAddress(e.target.value)}
+                onChange={(e) => setBusinessAddress(e.target.value)}
                 rows={3}
-                className="w-full border border-[#e5e5e5] rounded-md px-3 py-2 text-sm text-[#1a1a1a] bg-white focus:outline-none focus:ring-2 focus:ring-[#dc2626] resize-none"
+                className="w-full rounded-lg border border-[var(--border-soft)] bg-white px-3 py-2 text-sm text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--focus-ring)] resize-none"
+                placeholder="Enter registered business address"
               />
-            </div>
-            {success === "financials" && (
-              <p className="text-sm text-green-600">✓ Financial details saved</p>
-            )}
-            <Button type="submit" disabled={saving === "financials"}>
-              {saving === "financials" ? "Saving…" : "Save details"}
-            </Button>
+            </SettingsFormField>
+
+            <SettingsSaveBar
+              saving={saving === "financials"}
+              saved={success === "financials"}
+              saveLabel="Save details"
+            />
           </form>
-        </CardContent>
-      </Card>
+        </SettingsCardContent>
+      </SettingsCard>
     </div>
   );
 }
