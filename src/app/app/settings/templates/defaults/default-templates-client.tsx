@@ -1,12 +1,13 @@
 "use client";
 
+import dynamic from "next/dynamic";
+import Image from "next/image";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { updateOrgDefaults } from "@/app/app/actions/org-defaults-actions";
 import type { TemplateDefinition, DocType } from "@/lib/docs/templates/registry";
 import { DOCTYPE_LABELS, CATEGORY_LABELS, getEffectiveTemplateId } from "@/lib/docs/templates/registry";
-import { TemplatePreviewModal } from "@/components/templates/template-preview-modal";
 import { cn } from "@/lib/utils";
 import {
   CheckCircle2,
@@ -25,6 +26,11 @@ interface DefaultTemplatesClientProps {
 }
 
 type PreviewState = { template: TemplateDefinition; docType: DocType } | null;
+
+const TemplatePreviewModal = dynamic(
+  () => import("@/components/templates/template-preview-modal").then((mod) => mod.TemplatePreviewModal),
+  { ssr: false }
+);
 
 const DOC_TYPE_DEFAULT_KEY: Record<DocType, "defaultInvoiceTemplate" | "defaultVoucherTemplate" | "defaultSlipTemplate"> = {
   invoice: "defaultInvoiceTemplate",
@@ -128,7 +134,6 @@ export function DefaultTemplatesClient({
             const current = currentDefaults[type];
             const slipwise = slipwiseDefaults[type];
             const isOrgOverride = current !== null && current !== slipwise;
-            const isSlipwiseDefault = current === slipwise;
             const hasNoDefault = current === null;
 
             return (
@@ -249,9 +254,12 @@ export function DefaultTemplatesClient({
                 <div className="mx-4 mb-4 rounded-lg border border-[var(--border-soft)] bg-[var(--surface-subtle)]/50 p-3 sm:mx-5">
                   <div className="flex items-center gap-3">
                     <div className="h-12 w-12 shrink-0 overflow-hidden rounded-md bg-white shadow-sm">
-                      <img
+                      <Image
                         src={currentTemplate.previewImage}
                         alt={currentTemplate.name}
+                        width={48}
+                        height={48}
+                        sizes="48px"
                         className="h-full w-full object-contain p-1"
                       />
                     </div>
@@ -300,9 +308,12 @@ export function DefaultTemplatesClient({
                           )}
                         >
                           <div className="h-14 w-14 shrink-0 overflow-hidden rounded-md bg-[var(--surface-subtle)]">
-                            <img
+                            <Image
                               src={template.previewImage}
                               alt={template.name}
+                              width={56}
+                              height={56}
+                              sizes="56px"
                               className="h-full w-full object-contain p-1"
                             />
                           </div>

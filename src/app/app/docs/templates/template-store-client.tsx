@@ -1,5 +1,7 @@
 "use client";
 
+import dynamic from "next/dynamic";
+import Image from "next/image";
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -8,7 +10,6 @@ import { updateOrgDefaults } from "@/app/app/actions/org-defaults-actions";
 import type { TemplateDefinition, DocType } from "@/lib/docs/templates/registry";
 import { CATEGORY_LABELS, DOCTYPE_LABELS } from "@/lib/docs/templates/registry";
 import { TemplateCard } from "@/components/templates/template-card";
-import { TemplatePreviewModal } from "@/components/templates/template-preview-modal";
 import { LayoutGrid, SlidersHorizontal, Settings } from "lucide-react";
 
 interface TemplateStoreClientProps {
@@ -20,6 +21,11 @@ interface TemplateStoreClientProps {
 }
 
 type PreviewState = { template: TemplateDefinition; docType: DocType } | null;
+
+const TemplatePreviewModal = dynamic(
+  () => import("@/components/templates/template-preview-modal").then((mod) => mod.TemplatePreviewModal),
+  { ssr: false }
+);
 
 const DOC_TYPE_DEFAULT_KEY: Record<DocType, "defaultInvoiceTemplate" | "defaultVoucherTemplate" | "defaultSlipTemplate"> = {
   invoice: "defaultInvoiceTemplate",
@@ -137,7 +143,7 @@ export function TemplateStoreClient({
       {/* Filters toolbar */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex flex-wrap gap-2">
-          <a
+          <Link
             href={buildHref({ category: activeCategory })}
             className={`rounded-full px-4 py-2 text-sm font-medium transition-all ${
               !activeType
@@ -146,9 +152,9 @@ export function TemplateStoreClient({
             }`}
           >
             All Types
-          </a>
+          </Link>
           {(Object.entries(DOCTYPE_LABELS) as [DocType, string][]).map(([type, label]) => (
-            <a
+            <Link
               key={type}
               href={buildHref({ category: activeCategory, type })}
               className={`rounded-full px-4 py-2 text-sm font-medium transition-all ${
@@ -158,7 +164,7 @@ export function TemplateStoreClient({
               }`}
             >
               {label}
-            </a>
+            </Link>
           ))}
         </div>
 
@@ -191,7 +197,7 @@ export function TemplateStoreClient({
           </div>
 
           <div className="flex flex-wrap gap-1">
-            <a
+            <Link
               href={buildHref({ type: activeType })}
               className={`rounded-full px-3 py-1 text-xs font-medium transition-all ${
                 !activeCategory
@@ -200,9 +206,9 @@ export function TemplateStoreClient({
               }`}
             >
               All
-            </a>
+            </Link>
             {(Object.entries(CATEGORY_LABELS) as [string, string][]).map(([cat, label]) => (
-              <a
+              <Link
                 key={cat}
                 href={buildHref({ category: cat, type: activeType })}
                 className={`rounded-full px-3 py-1 text-xs font-medium transition-all ${
@@ -212,7 +218,7 @@ export function TemplateStoreClient({
                 }`}
               >
                 {label}
-              </a>
+              </Link>
             ))}
           </div>
         </div>
@@ -230,12 +236,12 @@ export function TemplateStoreClient({
       {templates.length === 0 ? (
         <div className="rounded-xl border border-dashed border-[var(--border-default)] bg-white p-12 text-center">
           <p className="text-[var(--text-muted)]">No templates match your filters.</p>
-          <a
+          <Link
             href="/app/docs/templates"
             className="mt-2 inline-block text-sm font-medium text-[var(--brand-primary)] hover:underline"
           >
             Clear all filters
-          </a>
+          </Link>
         </div>
       ) : viewMode === "grid" ? (
         <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
@@ -312,9 +318,12 @@ function TemplateListRow({
         onClick={() => onPreview(template, activeDocType)}
         className="relative h-16 w-16 shrink-0 overflow-hidden rounded-md bg-[var(--surface-subtle)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)]"
       >
-        <img
+        <Image
           src={template.previewImage}
           alt={template.name}
+          width={64}
+          height={64}
+          sizes="64px"
           className="h-full w-full object-contain p-1"
         />
       </button>
