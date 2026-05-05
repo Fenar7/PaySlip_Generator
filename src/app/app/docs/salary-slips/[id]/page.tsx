@@ -1,5 +1,5 @@
 import { notFound } from "next/navigation";
-import { getSalarySlip } from "../actions";
+import { getSalarySlip, releaseSalarySlip, archiveSalarySlip } from "../actions";
 import { DocumentAttachments } from "@/components/docs/document-attachments";
 import { getDocAttachments } from "@/app/app/docs/attachment-actions";
 import { getDocumentTimelineForPage } from "@/lib/document-events";
@@ -79,12 +79,20 @@ export default async function SalarySlipDetailPage({
                     label: "Release",
                     icon: "release" as const,
                     variant: "primary" as const,
+                    formAction: async () => {
+                      "use server";
+                      await releaseSalarySlip(id);
+                    },
                   },
                   {
                     id: "archive",
                     label: "Archive",
                     icon: "archive" as const,
                     variant: "danger" as const,
+                    formAction: async () => {
+                      "use server";
+                      await archiveSalarySlip(id);
+                    },
                   },
                 ]
               : []),

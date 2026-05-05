@@ -83,14 +83,6 @@ export default async function EditInvoicePage({
               variant: "subtle",
               href: `/app/docs/invoices/print?id=${invoice.id}&preview=1`,
             },
-            ...(invoice.publicToken
-              ? [{
-                  id: "copy-link",
-                  label: "Copy Link",
-                  icon: "link" as const,
-                  variant: "subtle" as const,
-                }]
-              : []),
           ]}
           contextMeta={[
             { label: "Customer", value: invoice.customer?.name ?? "—" },
