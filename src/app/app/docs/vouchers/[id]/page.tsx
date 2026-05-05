@@ -13,6 +13,19 @@ export const metadata = {
   title: "Edit Voucher | Slipwise",
 };
 
+function formatVoucherDate(voucherDate: string) {
+  const parsed = new Date(`${voucherDate}T00:00:00`);
+  if (Number.isNaN(parsed.getTime())) {
+    return voucherDate;
+  }
+
+  return parsed.toLocaleDateString("en-IN", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  });
+}
+
 const VOUCHER_STATUS_VARIANTS: Record<string, Parameters<typeof StatusBadge>[0]["variant"]> = {
   DRAFT: "neutral",
   ISSUED: "info",
@@ -39,15 +52,18 @@ export default async function EditVoucherPage({
   }
 
   const statusVariant = VOUCHER_STATUS_VARIANTS[voucher.status] ?? "neutral";
+  const voucherTitle =
+    voucher.vendor?.name ??
+    (voucher.type === "payment" ? "Payment voucher" : "Receipt voucher");
 
   return (
     <div className="space-y-5">
       <DocumentActionBar
         backHref="/app/docs/vouchers"
         backLabel="Vouchers"
-        documentType={voucher.voucherType === "payment" ? "Payment Voucher" : "Receipt Voucher"}
-        documentNumber={voucher.voucherNumber}
-        title={voucher.title}
+        documentType={voucher.type === "payment" ? "Payment Voucher" : "Receipt Voucher"}
+        documentNumber={voucher.voucherNumber ?? "Draft"}
+        title={voucherTitle}
         status={voucher.status}
         statusVariant={statusVariant}
         primaryActions={[
@@ -76,9 +92,16 @@ export default async function EditVoucherPage({
           },
         ]}
         contextMeta={[
-          { label: "Party", value: voucher.partyName ?? voucher.partyId ?? "—" },
-          { label: "Date", value: voucher.issueDate.toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" }) },
-          { label: "Amount", value: new Intl.NumberFormat("en-IN", { style: "currency", currency: voucher.currency ?? "INR", minimumFractionDigits: 0 }).format(voucher.amount) },
+          { label: "Party", value: voucher.vendor?.name ?? "—" },
+          { label: "Date", value: formatVoucherDate(voucher.voucherDate) },
+          {
+            label: "Amount",
+            value: new Intl.NumberFormat("en-IN", {
+              style: "currency",
+              currency: "INR",
+              minimumFractionDigits: 0,
+            }).format(voucher.totalAmount),
+          },
         ]}
       />
 
