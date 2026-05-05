@@ -10,6 +10,7 @@ import {
   DetailTopBar,
   MetadataField,
 } from "@/components/layout/detail-layout";
+import { KpiCard } from "@/components/dashboard/kpi-card";
 import { ArrowLeft, ArrowUpRight, Receipt, Quote } from "lucide-react";
 
 function formatINR(amount?: number | null) {
@@ -137,6 +138,13 @@ export default async function CustomerCrmPage({
         }
       >
         <div className="space-y-6">
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+            <KpiCard label="Total Invoiced" value={formatINR(Number(customer.totalInvoiced))} />
+            <KpiCard label="Total Paid" value={formatINR(Number(customer.totalPaid))} />
+            <KpiCard label="Lifetime Value" value={formatINR(Number(customer.lifetimeValue))} />
+            <KpiCard label="Open Quotes" value={customer._count.quotes} />
+          </div>
+
           <CrmNoteForm
             entityType="customer"
             entityId={customer.id}
