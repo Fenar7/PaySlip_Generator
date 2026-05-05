@@ -49,7 +49,7 @@ export default async function CustomerDetailPage({
   const relatedItems = [
     ...recentInvoices.map((inv) => ({
       id: inv.id,
-      title: `Invoice ${inv.invoiceNumber}`,
+      title: inv.invoiceNumber ? `Invoice ${inv.invoiceNumber}` : "Invoice",
       subtitle: formatCurrency(Number(inv.totalAmount)),
       status: inv.status,
       href: `/app/docs/invoices/${inv.id}`,
@@ -57,7 +57,7 @@ export default async function CustomerDetailPage({
     })),
     ...recentQuotes.map((q) => ({
       id: q.id,
-      title: `Quote ${q.quoteNumber}`,
+      title: q.quoteNumber ? `Quote ${q.quoteNumber}` : "Quote",
       subtitle: formatCurrency(Number(q.totalAmount)),
       status: q.status,
       href: `/app/docs/quotes/${q.id}`,
