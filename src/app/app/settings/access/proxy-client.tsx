@@ -1,17 +1,30 @@
 "use client";
 
-import { useEffect, useState, useCallback, useMemo } from "react";
+import { useState, useMemo, useCallback } from "react";
+import { useRouter } from "next/navigation";
 import { Button, Badge } from "@/components/ui";
 import { cn } from "@/lib/utils";
-import {
-  getProxyGrants,
-  createProxyGrant,
-  revokeProxyGrant,
-  getOrgMembersForProxy,
-} from "./actions";
 import { ShieldCheck } from "lucide-react";
 
-type ProxyGrant = Awaited<ReturnType<typeof getProxyGrants>>[number];
+type ProxyGrant = {
+  id: string;
+  actorId: string;
+  actorName: string;
+  actorEmail: string;
+  representedId: string;
+  representedName: string;
+  representedEmail: string;
+  scope: string[];
+  reason: string;
+  expiresAt: string;
+  status: string;
+  createdAt: string;
+  updatedAt: string;
+  grantedBy: string;
+  revokedAt: string | null;
+  revokedBy: string | null;
+};
+
 type OrgMember = { id: string; name: string; email: string };
 
 const SCOPE_OPTIONS = [
@@ -31,48 +44,54 @@ const STATUS_VARIANT: Record<string, "success" | "default" | "danger"> = {
 
 const STATUS_FILTERS = ["All", "ACTIVE", "EXPIRED", "REVOKED"] as const;
 
-export function ProxyClient() {
-  const [grants, setGrants] = useState<ProxyGrant[]>([]);
-  const [members, setMembers] = useState<OrgMember[]>([]);
-  const [loading, setLoading] = useState(true);
+type CreateGrantResult =
+  | { success: true; id?: string }
+  | { success: false; error: string };
+
+type RevokeGrantResult =
+  | { success: true }
+  | { success: false; error: string };
+
+interface ProxyClientProps {
+  initialGrants: ProxyGrant[];
+  initialMembers: OrgMember[];
+  createGrant: (data: {
+    actorId: string;
+    representedId: string;
+    scope: string[];
+    reason: string;
+    expiresAt: string;
+  }) => Promise<CreateGrantResult>;
+  revokeGrant: (id: string) => Promise<RevokeGrantResult>;
+}
+
+export function ProxyClient({
+  initialGrants,
+  initialMembers,
+  createGrant,
+  revokeGrant,
+}: ProxyClientProps) {
+  const router = useRouter();
   const [statusFilter, setStatusFilter] = useState<string>("All");
   const [showModal, setShowModal] = useState(false);
   const [revoking, setRevoking] = useState<string | null>(null);
   const [confirmRevoke, setConfirmRevoke] = useState<string | null>(null);
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    try {
-      const [g, m] = await Promise.all([
-        getProxyGrants(),
-        getOrgMembersForProxy(),
-      ]);
-      setGrants(g);
-      setMembers(m);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    load();
-  }, [load]);
-
   const filtered = useMemo(
     () =>
       statusFilter === "All"
-        ? grants
-        : grants.filter((g) => g.status === statusFilter),
-    [grants, statusFilter]
+        ? initialGrants
+        : initialGrants.filter((g) => g.status === statusFilter),
+    [initialGrants, statusFilter]
   );
 
   async function handleRevoke(id: string) {
     setRevoking(id);
-    const res = await revokeProxyGrant(id);
+    const res = await revokeGrant(id);
     if (!res.success) alert(res.error);
     setConfirmRevoke(null);
     setRevoking(null);
-    load();
+    router.refresh();
   }
 
   return (
@@ -109,11 +128,7 @@ export function ProxyClient() {
 
       {/* Table */}
       <div className="slipwise-panel overflow-hidden">
-        {loading ? (
-          <div className="p-8 text-center text-sm text-[var(--text-muted)]">
-            Loading…
-          </div>
-        ) : filtered.length === 0 ? (
+        {filtered.length === 0 ? (
           <div className="p-8 text-center text-sm text-[var(--text-muted)]">
             No proxy grants found.
           </div>
@@ -220,12 +235,13 @@ export function ProxyClient() {
       {/* Grant Proxy Modal */}
       {showModal && (
         <GrantProxyModal
-          members={members}
+          members={initialMembers}
           onClose={() => setShowModal(false)}
           onCreated={() => {
             setShowModal(false);
-            load();
+            router.refresh();
           }}
+          createGrant={createGrant}
         />
       )}
     </div>
@@ -238,10 +254,12 @@ function GrantProxyModal({
   members,
   onClose,
   onCreated,
+  createGrant,
 }: {
   members: OrgMember[];
   onClose: () => void;
   onCreated: () => void;
+  createGrant: ProxyClientProps["createGrant"];
 }) {
   const [actorId, setActorId] = useState("");
   const [representedId, setRepresentedId] = useState("");
@@ -291,7 +309,7 @@ function GrantProxyModal({
     }
 
     setSaving(true);
-    const result = await createProxyGrant({
+    const result = await createGrant({
       actorId,
       representedId,
       scope,

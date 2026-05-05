@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import {
   SettingsCard,
@@ -14,20 +15,31 @@ import {
   getRoleColor,
   type Role,
 } from "@/lib/permissions";
-import {
-  getOrgMembers,
-  getPendingInvitations,
-  inviteUser,
-  updateMemberRole,
-  deactivateMember,
-  reactivateMember,
-  removeMember,
-  resendInvitation,
-  cancelInvitation,
-  type MemberWithProfile,
-  type InvitationRow,
-} from "./actions";
 import { Users, UserPlus, Mail } from "lucide-react";
+
+interface MemberWithProfile {
+  id: string;
+  userId: string;
+  role: string;
+  createdAt: string;
+  user: {
+    id: string;
+    name: string;
+    email: string;
+    avatarUrl: string | null;
+  };
+}
+
+interface InvitationRow {
+  id: string;
+  email: string;
+  role: string | null;
+  status: string;
+  expiresAt: string;
+  inviterId: string;
+}
+
+type ActionResult = { success: boolean; error?: string };
 
 function ConfirmDialog({
   open,
@@ -160,14 +172,32 @@ function RoleBadge({ role }: { role: string }) {
   );
 }
 
+interface UsersClientProps {
+  currentUserId: string;
+  initialMembers: MemberWithProfile[];
+  initialInvitations: InvitationRow[];
+  inviteUserAction: (data: { email: string; role: string }) => Promise<ActionResult>;
+  updateMemberRoleAction: (memberId: string, role: string) => Promise<ActionResult>;
+  deactivateMemberAction: (memberId: string) => Promise<ActionResult>;
+  reactivateMemberAction: (memberId: string) => Promise<ActionResult>;
+  removeMemberAction: (memberId: string) => Promise<ActionResult>;
+  resendInvitationAction: (invitationId: string) => Promise<ActionResult>;
+  cancelInvitationAction: (invitationId: string) => Promise<ActionResult>;
+}
+
 export default function UsersClient({
   currentUserId,
-}: {
-  currentUserId: string;
-}) {
-  const [members, setMembers] = useState<MemberWithProfile[]>([]);
-  const [invitations, setInvitations] = useState<InvitationRow[]>([]);
-  const [loading, setLoading] = useState(true);
+  initialMembers,
+  initialInvitations,
+  inviteUserAction,
+  updateMemberRoleAction,
+  deactivateMemberAction,
+  reactivateMemberAction,
+  removeMemberAction,
+  resendInvitationAction,
+  cancelInvitationAction,
+}: UsersClientProps) {
+  const router = useRouter();
   const [error, setError] = useState("");
   const [showInvite, setShowInvite] = useState(false);
   const [confirm, setConfirm] = useState<{
@@ -176,41 +206,23 @@ export default function UsersClient({
     action: () => Promise<void>;
   } | null>(null);
 
-  const loadData = useCallback(async () => {
-    try {
-      const [m, inv] = await Promise.all([
-        getOrgMembers(),
-        getPendingInvitations(),
-      ]);
-      setMembers(m);
-      setInvitations(inv);
-    } catch (err) {
-      setError(
-        err instanceof Error ? err.message : "Failed to load team members"
-      );
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    loadData();
-  }, [loadData]);
+  const activeMembers = initialMembers.filter((m) => m.role !== "deactivated");
+  const deactivatedMembers = initialMembers.filter((m) => m.role === "deactivated");
 
   async function handleInvite(email: string, role: string) {
-    const result = await inviteUser({ email, role });
+    const result = await inviteUserAction({ email, role });
     if (!result.success) throw new Error(result.error);
-    await loadData();
+    router.refresh();
   }
 
   async function handleRoleChange(memberId: string, newRole: string) {
-    const result = await updateMemberRole(memberId, newRole);
+    const result = await updateMemberRoleAction(memberId, newRole);
     if (!result.success) {
       setError(result.error ?? "Failed to update role");
       return;
     }
     setError("");
-    await loadData();
+    router.refresh();
   }
 
   async function handleDeactivate(member: MemberWithProfile) {
@@ -218,20 +230,20 @@ export default function UsersClient({
       title: "Deactivate Member",
       message: `Deactivate ${member.user.name}? They will lose access until reactivated.`,
       action: async () => {
-        const result = await deactivateMember(member.id);
+        const result = await deactivateMemberAction(member.id);
         if (!result.success) setError(result.error ?? "Failed");
         else setError("");
         setConfirm(null);
-        await loadData();
+        router.refresh();
       },
     });
   }
 
   async function handleReactivate(memberId: string) {
-    const result = await reactivateMember(memberId);
+    const result = await reactivateMemberAction(memberId);
     if (!result.success) setError(result.error ?? "Failed");
     else setError("");
-    await loadData();
+    router.refresh();
   }
 
   async function handleRemove(member: MemberWithProfile) {
@@ -239,39 +251,28 @@ export default function UsersClient({
       title: "Remove Member",
       message: `Remove ${member.user.name} from the organization? This cannot be undone.`,
       action: async () => {
-        const result = await removeMember(member.id);
+        const result = await removeMemberAction(member.id);
         if (!result.success) setError(result.error ?? "Failed");
         else setError("");
         setConfirm(null);
-        await loadData();
+        router.refresh();
       },
     });
   }
 
   async function handleResendInvite(id: string) {
-    const result = await resendInvitation(id);
+    const result = await resendInvitationAction(id);
     if (!result.success) setError(result.error ?? "Failed");
     else setError("");
-    await loadData();
+    router.refresh();
   }
 
   async function handleCancelInvite(id: string) {
-    const result = await cancelInvitation(id);
+    const result = await cancelInvitationAction(id);
     if (!result.success) setError(result.error ?? "Failed");
     else setError("");
-    await loadData();
+    router.refresh();
   }
-
-  if (loading) {
-    return (
-      <div className="slipwise-panel p-6">
-        <p className="text-sm text-[var(--text-muted)]">Loading team members…</p>
-      </div>
-    );
-  }
-
-  const activeMembers = members.filter((m) => m.role !== "deactivated");
-  const deactivatedMembers = members.filter((m) => m.role === "deactivated");
 
   return (
     <div className="space-y-6">
@@ -484,7 +485,7 @@ export default function UsersClient({
       )}
 
       {/* Pending Invitations */}
-      {invitations.length > 0 && (
+      {initialInvitations.length > 0 && (
         <SettingsCard>
           <SettingsCardHeader>
             <div className="flex items-center gap-2.5">
@@ -492,7 +493,7 @@ export default function UsersClient({
               <h2 className="text-base font-semibold text-[var(--text-primary)]">
                 Pending Invitations
                 <span className="ml-2 text-sm font-normal text-[var(--text-muted)]">
-                  ({invitations.length})
+                  ({initialInvitations.length})
                 </span>
               </h2>
             </div>
@@ -517,7 +518,7 @@ export default function UsersClient({
                   </tr>
                 </thead>
                 <tbody>
-                  {invitations.map((inv) => {
+                  {initialInvitations.map((inv) => {
                     const expired = new Date(inv.expiresAt) < new Date();
                     return (
                       <tr
