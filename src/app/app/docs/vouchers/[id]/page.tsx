@@ -45,8 +45,8 @@ export default async function EditVoucherPage({
       <DocumentActionBar
         backHref="/app/docs/vouchers"
         backLabel="Vouchers"
-        documentType={voucher.voucherType === "payment" ? "Payment Voucher" : "Receipt Voucher"}
-        documentNumber={voucher.voucherNumber}
+        documentType={voucher.type === "payment" ? "Payment Voucher" : "Receipt Voucher"}
+        documentNumber={voucher.voucherNumber ?? "Draft"}
         title={voucher.title}
         status={voucher.status}
         statusVariant={statusVariant}
