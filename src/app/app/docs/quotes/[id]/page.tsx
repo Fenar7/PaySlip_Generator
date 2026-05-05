@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { getQuote } from "../actions";
+import { getQuote, sendQuoteAction, convertQuoteAction, duplicateQuote, deleteQuote } from "../actions";
 import { DocumentAttachments } from "@/components/docs/document-attachments";
 import { getDocAttachments } from "@/app/app/docs/attachment-actions";
 import { getDocumentTimelineForPage } from "@/lib/document-events";
@@ -76,6 +76,10 @@ export default async function QuoteDetailPage({
                     label: "Send Quote",
                     icon: "send" as const,
                     variant: "primary" as const,
+                    formAction: async () => {
+                      "use server";
+                      await sendQuoteAction(id);
+                    },
                   },
                 ]
               : []),
@@ -86,6 +90,10 @@ export default async function QuoteDetailPage({
                     label: "Convert to Invoice",
                     icon: "convert" as const,
                     variant: "primary" as const,
+                    formAction: async () => {
+                      "use server";
+                      await convertQuoteAction(id);
+                    },
                   },
                 ]
               : []),
@@ -94,6 +102,10 @@ export default async function QuoteDetailPage({
               label: "Duplicate",
               icon: "duplicate",
               variant: "secondary",
+              formAction: async () => {
+                "use server";
+                await duplicateQuote(id);
+              },
             },
           ]}
           secondaryActions={[
@@ -111,6 +123,10 @@ export default async function QuoteDetailPage({
                     label: "Delete",
                     icon: "delete" as const,
                     variant: "danger" as const,
+                    formAction: async () => {
+                      "use server";
+                      await deleteQuote(id);
+                    },
                   },
                 ]
               : []),
@@ -140,7 +156,7 @@ export default async function QuoteDetailPage({
                     <h2 className="text-xl font-bold uppercase tracking-wide text-[var(--brand-cta)]">Quote</h2>
                     <p className="mt-1 text-lg font-semibold text-[var(--text-primary)]">#{quote.quoteNumber}</p>
                     <StatusBadge variant={statusVariant} className="mt-2">
-                      {quote.status}
+                      {displayStatus}
                     </StatusBadge>
                   </div>
                 </div>
@@ -258,7 +274,7 @@ export default async function QuoteDetailPage({
               <div className="space-y-3 text-sm">
                 <div className="flex justify-between">
                   <span className="text-[var(--text-muted)]">Status</span>
-                  <StatusBadge variant={statusVariant}>{quote.status}</StatusBadge>
+                  <StatusBadge variant={statusVariant}>{displayStatus}</StatusBadge>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-[var(--text-muted)]">Currency</span>

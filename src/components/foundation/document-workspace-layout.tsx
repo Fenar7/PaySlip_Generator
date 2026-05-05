@@ -459,28 +459,25 @@ export function DocumentWorkspaceLayout({
               </section>
             ) : null}
 
-            {/* Desktop preview — sticky right column */}
+            {/* Preview — single instance, responsive layout */}
             {viewMode === "form" ? (
-              <div className="hidden xl:block">
-                <div className="sticky top-6">
-                  <section className="rounded-2xl border border-[var(--border-default)] bg-white p-4 shadow-[var(--shadow-card)] md:p-5">
+              <div
+                className={cn(
+                  !isDesktopWorkspace && mobileTab !== "preview" && "hidden",
+                  "xl:block",
+                )}
+              >
+                <div className="xl:sticky xl:top-6">
+                  <section
+                    className={cn(
+                      "rounded-none border-0 bg-transparent p-0 shadow-none",
+                      "sm:rounded-2xl sm:border sm:border-[var(--border-default)] sm:bg-white sm:p-4 sm:shadow-[var(--shadow-card)] md:p-5",
+                    )}
+                  >
                     {previewHeader}
                   </section>
                 </div>
               </div>
-            ) : null}
-
-            {/* Mobile preview */}
-            {viewMode === "form" ? (
-              <section
-                className={cn(
-                  "rounded-none border-0 bg-transparent p-0 shadow-none sm:rounded-2xl sm:border sm:border-[var(--border-default)] sm:bg-white sm:p-4 sm:shadow-[var(--shadow-card)] md:p-5",
-                  !isDesktopWorkspace && mobileTab !== "preview" && "hidden",
-                  "xl:hidden",
-                )}
-              >
-                {previewHeader}
-              </section>
             ) : null}
 
             {/* Mobile export */}

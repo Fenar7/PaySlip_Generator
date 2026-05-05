@@ -18,10 +18,8 @@ import {
   Copy,
   CheckCircle2,
   XCircle,
-  AlertTriangle,
   Send,
   RotateCcw,
-  AlertTriangle,
 } from "lucide-react";
 import { useState } from "react";
 
@@ -74,7 +72,6 @@ const ICON_MAP: Record<NonNullable<DocAction["icon"]>, React.ReactNode> = {
   more: <MoreHorizontal className="h-3.5 w-3.5" />,
   archive: <ArchiveIcon />,
   release: <CheckCircle2 className="h-3.5 w-3.5" />,
-  alert: <AlertTriangle className="h-3.5 w-3.5" />,
 };
 
 function ArchiveIcon() {
@@ -121,6 +118,21 @@ function ActionButton({ action }: { action: DocAction }) {
       <Link href={action.href} className={className} title={action.title}>
         {content}
       </Link>
+    );
+  }
+
+  if (action.formAction) {
+    return (
+      <form action={action.formAction} key={action.id}>
+        <button
+          type="submit"
+          disabled={action.disabled}
+          className={className}
+          title={action.title}
+        >
+          {content}
+        </button>
+      </form>
     );
   }
 
