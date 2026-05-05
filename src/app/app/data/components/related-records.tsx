@@ -14,6 +14,10 @@ interface RelatedRecordsProps {
   title: string;
   items: RelatedItem[];
   emptyMessage?: string;
+  action?: {
+    href: string;
+    label: string;
+  };
 }
 
 function statusVariant(status?: string): Parameters<typeof StatusBadge>[0]["variant"] {
@@ -25,11 +29,19 @@ function statusVariant(status?: string): Parameters<typeof StatusBadge>[0]["vari
   return "neutral";
 }
 
-export function RelatedRecords({ title, items, emptyMessage = "No records yet." }: RelatedRecordsProps) {
+export function RelatedRecords({ title, items, emptyMessage = "No records yet.", action }: RelatedRecordsProps) {
   return (
     <div className="slipwise-panel overflow-hidden">
-      <div className="border-b border-[var(--border-soft)] px-5 py-3">
+      <div className="flex items-center justify-between border-b border-[var(--border-soft)] px-5 py-3">
         <h3 className="text-sm font-semibold text-[var(--text-primary)]">{title}</h3>
+        {action && (
+          <Link
+            href={action.href}
+            className="shrink-0 text-xs font-medium text-[var(--brand-primary)] hover:underline"
+          >
+            {action.label}
+          </Link>
+        )}
       </div>
       {items.length === 0 ? (
         <div className="px-5 py-8 text-center text-sm text-[var(--text-muted)]">{emptyMessage}</div>

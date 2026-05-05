@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { StatusBadge } from "@/components/dashboard/status-badge";
 import { FileText, StickyNote, Send } from "lucide-react";
 
@@ -10,12 +11,22 @@ export interface TimelineEvent {
   amount?: number | null;
   status?: string | null;
   timestamp: Date;
+  referenceType?: string;
+  referenceId?: string;
 }
 
 interface CrmTimelineProps {
   events: TimelineEvent[];
   emptyMessage?: string;
 }
+
+const REFERENCE_ROUTE: Record<string, (id: string) => string> = {
+  invoice: (id) => `/app/docs/invoices/${id}`,
+  quote: (id) => `/app/docs/quotes/${id}`,
+  vendor_bill: (id) => `/app/books/vendor-bills/${id}`,
+  purchase_order: (id) => `/app/procurement/po/${id}`,
+  salary_slip: (id) => `/app/docs/salary-slips/${id}`,
+};
 
 const EVENT_META: Record<
   string,
@@ -100,9 +111,18 @@ export function CrmTimeline({ events, emptyMessage = "No events yet." }: CrmTime
               </div>
               <div className="min-w-0 flex-1">
                 <div className="flex flex-wrap items-center gap-2">
-                  <span className="text-sm font-medium text-[var(--text-primary)]">
-                    {ev.title}
-                  </span>
+                  {ev.referenceType && ev.referenceId && REFERENCE_ROUTE[ev.referenceType] ? (
+                    <Link
+                      href={REFERENCE_ROUTE[ev.referenceType](ev.referenceId)}
+                      className="text-sm font-medium text-[var(--brand-primary)] hover:underline"
+                    >
+                      {ev.title}
+                    </Link>
+                  ) : (
+                    <span className="text-sm font-medium text-[var(--text-primary)]">
+                      {ev.title}
+                    </span>
+                  )}
                   {ev.status && (
                     <StatusBadge variant={statusVariant(ev.status)}>
                       {ev.status.replace(/_/g, " ")}

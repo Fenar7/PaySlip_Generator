@@ -10,7 +10,7 @@ import {
   DetailTopBar,
   MetadataField,
 } from "@/components/layout/detail-layout";
-import { ArrowLeft, ArrowUpRight } from "lucide-react";
+import { ArrowLeft, ArrowUpRight, Receipt, Quote } from "lucide-react";
 
 function formatINR(amount?: number | null) {
   if (amount == null) return "—";
@@ -75,6 +75,22 @@ export default async function CustomerCrmPage({
                 <MetadataField label="Total Invoiced" value={formatINR(Number(customer.totalInvoiced))} />
                 <MetadataField label="Total Paid" value={formatINR(Number(customer.totalPaid))} />
                 <MetadataField label="Lifetime Value" value={formatINR(Number(customer.lifetimeValue))} />
+                <MetadataField
+                  label="Invoices"
+                  value={
+                    <Link href={`/app/docs/invoices?customerId=${customer.id}`} className="text-[var(--brand-primary)] hover:underline">
+                      View
+                    </Link>
+                  }
+                />
+                <MetadataField
+                  label="Quotes"
+                  value={
+                    <Link href={`/app/docs/quotes?customerId=${customer.id}`} className="text-[var(--brand-primary)] hover:underline">
+                      View
+                    </Link>
+                  }
+                />
                 {customer.nextFollowUpAt && (
                   <MetadataField
                     label="Next Follow-up"
@@ -82,6 +98,25 @@ export default async function CustomerCrmPage({
                   />
                 )}
               </dl>
+            </DetailRailCard>
+
+            <DetailRailCard title="Quick Actions">
+              <div className="flex flex-col gap-2">
+                <Link
+                  href={`/app/docs/invoices/new?customerId=${customer.id}`}
+                  className="inline-flex items-center gap-2 rounded-lg border border-[var(--border-default)] bg-white px-3 py-2 text-xs font-medium text-[var(--text-secondary)] transition-colors hover:bg-[var(--surface-subtle)]"
+                >
+                  <Receipt className="h-3.5 w-3.5" />
+                  New Invoice
+                </Link>
+                <Link
+                  href={`/app/docs/quotes/new?customerId=${customer.id}`}
+                  className="inline-flex items-center gap-2 rounded-lg border border-[var(--border-default)] bg-white px-3 py-2 text-xs font-medium text-[var(--text-secondary)] transition-colors hover:bg-[var(--surface-subtle)]"
+                >
+                  <Quote className="h-3.5 w-3.5" />
+                  New Quote
+                </Link>
+              </div>
             </DetailRailCard>
 
             {customer.tags.length > 0 && (

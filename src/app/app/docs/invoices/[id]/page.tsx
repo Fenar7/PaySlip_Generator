@@ -93,6 +93,29 @@ export default async function EditInvoicePage({
       }
       rail={
         <>
+          {invoice.customer && (
+            <DetailRailCard title="Customer">
+              <div className="space-y-2">
+                <Link
+                  href={`/app/data/customers/${invoice.customer.id}`}
+                  className="text-sm font-medium text-[var(--brand-primary)] hover:underline"
+                >
+                  {invoice.customer.name}
+                </Link>
+                {invoice.customer.email && (
+                  <p className="text-xs text-[var(--text-muted)]">{invoice.customer.email}</p>
+                )}
+                <div className="flex gap-2 pt-1">
+                  <Link
+                    href={`/app/crm/customers/${invoice.customer.id}`}
+                    className="text-xs font-medium text-[var(--brand-primary)] hover:underline"
+                  >
+                    CRM →
+                  </Link>
+                </div>
+              </div>
+            </DetailRailCard>
+          )}
           <DetailRailCard>
             <InvoiceDetailClient
               invoiceId={invoice.id}
