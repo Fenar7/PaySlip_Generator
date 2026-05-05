@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation";
+import Link from "next/link";
 import { getSalarySlip, releaseSalarySlip, archiveSalarySlip } from "../actions";
 import { DocumentAttachments } from "@/components/docs/document-attachments";
 import { getDocAttachments } from "@/app/app/docs/attachment-actions";

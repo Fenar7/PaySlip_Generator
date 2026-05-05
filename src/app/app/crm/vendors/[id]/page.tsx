@@ -11,7 +11,7 @@ import {
   MetadataField,
 } from "@/components/layout/detail-layout";
 import { KpiCard } from "@/components/dashboard/kpi-card";
-import { ArrowLeft, ArrowUpRight, Receipt, ShoppingCart } from "lucide-react";
+import { ArrowLeft, ArrowUpRight, Receipt } from "lucide-react";
 
 function formatINR(amount?: number | null) {
   if (amount == null) return "—";
@@ -82,14 +82,7 @@ export default async function VendorCrmPage({
                     </Link>
                   }
                 />
-                <MetadataField
-                  label="Purchase Orders"
-                  value={
-                    <Link href={`/app/procurement/po?vendorId=${vendor.id}`} className="text-[var(--brand-primary)] hover:underline">
-                      View
-                    </Link>
-                  }
-                />
+                <MetadataField label="Purchase Orders" value="—" />
               </dl>
             </DetailRailCard>
 
@@ -101,13 +94,6 @@ export default async function VendorCrmPage({
                 >
                   <Receipt className="h-3.5 w-3.5" />
                   New Bill
-                </Link>
-                <Link
-                  href={`/app/procurement/po/new?vendorId=${vendor.id}`}
-                  className="inline-flex items-center gap-2 rounded-lg border border-[var(--border-default)] bg-white px-3 py-2 text-xs font-medium text-[var(--text-secondary)] transition-colors hover:bg-[var(--surface-subtle)]"
-                >
-                  <ShoppingCart className="h-3.5 w-3.5" />
-                  New Purchase Order
                 </Link>
               </div>
             </DetailRailCard>
