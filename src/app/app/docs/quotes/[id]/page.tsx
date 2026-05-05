@@ -155,7 +155,7 @@ export default async function QuoteDetailPage({
                   <div className="text-right">
                     <h2 className="text-xl font-bold uppercase tracking-wide text-[var(--brand-cta)]">Quote</h2>
                     <p className="mt-1 text-lg font-semibold text-[var(--text-primary)]">#{quote.quoteNumber}</p>
-                    <StatusBadge variant={statusVariant} className="mt-2">
+                    <StatusBadge variant={isExpired && quote.status === "SENT" ? "warning" : statusVariant} className="mt-2">
                       {displayStatus}
                     </StatusBadge>
                   </div>

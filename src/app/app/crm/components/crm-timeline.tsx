@@ -24,7 +24,6 @@ const REFERENCE_ROUTE: Record<string, (id: string) => string> = {
   invoice: (id) => `/app/docs/invoices/${id}`,
   quote: (id) => `/app/docs/quotes/${id}`,
   vendor_bill: (id) => `/app/books/vendor-bills/${id}`,
-  purchase_order: (id) => `/app/procurement/po/${id}`,
   salary_slip: (id) => `/app/docs/salary-slips/${id}`,
 };
 

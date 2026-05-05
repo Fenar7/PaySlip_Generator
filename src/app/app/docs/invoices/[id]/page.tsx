@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation";
+import Link from "next/link";
 import { getInvoice, getInvoiceTimeline, getInvoicePayments } from "../actions";
 import { InvoiceBrandingWrapper } from "../new/branding-wrapper";
 import { listCustomers } from "@/app/app/data/actions";

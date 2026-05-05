@@ -10,7 +10,7 @@ import {
   MetadataField,
 } from "@/components/layout/detail-layout";
 import { StatusBadge } from "@/components/dashboard/status-badge";
-import { ArrowLeft, ArrowUpRight, Receipt, ShoppingCart } from "lucide-react";
+import { ArrowLeft, ArrowUpRight, Receipt } from "lucide-react";
 
 export const metadata = {
   title: "Vendor | Slipwise",
@@ -49,7 +49,7 @@ export default async function VendorDetailPage({
       title: b.billNumber ? `Bill ${b.billNumber}` : "Bill",
       subtitle: formatCurrency(Number(b.totalAmount)),
       status: b.status,
-      href: `/app/docs/vendor-bills/${b.id}`,
+      href: `/app/books/vendor-bills/${b.id}`,
       date: b.createdAt,
     })),
     ...recentPurchaseOrders.map((po) => ({
@@ -57,7 +57,6 @@ export default async function VendorDetailPage({
       title: po.poNumber ? `PO ${po.poNumber}` : "Purchase Order",
       subtitle: formatCurrency(Number(po.totalAmount)),
       status: po.status,
-      href: `/app/procurement/purchase-orders/${po.id}`,
       date: po.createdAt,
     })),
   ].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
@@ -126,14 +125,7 @@ export default async function VendorDetailPage({
                     </Link>
                   }
                 />
-                <MetadataField
-                  label="Purchase Orders"
-                  value={
-                    <Link href={`/app/procurement/po?vendorId=${vendor.id}`} className="text-[var(--brand-primary)] hover:underline">
-                      {vendor._count.purchaseOrders}
-                    </Link>
-                  }
-                />
+                <MetadataField label="Purchase Orders" value={vendor._count.purchaseOrders} />
                 <MetadataField label="Notes" value={vendor._count.crmNotes} />
               </dl>
             </DetailRailCard>
@@ -146,13 +138,6 @@ export default async function VendorDetailPage({
                 >
                   <Receipt className="h-3.5 w-3.5" />
                   New Bill
-                </Link>
-                <Link
-                  href={`/app/procurement/po/new?vendorId=${vendor.id}`}
-                  className="inline-flex items-center gap-2 rounded-lg border border-[var(--border-default)] bg-white px-3 py-2 text-xs font-medium text-[var(--text-secondary)] transition-colors hover:bg-[var(--surface-subtle)]"
-                >
-                  <ShoppingCart className="h-3.5 w-3.5" />
-                  New Purchase Order
                 </Link>
               </div>
             </DetailRailCard>
