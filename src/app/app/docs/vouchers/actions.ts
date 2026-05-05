@@ -514,7 +514,7 @@ export async function listVouchers(params?: {
   const skip = (page - 1) * limit;
 
   const safeSearch = params?.search && params.search !== "undefined" ? params.search : undefined;
-  const safeType = params?.type && params.type !== "undefined" ? params.type : undefined;
+  const safeType = params?.type;
   const safeStatus = params?.status && params.status !== "undefined" ? params.status : undefined;
   const safeSequenceId = params?.sequenceId && params.sequenceId !== "undefined" ? params.sequenceId : undefined;
   const safeVendorId = params?.vendorId && params.vendorId !== "undefined" ? params.vendorId : undefined;
