@@ -83,7 +83,7 @@ async function reverseInvoicePostingIfNeededTx(
     actorId: string;
     invoice: {
       id: string;
-      invoiceNumber: string;
+      invoiceNumber: string | null;
       amountPaid: number;
       postedJournalEntryId: string | null;
       accountingStatus: string;
@@ -106,7 +106,7 @@ async function reverseInvoicePostingIfNeededTx(
     orgId: input.orgId,
     journalEntryId: input.invoice.postedJournalEntryId,
     actorId: input.actorId,
-    memo: `${input.action === "cancel" ? "Cancel" : "Reissue"} invoice ${input.invoice.invoiceNumber}${
+    memo: `${input.action === "cancel" ? "Cancel" : "Reissue"} invoice ${input.invoice.invoiceNumber ?? input.invoice.id}${
       input.reason.trim() ? `: ${input.reason.trim()}` : ""
     }`,
   });
