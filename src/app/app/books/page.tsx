@@ -18,6 +18,7 @@ import {
   ScrollText,
   Scale,
   Receipt,
+  CheckCircle2,
 } from "lucide-react";
 
 export const metadata = {
