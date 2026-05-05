@@ -57,7 +57,6 @@ export default async function EditInvoicePage({
           backLabel="Invoices"
           documentType="Invoice"
           documentNumber={invoice.invoiceNumber ?? invoice.id}
-          title={invoice.title}
           status={invoice.status}
           statusVariant={statusVariant}
           primaryActions={[
