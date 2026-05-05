@@ -2,15 +2,24 @@
 
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useState, useTransition } from "react";
+import { useState, useTransition, useCallback } from "react";
 import { cn } from "@/lib/utils";
-import { Search, ChevronLeft, ChevronRight, Pencil, Trash2 } from "lucide-react";
+import { TableEmpty } from "@/components/ui/table-empty";
+import {
+  Search,
+  ChevronLeft,
+  ChevronRight,
+  Pencil,
+  Trash2,
+  Users,
+} from "lucide-react";
 
 interface Column<T = Record<string, unknown>> {
   key: string;
   label: string;
   render?: (row: T) => React.ReactNode;
   width?: string;
+  align?: "left" | "right" | "center";
 }
 
 interface DataTableProps<T> {
@@ -43,15 +52,22 @@ export function DataTable<T extends { id: string }>({
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
-    const params = new URLSearchParams(searchParams);
-    if (search) {
-      params.set("search", search);
-    } else {
-      params.delete("search");
-    }
-    params.set("page", "1");
-    router.push(`?${params.toString()}`);
+    applySearch(search);
   };
+
+  const applySearch = useCallback(
+    (value: string) => {
+      const params = new URLSearchParams(searchParams);
+      if (value) {
+        params.set("search", value);
+      } else {
+        params.delete("search");
+      }
+      params.set("page", "1");
+      router.push(`?${params.toString()}`);
+    },
+    [router, searchParams]
+  );
 
   const handleDelete = async (id: string) => {
     if (!confirm(`Delete this ${entityType}?`)) return;
@@ -74,6 +90,8 @@ export function DataTable<T extends { id: string }>({
   const startItem = total === 0 ? 0 : (page - 1) * pageSize + 1;
   const endItem = Math.min(page * pageSize, total);
 
+  const entityLabel = entityType.charAt(0).toUpperCase() + entityType.slice(1);
+
   return (
     <div className={cn("slipwise-panel overflow-hidden", className)}>
       {/* Search bar */}
@@ -85,7 +103,7 @@ export function DataTable<T extends { id: string }>({
               type="text"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder={`Search ${entityType}s...`}
+              placeholder={`Search ${entityType}s…`}
               className="w-full rounded-lg border border-[var(--border-default)] bg-white py-2 pl-9 pr-3 text-sm text-[var(--text-primary)] placeholder:text-[var(--text-muted)] transition-colors focus:border-[var(--brand-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--focus-ring)]"
             />
           </div>
@@ -106,13 +124,17 @@ export function DataTable<T extends { id: string }>({
               {columns.map((col) => (
                 <th
                   key={col.key}
-                  className="px-5 py-3 text-xs font-semibold uppercase tracking-wider text-[var(--text-muted)]"
+                  className={cn(
+                    "px-5 py-2.5 text-[0.7rem] font-semibold uppercase tracking-[0.15em] text-[var(--text-muted)]",
+                    col.align === "right" && "text-right",
+                    col.align === "center" && "text-center"
+                  )}
                   style={col.width ? { width: col.width } : undefined}
                 >
                   {col.label}
                 </th>
               ))}
-              <th className="px-5 py-3 text-right text-xs font-semibold uppercase tracking-wider text-[var(--text-muted)]">
+              <th className="px-5 py-2.5 text-right text-[0.7rem] font-semibold uppercase tracking-[0.15em] text-[var(--text-muted)]">
                 Actions
               </th>
             </tr>
@@ -120,49 +142,56 @@ export function DataTable<T extends { id: string }>({
           <tbody className="divide-y divide-[var(--border-soft)]">
             {data.length === 0 ? (
               <tr>
-                <td
-                  colSpan={columns.length + 1}
-                  className="px-5 py-12 text-center"
-                >
-                  <p className="text-sm font-medium text-[var(--text-primary)]">No {entityType}s found</p>
-                  <p className="mt-1 text-xs text-[var(--text-muted)]">
-                    Try adjusting your search or create a new {entityType}.
-                  </p>
+                <td colSpan={columns.length + 1}>
+                  <TableEmpty
+                    message={`No ${entityType}s found`}
+                    description="Try adjusting your search or create a new record."
+                    icon={<Users className="h-8 w-8 text-[var(--text-muted)]" />}
+                  />
                 </td>
               </tr>
             ) : (
               data.map((item) => (
                 <tr
                   key={item.id}
-                  className="group transition-colors hover:bg-[var(--surface-subtle)]"
+                  className="group transition-colors hover:bg-[var(--surface-selected)]"
                 >
                   {columns.map((col) => (
-                    <td key={col.key} className="px-5 py-3.5 text-sm text-[var(--text-primary)]">
+                    <td
+                      key={col.key}
+                      className={cn(
+                        "px-5 py-3 text-sm text-[var(--text-primary)]",
+                        col.align === "right" && "text-right",
+                        col.align === "center" && "text-center"
+                      )}
+                    >
                       {col.render
                         ? col.render(item as unknown as T)
-                        : ((item as Record<string, unknown>)[col.key] as string) || "—"}
+                        : ((item as Record<string, unknown>)[
+                            col.key
+                          ] as string) || "—"}
                     </td>
                   ))}
-                  <td className="px-5 py-3.5 text-right">
-                    <div className="flex items-center justify-end gap-2 opacity-100 transition-opacity sm:opacity-0 sm:group-hover:opacity-100 focus-within:opacity-100">
-                      <Link
-                        href={`${editPath}/${item.id}`}
-                        className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-[var(--brand-primary)] transition-colors hover:bg-[var(--surface-selected)]"
-                      >
-                        <Pencil className="h-3 w-3" />
-                        Edit
-                      </Link>
-                      <button
-                        onClick={() => handleDelete(item.id)}
-                        disabled={isPending}
-                        className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-[var(--state-danger)] transition-colors hover:bg-[var(--state-danger-soft)] disabled:opacity-50"
-                      >
-                        <Trash2 className="h-3 w-3" />
-                        Delete
-                      </button>
-                    </div>
-                  </td>
-                </tr>
+                  <td className="px-5 py-3 text-right">
+                      <div className="flex items-center justify-end gap-1.5 opacity-100 transition-opacity sm:opacity-0 sm:group-hover:opacity-100 focus-within:opacity-100">
+                        <Link
+                          href={`${editPath}/${item.id}`}
+                          className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-[var(--brand-primary)] transition-colors hover:bg-[var(--surface-selected)]"
+                        >
+                          <Pencil className="h-3 w-3" />
+                          Edit
+                        </Link>
+                        <button
+                          onClick={() => handleDelete(item.id)}
+                          disabled={isPending}
+                          className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-[var(--state-danger)] transition-colors hover:bg-[var(--state-danger-soft)] disabled:opacity-50"
+                        >
+                          <Trash2 className="h-3 w-3" />
+                          Delete
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
               ))
             )}
           </tbody>
@@ -173,7 +202,14 @@ export function DataTable<T extends { id: string }>({
       {totalPages > 1 && (
         <div className="flex items-center justify-between border-t border-[var(--border-soft)] px-5 py-3">
           <p className="text-xs text-[var(--text-muted)]">
-            Showing {startItem}–{endItem} of {total}
+            Showing{" "}
+            <span className="font-medium text-[var(--text-secondary)]">
+              {startItem}–{endItem}
+            </span>{" "}
+            of{" "}
+            <span className="font-medium text-[var(--text-secondary)]">
+              {total}
+            </span>
           </p>
           <div className="flex items-center gap-1">
             <button
