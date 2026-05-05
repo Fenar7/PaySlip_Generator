@@ -72,25 +72,14 @@ export function FinanceTableBody({ children, className }: FinanceTableBodyProps)
 interface FinanceTableRowProps {
   children: ReactNode;
   className?: string;
-  href?: string;
 }
 
-export function FinanceTableRow({ children, className, href }: FinanceTableRowProps) {
-  const rowClasses = cn(
-    "transition-colors",
-    href ? "cursor-pointer hover:bg-[var(--surface-selected)]" : "hover:bg-[var(--surface-selected)]",
-    className
+export function FinanceTableRow({ children, className }: FinanceTableRowProps) {
+  return (
+    <tr className={cn("transition-colors hover:bg-[var(--surface-selected)]", className)}>
+      {children}
+    </tr>
   );
-
-  if (href) {
-    return (
-      <tr className={rowClasses}>
-        {children}
-      </tr>
-    );
-  }
-
-  return <tr className={rowClasses}>{children}</tr>;
 }
 
 interface FinanceTableCellProps {
