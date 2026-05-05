@@ -508,7 +508,7 @@ export default async function InvoicesPage({
 
           {/* Search */}
           <form method="GET" className="relative flex-1 max-w-xs">
-            {status && status !== "undefined" && <input type="hidden" name="status" value={status} />}
+            {status && (status as string) !== "undefined" && <input type="hidden" name="status" value={status} />}
             {view !== "list" && <input type="hidden" name="view" value={view} />}
             {dateFrom && dateFrom !== "undefined" && <input type="hidden" name="dateFrom" value={dateFrom} />}
             {dateTo && dateTo !== "undefined" && <input type="hidden" name="dateTo" value={dateTo} />}
