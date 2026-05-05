@@ -21,6 +21,8 @@ import {
   FileImage,
   Plus,
   ArrowRight,
+  Sparkles,
+  TrendingUp,
 } from "lucide-react";
 
 export const metadata = {
@@ -72,34 +74,10 @@ const DOC_TYPE_VARIANTS: Record<string, "default" | "success" | "warning" | "inf
 };
 
 const SUITE_CARDS = [
-  { type: "invoice" as const, label: "Invoices", icon: FileText, href: "/app/docs/invoices", newHref: "/app/docs/invoices/new" },
-  { type: "voucher" as const, label: "Vouchers", icon: Receipt, href: "/app/docs/vouchers", newHref: "/app/docs/vouchers/new" },
-  { type: "salary_slip" as const, label: "Salary Slips", icon: Banknote, href: "/app/docs/salary-slips", newHref: "/app/docs/salary-slips/new" },
-  { type: "quote" as const, label: "Quotes", icon: FileCheck, href: "/app/docs/quotes", newHref: "/app/docs/quotes/new" },
-];
-
-const ACTION_TILES = [
-  {
-    href: "/app/docs/vault",
-    label: "Document Vault",
-    description: "Unified view of all documents",
-    icon: LayoutGrid,
-    variant: "featured" as const,
-  },
-  {
-    href: "/app/docs/templates",
-    label: "Templates",
-    description: "Browse and manage document templates",
-    icon: Layers,
-    variant: "default" as const,
-  },
-  {
-    href: "/app/docs/pdf-studio",
-    label: "PDF Studio",
-    description: "Preview, export, and print documents",
-    icon: FileImage,
-    variant: "default" as const,
-  },
+  { type: "invoice" as const, label: "Invoices", icon: FileText, href: "/app/docs/invoices", newHref: "/app/docs/invoices/new", description: "Create and manage customer invoices" },
+  { type: "voucher" as const, label: "Vouchers", icon: Receipt, href: "/app/docs/vouchers", newHref: "/app/docs/vouchers/new", description: "Payment and receipt vouchers" },
+  { type: "salary_slip" as const, label: "Salary Slips", icon: Banknote, href: "/app/docs/salary-slips", newHref: "/app/docs/salary-slips/new", description: "Generate employee payslips" },
+  { type: "quote" as const, label: "Quotes", icon: FileCheck, href: "/app/docs/quotes", newHref: "/app/docs/quotes/new", description: "Send estimates and proposals" },
 ];
 
 // ─── Server-rendered body ─────────────────────────────────────────────────────
@@ -107,9 +85,12 @@ const ACTION_TILES = [
 async function DocsHomeBody() {
   const summary: DocsSummary = await getDocsSummary();
 
+  const totalDocs = Object.values(summary.counts).reduce((a, b) => a + b, 0);
+  const recentCount = summary.recentDocuments.length;
+
   return (
     <>
-      {/* Stats grid */}
+      {/* Top stats + quick create */}
       <DashboardSection>
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
           {SUITE_CARDS.map((card) => (
@@ -123,22 +104,32 @@ async function DocsHomeBody() {
         </div>
       </DashboardSection>
 
-      {/* Action tiles + Recent documents */}
+      {/* Main content grid */}
       <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-3">
-        {/* Recent documents (2/3) */}
-        <div className="lg:col-span-2">
+        {/* Left column: Recent docs + activity (2/3) */}
+        <div className="lg:col-span-2 space-y-6">
+          {/* Recent documents */}
           <ContentPanel padding="none">
             <div className="flex items-center justify-between border-b border-[var(--border-soft)] px-5 py-3">
-              <h2 className="text-sm font-semibold text-[var(--text-primary)]">Recently Updated</h2>
+              <div className="flex items-center gap-2">
+                <TrendingUp className="h-4 w-4 text-[var(--text-muted)]" />
+                <h2 className="text-sm font-semibold text-[var(--text-primary)]">Recently Updated</h2>
+                {recentCount > 0 && (
+                  <span className="rounded-full bg-[var(--surface-subtle)] px-2 py-0.5 text-[0.65rem] font-semibold text-[var(--text-muted)]">
+                    {recentCount}
+                  </span>
+                )}
+              </div>
               <Link
                 href="/app/docs/vault"
-                className="text-xs font-medium text-[var(--brand-primary)] hover:underline"
+                className="inline-flex items-center text-xs font-medium text-[var(--brand-primary)] hover:underline transition-colors"
               >
-                Open Vault <ArrowRight className="ml-0.5 inline h-3 w-3" />
+                Open Vault <ArrowRight className="ml-1 h-3 w-3" />
               </Link>
             </div>
             <ActivityList
               emptyMessage="No documents yet"
+              emptyDescription="Create your first invoice, voucher, quote, or salary slip to get started."
               className="px-2 py-1"
             >
               {summary.recentDocuments.map((row) => (
@@ -158,41 +149,73 @@ async function DocsHomeBody() {
               ))}
             </ActivityList>
           </ContentPanel>
-        </div>
 
-        {/* Quick actions (1/3) */}
-        <div className="flex flex-col gap-4">
+          {/* Quick create shortcuts */}
           <ContentPanel>
-            <h2 className="mb-3 text-sm font-semibold text-[var(--text-primary)]">Quick Actions</h2>
-            <div className="flex flex-col gap-2">
-              {ACTION_TILES.map((tile) => (
-                <QuickActionCard
-                  key={tile.href}
-                  href={tile.href}
-                  label={tile.label}
-                  description={tile.description}
-                  icon={tile.icon}
-                  variant={tile.variant}
-                />
-              ))}
-            </div>
-          </ContentPanel>
-
-          {/* Create shortcuts */}
-          <ContentPanel>
-            <h2 className="mb-3 text-sm font-semibold text-[var(--text-primary)]">Create</h2>
-            <div className="grid grid-cols-2 gap-2">
+            <h2 className="mb-3 text-sm font-semibold text-[var(--text-primary)]">Create New</h2>
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
               {SUITE_CARDS.map((card) => (
                 <Link
                   key={card.type}
                   href={card.newHref}
-                  className="group flex flex-col items-center justify-center rounded-lg border border-[var(--border-soft)] bg-[var(--surface-subtle)] p-3 text-xs font-medium text-[var(--text-secondary)] transition-colors hover:border-[var(--border-default)] hover:bg-[var(--surface-selected)] hover:text-[var(--brand-primary)]"
+                  className="group flex flex-col items-center gap-2 rounded-xl border border-[var(--border-soft)] bg-[var(--surface-subtle)] p-4 text-center transition-all hover:border-[var(--border-default)] hover:bg-[var(--surface-selected)] hover:shadow-sm"
                 >
-                  <card.icon className="mb-1.5 h-4 w-4" />
-                  {card.label.replace("Salary Slips", "Salary Slip")}
+                  <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-[var(--surface-panel)] text-[var(--brand-primary)] shadow-sm transition-colors group-hover:bg-[var(--brand-primary)] group-hover:text-white">
+                    <Plus className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-semibold text-[var(--text-primary)]">{card.label}</p>
+                    <p className="mt-0.5 text-[0.7rem] text-[var(--text-muted)]">{card.description}</p>
+                  </div>
                 </Link>
               ))}
             </div>
+          </ContentPanel>
+        </div>
+
+        {/* Right column: actions + tools (1/3) */}
+        <div className="flex flex-col gap-4">
+          <ContentPanel>
+            <h2 className="mb-3 text-sm font-semibold text-[var(--text-primary)]">Quick Actions</h2>
+            <div className="flex flex-col gap-2">
+              <QuickActionCard
+                href="/app/docs/vault"
+                label="Document Vault"
+                description={`Browse all ${totalDocs} documents`}
+                icon={LayoutGrid}
+                variant="featured"
+              />
+              <QuickActionCard
+                href="/app/docs/templates"
+                label="Templates"
+                description="Browse and manage document templates"
+                icon={Layers}
+                variant="default"
+              />
+              <QuickActionCard
+                href="/app/docs/pdf-studio"
+                label="PDF Studio"
+                description="Preview, export, and print documents"
+                icon={FileImage}
+                variant="default"
+              />
+            </div>
+          </ContentPanel>
+
+          <ContentPanel>
+            <div className="flex items-center gap-2 mb-3">
+              <Sparkles className="h-4 w-4 text-[var(--brand-secondary)]" />
+              <h2 className="text-sm font-semibold text-[var(--text-primary)]">Templates</h2>
+            </div>
+            <p className="text-xs text-[var(--text-muted)] mb-3">
+              Start faster with pre-built templates for your organisation.
+            </p>
+            <Link
+              href="/app/docs/templates"
+              className="inline-flex items-center text-xs font-medium text-[var(--brand-primary)] hover:underline"
+            >
+              Browse templates <ArrowRight className="ml-1 h-3 w-3" />
+            </Link>
           </ContentPanel>
         </div>
       </div>
