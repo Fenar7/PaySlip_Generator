@@ -237,16 +237,16 @@ export default function SequenceSettingsPage() {
 
   if (isOrgLoading) {
     return (
-      <div className="py-8">
-        <p className="text-[#666]">Loading organization...</p>
+      <div className="slipwise-panel p-6">
+        <p className="text-sm text-[var(--text-muted)]">Loading organization...</p>
       </div>
     );
   }
 
   if (loading) {
     return (
-      <div className="py-8">
-        <p className="text-[#666]">Loading sequence settings...</p>
+      <div className="slipwise-panel p-6">
+        <p className="text-sm text-[var(--text-muted)]">Loading sequence settings...</p>
       </div>
     );
   }
@@ -254,27 +254,27 @@ export default function SequenceSettingsPage() {
   return (
     <div className="space-y-8">
       <div>
-        <h2 className="text-xl font-semibold text-[#1a1a1a]">Document Numbering</h2>
-        <p className="text-sm text-[#666] mt-1">
+        <h2 className="text-base font-semibold text-[var(--text-primary)]">Document Numbering</h2>
+        <p className="text-sm text-[var(--text-muted)] mt-0.5">
           Choose how invoice and voucher numbers look and behave.
           {editabilityKnown && !isOwner ? " Only the owner can edit these settings." : ""}
         </p>
       </div>
 
       {error && (
-        <div className="rounded-lg bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700">
+        <div className="rounded-lg border border-[var(--state-danger)]/20 bg-[var(--state-danger-soft)] px-4 py-3 text-sm text-[var(--state-danger)]">
           {error}
         </div>
       )}
       {success && (
-        <div className="rounded-lg bg-green-50 border border-green-200 px-4 py-3 text-sm text-green-700">
+        <div className="rounded-lg border border-[var(--state-success)]/20 bg-[var(--state-success-soft)] px-4 py-3 text-sm text-[var(--state-success)]">
           {success}
         </div>
       )}
 
       {/* ── A. Everyday setup ── */}
       <section className="space-y-4">
-        <h3 className="text-sm font-semibold uppercase tracking-wider text-[#999]">
+        <h3 className="text-xs font-semibold uppercase tracking-[0.15em] text-[var(--text-muted)]">
           Everyday setup
         </h3>
 
@@ -378,7 +378,7 @@ export default function SequenceSettingsPage() {
       {/* ── B. Continue from existing numbers ── */}
       {isOwner && availableSeedDocTypes.length > 0 && (
         <section className="space-y-4">
-          <h3 className="text-sm font-semibold uppercase tracking-wider text-[#999]">
+          <h3 className="text-xs font-semibold uppercase tracking-[0.15em] text-[var(--text-muted)]">
             Continue from existing numbers
           </h3>
           <Card>
@@ -439,7 +439,7 @@ export default function SequenceSettingsPage() {
         <button
           type="button"
           onClick={() => setShowAdvancedSection((v) => !v)}
-          className="flex items-center gap-2 text-sm font-semibold uppercase tracking-wider text-[#999] hover:text-[#666] transition-colors"
+          className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.15em] text-[var(--text-muted)] hover:text-[var(--text-secondary)] transition-colors"
         >
           <span>History and troubleshooting</span>
           <span className="text-lg leading-none">{showAdvancedSection ? "−" : "+"}</span>

@@ -1,10 +1,17 @@
 "use client";
 import { useState, useEffect } from "react";
 import { useSupabaseSession } from "@/hooks/use-supabase-session";
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
+import {
+  SettingsCard,
+  SettingsCardHeader,
+  SettingsCardContent,
+  SettingsSectionHeader,
+  SettingsFormField,
+  SettingsSaveBar,
+} from "@/components/settings/settings-primitives";
 import { getProfileSettings, saveProfileSettings } from "./actions";
+import { User } from "lucide-react";
 
 export default function ProfileSettingsPage() {
   const { isPending } = useSupabaseSession();
@@ -50,6 +57,7 @@ export default function ProfileSettingsPage() {
     try {
       await saveProfileSettings({ name });
       setSuccess(true);
+      setTimeout(() => setSuccess(false), 3000);
     } catch (err) {
       setError(
         err instanceof Error
@@ -63,43 +71,56 @@ export default function ProfileSettingsPage() {
 
   if (isPending || loading) {
     return (
-      <div className="animate-pulse h-48 rounded-2xl border border-[var(--border-strong)] bg-[#f8f8f8]" />
+      <div className="slipwise-panel">
+        <div className="animate-pulse h-48 bg-[var(--surface-subtle)]" />
+      </div>
     );
   }
 
   return (
-    <div className="space-y-6 max-w-3xl">
-      <Card className="overflow-hidden">
-        <CardHeader>
-          <h2 className="text-lg font-semibold text-[#1a1a1a]">Profile</h2>
-          <p className="text-sm text-[#666]">Update your personal information</p>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={handleSave} className="space-y-5 max-w-2xl">
-            <Input
-              id="profile-name"
-              label="Full name"
-              value={name}
-              onChange={e => setName(e.target.value)}
-              required
+    <div className="max-w-2xl">
+      <SettingsCard>
+        <SettingsCardHeader>
+          <div className="flex items-center gap-2.5">
+            <User className="h-4 w-4 text-[var(--brand-primary)]" />
+            <SettingsSectionHeader
+              title="Profile"
+              description="Update your personal information and display name."
             />
-            <div>
-              <label className="block text-sm font-medium text-[#1a1a1a] mb-1">Email</label>
-              <p className="text-sm text-[#666] bg-[#f8f8f8] border border-[#e5e5e5] rounded-md px-3 py-2">
+          </div>
+        </SettingsCardHeader>
+        <SettingsCardContent>
+          <form onSubmit={handleSave} className="space-y-5">
+            <SettingsFormField label="Full name" htmlFor="profile-name">
+              <Input
+                id="profile-name"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                required
+                placeholder="Your full name"
+              />
+            </SettingsFormField>
+
+            <div className="space-y-1.5">
+              <span className="block text-sm font-medium text-[var(--text-primary)]">Email</span>
+              <div className="rounded-lg border border-[var(--border-soft)] bg-[var(--surface-subtle)] px-3 py-2 text-sm text-[var(--text-secondary)]">
                 {email}
-              </p>
-              <p className="text-xs text-[#999] mt-1">
+              </div>
+              <p className="text-xs text-[var(--text-muted)]">
                 Email cannot be changed here. Contact support if needed.
               </p>
             </div>
-            {success && <p className="text-sm text-green-600">✓ Profile updated</p>}
-            {error && <p className="text-sm text-red-600">{error}</p>}
-            <Button type="submit" disabled={saving}>
-              {saving ? "Saving…" : "Save changes"}
-            </Button>
+
+            <SettingsSaveBar
+              saving={saving}
+              saved={success}
+              error={error || undefined}
+              saveLabel="Save changes"
+              savedMessage="✓ Profile updated"
+            />
           </form>
-        </CardContent>
-      </Card>
+        </SettingsCardContent>
+      </SettingsCard>
     </div>
   );
 }
