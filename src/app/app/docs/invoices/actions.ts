@@ -83,7 +83,7 @@ async function reverseInvoicePostingIfNeededTx(
     actorId: string;
     invoice: {
       id: string;
-      invoiceNumber: string;
+      invoiceNumber: string | null;
       amountPaid: number;
       postedJournalEntryId: string | null;
       accountingStatus: string;
@@ -106,7 +106,7 @@ async function reverseInvoicePostingIfNeededTx(
     orgId: input.orgId,
     journalEntryId: input.invoice.postedJournalEntryId,
     actorId: input.actorId,
-    memo: `${input.action === "cancel" ? "Cancel" : "Reissue"} invoice ${input.invoice.invoiceNumber}${
+    memo: `${input.action === "cancel" ? "Cancel" : "Reissue"} invoice ${input.invoice.invoiceNumber ?? input.invoice.id}${
       input.reason.trim() ? `: ${input.reason.trim()}` : ""
     }`,
   });
@@ -191,7 +191,7 @@ async function syncInvoiceRecordToIndex(orgId: string, invoiceId: string): Promi
 
   await syncInvoiceToIndex(orgId, {
     id: invoice.id,
-    invoiceNumber: invoice.invoiceNumber,
+    invoiceNumber: invoice.invoiceNumber ?? "",
     status: invoice.status,
     invoiceDate,
     totalAmount: toAccountingNumber(invoice.totalAmount),
@@ -460,7 +460,7 @@ export async function saveInvoice(
         sourceEntityId: invoice.id,
         actorId: userId,
         payload: {
-          invoiceNumber: invoice.invoiceNumber,
+          invoiceNumber: invoice.invoiceNumber ?? "",
           totalAmount: invoice.totalAmount,
           customerId: invoice.customerId,
         },
@@ -475,7 +475,7 @@ export async function saveInvoice(
         sourceEntityId: invoice.id,
         actorId: userId,
         payload: {
-          invoiceNumber: invoice.invoiceNumber,
+          invoiceNumber: invoice.invoiceNumber ?? "",
           totalAmount: invoice.totalAmount,
           customerId: invoice.customerId,
           status: invoice.status,

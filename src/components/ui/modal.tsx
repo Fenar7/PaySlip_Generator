@@ -4,7 +4,7 @@ import { useEffect, useRef, useId } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { cn } from "@/lib/utils";
 import { X } from "lucide-react";
-import { panelAppear } from "@/components/foundation/motion-primitives";
+import { panelAppear, backdropFade } from "@/components/foundation/motion-primitives";
 
 interface ModalProps {
   open: boolean;
@@ -36,7 +36,6 @@ export function Modal({ open, onClose, title, subtitle, children, footer, size =
     if (open) {
       document.addEventListener("keydown", handleEscape);
       document.body.style.overflow = "hidden";
-      // Auto-focus the dialog for screen readers and keyboard users
       const timer = setTimeout(() => {
         dialogRef.current?.focus();
       }, 50);
@@ -55,11 +54,11 @@ export function Modal({ open, onClose, title, subtitle, children, footer, size =
         <div className="fixed inset-0 z-50">
           {/* Backdrop */}
           <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.15 }}
-            className="absolute inset-0 bg-[rgba(15,23,42,0.4)] backdrop-blur-sm"
+            variants={backdropFade}
+            initial="hidden"
+            animate="visible"
+            exit="exit"
+            className="absolute inset-0 bg-[rgba(15,23,42,0.45)] backdrop-blur-sm"
             onClick={onClose}
             aria-hidden="true"
           />
@@ -78,7 +77,7 @@ export function Modal({ open, onClose, title, subtitle, children, footer, size =
               animate="visible"
               exit="exit"
               className={cn(
-                "relative w-full overflow-hidden rounded-2xl border border-[var(--border-soft)] bg-[var(--surface-panel)] shadow-xl outline-none",
+                "relative w-full overflow-hidden rounded-2xl border border-[var(--border-soft)] bg-[var(--surface-panel)] shadow-2xl outline-none",
                 sizeClasses[size],
                 className
               )}
@@ -95,14 +94,17 @@ export function Modal({ open, onClose, title, subtitle, children, footer, size =
                     </p>
                   )}
                 </div>
-                <button
+                <motion.button
                   type="button"
                   onClick={onClose}
-                  className="ml-4 rounded-lg p-1 text-[var(--text-muted)] transition-colors hover:bg-[var(--surface-subtle)] hover:text-[var(--text-primary)]"
+                  whileHover={{ scale: 1.08 }}
+                  whileTap={{ scale: 0.94 }}
+                  transition={{ duration: 0.12 }}
+                  className="ml-4 rounded-lg p-1.5 text-[var(--text-muted)] transition-colors hover:bg-[var(--surface-subtle)] hover:text-[var(--text-primary)]"
                   aria-label="Close dialog"
                 >
                   <X className="h-4 w-4" aria-hidden="true" />
-                </button>
+                </motion.button>
               </div>
 
               {/* Body */}

@@ -1,6 +1,7 @@
 import { type ButtonHTMLAttributes, forwardRef } from "react";
 import { motion } from "motion/react";
 import { cn } from "@/lib/utils";
+import { hoverScale, tapScale } from "@/components/foundation/motion-primitives";
 
 export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: "primary" | "secondary" | "ghost" | "danger";
@@ -12,9 +13,8 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
     return (
       <motion.button
         ref={ref}
-        whileHover={{ scale: 1.01 }}
-        whileTap={{ scale: 0.98 }}
-        transition={{ duration: 0.12, ease: "easeOut" }}
+        whileHover={hoverScale}
+        whileTap={tapScale}
         className={cn(
           "inline-flex items-center justify-center font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)] focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50",
           {

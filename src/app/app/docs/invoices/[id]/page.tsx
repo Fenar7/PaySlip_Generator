@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { getInvoice, getInvoiceTimeline, getInvoicePayments } from "../actions";
-import { InvoiceBrandingWrapper } from "../new/branding-wrapper";
+import { InvoiceBrandingWrapper, type ExistingInvoice } from "../new/branding-wrapper";
 import { listCustomers } from "@/app/app/data/actions";
 import { InvoiceDetailClient } from "./invoice-detail-client";
 import { DocumentAttachments } from "@/components/docs/document-attachments";
@@ -57,7 +57,6 @@ export default async function EditInvoicePage({
           backLabel="Invoices"
           documentType="Invoice"
           documentNumber={invoice.invoiceNumber ?? invoice.id}
-          title={invoice.title}
           status={invoice.status}
           statusVariant={statusVariant}
           primaryActions={[
@@ -87,8 +86,8 @@ export default async function EditInvoicePage({
           ]}
           contextMeta={[
             { label: "Customer", value: invoice.customer?.name ?? "—" },
-            { label: "Date", value: invoice.issueDate.toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" }) },
-            { label: "Total", value: new Intl.NumberFormat("en-IN", { style: "currency", currency: invoice.currency ?? "INR", minimumFractionDigits: 0 }).format(invoice.totalAmount) },
+            { label: "Date", value: new Date(invoice.invoiceDate).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" }) },
+            { label: "Total", value: new Intl.NumberFormat("en-IN", { style: "currency", currency: invoice.displayCurrency ?? "INR", minimumFractionDigits: 0 }).format(invoice.totalAmount) },
           ]}
         />
       }
@@ -153,7 +152,7 @@ export default async function EditInvoicePage({
       }
     >
       <InvoiceBrandingWrapper
-        existingInvoice={invoice}
+        existingInvoice={invoice as ExistingInvoice}
         customers={customersResult.customers}
         inventoryItems={inventoryResult.success ? inventoryResult.data.items : []}
       />
