@@ -68,7 +68,6 @@ async function VendorsTable({ search, page }: { search?: string; page: number })
         total={total}
         page={page}
         totalPages={totalPages}
-        rowHref={(row) => `/app/data/vendors/${row.id}`}
       />
     </>
   );
