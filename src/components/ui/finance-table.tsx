@@ -87,6 +87,7 @@ interface FinanceTableCellProps {
   className?: string;
   align?: "left" | "right" | "center";
   variant?: "default" | "primary" | "muted" | "numeric";
+  colSpan?: number;
 }
 
 export function FinanceTableCell({
@@ -94,6 +95,7 @@ export function FinanceTableCell({
   className,
   align = "left",
   variant = "default",
+  colSpan,
 }: FinanceTableCellProps) {
   const variantClasses = {
     default: "text-[var(--text-secondary)]",
@@ -104,6 +106,7 @@ export function FinanceTableCell({
 
   return (
     <td
+      colSpan={colSpan}
       className={cn(
         "px-5 py-3 text-sm",
         variantClasses[variant],
