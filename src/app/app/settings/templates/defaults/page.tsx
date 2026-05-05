@@ -1,4 +1,4 @@
-import { TEMPLATE_REGISTRY, DOCTYPE_LABELS, type DocType } from "@/lib/docs/templates/registry";
+import { TEMPLATE_REGISTRY, DOCTYPE_LABELS, type DocType, getEffectiveTemplateId } from "@/lib/docs/templates/registry";
 import { getOrgDefaults } from "@/app/app/actions/org-defaults-actions";
 import { DefaultTemplatesClient } from "./default-templates-client";
 
@@ -16,10 +16,20 @@ export default async function DefaultTemplatesPage() {
   };
 
   // Determine Slipwise platform defaults (first non-premium template for each doc type)
+  // Use getEffectiveTemplateId to respect per-docType overrides.
   const slipwiseDefaults: Record<DocType, string> = {
-    invoice: TEMPLATE_REGISTRY.find((t) => t.docTypes.includes("invoice") && !t.isPremium)?.templateId ?? "minimal",
-    voucher: TEMPLATE_REGISTRY.find((t) => t.docTypes.includes("voucher") && !t.isPremium)?.templateId ?? "minimal-office",
-    "salary-slip": TEMPLATE_REGISTRY.find((t) => t.docTypes.includes("salary-slip") && !t.isPremium)?.templateId ?? "corporate-clean",
+    invoice: getEffectiveTemplateId(
+      TEMPLATE_REGISTRY.find((t) => t.docTypes.includes("invoice") && !t.isPremium) ?? TEMPLATE_REGISTRY[0],
+      "invoice"
+    ),
+    voucher: getEffectiveTemplateId(
+      TEMPLATE_REGISTRY.find((t) => t.docTypes.includes("voucher") && !t.isPremium) ?? TEMPLATE_REGISTRY[0],
+      "voucher"
+    ),
+    "salary-slip": getEffectiveTemplateId(
+      TEMPLATE_REGISTRY.find((t) => t.docTypes.includes("salary-slip") && !t.isPremium) ?? TEMPLATE_REGISTRY[0],
+      "salary-slip"
+    ),
   };
 
   return (

@@ -43,6 +43,7 @@ export default async function TemplatesPage({
       <div className="mx-auto max-w-[80rem] px-3 py-5 sm:px-4 lg:px-5 lg:py-7">
         <TemplateStoreClient
           templates={filtered}
+          allTemplates={TEMPLATE_REGISTRY}
           currentDefaults={currentDefaults}
           activeCategory={activeCategory}
           activeType={activeType}
