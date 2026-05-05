@@ -13,8 +13,8 @@ interface FinanceTableProps {
 
 export function FinanceTable({ children, className }: FinanceTableProps) {
   return (
-    <div className={cn("overflow-x-auto", className)}>
-      <table className="w-full">{children}</table>
+    <div className={cn("overflow-x-auto -mx-2 px-2 sm:-mx-0 sm:px-0", className)}>
+      <table className="w-full min-w-[640px] sm:min-w-0">{children}</table>
     </div>
   );
 }

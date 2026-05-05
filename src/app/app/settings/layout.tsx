@@ -21,8 +21,8 @@ export default function SettingsLayout({ children }: { children: React.ReactNode
       {/* Two-column shell */}
       <div className="grid gap-6 lg:grid-cols-[260px_minmax(0,1fr)] xl:grid-cols-[280px_minmax(0,1fr)]">
         {/* Sidebar navigation */}
-        <aside className="shrink-0 lg:sticky lg:top-[calc(var(--topbar-height)+1.5rem)] lg:self-start lg:max-h-[calc(100vh-var(--topbar-height)-3rem)]">
-          <div className="slipwise-soft-panel overflow-hidden">
+        <aside className="shrink-0 overflow-x-auto lg:sticky lg:top-[calc(var(--topbar-height)+1.5rem)] lg:self-start lg:max-h-[calc(100vh-var(--topbar-height)-3rem)]">
+          <div className="slipwise-soft-panel overflow-hidden min-w-[260px]">
             <SettingsNav />
           </div>
         </aside>

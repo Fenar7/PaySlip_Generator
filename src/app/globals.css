@@ -359,6 +359,38 @@ select {
   animation: fadeInUp 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
+/* ======================================================================
+   Responsive utilities
+   ====================================================================== */
+
+/* Ensure tables never break layout */
+.table-responsive {
+  display: block;
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Mobile-first page padding */
+.page-padding {
+  padding-left: var(--space-page-x);
+  padding-right: var(--space-page-x);
+}
+
+@media (max-width: 640px) {
+  .page-padding {
+    padding-left: 1rem;
+    padding-right: 1rem;
+  }
+}
+
+/* Safe area for fixed elements on mobile */
+@supports (padding: max(0px)) {
+  .safe-bottom {
+    padding-bottom: max(1rem, env(safe-area-inset-bottom));
+  }
+}
+
 button:not(:disabled),
 [role="button"]:not([aria-disabled="true"]) {
   cursor: pointer;

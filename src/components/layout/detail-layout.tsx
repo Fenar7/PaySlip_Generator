@@ -19,10 +19,10 @@ export function DetailLayout({
     <div className={cn("space-y-4", className)}>
       {topBar && <div className="shrink-0">{topBar}</div>}
       <div className="flex flex-col gap-6 lg:flex-row">
-        <main className="min-w-0 flex-1">{children}</main>
+        <main className="min-w-0 flex-1 order-2 lg:order-1">{children}</main>
         {rail && (
           <aside
-            className="w-full shrink-0 space-y-4 lg:w-[var(--detail-rail-width,320px)]"
+            className="w-full shrink-0 space-y-4 order-1 lg:order-2 lg:w-[var(--detail-rail-width,320px)]"
             style={{ "--detail-rail-width": railWidth } as React.CSSProperties}
           >
             {rail}
