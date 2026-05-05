@@ -46,7 +46,7 @@ export default async function VendorDetailPage({
   const relatedItems = [
     ...recentBills.map((b) => ({
       id: b.id,
-      title: `Bill ${b.billNumber}`,
+      title: b.billNumber ? `Bill ${b.billNumber}` : "Bill",
       subtitle: formatCurrency(Number(b.totalAmount)),
       status: b.status,
       href: `/app/docs/vendor-bills/${b.id}`,
@@ -54,7 +54,7 @@ export default async function VendorDetailPage({
     })),
     ...recentPurchaseOrders.map((po) => ({
       id: po.id,
-      title: `PO ${po.poNumber}`,
+      title: po.poNumber ? `PO ${po.poNumber}` : "Purchase Order",
       subtitle: formatCurrency(Number(po.totalAmount)),
       status: po.status,
       href: `/app/procurement/purchase-orders/${po.id}`,

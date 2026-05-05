@@ -1,16 +1,9 @@
-"use client";
-
+import { notFound } from "next/navigation";
 import Link from "next/link";
-import { useEffect, useState, useCallback } from "react";
-import { useParams } from "next/navigation";
-import {
-  getVendorTimeline,
-  createCrmNote,
-  updateVendorCrmFields,
-} from "../../actions";
+import { getVendorTimeline } from "../../actions";
 import { CrmTimeline } from "../../components/crm-timeline";
 import { CrmNoteForm } from "../../components/crm-note-form";
-import { ComplianceSelect } from "../../components/compliance-select";
+import { ComplianceSelectClient } from "../../components/compliance-select-client";
 import {
   DetailLayout,
   DetailRailCard,
@@ -20,74 +13,21 @@ import {
 import { KpiCard } from "@/components/dashboard/kpi-card";
 import { ArrowLeft, ArrowUpRight } from "lucide-react";
 
-type Timeline = NonNullable<Awaited<ReturnType<typeof getVendorTimeline>>>;
-
 function formatINR(amount?: number | null) {
   if (amount == null) return "—";
   return new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(amount);
 }
 
-export default function VendorCrmPage() {
-  const params = useParams<{ id: string }>();
-  const [data, setData] = useState<Timeline | null>(null);
-  const [loading, setLoading] = useState(true);
-
-  const reload = useCallback(async () => {
-    if (!params.id) return;
-    const result = await getVendorTimeline(params.id);
-    setData(result);
-  }, [params.id]);
-
-  useEffect(() => {
-    if (!params.id) return;
-    let cancelled = false;
-    async function run() {
-      const result = await getVendorTimeline(params.id);
-      if (!cancelled) {
-        setData(result);
-        setLoading(false);
-      }
-    }
-    run();
-    return () => { cancelled = true; };
-  }, [params.id]);
-
-  async function handleNoteSubmit(content: string) {
-    if (!params.id) return { success: false, error: "Missing ID" };
-    const result = await createCrmNote({
-      entityType: "vendor",
-      entityId: params.id,
-      content,
-    });
-    if (result.success) {
-      await reload();
-    }
-    return result;
-  }
-
-  async function handleComplianceChange(status: string) {
-    if (!params.id) return;
-    await updateVendorCrmFields(params.id, {
-      complianceStatus: status as Parameters<typeof updateVendorCrmFields>[1]["complianceStatus"],
-    });
-    await reload();
-  }
-
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center py-20 text-[var(--text-muted)]">
-        <div className="mr-2 h-5 w-5 animate-spin rounded-full border-2 border-[var(--border-soft)] border-t-[var(--brand-primary)]" />
-        Loading…
-      </div>
-    );
-  }
+export default async function VendorCrmPage({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
+  const { id } = await params;
+  const data = await getVendorTimeline(id);
 
   if (!data) {
-    return (
-      <div className="py-20 text-center text-sm text-[var(--text-muted)]">
-        Vendor not found.
-      </div>
-    );
+    notFound();
   }
 
   const { vendor, events } = data;
@@ -122,9 +62,9 @@ export default function VendorCrmPage() {
         rail={
           <>
             <DetailRailCard title="CRM Controls">
-              <ComplianceSelect
-                value={vendor.complianceStatus ?? "PENDING"}
-                onChange={handleComplianceChange}
+              <ComplianceSelectClient
+                vendorId={vendor.id}
+                initialStatus={vendor.complianceStatus ?? "PENDING"}
               />
             </DetailRailCard>
 
@@ -172,7 +112,8 @@ export default function VendorCrmPage() {
           </div>
 
           <CrmNoteForm
-            onSubmit={handleNoteSubmit}
+            entityType="vendor"
+            entityId={vendor.id}
             placeholder="Meeting notes, call log, compliance update…"
           />
           <CrmTimeline events={events} />

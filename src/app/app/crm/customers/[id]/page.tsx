@@ -1,16 +1,9 @@
-"use client";
-
+import { notFound } from "next/navigation";
 import Link from "next/link";
-import { useEffect, useState, useCallback } from "react";
-import { useParams } from "next/navigation";
-import {
-  getCustomerTimeline,
-  createCrmNote,
-  updateCustomerCrmFields,
-} from "../../actions";
+import { getCustomerTimeline } from "../../actions";
 import { CrmTimeline } from "../../components/crm-timeline";
 import { CrmNoteForm } from "../../components/crm-note-form";
-import { LifecycleSelect } from "../../components/lifecycle-select";
+import { LifecycleSelectClient } from "../../components/lifecycle-select-client";
 import {
   DetailLayout,
   DetailRailCard,
@@ -19,74 +12,21 @@ import {
 } from "@/components/layout/detail-layout";
 import { ArrowLeft, ArrowUpRight } from "lucide-react";
 
-type Timeline = NonNullable<Awaited<ReturnType<typeof getCustomerTimeline>>>;
-
 function formatINR(amount?: number | null) {
   if (amount == null) return "—";
   return new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(amount);
 }
 
-export default function CustomerCrmPage() {
-  const params = useParams<{ id: string }>();
-  const [data, setData] = useState<Timeline | null>(null);
-  const [loading, setLoading] = useState(true);
-
-  const reload = useCallback(async () => {
-    if (!params.id) return;
-    const result = await getCustomerTimeline(params.id);
-    setData(result);
-  }, [params.id]);
-
-  useEffect(() => {
-    if (!params.id) return;
-    let cancelled = false;
-    async function run() {
-      const result = await getCustomerTimeline(params.id);
-      if (!cancelled) {
-        setData(result);
-        setLoading(false);
-      }
-    }
-    run();
-    return () => { cancelled = true; };
-  }, [params.id]);
-
-  async function handleNoteSubmit(content: string) {
-    if (!params.id) return { success: false, error: "Missing ID" };
-    const result = await createCrmNote({
-      entityType: "customer",
-      entityId: params.id,
-      content,
-    });
-    if (result.success) {
-      await reload();
-    }
-    return result;
-  }
-
-  async function handleLifecycleChange(stage: string) {
-    if (!params.id) return;
-    await updateCustomerCrmFields(params.id, {
-      lifecycleStage: stage as Parameters<typeof updateCustomerCrmFields>[1]["lifecycleStage"],
-    });
-    await reload();
-  }
-
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center py-20 text-[var(--text-muted)]">
-        <div className="mr-2 h-5 w-5 animate-spin rounded-full border-2 border-[var(--border-soft)] border-t-[var(--brand-primary)]" />
-        Loading…
-      </div>
-    );
-  }
+export default async function CustomerCrmPage({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
+  const { id } = await params;
+  const data = await getCustomerTimeline(id);
 
   if (!data) {
-    return (
-      <div className="py-20 text-center text-sm text-[var(--text-muted)]">
-        Customer not found.
-      </div>
-    );
+    notFound();
   }
 
   const { customer, events } = data;
@@ -121,9 +61,9 @@ export default function CustomerCrmPage() {
         rail={
           <>
             <DetailRailCard title="CRM Controls">
-              <LifecycleSelect
-                value={customer.lifecycleStage ?? "PROSPECT"}
-                onChange={handleLifecycleChange}
+              <LifecycleSelectClient
+                customerId={customer.id}
+                initialStage={customer.lifecycleStage ?? "PROSPECT"}
               />
             </DetailRailCard>
 
@@ -163,7 +103,8 @@ export default function CustomerCrmPage() {
       >
         <div className="space-y-6">
           <CrmNoteForm
-            onSubmit={handleNoteSubmit}
+            entityType="customer"
+            entityId={customer.id}
             placeholder="Meeting notes, call summary, follow-up action…"
           />
           <CrmTimeline events={events} />

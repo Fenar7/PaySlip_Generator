@@ -1,17 +1,22 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
+import { createCrmNote } from "../actions";
 
 interface CrmNoteFormProps {
-  onSubmit: (content: string) => Promise<{ success: boolean; error?: string }>;
+  entityType: "customer" | "vendor";
+  entityId: string;
   placeholder?: string;
 }
 
 export function CrmNoteForm({
-  onSubmit,
+  entityType,
+  entityId,
   placeholder = "Add a note…",
 }: CrmNoteFormProps) {
+  const router = useRouter();
   const [text, setText] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -23,11 +28,12 @@ export function CrmNoteForm({
 
     setSubmitting(true);
     setError(null);
-    const result = await onSubmit(content);
+    const result = await createCrmNote({ entityType, entityId, content });
     setSubmitting(false);
 
     if (result.success) {
       setText("");
+      router.refresh();
     } else {
       setError(result.error ?? "Failed to save note.");
     }
