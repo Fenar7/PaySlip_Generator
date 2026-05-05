@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { getInvoice, getInvoiceTimeline, getInvoicePayments } from "../actions";
-import { InvoiceBrandingWrapper } from "../new/branding-wrapper";
+import { InvoiceBrandingWrapper, type ExistingInvoice } from "../new/branding-wrapper";
 import { listCustomers } from "@/app/app/data/actions";
 import { InvoiceDetailClient } from "./invoice-detail-client";
 import { DocumentAttachments } from "@/components/docs/document-attachments";
@@ -152,7 +152,7 @@ export default async function EditInvoicePage({
       }
     >
       <InvoiceBrandingWrapper
-        existingInvoice={invoice}
+        existingInvoice={invoice as ExistingInvoice}
         customers={customersResult.customers}
         inventoryItems={inventoryResult.success ? inventoryResult.data.items : []}
       />
