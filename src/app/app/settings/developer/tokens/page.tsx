@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -130,9 +131,9 @@ export default function TokensPage() {
         </p>
         <p className="text-blue-700">
           See the{" "}
-          <a href="/app/developer/docs" className="underline font-medium">
+          <Link href="/app/developer/docs" className="underline font-medium">
             API documentation
-          </a>{" "}
+          </Link>{" "}
           for endpoint reference.
         </p>
       </div>
