@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, useTransition } from "react";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -68,7 +68,10 @@ export function TemplatePreviewModal({
   const backdropRef = useRef<HTMLDivElement>(null);
 
   const effectiveTemplateId = getEffectiveTemplateId(template, activeDocType);
-  const preview = renderTemplatePreview(effectiveTemplateId, activeDocType);
+  const preview = useMemo(
+    () => renderTemplatePreview(effectiveTemplateId, activeDocType),
+    [effectiveTemplateId, activeDocType]
+  );
   const isDefault = currentDefaults[activeDocType] === effectiveTemplateId;
 
   useEffect(() => {
