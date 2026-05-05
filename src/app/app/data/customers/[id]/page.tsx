@@ -10,7 +10,7 @@ import {
   MetadataField,
 } from "@/components/layout/detail-layout";
 import { StatusBadge } from "@/components/dashboard/status-badge";
-import { ArrowLeft, ArrowUpRight } from "lucide-react";
+import { ArrowLeft, ArrowUpRight, Plus, Receipt, Quote } from "lucide-react";
 
 export const metadata = {
   title: "Customer | Slipwise",
@@ -122,10 +122,43 @@ export default async function CustomerDetailPage({
                 <MetadataField label="Total Invoiced" value={formatCurrency(Number(customer.totalInvoiced))} />
                 <MetadataField label="Total Paid" value={formatCurrency(Number(customer.totalPaid))} />
                 <MetadataField label="Lifetime Value" value={formatCurrency(Number(customer.lifetimeValue))} />
-                <MetadataField label="Invoices" value={customer._count.invoices} />
-                <MetadataField label="Quotes" value={customer._count.quotes} />
+                <MetadataField
+                  label="Invoices"
+                  value={
+                    <Link href={`/app/docs/invoices?customerId=${customer.id}`} className="text-[var(--brand-primary)] hover:underline">
+                      {customer._count.invoices}
+                    </Link>
+                  }
+                />
+                <MetadataField
+                  label="Quotes"
+                  value={
+                    <Link href={`/app/docs/quotes?customerId=${customer.id}`} className="text-[var(--brand-primary)] hover:underline">
+                      {customer._count.quotes}
+                    </Link>
+                  }
+                />
                 <MetadataField label="Notes" value={customer._count.crmNotes} />
               </dl>
+            </DetailRailCard>
+
+            <DetailRailCard title="Quick Actions">
+              <div className="flex flex-col gap-2">
+                <Link
+                  href={`/app/docs/invoices/new?customerId=${customer.id}`}
+                  className="inline-flex items-center gap-2 rounded-lg border border-[var(--border-default)] bg-white px-3 py-2 text-xs font-medium text-[var(--text-secondary)] transition-colors hover:bg-[var(--surface-subtle)]"
+                >
+                  <Receipt className="h-3.5 w-3.5" />
+                  New Invoice
+                </Link>
+                <Link
+                  href={`/app/docs/quotes/new?customerId=${customer.id}`}
+                  className="inline-flex items-center gap-2 rounded-lg border border-[var(--border-default)] bg-white px-3 py-2 text-xs font-medium text-[var(--text-secondary)] transition-colors hover:bg-[var(--surface-subtle)]"
+                >
+                  <Quote className="h-3.5 w-3.5" />
+                  New Quote
+                </Link>
+              </div>
             </DetailRailCard>
 
             {customer.tags.length > 0 && (
@@ -152,6 +185,7 @@ export default async function CustomerDetailPage({
             title="Recent Documents"
             items={relatedItems}
             emptyMessage="No invoices or quotes yet."
+            action={{ href: `/app/docs/invoices?customerId=${customer.id}`, label: "View all →" }}
           />
         </div>
       </DetailLayout>

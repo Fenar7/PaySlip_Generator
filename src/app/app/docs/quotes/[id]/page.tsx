@@ -155,7 +155,7 @@ export default async function QuoteDetailPage({
                   <div className="text-right">
                     <h2 className="text-xl font-bold uppercase tracking-wide text-[var(--brand-cta)]">Quote</h2>
                     <p className="mt-1 text-lg font-semibold text-[var(--text-primary)]">#{quote.quoteNumber}</p>
-                    <StatusBadge variant={statusVariant} className="mt-2">
+                    <StatusBadge variant={isExpired && quote.status === "SENT" ? "warning" : statusVariant} className="mt-2">
                       {displayStatus}
                     </StatusBadge>
                   </div>
@@ -167,7 +167,9 @@ export default async function QuoteDetailPage({
               <div className="border-t border-[var(--border-soft)] px-6 py-5 sm:px-8 grid grid-cols-2 gap-6">
                 <div>
                   <h3 className="text-xs font-semibold uppercase tracking-wider text-[var(--text-muted)] mb-2">Customer</h3>
-                  <p className="font-medium text-[var(--text-primary)]">{quote.customer.name}</p>
+                  <Link href={`/app/data/customers/${quote.customer.id}`} className="font-medium text-[var(--brand-primary)] hover:underline">
+                    {quote.customer.name}
+                  </Link>
                   {quote.customer.email && (
                     <p className="text-sm text-[var(--text-secondary)]">{quote.customer.email}</p>
                   )}

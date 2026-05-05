@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation";
+import Link from "next/link";
 import { getSalarySlip, releaseSalarySlip, archiveSalarySlip } from "../actions";
 import { DocumentAttachments } from "@/components/docs/document-attachments";
 import { getDocAttachments } from "@/app/app/docs/attachment-actions";
@@ -116,7 +117,12 @@ export default async function SalarySlipDetailPage({
           {slip.employee && (
             <div className="mb-6 rounded-xl bg-[var(--surface-subtle)] p-4">
               <h2 className="text-xs font-semibold uppercase tracking-wider text-[var(--text-muted)]">Employee</h2>
-              <p className="mt-1 text-lg font-semibold text-[var(--text-primary)]">{slip.employee.name}</p>
+              <Link
+                href={`/app/data/employees/${slip.employee.id}`}
+                className="mt-1 inline-block text-lg font-semibold text-[var(--brand-primary)] hover:underline"
+              >
+                {slip.employee.name}
+              </Link>
               {slip.employee.email && (
                 <p className="text-sm text-[var(--text-secondary)]">{slip.employee.email}</p>
               )}

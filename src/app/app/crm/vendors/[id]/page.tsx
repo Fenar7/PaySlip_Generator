@@ -11,7 +11,7 @@ import {
   MetadataField,
 } from "@/components/layout/detail-layout";
 import { KpiCard } from "@/components/dashboard/kpi-card";
-import { ArrowLeft, ArrowUpRight } from "lucide-react";
+import { ArrowLeft, ArrowUpRight, Receipt } from "lucide-react";
 
 function formatINR(amount?: number | null) {
   if (amount == null) return "—";
@@ -74,7 +74,28 @@ export default async function VendorCrmPage({
                 <MetadataField label="Total Paid" value={formatINR(Number(vendor.totalPaid))} />
                 <MetadataField label="Payment Terms" value={`${vendor.paymentTermsDays} days`} />
                 <MetadataField label="Rating" value={vendor.rating != null ? `${vendor.rating} / 5` : "—"} />
+                <MetadataField
+                  label="Bills"
+                  value={
+                    <Link href={`/app/books/vendor-bills?vendorId=${vendor.id}`} className="text-[var(--brand-primary)] hover:underline">
+                      View
+                    </Link>
+                  }
+                />
+                <MetadataField label="Purchase Orders" value="—" />
               </dl>
+            </DetailRailCard>
+
+            <DetailRailCard title="Quick Actions">
+              <div className="flex flex-col gap-2">
+                <Link
+                  href={`/app/books/vendor-bills/new?vendorId=${vendor.id}`}
+                  className="inline-flex items-center gap-2 rounded-lg border border-[var(--border-default)] bg-white px-3 py-2 text-xs font-medium text-[var(--text-secondary)] transition-colors hover:bg-[var(--surface-subtle)]"
+                >
+                  <Receipt className="h-3.5 w-3.5" />
+                  New Bill
+                </Link>
+              </div>
             </DetailRailCard>
 
             <DetailRailCard title="Vendor Info">

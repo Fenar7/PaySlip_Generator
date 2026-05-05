@@ -10,7 +10,7 @@ import {
   MetadataField,
 } from "@/components/layout/detail-layout";
 import { StatusBadge } from "@/components/dashboard/status-badge";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, FileSpreadsheet } from "lucide-react";
 
 export const metadata = {
   title: "Employee | Slipwise",
@@ -89,8 +89,27 @@ export default async function EmployeeDetailPage({
 
             <DetailRailCard title="Payroll Summary">
               <dl className="space-y-3">
-                <MetadataField label="Salary Slips" value={employee._count.salarySlips} />
+                <MetadataField
+                  label="Salary Slips"
+                  value={
+                    <Link href={`/app/docs/salary-slips?employeeId=${employee.id}`} className="text-[var(--brand-primary)] hover:underline">
+                      {employee._count.salarySlips}
+                    </Link>
+                  }
+                />
               </dl>
+            </DetailRailCard>
+
+            <DetailRailCard title="Quick Actions">
+              <div className="flex flex-col gap-2">
+                <Link
+                  href={`/app/docs/salary-slips/new?employeeId=${employee.id}`}
+                  className="inline-flex items-center gap-2 rounded-lg border border-[var(--border-default)] bg-white px-3 py-2 text-xs font-medium text-[var(--text-secondary)] transition-colors hover:bg-[var(--surface-subtle)]"
+                >
+                  <FileSpreadsheet className="h-3.5 w-3.5" />
+                  New Salary Slip
+                </Link>
+              </div>
             </DetailRailCard>
           </>
         }
@@ -105,6 +124,7 @@ export default async function EmployeeDetailPage({
             title="Recent Payslips"
             items={relatedItems}
             emptyMessage="No payslips yet."
+            action={{ href: `/app/docs/salary-slips?employeeId=${employee.id}`, label: "View all →" }}
           />
         </div>
       </DetailLayout>
