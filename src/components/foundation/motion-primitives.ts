@@ -42,15 +42,15 @@ export const scaleIn: Variants = {
 };
 
 export const slideInRight: Variants = {
-  hidden: { opacity: 0, x: -10 },
-  visible: { opacity: 1, x: 0, transition: { duration: 0.25, ease: easeOut } },
-  exit: { opacity: 0, x: -4, transition: { duration: 0.15, ease: easeInOut } },
-};
-
-export const slideInLeft: Variants = {
   hidden: { opacity: 0, x: 10 },
   visible: { opacity: 1, x: 0, transition: { duration: 0.25, ease: easeOut } },
   exit: { opacity: 0, x: 4, transition: { duration: 0.15, ease: easeInOut } },
+};
+
+export const slideInLeft: Variants = {
+  hidden: { opacity: 0, x: -10 },
+  visible: { opacity: 1, x: 0, transition: { duration: 0.25, ease: easeOut } },
+  exit: { opacity: 0, x: -4, transition: { duration: 0.15, ease: easeInOut } },
 };
 
 export const panelAppear: Variants = {
