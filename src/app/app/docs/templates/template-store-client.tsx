@@ -9,6 +9,7 @@ import { TemplatePreviewModal } from "./template-preview-modal";
 
 interface TemplateStoreClientProps {
   templates: TemplateDefinition[];
+  currentDefaults: Record<DocType, string | null>;
 }
 
 const DOC_TYPE_DEFAULT_KEY: Record<DocType, "defaultInvoiceTemplate" | "defaultVoucherTemplate" | "defaultSlipTemplate"> = {
@@ -19,7 +20,7 @@ const DOC_TYPE_DEFAULT_KEY: Record<DocType, "defaultInvoiceTemplate" | "defaultV
 
 type PreviewState = { template: TemplateDefinition; docType: DocType } | null;
 
-export function TemplateStoreClient({ templates }: TemplateStoreClientProps) {
+export function TemplateStoreClient({ templates, currentDefaults }: TemplateStoreClientProps) {
   const [, startTransition] = useTransition();
   const [previewState, setPreviewState] = useState<PreviewState>(null);
 
@@ -40,11 +41,12 @@ export function TemplateStoreClient({ templates }: TemplateStoreClientProps) {
 
   return (
     <>
-      <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+      <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
         {templates.map((template) => (
           <TemplateCard
             key={template.id}
             template={template}
+            currentDefaults={currentDefaults}
             onSetDefault={handleSetDefault}
             onPreview={handlePreview}
           />
@@ -55,6 +57,7 @@ export function TemplateStoreClient({ templates }: TemplateStoreClientProps) {
         <TemplatePreviewModal
           template={previewState.template}
           initialDocType={previewState.docType}
+          currentDefaults={currentDefaults}
           onClose={() => setPreviewState(null)}
         />
       )}

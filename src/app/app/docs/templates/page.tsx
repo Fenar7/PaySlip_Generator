@@ -6,6 +6,7 @@ import {
   type TemplateCategory,
 } from "@/lib/docs/templates/registry";
 import { TemplateStoreClient } from "./template-store-client";
+import { getOrgDefaults } from "@/app/app/actions/org-defaults-actions";
 
 export const metadata = {
   title: "Template Store | Slipwise",
@@ -20,34 +21,90 @@ export default async function TemplatesPage({
   const activeCategory = params.category as TemplateCategory | undefined;
   const activeType = params.type as DocType | undefined;
 
-  const filtered = TEMPLATE_REGISTRY.filter((t) => {
-    if (activeCategory && t.category !== activeCategory) return false;
-    if (activeType && !t.docTypes.includes(activeType)) return false;
-    return true;
-  });
+  const [defaults, filtered] = await Promise.all([
+    getOrgDefaults(),
+    Promise.resolve(
+      TEMPLATE_REGISTRY.filter((t) => {
+        if (activeCategory && t.category !== activeCategory) return false;
+        if (activeType && !t.docTypes.includes(activeType)) return false;
+        return true;
+      })
+    ),
+  ]);
+
+  const currentDefaults = {
+    invoice: defaults?.defaultInvoiceTemplate ?? null,
+    voucher: defaults?.defaultVoucherTemplate ?? null,
+    "salary-slip": defaults?.defaultSlipTemplate ?? null,
+  };
 
   return (
-    <div className="min-h-screen bg-slate-50">
-      <div className="mx-auto max-w-6xl px-4 py-8">
+    <div className="slipwise-shell-bg min-h-screen">
+      <div className="mx-auto max-w-[80rem] px-3 py-5 sm:px-4 lg:px-5 lg:py-7">
         {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-2xl font-semibold text-slate-900">Template Store</h1>
-          <p className="mt-1 text-sm text-slate-500">
-            Browse professional templates for invoices, vouchers, and salary slips. Apply once or
-            set as your default.
+        <div className="mb-6">
+          <p className="text-[0.68rem] font-semibold uppercase tracking-[0.34em] text-[var(--text-muted)]">
+            Document Templates
+          </p>
+          <h1 className="mt-2 text-[2rem] font-semibold leading-tight tracking-[-0.04em] text-[var(--text-primary)] md:text-[2.4rem]">
+            Template Store
+          </h1>
+          <p className="mt-2 max-w-2xl text-sm leading-7 text-[var(--text-secondary)]">
+            Browse Slipwise templates and set your defaults. Each document type can have one default template that loads automatically when you create a new document.
           </p>
         </div>
 
+        {/* Default status bar */}
+        <div className="mb-6 rounded-xl border border-[var(--border-default)] bg-white p-4 shadow-[var(--shadow-card)]">
+          <p className="text-[0.64rem] font-semibold uppercase tracking-[0.3em] text-[var(--text-muted)]">
+            Current Defaults
+          </p>
+          <div className="mt-3 flex flex-wrap gap-3">
+            {(
+              [
+                ["invoice", "Invoice", currentDefaults.invoice] as const,
+                ["voucher", "Voucher", currentDefaults.voucher] as const,
+                ["salary-slip", "Salary Slip", currentDefaults["salary-slip"]] as const,
+              ]
+            ).map(([type, label, defaultId]) => {
+              const template = defaultId
+                ? TEMPLATE_REGISTRY.find((t) =>
+                    t.docTypes.includes(type) &&
+                    (t.templateId === defaultId || t.templateIdByDocType?.[type] === defaultId)
+                  )
+                : null;
+              return (
+                <div
+                  key={type}
+                  className="flex items-center gap-2.5 rounded-lg border border-[var(--border-soft)] bg-[var(--surface-subtle)] px-3 py-2.5"
+                >
+                  <span className="text-xs font-semibold uppercase tracking-wider text-[var(--text-muted)]">
+                    {label}
+                  </span>
+                  <span className="text-sm font-medium text-[var(--text-primary)]">
+                    {template?.name ?? (
+                      <span className="text-[var(--text-muted)]">No default set</span>
+                    )}
+                  </span>
+                  {template && (
+                    <span className="inline-flex h-2 w-2 rounded-full bg-[var(--state-success)]" title="Active default" />
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
         {/* Filters */}
-        <div className="mb-6 space-y-3">
+        <div className="mb-5 space-y-3">
           {/* Doc type filter */}
           <div className="flex flex-wrap gap-2">
             <a
               href="/app/docs/templates"
-              className={`rounded-full px-4 py-1.5 text-sm font-medium transition-colors ${
+              className={`rounded-full px-4 py-2 text-sm font-medium transition-all ${
                 !activeType
-                  ? "bg-slate-900 text-white"
-                  : "bg-white border border-slate-200 text-slate-600 hover:bg-slate-50"
+                  ? "border border-transparent bg-[var(--text-primary)] text-white shadow-[var(--shadow-xs)]"
+                  : "border border-[var(--border-default)] bg-white text-[var(--text-secondary)] hover:bg-[var(--surface-subtle)]"
               }`}
             >
               All Types
@@ -56,10 +113,10 @@ export default async function TemplatesPage({
               <a
                 key={type}
                 href={`/app/docs/templates?type=${type}${activeCategory ? `&category=${activeCategory}` : ""}`}
-                className={`rounded-full px-4 py-1.5 text-sm font-medium transition-colors ${
+                className={`rounded-full px-4 py-2 text-sm font-medium transition-all ${
                   activeType === type
-                    ? "bg-slate-900 text-white"
-                    : "bg-white border border-slate-200 text-slate-600 hover:bg-slate-50"
+                    ? "border border-transparent bg-[var(--text-primary)] text-white shadow-[var(--shadow-xs)]"
+                    : "border border-[var(--border-default)] bg-white text-[var(--text-secondary)] hover:bg-[var(--surface-subtle)]"
                 }`}
               >
                 {label}
@@ -71,10 +128,10 @@ export default async function TemplatesPage({
           <div className="flex flex-wrap gap-2">
             <a
               href={`/app/docs/templates${activeType ? `?type=${activeType}` : ""}`}
-              className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
+              className={`rounded-full px-3 py-1.5 text-xs font-medium transition-all ${
                 !activeCategory
-                  ? "bg-red-600 text-white"
-                  : "bg-white border border-slate-200 text-slate-500 hover:bg-slate-50"
+                  ? "border border-transparent bg-[var(--brand-cta)] text-white shadow-[var(--shadow-xs)]"
+                  : "border border-[var(--border-default)] bg-white text-[var(--text-muted)] hover:bg-[var(--surface-subtle)]"
               }`}
             >
               All Categories
@@ -84,10 +141,10 @@ export default async function TemplatesPage({
                 <a
                   key={cat}
                   href={`/app/docs/templates?category=${cat}${activeType ? `&type=${activeType}` : ""}`}
-                  className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
+                  className={`rounded-full px-3 py-1.5 text-xs font-medium transition-all ${
                     activeCategory === cat
-                      ? "bg-red-600 text-white"
-                      : "bg-white border border-slate-200 text-slate-500 hover:bg-slate-50"
+                      ? "border border-transparent bg-[var(--brand-cta)] text-white shadow-[var(--shadow-xs)]"
+                      : "border border-[var(--border-default)] bg-white text-[var(--text-muted)] hover:bg-[var(--surface-subtle)]"
                   }`}
                 >
                   {label}
@@ -98,25 +155,26 @@ export default async function TemplatesPage({
         </div>
 
         {/* Results count */}
-        <p className="mb-4 text-sm text-slate-500">
-          {filtered.length} template{filtered.length !== 1 ? "s" : ""}
+        <p className="mb-4 text-sm text-[var(--text-muted)]">
+          <span className="font-medium text-[var(--text-primary)]">{filtered.length}</span> template
+          {filtered.length !== 1 ? "s" : ""}
           {activeCategory ? ` in ${CATEGORY_LABELS[activeCategory]}` : ""}
           {activeType ? ` for ${DOCTYPE_LABELS[activeType]}` : ""}
         </p>
 
         {/* Grid */}
         {filtered.length === 0 ? (
-          <div className="rounded-xl border border-dashed border-slate-300 p-12 text-center">
-            <p className="text-slate-500">No templates match your filters.</p>
+          <div className="rounded-2xl border border-dashed border-[var(--border-default)] bg-white p-12 text-center">
+            <p className="text-[var(--text-muted)]">No templates match your filters.</p>
             <a
               href="/app/docs/templates"
-              className="mt-2 inline-block text-sm text-red-600 hover:underline"
+              className="mt-2 inline-block text-sm font-medium text-[var(--brand-primary)] hover:underline"
             >
-              Clear filters
+              Clear all filters
             </a>
           </div>
         ) : (
-          <TemplateStoreClient templates={filtered} />
+          <TemplateStoreClient templates={filtered} currentDefaults={currentDefaults} />
         )}
       </div>
     </div>
