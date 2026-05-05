@@ -6,6 +6,7 @@ import {
   Plug,
   Eye,
   ArrowRight,
+  FileStack,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -39,6 +40,17 @@ const settingsCategories: SettingsCategoryCard[] = [
       { label: "Team Members", href: "/app/settings/users" },
       { label: "Roles", href: "/app/settings/roles" },
       { label: "Entity Groups", href: "/app/settings/entities" },
+    ],
+  },
+  {
+    label: "Document Templates",
+    description: "Browse, manage, and set default templates by document type",
+    href: "/app/settings/templates",
+    icon: FileStack,
+    items: [
+      { label: "Template Library", href: "/app/settings/templates" },
+      { label: "Default Templates", href: "/app/settings/templates/defaults" },
+      { label: "My Templates", href: "/app/docs/templates/my-templates" },
     ],
   },
   {

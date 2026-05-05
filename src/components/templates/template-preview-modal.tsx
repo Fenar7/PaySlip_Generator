@@ -1,11 +1,9 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { useTransition, useState } from "react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
-import { updateOrgDefaults } from "@/app/app/actions/org-defaults-actions";
 import type { TemplateDefinition, DocType } from "@/lib/docs/templates/registry";
 import { DOCTYPE_LABELS, getEffectiveTemplateId } from "@/lib/docs/templates/registry";
 import {
@@ -19,7 +17,7 @@ import { salarySlipTemplateRegistry } from "@/features/docs/salary-slip/template
 import type { InvoiceTemplateId } from "@/features/docs/invoice/types";
 import type { VoucherTemplateId } from "@/features/docs/voucher/types";
 import type { SalarySlipTemplateId } from "@/features/docs/salary-slip/types";
-import { X, ArrowRight } from "lucide-react";
+import { X, ArrowRight, Star, CheckCircle2 } from "lucide-react";
 
 const DOC_NEW_PATHS: Record<DocType, string> = {
   invoice: "/app/docs/invoices/new",
@@ -27,20 +25,12 @@ const DOC_NEW_PATHS: Record<DocType, string> = {
   "salary-slip": "/app/docs/salary-slips/new",
 };
 
-const DOC_TYPE_DEFAULT_KEY: Record<
-  DocType,
-  "defaultInvoiceTemplate" | "defaultVoucherTemplate" | "defaultSlipTemplate"
-> = {
-  invoice: "defaultInvoiceTemplate",
-  voucher: "defaultVoucherTemplate",
-  "salary-slip": "defaultSlipTemplate",
-};
-
-interface TemplatePreviewModalProps {
+export interface TemplatePreviewModalProps {
   template: TemplateDefinition;
   initialDocType: DocType;
   currentDefaults: Record<DocType, string | null>;
   onClose: () => void;
+  onSetDefault?: (templateId: string, docType: DocType) => Promise<void>;
 }
 
 function renderTemplatePreview(templateId: string, docType: DocType) {
@@ -70,6 +60,7 @@ export function TemplatePreviewModal({
   initialDocType,
   currentDefaults,
   onClose,
+  onSetDefault,
 }: TemplatePreviewModalProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -80,7 +71,6 @@ export function TemplatePreviewModal({
   const preview = renderTemplatePreview(effectiveTemplateId, activeDocType);
   const isDefault = currentDefaults[activeDocType] === effectiveTemplateId;
 
-  // Close on Escape key
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if (e.key === "Escape") onClose();
@@ -89,7 +79,6 @@ export function TemplatePreviewModal({
     return () => document.removeEventListener("keydown", handler);
   }, [onClose]);
 
-  // Prevent body scroll when modal open
   useEffect(() => {
     document.body.style.overflow = "hidden";
     return () => { document.body.style.overflow = ""; };
@@ -102,15 +91,13 @@ export function TemplatePreviewModal({
   };
 
   const handleSetDefault = () => {
+    if (!onSetDefault) return;
     startTransition(async () => {
-      const result = await updateOrgDefaults({
-        [DOC_TYPE_DEFAULT_KEY[activeDocType]]: effectiveTemplateId,
-      });
-      if (result.success) {
-        toast.success(`"${template.name}" set as default ${DOCTYPE_LABELS[activeDocType]} template`);
-        router.refresh();
+      try {
+        await onSetDefault(effectiveTemplateId, activeDocType);
+        toast.success(`${template.name} set as default ${DOCTYPE_LABELS[activeDocType]} template`);
         onClose();
-      } else {
+      } catch {
         toast.error("Failed to update default template");
       }
     });
@@ -124,33 +111,41 @@ export function TemplatePreviewModal({
     <div
       ref={backdropRef}
       onClick={handleBackdropClick}
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-3 sm:p-4 backdrop-blur-sm"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-3 sm:p-4 backdrop-blur-sm"
       role="dialog"
       aria-modal="true"
       aria-label={`Preview: ${template.name}`}
     >
-      <div className="relative flex max-h-[95vh] w-full max-w-5xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl">
+      <div className="relative flex max-h-[92vh] w-full max-w-5xl flex-col overflow-hidden rounded-xl bg-white shadow-2xl">
         {/* Header */}
-        <div className="flex shrink-0 items-center justify-between border-b border-[var(--border-default)] px-5 py-4 sm:px-6">
-          <div className="flex items-center gap-3">
-            <div>
-              <h2 className="text-lg font-semibold text-[var(--text-primary)]">{template.name}</h2>
-              <p className="text-sm text-[var(--text-secondary)]">{template.description}</p>
+        <div className="flex shrink-0 items-center justify-between border-b border-[var(--border-soft)] px-5 py-3.5 sm:px-6">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="min-w-0">
+              <div className="flex items-center gap-2">
+                <h2 className="text-base font-semibold text-[var(--text-primary)] truncate">{template.name}</h2>
+                {template.isPremium && (
+                  <span className="inline-flex items-center gap-1 rounded-md bg-[var(--brand-secondary)]/10 px-1.5 py-0.5 text-[0.6rem] font-bold uppercase tracking-wider text-[var(--brand-secondary)]">
+                    <Star className="h-3 w-3" />
+                    Pro
+                  </span>
+                )}
+              </div>
+              <p className="text-xs text-[var(--text-secondary)] mt-0.5">{template.description}</p>
             </div>
           </div>
           <button
             type="button"
             onClick={onClose}
-            className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-[var(--border-soft)] bg-white text-[var(--text-muted)] shadow-[var(--shadow-xs)] transition-colors hover:bg-[var(--surface-subtle)]"
+            className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-[var(--border-soft)] bg-white text-[var(--text-muted)] shadow-[var(--shadow-xs)] transition-colors hover:bg-[var(--surface-subtle)]"
             aria-label="Close preview"
           >
-            <X className="h-4 w-4" />
+            <X className="h-3.5 w-3.5" />
           </button>
         </div>
 
         {/* Doc type tabs */}
         {template.docTypes.length > 1 && (
-          <div className="shrink-0 flex gap-1.5 border-b border-[var(--border-soft)] px-5 py-2.5 sm:px-6">
+          <div className="shrink-0 flex gap-1 border-b border-[var(--border-soft)] px-5 py-2 sm:px-6">
             {template.docTypes.map((dt) => {
               const dtEffective = getEffectiveTemplateId(template, dt);
               const dtIsDefault = currentDefaults[dt] === dtEffective;
@@ -160,7 +155,7 @@ export function TemplatePreviewModal({
                   type="button"
                   onClick={() => setActiveDocType(dt)}
                   className={cn(
-                    "inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium transition-all",
+                    "inline-flex items-center gap-1.5 rounded-md px-3 py-1 text-xs font-medium transition-all",
                     activeDocType === dt
                       ? "border border-transparent bg-[var(--surface-accent)] text-[var(--text-accent)]"
                       : "border border-[var(--border-soft)] bg-[var(--surface-subtle)] text-[var(--text-muted)] hover:bg-[var(--surface-selected)]"
@@ -181,23 +176,18 @@ export function TemplatePreviewModal({
           {preview ? (
             <div className="mx-auto w-full max-w-3xl">
               <div
-                className="relative mx-auto overflow-hidden rounded-xl bg-white shadow-xl ring-1 ring-black/5"
+                className="relative mx-auto overflow-hidden rounded-lg bg-white shadow-xl ring-1 ring-black/5"
                 style={{
                   "--voucher-ink": "#1d1710",
                   "--voucher-accent": SAMPLE_INVOICE_DOCUMENT.branding.accentColor || "#2563eb",
                 } as React.CSSProperties}
               >
-                <div className="p-8 text-[13px]">
-                  {preview}
-                </div>
+                <div className="p-8 text-[13px]">{preview}</div>
               </div>
             </div>
           ) : (
             <div className="flex flex-1 items-center justify-center text-[var(--text-muted)]">
               <div className="text-center">
-                <svg className="mx-auto mb-3 h-12 w-12 opacity-30" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                </svg>
                 <p className="text-sm">Preview not available for this template.</p>
               </div>
             </div>
@@ -205,45 +195,47 @@ export function TemplatePreviewModal({
         </div>
 
         {/* Footer actions */}
-        <div className="shrink-0 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between border-t border-[var(--border-default)] bg-[var(--surface-subtle)] px-5 py-4 sm:px-6">
+        <div className="shrink-0 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between border-t border-[var(--border-soft)] bg-[var(--surface-subtle)]/60 px-5 py-3.5 sm:px-6">
           <div className="flex flex-wrap gap-1.5">
             {template.tags.slice(0, 4).map((tag) => (
-              <span key={tag} className="rounded-full border border-[var(--border-soft)] bg-white px-2.5 py-0.5 text-xs text-[var(--text-muted)]">
+              <span key={tag} className="rounded-md border border-[var(--border-soft)] bg-white px-2 py-0.5 text-[0.7rem] text-[var(--text-muted)]">
                 #{tag}
               </span>
             ))}
-            {template.isPremium && (
-              <span className="rounded-full bg-[var(--brand-secondary)]/10 px-2.5 py-0.5 text-xs font-semibold text-[var(--brand-secondary)]">
-                PRO
-              </span>
-            )}
           </div>
           <div className="flex items-center gap-2">
             <button
               type="button"
               onClick={onClose}
-              className="rounded-full border border-[var(--border-default)] bg-white px-4 py-2 text-sm font-medium text-[var(--text-primary)] shadow-[var(--shadow-xs)] transition-colors hover:bg-[var(--surface-subtle)]"
+              className="rounded-lg border border-[var(--border-default)] bg-white px-3.5 py-2 text-xs font-medium text-[var(--text-primary)] shadow-[var(--shadow-xs)] transition-colors hover:bg-[var(--surface-subtle)]"
             >
               Close
             </button>
-            <button
-              type="button"
-              onClick={handleSetDefault}
-              disabled={isPending || isDefault}
-              className={cn(
-                "rounded-full px-4 py-2 text-sm font-medium transition-all disabled:opacity-50",
-                isDefault
-                  ? "border border-[var(--state-success)]/30 bg-[var(--state-success-soft)] text-[var(--state-success)]"
-                  : "border border-[var(--border-default)] bg-white text-[var(--text-primary)] shadow-[var(--shadow-xs)] hover:bg-[var(--surface-subtle)]"
-              )}
-            >
-              {isPending ? "Setting..." : isDefault ? "Default Set" : "Set as Default"}
-            </button>
+            {onSetDefault && (
+              <button
+                type="button"
+                onClick={handleSetDefault}
+                disabled={isPending || isDefault}
+                className={cn(
+                  "rounded-lg px-3.5 py-2 text-xs font-medium transition-all disabled:opacity-50",
+                  isDefault
+                    ? "border border-[var(--state-success)]/30 bg-[var(--state-success-soft)] text-[var(--state-success)]"
+                    : "border border-[var(--border-default)] bg-white text-[var(--text-primary)] shadow-[var(--shadow-xs)] hover:bg-[var(--surface-subtle)]"
+                )}
+              >
+                {isPending ? "Saving…" : isDefault ? (
+                  <span className="inline-flex items-center gap-1">
+                    <CheckCircle2 className="h-3.5 w-3.5" />
+                    Default Set
+                  </span>
+                ) : "Set as Default"}
+              </button>
+            )}
             <button
               type="button"
               onClick={handleUseOnce}
               disabled={isPending}
-              className="inline-flex items-center gap-1.5 rounded-full border border-transparent bg-[var(--brand-cta)] px-4 py-2 text-sm font-medium text-white shadow-[var(--shadow-xs)] transition-all hover:bg-[#B91C1C] disabled:opacity-50"
+              className="inline-flex items-center gap-1.5 rounded-lg border border-transparent bg-[var(--brand-cta)] px-3.5 py-2 text-xs font-medium text-white shadow-[var(--shadow-xs)] transition-all hover:bg-[#B91C1C] disabled:opacity-50"
             >
               Use This Template
               <ArrowRight className="h-3.5 w-3.5" />
