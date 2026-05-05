@@ -122,7 +122,10 @@ export async function updateVendorCrmFields(
 export async function getCustomerTimeline(customerId: string) {
   const { orgId } = await requireOrgContext();
 
-  const customer = await db.customer.findUnique({ where: { id: customerId } });
+  const customer = await db.customer.findUnique({
+    where: { id: customerId },
+    include: { _count: { select: { quotes: true } } },
+  });
   if (!customer || customer.organizationId !== orgId) return null;
 
   const [invoices, notes, quotes] = await Promise.all([
