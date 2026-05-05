@@ -395,3 +395,87 @@ export async function listEmployees(params?: {
     totalPages: Math.ceil(total / limit),
   };
 }
+
+// ─── Entity Workspaces (with relations) ───────────────────────────────────────
+
+export async function getCustomerWithRelations(id: string) {
+  const { orgId } = await requireOrgContext();
+
+  const customer = await db.customer.findFirst({
+    where: { id, organizationId: orgId },
+    include: {
+      _count: { select: { crmNotes: true, invoices: true, quotes: true } },
+    },
+  });
+
+  if (!customer) return null;
+
+  const [recentInvoices, recentQuotes] = await Promise.all([
+    db.invoice.findMany({
+      where: { organizationId: orgId, customerId: id },
+      orderBy: { createdAt: "desc" },
+      take: 5,
+      select: { id: true, invoiceNumber: true, status: true, totalAmount: true, createdAt: true },
+    }),
+    db.quote.findMany({
+      where: { orgId: orgId, customerId: id },
+      orderBy: { createdAt: "desc" },
+      take: 5,
+      select: { id: true, quoteNumber: true, status: true, totalAmount: true, createdAt: true },
+    }),
+  ]);
+
+  return { customer, recentInvoices, recentQuotes };
+}
+
+export async function getVendorWithRelations(id: string) {
+  const { orgId } = await requireOrgContext();
+
+  const vendor = await db.vendor.findFirst({
+    where: { id, organizationId: orgId },
+    include: {
+      _count: { select: { crmNotes: true, bills: true, purchaseOrders: true } },
+    },
+  });
+
+  if (!vendor) return null;
+
+  const [recentBills, recentPurchaseOrders] = await Promise.all([
+    db.vendorBill.findMany({
+      where: { orgId: orgId, vendorId: id },
+      orderBy: { createdAt: "desc" },
+      take: 5,
+      select: { id: true, billNumber: true, status: true, totalAmount: true, createdAt: true },
+    }),
+    db.purchaseOrder.findMany({
+      where: { orgId: orgId, vendorId: id },
+      orderBy: { createdAt: "desc" },
+      take: 5,
+      select: { id: true, poNumber: true, status: true, totalAmount: true, createdAt: true },
+    }),
+  ]);
+
+  return { vendor, recentBills, recentPurchaseOrders };
+}
+
+export async function getEmployeeWithRelations(id: string) {
+  const { orgId } = await requireOrgContext();
+
+  const employee = await db.employee.findFirst({
+    where: { id, organizationId: orgId },
+    include: {
+      _count: { select: { salarySlips: true } },
+    },
+  });
+
+  if (!employee) return null;
+
+  const recentSalarySlips = await db.salarySlip.findMany({
+    where: { organizationId: orgId, employeeId: id },
+    orderBy: { createdAt: "desc" },
+    take: 5,
+    select: { id: true, slipNumber: true, month: true, year: true, status: true, netPay: true, createdAt: true },
+  });
+
+  return { employee, recentSalarySlips };
+}

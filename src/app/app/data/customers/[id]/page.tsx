@@ -1,43 +1,160 @@
 import { notFound } from "next/navigation";
-import { getCustomer } from "../../actions";
+import Link from "next/link";
+import { getCustomerWithRelations } from "../../actions";
 import { CustomerForm } from "../../components/customer-form";
-import { DetailLayout, DetailRailCard, MetadataField } from "@/components/layout/detail-layout";
+import { RelatedRecords } from "../../components/related-records";
+import {
+  DetailLayout,
+  DetailRailCard,
+  DetailTopBar,
+  MetadataField,
+} from "@/components/layout/detail-layout";
+import { StatusBadge } from "@/components/dashboard/status-badge";
+import { ArrowLeft, ArrowUpRight } from "lucide-react";
 
 export const metadata = {
-  title: "Edit Customer | Slipwise",
+  title: "Customer | Slipwise",
 };
 
-export default async function EditCustomerPage({
+const LIFECYCLE_VARIANTS: Record<string, Parameters<typeof StatusBadge>[0]["variant"]> = {
+  PROSPECT: "neutral",
+  QUALIFIED: "info",
+  NEGOTIATION: "warning",
+  WON: "success",
+  ACTIVE: "success",
+  AT_RISK: "warning",
+  CHURNED: "danger",
+};
+
+function formatCurrency(amount?: number | null) {
+  if (amount == null) return "—";
+  return new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(amount);
+}
+
+export default async function CustomerDetailPage({
   params,
 }: {
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const customer = await getCustomer(id);
+  const data = await getCustomerWithRelations(id);
 
-  if (!customer) {
+  if (!data) {
     notFound();
   }
 
+  const { customer, recentInvoices, recentQuotes } = data;
+  const stage = customer.lifecycleStage ?? "PROSPECT";
+
+  const relatedItems = [
+    ...recentInvoices.map((inv) => ({
+      id: inv.id,
+      title: inv.invoiceNumber ? `Invoice ${inv.invoiceNumber}` : "Invoice",
+      subtitle: formatCurrency(Number(inv.totalAmount)),
+      status: inv.status,
+      href: `/app/docs/invoices/${inv.id}`,
+      date: inv.createdAt,
+    })),
+    ...recentQuotes.map((q) => ({
+      id: q.id,
+      title: q.quoteNumber ? `Quote ${q.quoteNumber}` : "Quote",
+      subtitle: formatCurrency(Number(q.totalAmount)),
+      status: q.status,
+      href: `/app/docs/quotes/${q.id}`,
+      date: q.createdAt,
+    })),
+  ].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+
   return (
-    <DetailLayout
-      rail={
-        <DetailRailCard title="Customer Info">
-          <dl className="space-y-3">
-            <MetadataField label="Name" value={customer.name} />
-            {customer.email && <MetadataField label="Email" value={customer.email} />}
-            {customer.phone && <MetadataField label="Phone" value={customer.phone} />}
-            {customer.gstin && <MetadataField label="GSTIN" value={customer.gstin} />}
-            {customer.taxId && <MetadataField label="Tax ID" value={customer.taxId} />}
-            {customer.address && (
-              <MetadataField label="Address" value={<span className="whitespace-pre-line">{customer.address}</span>} />
+    <div className="mx-auto max-w-[var(--container-content,80rem)]">
+      <DetailLayout
+        topBar={
+          <DetailTopBar
+            title={customer.name}
+            subtitle={customer.email ?? undefined}
+            actions={
+              <div className="flex flex-wrap items-center gap-2">
+                <Link
+                  href="/app/data/customers"
+                  className="inline-flex items-center gap-1 rounded-lg border border-[var(--border-default)] bg-white px-3 py-2 text-xs font-medium text-[var(--text-secondary)] transition-colors hover:bg-[var(--surface-subtle)]"
+                >
+                  <ArrowLeft className="h-3 w-3" />
+                  Back
+                </Link>
+                <Link
+                  href={`/app/crm/customers/${customer.id}`}
+                  className="inline-flex items-center gap-1 rounded-lg bg-[var(--brand-primary)] px-3 py-2 text-xs font-medium text-white transition-colors hover:opacity-90"
+                >
+                  <ArrowUpRight className="h-3 w-3" />
+                  CRM View
+                </Link>
+              </div>
+            }
+          />
+        }
+        rail={
+          <>
+            <DetailRailCard title="Customer Info">
+              <dl className="space-y-3">
+                {customer.email && <MetadataField label="Email" value={customer.email} />}
+                {customer.phone && <MetadataField label="Phone" value={customer.phone} />}
+                {customer.gstin && <MetadataField label="GSTIN" value={customer.gstin} />}
+                {customer.taxId && <MetadataField label="Tax ID" value={customer.taxId} />}
+                {customer.industry && <MetadataField label="Industry" value={customer.industry} />}
+                {customer.segment && <MetadataField label="Segment" value={customer.segment} />}
+                {customer.source && <MetadataField label="Source" value={customer.source} />}
+                {customer.address && (
+                  <MetadataField label="Address" value={<span className="whitespace-pre-line text-xs leading-relaxed">{customer.address}</span>} />
+                )}
+              </dl>
+            </DetailRailCard>
+
+            <DetailRailCard title="CRM Summary">
+              <dl className="space-y-3">
+                <MetadataField
+                  label="Lifecycle Stage"
+                  value={
+                    <StatusBadge variant={LIFECYCLE_VARIANTS[stage] ?? "neutral"}>
+                      {stage.replace(/_/g, " ")}
+                    </StatusBadge>
+                  }
+                />
+                <MetadataField label="Total Invoiced" value={formatCurrency(Number(customer.totalInvoiced))} />
+                <MetadataField label="Total Paid" value={formatCurrency(Number(customer.totalPaid))} />
+                <MetadataField label="Lifetime Value" value={formatCurrency(Number(customer.lifetimeValue))} />
+                <MetadataField label="Invoices" value={customer._count.invoices} />
+                <MetadataField label="Quotes" value={customer._count.quotes} />
+                <MetadataField label="Notes" value={customer._count.crmNotes} />
+              </dl>
+            </DetailRailCard>
+
+            {customer.tags.length > 0 && (
+              <DetailRailCard title="Tags">
+                <div className="flex flex-wrap gap-1.5">
+                  {customer.tags.map((tag) => (
+                    <span key={tag} className="inline-flex items-center rounded-md bg-[var(--surface-subtle)] px-2 py-1 text-xs font-medium text-[var(--text-secondary)]">
+                      {tag}
+                    </span>
+                  ))}
+                </div>
+              </DetailRailCard>
             )}
-          </dl>
-        </DetailRailCard>
-      }
-    >
-      <h1 className="mb-6 text-xl font-semibold text-[var(--text-primary)]">Edit Customer</h1>
-      <CustomerForm customer={customer} />
-    </DetailLayout>
+          </>
+        }
+      >
+        <div className="space-y-6">
+          <div className="slipwise-panel p-5">
+            <h2 className="mb-4 text-sm font-semibold text-[var(--text-primary)]">Edit Customer</h2>
+            <CustomerForm customer={customer} />
+          </div>
+
+          <RelatedRecords
+            title="Recent Documents"
+            items={relatedItems}
+            emptyMessage="No invoices or quotes yet."
+          />
+        </div>
+      </DetailLayout>
+    </div>
   );
 }
