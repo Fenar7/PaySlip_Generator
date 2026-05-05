@@ -7,9 +7,24 @@ import { DocumentAttachments } from "@/components/docs/document-attachments";
 import { getDocAttachments } from "@/app/app/docs/attachment-actions";
 import { listInventoryItems } from "@/app/app/inventory/items/actions";
 import { DetailLayout, DetailRailCard } from "@/components/layout/detail-layout";
+import { DocumentActionBar } from "@/components/docs/document-action-bar";
+import { StatusBadge } from "@/components/dashboard/status-badge";
 
 export const metadata = {
   title: "Edit Invoice | Slipwise",
+};
+
+const INVOICE_STATUS_VARIANTS: Record<string, Parameters<typeof StatusBadge>[0]["variant"]> = {
+  DRAFT: "neutral",
+  ISSUED: "info",
+  VIEWED: "info",
+  DUE: "warning",
+  PARTIALLY_PAID: "warning",
+  PAID: "success",
+  OVERDUE: "danger",
+  DISPUTED: "danger",
+  CANCELLED: "neutral",
+  REISSUED: "info",
 };
 
 export default async function EditInvoicePage({
@@ -31,8 +46,51 @@ export default async function EditInvoicePage({
     notFound();
   }
 
+  const statusVariant = INVOICE_STATUS_VARIANTS[invoice.status] ?? "neutral";
+
   return (
     <DetailLayout
+      topBar={
+        <DocumentActionBar
+          backHref="/app/docs/invoices"
+          backLabel="Invoices"
+          documentType="Invoice"
+          documentNumber={invoice.invoiceNumber}
+          title={invoice.title}
+          status={invoice.status}
+          statusVariant={statusVariant}
+          primaryActions={[
+            {
+              id: "print",
+              label: "Print",
+              icon: "print",
+              variant: "secondary",
+              href: `/app/docs/invoices/print?id=${invoice.id}`,
+            },
+            {
+              id: "export",
+              label: "Export PDF",
+              icon: "download",
+              variant: "secondary",
+              href: `/app/docs/invoices/print?id=${invoice.id}&format=pdf`,
+            },
+          ]}
+          secondaryActions={[
+            {
+              id: "preview",
+              label: "Preview",
+              icon: "preview",
+              variant: "subtle",
+              href: `/app/docs/invoices/print?id=${invoice.id}&preview=1`,
+            },
+          ]}
+          contextMeta={[
+            { label: "Customer", value: invoice.customer?.name ?? "—" },
+            { label: "Date", value: invoice.issueDate.toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" }) },
+            { label: "Total", value: new Intl.NumberFormat("en-IN", { style: "currency", currency: invoice.currency ?? "INR", minimumFractionDigits: 0 }).format(invoice.totalAmount) },
+          ]}
+        />
+      }
       rail={
         <>
           <DetailRailCard>
