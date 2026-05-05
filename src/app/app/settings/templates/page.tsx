@@ -38,6 +38,7 @@ export default async function TemplatesSettingsPage({
   return (
     <TemplateLibraryClient
       templates={filtered}
+      allTemplates={TEMPLATE_REGISTRY}
       currentDefaults={currentDefaults}
       activeCategory={activeCategory}
       activeType={activeType}

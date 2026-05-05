@@ -56,7 +56,7 @@ export default async function EditInvoicePage({
           backHref="/app/docs/invoices"
           backLabel="Invoices"
           documentType="Invoice"
-          documentNumber={invoice.invoiceNumber}
+          documentNumber={invoice.invoiceNumber ?? invoice.id}
           title={invoice.title}
           status={invoice.status}
           statusVariant={statusVariant}

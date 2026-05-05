@@ -13,6 +13,7 @@ import { LayoutGrid, SlidersHorizontal, Settings } from "lucide-react";
 
 interface TemplateStoreClientProps {
   templates: TemplateDefinition[];
+  allTemplates: TemplateDefinition[];
   currentDefaults: Record<DocType, string | null>;
   activeCategory?: string;
   activeType?: string;
@@ -28,6 +29,7 @@ const DOC_TYPE_DEFAULT_KEY: Record<DocType, "defaultInvoiceTemplate" | "defaultV
 
 export function TemplateStoreClient({
   templates,
+  allTemplates,
   currentDefaults,
   activeCategory,
   activeType,
@@ -105,7 +107,7 @@ export function TemplateStoreClient({
             ]
           ).map(([type, label, defaultId]) => {
             const template = defaultId
-              ? templates.find((t) =>
+              ? allTemplates.find((t) =>
                   t.docTypes.includes(type) &&
                   (t.templateId === defaultId || t.templateIdByDocType?.[type] === defaultId)
                 )
