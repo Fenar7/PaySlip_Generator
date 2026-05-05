@@ -1,6 +1,7 @@
 "use client";
 
 import { useTransition, useState } from "react";
+import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { updateOrgDefaults } from "@/app/app/actions/org-defaults-actions";
 import type { TemplateDefinition, DocType } from "@/lib/docs/templates/registry";
@@ -21,6 +22,7 @@ const DOC_TYPE_DEFAULT_KEY: Record<DocType, "defaultInvoiceTemplate" | "defaultV
 type PreviewState = { template: TemplateDefinition; docType: DocType } | null;
 
 export function TemplateStoreClient({ templates, currentDefaults }: TemplateStoreClientProps) {
+  const router = useRouter();
   const [, startTransition] = useTransition();
   const [previewState, setPreviewState] = useState<PreviewState>(null);
 
@@ -29,6 +31,7 @@ export function TemplateStoreClient({ templates, currentDefaults }: TemplateStor
       const result = await updateOrgDefaults({ [DOC_TYPE_DEFAULT_KEY[docType]]: templateId });
       if (result.success) {
         toast.success("Default template updated");
+        router.refresh();
       } else {
         toast.error("Failed to update default template");
       }

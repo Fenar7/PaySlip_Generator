@@ -108,6 +108,7 @@ export function TemplatePreviewModal({
       });
       if (result.success) {
         toast.success(`"${template.name}" set as default ${DOCTYPE_LABELS[activeDocType]} template`);
+        router.refresh();
         onClose();
       } else {
         toast.error("Failed to update default template");
