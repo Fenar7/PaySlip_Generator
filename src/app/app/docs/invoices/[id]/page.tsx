@@ -87,7 +87,7 @@ export default async function EditInvoicePage({
           contextMeta={[
             { label: "Customer", value: invoice.customer?.name ?? "—" },
             { label: "Date", value: new Date(invoice.invoiceDate).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" }) },
-            { label: "Total", value: new Intl.NumberFormat("en-IN", { style: "currency", currency: invoice.currency ?? "INR", minimumFractionDigits: 0 }).format(invoice.totalAmount) },
+            { label: "Total", value: new Intl.NumberFormat("en-IN", { style: "currency", currency: invoice.displayCurrency ?? "INR", minimumFractionDigits: 0 }).format(invoice.totalAmount) },
           ]}
         />
       }
