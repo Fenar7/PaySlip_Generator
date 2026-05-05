@@ -4,7 +4,7 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Modal } from "@/components/ui/modal";
-import { FormField, FormGrid } from "@/components/forms/form-primitives";
+import { FormField, FormGrid, financeInputClassName } from "@/components/forms/form-primitives";
 import { createChartAccount } from "../actions";
 
 interface CreateAccountModalProps {
@@ -82,9 +82,6 @@ export function CreateAccountModal({ parentOptions }: CreateAccountModalProps) {
     });
   }
 
-  const inputClassName =
-    "w-full rounded-lg border border-[var(--border-default)] bg-white px-3 py-2 text-sm text-[var(--text-primary)] placeholder:text-[var(--text-muted)] transition-colors focus:border-[var(--brand-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--focus-ring)]";
-
   return (
     <>
       <Button onClick={() => setOpen(true)}>New Account</Button>
@@ -118,7 +115,7 @@ export function CreateAccountModal({ parentOptions }: CreateAccountModalProps) {
               value={code}
               onChange={(e) => setCode(e.target.value)}
               placeholder="e.g. 6100"
-              className={inputClassName}
+              className={financeInputClassName}
             />
           </FormField>
 
@@ -127,7 +124,7 @@ export function CreateAccountModal({ parentOptions }: CreateAccountModalProps) {
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="e.g. Office Supplies"
-              className={inputClassName}
+              className={financeInputClassName}
             />
           </FormField>
 
@@ -139,7 +136,7 @@ export function CreateAccountModal({ parentOptions }: CreateAccountModalProps) {
                 setAccountType(nextType);
                 setNormalBalance(defaultNormalBalance(nextType));
               }}
-              className={inputClassName}
+              className={financeInputClassName}
             >
               <option value="ASSET">Asset</option>
               <option value="LIABILITY">Liability</option>
@@ -154,7 +151,7 @@ export function CreateAccountModal({ parentOptions }: CreateAccountModalProps) {
             <select
               value={normalBalance}
               onChange={(e) => setNormalBalance(e.target.value)}
-              className={inputClassName}
+              className={financeInputClassName}
             >
               <option value="DEBIT">Debit</option>
               <option value="CREDIT">Credit</option>
@@ -165,7 +162,7 @@ export function CreateAccountModal({ parentOptions }: CreateAccountModalProps) {
             <select
               value={parentId}
               onChange={(e) => setParentId(e.target.value)}
-              className={inputClassName}
+              className={financeInputClassName}
             >
               <option value="">No parent</option>
               {parentOptions.map((account) => (
@@ -181,7 +178,7 @@ export function CreateAccountModal({ parentOptions }: CreateAccountModalProps) {
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               rows={3}
-              className={inputClassName}
+              className={financeInputClassName}
             />
           </FormField>
         </FormGrid>

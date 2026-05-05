@@ -1,5 +1,9 @@
 import { cn } from "@/lib/utils";
 
+/* Standard finance input styling used across Books forms */
+export const financeInputClassName =
+  "w-full rounded-lg border border-[var(--border-default)] bg-white px-3 py-2 text-sm text-[var(--text-primary)] placeholder:text-[var(--text-muted)] transition-colors focus:border-[var(--brand-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--focus-ring)]";
+
 interface FormFieldProps {
   label: string;
   error?: string;
@@ -67,6 +71,19 @@ export function FormSection({ title, description, children, className }: FormSec
           {description && <p className="mt-0.5 text-xs text-[var(--text-muted)]">{description}</p>}
         </div>
       )}
+      {children}
+    </div>
+  );
+}
+
+interface FormActionsProps {
+  children: React.ReactNode;
+  className?: string;
+}
+
+export function FormActions({ children, className }: FormActionsProps) {
+  return (
+    <div className={cn("flex items-center justify-end gap-3 pt-2", className)}>
       {children}
     </div>
   );
