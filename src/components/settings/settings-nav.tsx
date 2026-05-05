@@ -28,6 +28,8 @@ import {
   Zap,
   Search,
   ChevronRight,
+  FileStack,
+  Star,
 } from "lucide-react";
 import { useState, useMemo } from "react";
 
@@ -62,6 +64,14 @@ const settingsGroups: NavGroup[] = [
       { label: "Team Members", href: "/app/settings/users", icon: Users },
       { label: "Roles", href: "/app/settings/roles", icon: UserCog },
       { label: "Entity Groups", href: "/app/settings/entities", icon: LayoutGrid },
+    ],
+  },
+  {
+    id: "templates",
+    label: "Document Templates",
+    items: [
+      { label: "Template Library", href: "/app/settings/templates", icon: FileStack },
+      { label: "Default Templates", href: "/app/settings/templates/defaults", icon: Star },
     ],
   },
   {
