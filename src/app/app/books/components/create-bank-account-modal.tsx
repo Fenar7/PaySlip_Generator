@@ -2,10 +2,11 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import { cn } from "@/lib/utils";
 import type { BankAccountType } from "@/generated/prisma/client";
 import { Button } from "@/components/ui/button";
 import { Modal } from "@/components/ui/modal";
-import { FormField, FormGrid } from "@/components/forms/form-primitives";
+import { FormField, FormGrid, financeInputClassName } from "@/components/forms/form-primitives";
 import { createBooksBankAccount } from "../actions";
 
 const ACCOUNT_TYPES: Array<{ value: BankAccountType; label: string }> = [
@@ -75,9 +76,6 @@ export function CreateBankAccountModal() {
     });
   }
 
-  const inputClassName =
-    "w-full rounded-lg border border-[var(--border-default)] bg-white px-3 py-2 text-sm text-[var(--text-primary)] placeholder:text-[var(--text-muted)] transition-colors focus:border-[var(--brand-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--focus-ring)]";
-
   return (
     <>
       <Button onClick={() => setOpen(true)}>New Bank Account</Button>
@@ -111,7 +109,7 @@ export function CreateBankAccountModal() {
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="e.g. HDFC Current Account"
-              className={inputClassName}
+              className={financeInputClassName}
             />
           </FormField>
 
@@ -119,7 +117,7 @@ export function CreateBankAccountModal() {
             <select
               value={type}
               onChange={(e) => setType(e.target.value as BankAccountType)}
-              className={inputClassName}
+              className={financeInputClassName}
             >
               {ACCOUNT_TYPES.map((accountType) => (
                 <option key={accountType.value} value={accountType.value}>
@@ -134,7 +132,7 @@ export function CreateBankAccountModal() {
               value={bankName}
               onChange={(e) => setBankName(e.target.value)}
               placeholder="e.g. HDFC Bank"
-              className={inputClassName}
+              className={financeInputClassName}
             />
           </FormField>
 
@@ -143,7 +141,7 @@ export function CreateBankAccountModal() {
               value={maskedAccountNo}
               onChange={(e) => setMaskedAccountNo(e.target.value)}
               placeholder="e.g. XXXX1234"
-              className={inputClassName}
+              className={financeInputClassName}
             />
           </FormField>
 
@@ -152,7 +150,7 @@ export function CreateBankAccountModal() {
               value={ifscOrSwift}
               onChange={(e) => setIfscOrSwift(e.target.value)}
               placeholder="e.g. HDFC0001234"
-              className={inputClassName}
+              className={financeInputClassName}
             />
           </FormField>
 
@@ -161,7 +159,7 @@ export function CreateBankAccountModal() {
               value={currency}
               onChange={(e) => setCurrency(e.target.value.toUpperCase())}
               placeholder="INR"
-              className={inputClassName}
+              className={cn(financeInputClassName, "uppercase")}
               maxLength={3}
             />
           </FormField>
@@ -172,7 +170,7 @@ export function CreateBankAccountModal() {
               step="0.01"
               value={openingBalance}
               onChange={(e) => setOpeningBalance(e.target.value)}
-              className={inputClassName}
+              className={cn(financeInputClassName, "text-right")}
             />
           </FormField>
 
@@ -181,7 +179,7 @@ export function CreateBankAccountModal() {
               type="date"
               value={openingBalanceDate}
               onChange={(e) => setOpeningBalanceDate(e.target.value)}
-              className={inputClassName}
+              className={financeInputClassName}
             />
           </FormField>
         </FormGrid>
