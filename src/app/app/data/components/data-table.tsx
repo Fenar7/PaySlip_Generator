@@ -32,7 +32,6 @@ interface DataTableProps<T> {
   page: number;
   totalPages: number;
   className?: string;
-  rowHref?: (item: T) => string;
 }
 
 export function DataTable<T extends { id: string }>({
@@ -45,7 +44,6 @@ export function DataTable<T extends { id: string }>({
   page,
   totalPages,
   className,
-  rowHref,
 }: DataTableProps<T>) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -153,48 +151,28 @@ export function DataTable<T extends { id: string }>({
                 </td>
               </tr>
             ) : (
-              data.map((item) => {
-                const href = rowHref ? rowHref(item) : undefined;
-                return (
-                  <tr
-                    key={item.id}
-                    className={cn(
-                      "group transition-colors hover:bg-[var(--surface-selected)]",
-                      href && "cursor-pointer"
-                    )}
-                    onClick={(e) => {
-                      if (!href) return;
-                      const target = e.target as HTMLElement;
-                      if (
-                        target.closest("a") ||
-                        target.closest("button") ||
-                        target.closest("[data-stop-propagation]")
-                      ) {
-                        return;
-                      }
-                      router.push(href);
-                    }}
-                  >
-                    {columns.map((col) => (
-                      <td
-                        key={col.key}
-                        className={cn(
-                          "px-5 py-3 text-sm text-[var(--text-primary)]",
-                          col.align === "right" && "text-right",
-                          col.align === "center" && "text-center"
-                        )}
-                      >
-                        {col.render
-                          ? col.render(item as unknown as T)
-                          : ((item as Record<string, unknown>)[
-                              col.key
-                            ] as string) || "—"}
-                      </td>
-                    ))}
+              data.map((item) => (
+                <tr
+                  key={item.id}
+                  className="group transition-colors hover:bg-[var(--surface-selected)]"
+                >
+                  {columns.map((col) => (
                     <td
-                      className="px-5 py-3 text-right"
-                      data-stop-propagation
+                      key={col.key}
+                      className={cn(
+                        "px-5 py-3 text-sm text-[var(--text-primary)]",
+                        col.align === "right" && "text-right",
+                        col.align === "center" && "text-center"
+                      )}
                     >
+                      {col.render
+                        ? col.render(item as unknown as T)
+                        : ((item as Record<string, unknown>)[
+                            col.key
+                          ] as string) || "—"}
+                    </td>
+                  ))}
+                  <td className="px-5 py-3 text-right">
                       <div className="flex items-center justify-end gap-1.5 opacity-100 transition-opacity sm:opacity-0 sm:group-hover:opacity-100 focus-within:opacity-100">
                         <Link
                           href={`${editPath}/${item.id}`}
@@ -214,8 +192,7 @@ export function DataTable<T extends { id: string }>({
                       </div>
                     </td>
                   </tr>
-                );
-              })
+              ))
             )}
           </tbody>
         </table>
