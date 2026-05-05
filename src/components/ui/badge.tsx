@@ -2,7 +2,7 @@ import { cn } from "@/lib/utils";
 
 interface BadgeProps {
   children: React.ReactNode;
-  variant?: "default" | "soon" | "success" | "warning" | "danger";
+  variant?: "default" | "soon" | "success" | "warning" | "danger" | "info";
   className?: string;
 }
 
@@ -17,6 +17,7 @@ export function Badge({ children, variant = "default", className }: BadgeProps) 
           "bg-[var(--state-success-soft)] text-[var(--state-success)]": variant === "success",
           "bg-[var(--state-warning-soft)] text-[var(--state-warning)]": variant === "warning",
           "bg-[var(--state-danger-soft)] text-[var(--state-danger)]": variant === "danger",
+          "bg-[var(--state-info-soft)] text-[var(--state-info)]": variant === "info",
         },
         className
       )}

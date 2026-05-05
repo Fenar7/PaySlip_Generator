@@ -21,10 +21,10 @@ export function TableEmpty({
         className,
       )}
     >
-      {icon && <div className="mb-4 text-4xl">{icon}</div>}
-      <p className="text-sm font-medium text-[var(--foreground)]">{message}</p>
+      {icon && <div className="mb-4 text-4xl text-[var(--text-muted)]">{icon}</div>}
+      <p className="text-sm font-medium text-[var(--text-primary)]">{message}</p>
       {description && (
-        <p className="mt-1 max-w-xs text-xs text-[var(--muted-foreground)]">
+        <p className="mt-1 max-w-xs text-xs text-[var(--text-muted)]">
           {description}
         </p>
       )}
