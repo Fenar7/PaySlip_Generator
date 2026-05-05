@@ -39,6 +39,10 @@ export default async function EditVoucherPage({
   }
 
   const statusVariant = VOUCHER_STATUS_VARIANTS[voucher.status] ?? "neutral";
+  const voucherTitle =
+    voucher.partyName ??
+    voucher.vendor?.name ??
+    (voucher.type === "payment" ? "Payment voucher" : "Receipt voucher");
 
   return (
     <div className="space-y-5">
@@ -47,7 +51,7 @@ export default async function EditVoucherPage({
         backLabel="Vouchers"
         documentType={voucher.type === "payment" ? "Payment Voucher" : "Receipt Voucher"}
         documentNumber={voucher.voucherNumber ?? "Draft"}
-        title={voucher.title}
+        title={voucherTitle}
         status={voucher.status}
         statusVariant={statusVariant}
         primaryActions={[
