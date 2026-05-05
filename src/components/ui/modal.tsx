@@ -64,7 +64,7 @@ export function Modal({ open, onClose, title, subtitle, children, footer, size =
           />
 
           {/* Dialog container */}
-          <div className="absolute inset-0 flex items-start justify-center px-4 py-12 overflow-y-auto">
+          <div className="absolute inset-0 flex items-start justify-center px-3 py-6 sm:px-4 sm:py-12 overflow-y-auto">
             <motion.div
               ref={dialogRef}
               role="dialog"
@@ -77,7 +77,7 @@ export function Modal({ open, onClose, title, subtitle, children, footer, size =
               animate="visible"
               exit="exit"
               className={cn(
-                "relative w-full overflow-hidden rounded-2xl border border-[var(--border-soft)] bg-[var(--surface-panel)] shadow-2xl outline-none",
+                "relative w-full overflow-hidden rounded-xl sm:rounded-2xl border border-[var(--border-soft)] bg-[var(--surface-panel)] shadow-2xl outline-none mx-auto",
                 sizeClasses[size],
                 className
               )}
