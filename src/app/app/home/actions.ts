@@ -9,9 +9,7 @@ import {
   type RevenueTrendPoint,
   type ActivityEntry,
 } from "@/app/app/intel/dashboard/actions";
-import { listInvoices } from "@/app/app/docs/invoices/actions";
-import { listVouchers } from "@/app/app/docs/vouchers/actions";
-import { listSalarySlips } from "@/app/app/docs/salary-slips/actions";
+
 
 export interface DashboardData {
   counts: {
@@ -24,9 +22,16 @@ export interface DashboardData {
   kpis: DashboardKPIs;
   revenueTrend: RevenueTrendPoint[];
   recentActivity: ActivityEntry[];
-  recentInvoices: Awaited<ReturnType<typeof listInvoices>>["invoices"];
-  recentVouchers: Awaited<ReturnType<typeof listVouchers>>["vouchers"];
-  recentSlips: Awaited<ReturnType<typeof listSalarySlips>>["salarySlips"];
+  recentDocs: {
+    id: string;
+    docType: string;
+    documentNumber: string;
+    titleOrSummary: string;
+    counterpartyLabel: string | null;
+    status: string;
+    primaryDate: Date;
+    amount: number | null;
+  }[];
 }
 
 export async function getDashboardData(): Promise<
@@ -38,17 +43,11 @@ export async function getDashboardData(): Promise<
       kpisResult,
       revenueResult,
       activityResult,
-      invoiceData,
-      voucherData,
-      slipData,
     ] = await Promise.allSettled([
       getDocsSummary(),
       getDashboardKPIs("this-month"),
       getRevenueTrendData(),
       getRecentActivity(),
-      listInvoices({ limit: 3 }),
-      listVouchers({ limit: 3 }),
-      listSalarySlips({ limit: 3 }),
     ]);
 
     const summary =
@@ -78,29 +77,31 @@ export async function getDashboardData(): Promise<
         ? activityResult.value.data
         : [];
 
-    const invoices =
-      invoiceData.status === "fulfilled" ? invoiceData.value : { invoices: [], total: 0 };
-    const vouchers =
-      voucherData.status === "fulfilled" ? voucherData.value : { vouchers: [], total: 0 };
-    const slips =
-      slipData.status === "fulfilled" ? slipData.value : { salarySlips: [], total: 0 };
+
 
     return {
       success: true,
       data: {
         counts: {
-          invoice: summary?.counts.invoice ?? invoices.total,
-          voucher: summary?.counts.voucher ?? vouchers.total,
-          salarySlip: summary?.counts.salary_slip ?? slips.total,
+          invoice: summary?.counts.invoice ?? 0,
+          voucher: summary?.counts.voucher ?? 0,
+          salarySlip: summary?.counts.salary_slip ?? 0,
           quote: summary?.counts.quote ?? 0,
-          total: summary?.totalActive ?? invoices.total + vouchers.total + slips.total,
+          total: summary?.totalActive ?? 0,
         },
         kpis,
         revenueTrend,
         recentActivity,
-        recentInvoices: invoices.invoices,
-        recentVouchers: vouchers.vouchers,
-        recentSlips: slips.salarySlips,
+        recentDocs: (summary?.recentDocuments ?? []).map((d) => ({
+          id: d.id,
+          docType: d.docType,
+          documentNumber: d.documentNumber,
+          titleOrSummary: d.titleOrSummary,
+          counterpartyLabel: d.counterpartyLabel,
+          status: d.status,
+          primaryDate: d.primaryDate,
+          amount: d.amount,
+        })),
       },
     };
   } catch (error) {

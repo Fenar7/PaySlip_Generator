@@ -1,5 +1,4 @@
-import { FileText, Receipt, Banknote, Wallet, AlertCircle, CheckCircle2 } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { FileText, Receipt, Banknote, Wallet, AlertCircle, CheckCircle2, TrendingUp, Clock } from "lucide-react";
 
 interface KpiRowProps {
   counts: {
@@ -42,9 +41,7 @@ function KpiCard({
 }) {
   return (
     <div
-      className={cn(
-        "flex items-center gap-4 rounded-2xl border bg-white p-5 transition-colors hover:border-[#DC2626]"
-      )}
+      className="flex items-center gap-4 rounded-2xl border bg-white p-5 transition-colors hover:border-[#DC2626]"
       style={{ borderColor: "#E0E0E0" }}
     >
       <div
@@ -63,22 +60,22 @@ function KpiCard({
 }
 
 export function KpiRow({ counts, kpis }: KpiRowProps) {
-  const outstanding = kpis.pay.totalDue - kpis.pay.paidThisMonth;
+  const outstanding = Math.max(0, kpis.pay.totalDue - kpis.pay.paidThisMonth);
 
   return (
     <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
       <KpiCard
         label="Total Documents"
         value={String(counts.total)}
-        sub={`${counts.invoice} invoices · ${counts.voucher} vouchers · ${counts.salarySlip} slips`}
+        sub={`${counts.invoice} inv · ${counts.voucher} vch · ${counts.salarySlip} slips`}
         icon={FileText}
         iconBg="#F5F5F5"
         iconColor="#49454F"
       />
       <KpiCard
         label="Outstanding"
-        value={formatCurrency(outstanding > 0 ? outstanding : 0)}
-        sub={`${kpis.pay.overdue > 0 ? `${formatCurrency(kpis.pay.overdue)} overdue` : "No overdue"}`}
+        value={formatCurrency(outstanding)}
+        sub={kpis.pay.overdue > 0 ? `${formatCurrency(kpis.pay.overdue)} overdue` : "All caught up"}
         icon={AlertCircle}
         iconBg="#FEF2F2"
         iconColor="#DC2626"
@@ -88,13 +85,14 @@ export function KpiRow({ counts, kpis }: KpiRowProps) {
         value={formatCurrency(kpis.pay.paidThisMonth)}
         sub={`${kpis.pay.invoicesIssued} invoices issued`}
         icon={CheckCircle2}
-        iconBg="#F0FDF4"
+        iconBg="#ECFDF5"
         iconColor="#16A34A"
       />
       <KpiCard
         label="Total Revenue"
         value={formatCurrency(kpis.pay.totalDue + kpis.pay.paidThisMonth)}
-        icon={Wallet}
+        sub="Lifetime invoiced"
+        icon={TrendingUp}
         iconBg="#EFF6FF"
         iconColor="#2563EB"
       />

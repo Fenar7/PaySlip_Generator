@@ -2,22 +2,18 @@
 
 import {
   ResponsiveContainer,
-  Bar,
-  Line,
+  AreaChart,
+  Area,
   XAxis,
   YAxis,
   Tooltip,
   CartesianGrid,
-  ComposedChart,
-  Legend,
 } from "recharts";
 import {
   ChartContainer,
-  chartColors,
   axisProps,
   yAxisProps,
   gridProps,
-  legendProps,
   tooltipStyle,
   tooltipLabelStyle,
   tooltipItemStyle,
@@ -66,37 +62,49 @@ export function RevenueChart({ data }: RevenueChartProps) {
 
   return (
     <ChartContainer
-      title="Revenue Trend"
+      title="Revenue Overview"
       subtitle="Invoiced vs Collected — Last 12 Months"
-      height={320}
+      height={340}
       empty={!hasData}
       emptyMessage="No revenue data yet. Create and issue your first invoice to see trends."
     >
       <ResponsiveContainer width="100%" height="100%">
-        <ComposedChart data={data} margin={{ top: 4, right: 8, bottom: 0, left: 0 }}>
+        <AreaChart data={data} margin={{ top: 4, right: 8, bottom: 0, left: 0 }}>
+          <defs>
+            <linearGradient id="colorInvoiced" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="5%" stopColor="#DC2626" stopOpacity={0.25} />
+              <stop offset="95%" stopColor="#DC2626" stopOpacity={0} />
+            </linearGradient>
+            <linearGradient id="colorPaid" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="5%" stopColor="#16A34A" stopOpacity={0.2} />
+              <stop offset="95%" stopColor="#16A34A" stopOpacity={0} />
+            </linearGradient>
+          </defs>
           <CartesianGrid {...gridProps} />
           <XAxis dataKey="month" {...axisProps} />
           <YAxis tickFormatter={formatCurrency} {...yAxisProps} />
           <Tooltip content={<CustomTooltip />} />
-          <Legend {...legendProps} />
-          <Bar
+          <Area
+            type="monotone"
             dataKey="invoiced"
             name="Invoiced"
-            fill={chartColors.primary}
-            radius={[4, 4, 0, 0]}
-            barSize={20}
-            opacity={0.85}
+            stroke="#DC2626"
+            strokeWidth={2}
+            fill="url(#colorInvoiced)"
+            dot={{ r: 3, fill: "#DC2626", strokeWidth: 0 }}
+            activeDot={{ r: 5, stroke: "#DC2626", strokeWidth: 2, fill: "#fff" }}
           />
-          <Line
+          <Area
+            type="monotone"
             dataKey="paid"
             name="Collected"
-            type="monotone"
-            stroke={chartColors.tertiary}
-            strokeWidth={2.5}
-            dot={{ r: 3, fill: chartColors.tertiary }}
-            activeDot={{ r: 5 }}
+            stroke="#16A34A"
+            strokeWidth={2}
+            fill="url(#colorPaid)"
+            dot={{ r: 3, fill: "#16A34A", strokeWidth: 0 }}
+            activeDot={{ r: 5, stroke: "#16A34A", strokeWidth: 2, fill: "#fff" }}
           />
-        </ComposedChart>
+        </AreaChart>
       </ResponsiveContainer>
     </ChartContainer>
   );
