@@ -55,7 +55,7 @@ export function DocBreakdownChart({ counts }: DocBreakdownProps) {
       height={280}
       empty={!hasData}
       emptyMessage="No documents yet"
-      className="relative"
+      className="relative min-h-[300px]"
     >
       <ResponsiveContainer width="100%" height="100%">
         <PieChart>

@@ -65,6 +65,7 @@ export function RevenueChart({ data }: RevenueChartProps) {
       title="Revenue Overview"
       subtitle="Invoiced vs Collected — Last 12 Months"
       height={340}
+      className="min-h-[360px]"
       empty={!hasData}
       emptyMessage="No revenue data yet. Create and issue your first invoice to see trends."
     >
