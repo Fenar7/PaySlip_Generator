@@ -665,12 +665,7 @@ export function OnboardingPageClient({
 
         {step === 6 && (
           <div className="text-center space-y-5">
-            <div className="inline-flex h-16 w-16 items-center justify-center rounded-full border" style={{ borderColor: "#E0E0E0", background: "#F5F5F5" }}>
-              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#DC2626" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
-                <polyline points="22 4 12 14.01 9 11.01" />
-              </svg>
-            </div>
+            <AnimatedCheckmark />
             <h2 className="text-xl font-semibold" style={{ color: "#1C1B1F" }}>You&apos;re all set!</h2>
             <p className="text-sm" style={{ color: "#49454F" }}>
               Your workspace is ready. Start creating professional documents.
@@ -703,6 +698,54 @@ export function OnboardingPageClient({
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+function AnimatedCheckmark() {
+  return (
+    <div className="relative mx-auto h-16 w-16">
+      <svg className="h-full w-full" viewBox="0 0 52 52">
+        <circle
+          cx="26"
+          cy="26"
+          r="24"
+          fill="none"
+          stroke="#DC2626"
+          strokeWidth="2"
+          className="checkmark-circle"
+        />
+        <path
+          fill="none"
+          stroke="#DC2626"
+          strokeWidth="3"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          d="M14 27 L22 35 L38 16"
+          className="checkmark-check"
+        />
+      </svg>
+      <style>{`
+        .checkmark-circle {
+          stroke-dasharray: 166;
+          stroke-dashoffset: 166;
+          transform-origin: 50% 50%;
+          animation: checkmark-stroke 0.6s cubic-bezier(0.65, 0, 0.45, 1) forwards,
+                     checkmark-scale 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275) 0.1s forwards;
+        }
+        .checkmark-check {
+          stroke-dasharray: 48;
+          stroke-dashoffset: 48;
+          animation: checkmark-stroke 0.4s cubic-bezier(0.65, 0, 0.45, 1) 0.55s forwards;
+        }
+        @keyframes checkmark-stroke {
+          100% { stroke-dashoffset: 0; }
+        }
+        @keyframes checkmark-scale {
+          0%   { transform: scale(0.8); opacity: 0; }
+          100% { transform: scale(1); opacity: 1; }
+        }
+      `}</style>
     </div>
   );
 }
