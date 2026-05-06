@@ -9,6 +9,7 @@ import type { Prisma } from "@/generated/prisma/client";
 import { postVoucherTx } from "@/lib/accounting";
 import { emitVoucherEvent } from "@/lib/document-events";
 import { syncVoucherToIndex } from "@/lib/docs-vault";
+import { setVoucherTags } from "@/lib/tags/assignment-service";
 import { checkUsageLimit } from "@/lib/usage-metering";
 import { consumeSequenceNumber } from "@/features/sequences/services/sequence-engine";
 import { getSequenceConfig } from "@/features/sequences/services/sequence-admin";
@@ -35,6 +36,8 @@ export interface VoucherInput {
   status?: "draft" | "approved";
   formData: Record<string, unknown>;
   lines: VoucherLineInput[];
+  /** Phase 29: Tag IDs to assign to this voucher */
+  tagIds?: string[];
 }
 
 function normalizeVoucherLines(
@@ -255,6 +258,10 @@ export async function saveVoucher(
     // Phase 19.1: Sync to DocumentIndex
     await syncVoucherRecordToIndex(orgId, voucher.id);
 
+    if (input.tagIds !== undefined) {
+      await setVoucherTags(voucher.id, input.tagIds);
+    }
+
     revalidatePath("/app/docs/vouchers");
     return { success: true, data: { id: voucher.id, voucherNumber } };
   } catch (error) {
@@ -376,6 +383,10 @@ export async function updateVoucher(
     // Phase 19.2: emit normalized document event
     await emitVoucherEvent(orgId, id, "updated", { actorId: userId });
     await syncVoucherRecordToIndex(orgId, id);
+
+    if (input.tagIds !== undefined) {
+      await setVoucherTags(id, input.tagIds);
+    }
 
     revalidatePath("/app/docs/vouchers");
     revalidatePath(`/app/docs/vouchers/${id}`);
@@ -507,6 +518,8 @@ export async function listVouchers(params?: {
   amountMin?: number;
   amountMax?: number;
   vendorId?: string;
+  /** Phase 29: Filter by one or more tag IDs (match any) */
+  tagIds?: string[];
 }) {
   const { orgId } = await requireOrgContext();
   const page = params?.page ?? 1;
@@ -546,6 +559,20 @@ export async function listVouchers(params?: {
   } else if (dateTo) {
     where.voucherDate = { lte: dateTo };
   }
+
+  // Phase 29: Tag filtering via relational joins
+  if (params?.tagIds && params.tagIds.length > 0) {
+    const taggedVoucherIds = await db.voucherTagAssignment.findMany({
+      where: { tagId: { in: params.tagIds } },
+      select: { voucherId: true },
+      distinct: ["voucherId"],
+    });
+    const matchingIds = taggedVoucherIds.map((a) => a.voucherId);
+    if (matchingIds.length === 0) {
+      return { vouchers: [], total: 0, page, totalPages: 0 };
+    }
+    (where as any).id = { in: matchingIds };
+  }
   
   const [vouchers, total] = await Promise.all([
     db.voucher.findMany({
@@ -564,4 +591,76 @@ export async function listVouchers(params?: {
     page,
     totalPages: Math.ceil(total / limit),
   };
+}
+
+// ─── Phase 29: Bulk Tag Operations ─────────────────────────────────────────────
+
+export async function bulkAddVoucherTags(
+  voucherIds: string[],
+  tagId: string
+): Promise<ActionResult<{ succeeded: number; failed: number }>> {
+  try {
+    const { orgId } = await requireOrgContext();
+
+    const tag = await db.documentTag.findFirst({
+      where: { id: tagId, orgId },
+      select: { id: true },
+    });
+    if (!tag) return { success: false, error: "Tag not found" };
+
+    const vouchers = await db.voucher.findMany({
+      where: { id: { in: voucherIds }, organizationId: orgId },
+      select: { id: true },
+    });
+    const validIds = new Set(vouchers.map((v) => v.id));
+
+    let succeeded = 0;
+    for (const voucherId of voucherIds) {
+      if (!validIds.has(voucherId)) continue;
+      const existing = await db.voucherTagAssignment.findFirst({
+        where: { voucherId, tagId },
+        select: { id: true },
+      });
+      if (!existing) {
+        await db.voucherTagAssignment.create({ data: { voucherId, tagId } });
+      }
+      succeeded++;
+    }
+
+    revalidatePath("/app/docs/vouchers");
+    return { success: true, data: { succeeded, failed: voucherIds.length - succeeded } };
+  } catch (error) {
+    console.error("bulkAddVoucherTags error:", error);
+    return { success: false, error: "Failed to bulk add tags to vouchers" };
+  }
+}
+
+export async function bulkRemoveVoucherTags(
+  voucherIds: string[],
+  tagId: string
+): Promise<ActionResult<{ succeeded: number; failed: number }>> {
+  try {
+    const { orgId } = await requireOrgContext();
+
+    const vouchers = await db.voucher.findMany({
+      where: { id: { in: voucherIds }, organizationId: orgId },
+      select: { id: true },
+    });
+    const validIds = new Set(vouchers.map((v) => v.id));
+
+    let succeeded = 0;
+    for (const voucherId of voucherIds) {
+      if (!validIds.has(voucherId)) continue;
+      await db.voucherTagAssignment.deleteMany({
+        where: { voucherId, tagId },
+      });
+      succeeded++;
+    }
+
+    revalidatePath("/app/docs/vouchers");
+    return { success: true, data: { succeeded, failed: voucherIds.length - succeeded } };
+  } catch (error) {
+    console.error("bulkRemoveVoucherTags error:", error);
+    return { success: false, error: "Failed to bulk remove tags from vouchers" };
+  }
 }

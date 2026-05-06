@@ -12,6 +12,7 @@ import { postInvoiceIssueTx, postInvoicePaymentTx, reverseJournalEntryTx } from 
 import { fireWorkflowTrigger } from "@/lib/flow/workflow-engine";
 import { emitInvoiceEvent } from "@/lib/document-events";
 import { syncInvoiceToIndex, removeDocumentFromIndex } from "@/lib/docs-vault";
+import { setInvoiceTags } from "@/lib/tags/assignment-service";
 import { checkUsageLimit } from "@/lib/usage-metering";
 import { getOutboundUnitCostTx, recordStockEventTx } from "@/lib/inventory/stock-events";
 import {
@@ -74,6 +75,8 @@ export interface InvoiceInput {
   notes?: string;
   formData: Record<string, unknown>;
   lineItems: InvoiceLineItemInput[];
+  /** Phase 29: Tag IDs to assign to this invoice */
+  tagIds?: string[];
 }
 
 async function reverseInvoicePostingIfNeededTx(
@@ -489,6 +492,10 @@ export async function saveInvoice(
     });
     await syncInvoiceRecordToIndex(orgId, invoice.id);
 
+    if (input.tagIds !== undefined) {
+      await setInvoiceTags(invoice.id, input.tagIds);
+    }
+
     revalidatePath("/app/docs/invoices");
     return { success: true, data: { id: invoice.id, invoiceNumber } };
   } catch (error) {
@@ -566,6 +573,10 @@ export async function updateInvoice(
 
     await emitInvoiceEvent(orgId, id, "updated", { actorId: userId });
     await syncInvoiceRecordToIndex(orgId, id);
+
+    if (input.tagIds !== undefined) {
+      await setInvoiceTags(id, input.tagIds);
+    }
 
     revalidatePath("/app/docs/invoices");
       revalidatePath(`/app/docs/invoices/${id}`);
@@ -751,6 +762,8 @@ export async function listInvoices(params?: {
   amountMin?: number;
   amountMax?: number;
   customerId?: string;
+  /** Phase 29: Filter by one or more tag IDs (match any) */
+  tagIds?: string[];
 }) {
   const { orgId } = await requireOrgContext();
   const page = params?.page ?? 1;
@@ -787,6 +800,20 @@ export async function listInvoices(params?: {
     where.invoiceDate = { gte: dateFrom };
   } else if (dateTo) {
     where.invoiceDate = { lte: dateTo };
+  }
+
+  // Phase 29: Tag filtering via relational joins
+  if (params?.tagIds && params.tagIds.length > 0) {
+    const taggedInvoiceIds = await db.invoiceTagAssignment.findMany({
+      where: { tagId: { in: params.tagIds } },
+      select: { invoiceId: true },
+      distinct: ["invoiceId"],
+    });
+    const matchingIds = taggedInvoiceIds.map((a) => a.invoiceId);
+    if (matchingIds.length === 0) {
+      return { invoices: [], total: 0, page, totalPages: 0 };
+    }
+    (where as any).id = { in: matchingIds };
   }
 
   const [invoices, total] = await Promise.all([
@@ -1598,4 +1625,76 @@ export async function getPublicToken(invoiceId: string) {
     where: { invoiceId, orgId },
     orderBy: { createdAt: "desc" },
   });
+}
+
+// ─── Phase 29: Bulk Tag Operations ─────────────────────────────────────────────
+
+export async function bulkAddInvoiceTags(
+  invoiceIds: string[],
+  tagId: string
+): Promise<ActionResult<{ succeeded: number; failed: number }>> {
+  try {
+    const { orgId } = await requireOrgContext();
+
+    const tag = await db.documentTag.findFirst({
+      where: { id: tagId, orgId },
+      select: { id: true },
+    });
+    if (!tag) return { success: false, error: "Tag not found" };
+
+    const invoices = await db.invoice.findMany({
+      where: { id: { in: invoiceIds }, organizationId: orgId },
+      select: { id: true },
+    });
+    const validIds = new Set(invoices.map((i) => i.id));
+
+    let succeeded = 0;
+    for (const invoiceId of invoiceIds) {
+      if (!validIds.has(invoiceId)) continue;
+      const existing = await db.invoiceTagAssignment.findFirst({
+        where: { invoiceId, tagId },
+        select: { id: true },
+      });
+      if (!existing) {
+        await db.invoiceTagAssignment.create({ data: { invoiceId, tagId } });
+      }
+      succeeded++;
+    }
+
+    revalidatePath("/app/docs/invoices");
+    return { success: true, data: { succeeded, failed: invoiceIds.length - succeeded } };
+  } catch (error) {
+    console.error("bulkAddInvoiceTags error:", error);
+    return { success: false, error: "Failed to bulk add tags" };
+  }
+}
+
+export async function bulkRemoveInvoiceTags(
+  invoiceIds: string[],
+  tagId: string
+): Promise<ActionResult<{ succeeded: number; failed: number }>> {
+  try {
+    const { orgId } = await requireOrgContext();
+
+    const invoices = await db.invoice.findMany({
+      where: { id: { in: invoiceIds }, organizationId: orgId },
+      select: { id: true },
+    });
+    const validIds = new Set(invoices.map((i) => i.id));
+
+    let succeeded = 0;
+    for (const invoiceId of invoiceIds) {
+      if (!validIds.has(invoiceId)) continue;
+      await db.invoiceTagAssignment.deleteMany({
+        where: { invoiceId, tagId },
+      });
+      succeeded++;
+    }
+
+    revalidatePath("/app/docs/invoices");
+    return { success: true, data: { succeeded, failed: invoiceIds.length - succeeded } };
+  } catch (error) {
+    console.error("bulkRemoveInvoiceTags error:", error);
+    return { success: false, error: "Failed to bulk remove tags" };
+  }
 }
