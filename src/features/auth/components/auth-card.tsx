@@ -9,13 +9,13 @@ interface AuthCardProps {
 
 export function AuthCard({ title, subtitle, children, className }: AuthCardProps) {
   return (
-    <div className={cn("w-full max-w-[400px] mx-auto", className)}>
-      <div className="mb-6">
+    <div className={cn("w-full", className)}>
+      <div className="mb-6 text-center">
         <h1 className="text-xl font-semibold tracking-tight" style={{ color: "var(--text-primary)" }}>
           {title}
         </h1>
         {subtitle && (
-          <p className="text-sm mt-1" style={{ color: "var(--text-muted)" }}>
+          <p className="text-sm mt-1.5" style={{ color: "var(--text-muted)" }}>
             {subtitle}
           </p>
         )}
