@@ -104,39 +104,39 @@ export function AuthBlobBackground() {
       context.restore();
     };
 
-    const drawSweep = (time: number) => {
-      const topY = height * (0.26 + Math.sin(time * 0.22) * 0.03);
-      const midY = height * (0.48 + Math.cos(time * 0.31) * 0.04);
-      const bottomY = height * (0.76 + Math.sin(time * 0.26) * 0.03);
-      const gradient = context.createLinearGradient(width * 0.08, topY, width * 0.92, bottomY);
+    const drawSweep = (time: number, offset = 0, intensity = 1) => {
+      const topY = height * (0.22 + Math.sin(time * 0.22 + offset) * 0.045);
+      const midY = height * (0.48 + Math.cos(time * 0.31 + offset * 0.7) * 0.055);
+      const bottomY = height * (0.8 + Math.sin(time * 0.26 + offset * 0.5) * 0.04);
+      const gradient = context.createLinearGradient(width * 0.02, topY, width * 0.98, bottomY);
       gradient.addColorStop(0, "rgba(255,255,255,0)");
-      gradient.addColorStop(0.18, "rgba(255,255,255,0.15)");
-      gradient.addColorStop(0.34, "rgba(254,226,226,0.18)");
-      gradient.addColorStop(0.58, "rgba(248,113,113,0.26)");
-      gradient.addColorStop(0.86, "rgba(220,38,38,0.18)");
+      gradient.addColorStop(0.14, `rgba(255,255,255,${0.16 * intensity})`);
+      gradient.addColorStop(0.3, `rgba(254,226,226,${0.22 * intensity})`);
+      gradient.addColorStop(0.5, `rgba(248,113,113,${0.34 * intensity})`);
+      gradient.addColorStop(0.74, `rgba(220,38,38,${0.24 * intensity})`);
       gradient.addColorStop(1, "rgba(255,255,255,0)");
 
       context.save();
-      context.filter = "blur(24px)";
+      context.filter = "blur(22px)";
       context.strokeStyle = gradient;
-      context.lineWidth = Math.max(24, width * 0.038);
+      context.lineWidth = Math.max(28, width * 0.05);
       context.lineCap = "round";
       context.beginPath();
-      context.moveTo(width * 0.12, topY);
+      context.moveTo(width * 0.02, topY);
       context.bezierCurveTo(
-        width * 0.28,
-        topY + height * 0.18,
-        width * 0.42,
-        midY - height * 0.22,
+        width * 0.2,
+        topY + height * 0.22,
+        width * 0.38,
+        midY - height * 0.28,
         width * 0.56,
         midY,
       );
       context.bezierCurveTo(
-        width * 0.7,
-        midY + height * 0.18,
-        width * 0.83,
-        bottomY - height * 0.16,
-        width * 0.94,
+        width * 0.72,
+        midY + height * 0.22,
+        width * 0.87,
+        bottomY - height * 0.22,
+        width * 1.02,
         bottomY,
       );
       context.stroke();
@@ -145,66 +145,85 @@ export function AuthBlobBackground() {
 
     const render = (timestamp: number) => {
       const time = timestamp * 0.001;
-      const anchorX = width * 0.53;
+      const anchorX = width * 0.52;
       const anchorY = height * 0.53;
 
       context.clearRect(0, 0, width, height);
 
       drawMorphBlob({
-        centerX: anchorX - width * 0.12 + Math.sin(time * 0.31) * width * 0.03,
-        centerY: anchorY + height * 0.12 + Math.cos(time * 0.26) * height * 0.03,
-        radiusX: width * 0.34,
-        radiusY: height * 0.23,
-        blur: 44,
-        alpha: 0.38,
+        centerX: anchorX - width * 0.08 + Math.sin(time * 0.31) * width * 0.04,
+        centerY: anchorY + height * 0.1 + Math.cos(time * 0.26) * height * 0.035,
+        radiusX: width * 0.42,
+        radiusY: height * 0.27,
+        blur: 40,
+        alpha: 0.48,
         time,
         phase: 0.2,
         colors: [
           [0, "rgba(255,255,255,0)"],
-          [0.24, "rgba(255,241,242,__ALPHA__)"],
-          [0.52, "rgba(248,113,113,__ALPHA__)"],
-          [0.82, "rgba(220,38,38,__ALPHA__)"],
+          [0.18, "rgba(255,241,242,__ALPHA__)"],
+          [0.46, "rgba(248,113,113,__ALPHA__)"],
+          [0.76, "rgba(220,38,38,__ALPHA__)"],
           [1, "rgba(255,255,255,0)"],
         ],
       });
 
       drawMorphBlob({
-        centerX: anchorX + width * 0.1 + Math.cos(time * 0.38) * width * 0.025,
-        centerY: anchorY + height * 0.04 + Math.sin(time * 0.34) * height * 0.04,
-        radiusX: width * 0.22,
-        radiusY: height * 0.34,
-        blur: 36,
-        alpha: 0.3,
+        centerX: anchorX + width * 0.18 + Math.cos(time * 0.38) * width * 0.035,
+        centerY: anchorY + height * 0.02 + Math.sin(time * 0.34) * height * 0.05,
+        radiusX: width * 0.28,
+        radiusY: height * 0.42,
+        blur: 30,
+        alpha: 0.4,
         time: time + 1.4,
         phase: 1.8,
         colors: [
           [0, "rgba(255,255,255,0)"],
-          [0.2, "rgba(255,245,245,__ALPHA__)"],
-          [0.48, "rgba(252,165,165,__ALPHA__)"],
-          [0.78, "rgba(239,68,68,__ALPHA__)"],
+          [0.16, "rgba(255,245,245,__ALPHA__)"],
+          [0.42, "rgba(252,165,165,__ALPHA__)"],
+          [0.72, "rgba(239,68,68,__ALPHA__)"],
           [1, "rgba(255,255,255,0)"],
         ],
       });
 
       drawMorphBlob({
-        centerX: anchorX - width * 0.18 + Math.sin(time * 0.24) * width * 0.018,
-        centerY: anchorY - height * 0.02 + Math.cos(time * 0.29) * height * 0.03,
-        radiusX: width * 0.2,
-        radiusY: height * 0.18,
-        blur: 32,
-        alpha: 0.2,
+        centerX: anchorX - width * 0.24 + Math.sin(time * 0.24) * width * 0.024,
+        centerY: anchorY - height * 0.01 + Math.cos(time * 0.29) * height * 0.034,
+        radiusX: width * 0.26,
+        radiusY: height * 0.2,
+        blur: 28,
+        alpha: 0.28,
         time: time + 2.9,
         phase: 2.6,
         colors: [
           [0, "rgba(255,255,255,0)"],
-          [0.24, "rgba(255,255,255,__ALPHA__)"],
-          [0.5, "rgba(254,226,226,__ALPHA__)"],
-          [0.82, "rgba(248,113,113,__ALPHA__)"],
+          [0.2, "rgba(255,255,255,__ALPHA__)"],
+          [0.46, "rgba(254,226,226,__ALPHA__)"],
+          [0.78, "rgba(248,113,113,__ALPHA__)"],
           [1, "rgba(255,255,255,0)"],
         ],
       });
 
-      drawSweep(time);
+      drawMorphBlob({
+        centerX: anchorX + width * 0.03 + Math.sin(time * 0.18) * width * 0.03,
+        centerY: anchorY - height * 0.16 + Math.cos(time * 0.21) * height * 0.03,
+        radiusX: width * 0.36,
+        radiusY: height * 0.16,
+        blur: 46,
+        alpha: 0.18,
+        time: time + 4.4,
+        phase: 4.1,
+        colors: [
+          [0, "rgba(255,255,255,0)"],
+          [0.3, "rgba(255,255,255,__ALPHA__)"],
+          [0.58, "rgba(254,226,226,__ALPHA__)"],
+          [0.88, "rgba(248,113,113,__ALPHA__)"],
+          [1, "rgba(255,255,255,0)"],
+        ],
+      });
+
+      drawSweep(time, 0, 1);
+      drawSweep(time + 1.8, 2.2, 0.64);
 
       frameId = window.requestAnimationFrame(render);
     };
