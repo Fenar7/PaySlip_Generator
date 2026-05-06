@@ -21,9 +21,18 @@ interface Props {
   periodLabel: string;
 }
 
-function pct(current: number, limit: number | null): number {
-  if (limit === null || limit === 0) return 0;
-  return Math.min(100, Math.round((current / limit) * 100));
+function toNumber(v: unknown): number {
+  if (typeof v === "bigint") return Number(v);
+  if (typeof v === "number") return v;
+  if (typeof v === "string" && !Number.isNaN(Number(v))) return Number(v);
+  return 0;
+}
+
+function pct(current: unknown, limit: unknown): number {
+  const c = toNumber(current);
+  const l = toNumber(limit);
+  if (l === 0) return 0;
+  return Math.min(100, Math.round((c / l) * 100));
 }
 
 function barColor(p: number): string {
@@ -32,15 +41,17 @@ function barColor(p: number): string {
   return "bg-emerald-500";
 }
 
-function displayValue(value: number, isBytes?: boolean): string {
-  if (isBytes) return formatBytes(value);
-  return value.toLocaleString("en-IN");
+function displayValue(value: unknown, isBytes?: boolean): string {
+  const n = toNumber(value);
+  if (isBytes) return formatBytes(n);
+  return n.toLocaleString("en-IN");
 }
 
-function displayLimit(limit: number | null, isBytes?: boolean): string {
-  if (limit === null) return "Unlimited";
-  if (isBytes) return formatBytes(limit);
-  return limit.toLocaleString("en-IN");
+function displayLimit(limit: unknown, isBytes?: boolean): string {
+  if (limit === null || limit === undefined) return "Unlimited";
+  const l = toNumber(limit);
+  if (isBytes) return formatBytes(l);
+  return l.toLocaleString("en-IN");
 }
 
 export function UsageDashboardClient({ rows, planName, periodLabel }: Props) {

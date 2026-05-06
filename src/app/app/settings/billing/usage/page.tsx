@@ -11,9 +11,17 @@ function periodLabel(periodStart: Date, periodEnd: Date): string {
   return `${fmt(periodStart)} – ${fmt(periodEnd)}`;
 }
 
-function toLimit(v: number): number | null {
-  if (!isFinite(v) || v < 0) return null;
-  return v;
+function toNumber(v: unknown): number {
+  if (typeof v === "bigint") return Number(v);
+  if (typeof v === "number") return v;
+  if (typeof v === "string" && !Number.isNaN(Number(v))) return Number(v);
+  return 0;
+}
+
+function toLimit(v: unknown): number | null {
+  const n = toNumber(v);
+  if (!isFinite(n) || n < 0) return null;
+  return n;
 }
 
 export default async function UsagePage() {
