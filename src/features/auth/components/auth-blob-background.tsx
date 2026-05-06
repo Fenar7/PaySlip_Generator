@@ -2,60 +2,51 @@
 
 export function AuthBlobBackground() {
   return (
-    <div className="absolute inset-0 overflow-hidden pointer-events-none hidden lg:block">
-      {/* SVG gooey filter — merges overlapping circles into organic liquid shapes */}
-      <svg className="absolute w-0 h-0">
-        <defs>
-          <filter id="goo">
-            <feGaussianBlur in="SourceGraphic" stdDeviation="20" result="blur" />
-            <feColorMatrix
-              in="blur"
-              mode="matrix"
-              values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 22 -10"
-              result="goo"
-            />
-            <feComposite in="SourceGraphic" in2="goo" operator="atop" />
-          </filter>
-        </defs>
-      </svg>
+    <div
+      aria-hidden="true"
+      className="pointer-events-none absolute inset-0 hidden overflow-hidden lg:block"
+    >
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_58%_52%,rgba(220,38,38,0.10),transparent_18%),radial-gradient(circle_at_66%_48%,rgba(248,113,113,0.08),transparent_16%),radial-gradient(circle_at_52%_62%,rgba(185,28,28,0.07),transparent_18%)]" />
 
-      {/* Blob container with gooey filter */}
-      <div
-        className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[700px] h-[700px]"
-        style={{ filter: "url(#goo)" }}
-      >
-        {/* Blob 1 — large primary */}
+      <div className="absolute left-1/2 top-1/2 h-[44rem] w-[44rem] -translate-x-1/2 -translate-y-1/2">
         <div
-          className="absolute top-[15%] left-[20%] w-64 h-64 animate-blob-morph-1 rounded-full"
-          style={{ background: "rgba(220, 38, 38, 0.65)" }}
-        />
-        {/* Blob 2 — medium secondary */}
-        <div
-          className="absolute top-[35%] left-[55%] w-56 h-56 animate-blob-morph-2 rounded-full"
-          style={{ background: "rgba(185, 28, 28, 0.55)" }}
-        />
-        {/* Blob 3 — medium tertiary */}
-        <div
-          className="absolute top-[50%] left-[15%] w-48 h-48 animate-blob-morph-3 rounded-full"
-          style={{ background: "rgba(220, 38, 38, 0.50)" }}
-        />
-        {/* Blob 4 — small accent */}
-        <div
-          className="absolute top-[25%] left-[45%] w-44 h-44 animate-blob-morph-4 rounded-full"
-          style={{ background: "rgba(153, 27, 27, 0.45)" }}
-        />
-        {/* Blob 5 — extra accent for more organic complexity */}
-        <div
-          className="absolute top-[60%] left-[50%] w-40 h-40 animate-blob-morph-1 rounded-full"
+          className="auth-blob-shape-primary absolute left-[18%] top-[14%] h-[20rem] w-[21rem]"
           style={{
-            background: "rgba(220, 38, 38, 0.40)",
-            animationDelay: "-8s",
+            background:
+              "radial-gradient(circle at 34% 30%, rgba(255, 241, 242, 0.78) 0%, rgba(252, 165, 165, 0.38) 18%, rgba(220, 38, 38, 0.86) 58%, rgba(127, 29, 29, 0.34) 100%)",
+            filter: "blur(66px)",
+          }}
+        />
+
+        <div
+          className="auth-blob-shape-secondary absolute left-[46%] top-[26%] h-[18rem] w-[19rem]"
+          style={{
+            background:
+              "radial-gradient(circle at 44% 28%, rgba(255, 241, 242, 0.68) 0%, rgba(248, 113, 113, 0.28) 18%, rgba(220, 38, 38, 0.78) 56%, rgba(153, 27, 27, 0.28) 100%)",
+            filter: "blur(58px)",
+          }}
+        />
+
+        <div
+          className="auth-blob-shape-tertiary absolute left-[28%] top-[44%] h-[17rem] w-[18rem]"
+          style={{
+            background:
+              "radial-gradient(circle at 48% 38%, rgba(255, 255, 255, 0.54) 0%, rgba(252, 165, 165, 0.20) 16%, rgba(220, 38, 38, 0.62) 54%, rgba(127, 29, 29, 0.24) 100%)",
+            filter: "blur(54px)",
+          }}
+        />
+
+        <div
+          className="auth-blob-shape-accent absolute left-[54%] top-[50%] h-[12rem] w-[13rem]"
+          style={{
+            background:
+              "radial-gradient(circle at 36% 34%, rgba(255,255,255,0.48) 0%, rgba(252, 165, 165, 0.16) 22%, rgba(220, 38, 38, 0.48) 62%, rgba(153, 27, 27, 0.18) 100%)",
+            filter: "blur(46px)",
           }}
         />
       </div>
 
-      {/* Soft blur overlay to tone down edges */}
-      <div className="absolute inset-0 backdrop-blur-[2px]" />
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_60%_54%,rgba(255,255,255,0),rgba(255,255,255,0.16)_56%,rgba(255,255,255,0.28)_100%)]" />
     </div>
   );
 }
