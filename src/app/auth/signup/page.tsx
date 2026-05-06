@@ -139,7 +139,9 @@ export default function SignupPage() {
 
       <AuthDivider text="or" />
 
-      <GoogleButton callbackURL="/onboarding" />
+      <div className="space-y-3">
+        <GoogleButton callbackURL="/onboarding" />
+      </div>
 
       <p className="mt-6 text-center text-sm" style={{ color: "#79747E" }}>
         Already have an account?{" "}

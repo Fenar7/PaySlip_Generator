@@ -280,25 +280,21 @@ export function LoginForm({
 
       <AuthDivider text="or" />
 
-      <div className="grid grid-cols-2 gap-3">
+      <div className="space-y-3">
         <GoogleButton callbackURL={destination} />
         {passkeySupported && (
-          <Button
+          <button
             type="button"
-            variant="secondary"
-            className="h-10 w-full justify-center gap-2"
             onClick={handlePasskeySignIn}
             disabled={passkeyLoading}
+            className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl border bg-white px-4 text-sm font-medium transition-colors hover:bg-gray-50 disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)] focus-visible:ring-offset-2"
+            style={{ borderColor: "#E0E0E0", color: "#1C1B1F" }}
           >
             <KeyRound className="h-4 w-4" style={{ color: "#79747E" }} />
-            {passkeyLoading ? "Waiting…" : "Passkey"}
-          </Button>
+            {passkeyLoading ? "Waiting…" : "Sign in with Passkey"}
+          </button>
         )}
       </div>
-
-      <p className="mt-4 rounded-lg border px-4 py-3 text-xs" style={{ background: "#F5F5F5", borderColor: "#E0E0E0", color: "#79747E" }}>
-        If you enabled a passkey, you may be asked to use it as a second verification step after sign-in.
-      </p>
 
       <div className="mt-5 space-y-2 border-t pt-5 text-center" style={{ borderColor: "#E0E0E0" }}>
         {!ssoOpen ? (

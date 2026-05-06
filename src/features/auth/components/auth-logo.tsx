@@ -14,9 +14,9 @@ export function AuthLogo({ className }: AuthLogoProps) {
       <Image
         src="/images/slipwise-logo.png"
         alt="Slipwise"
-        width={140}
-        height={27}
-        className="h-auto w-[120px] sm:w-[140px] object-contain"
+        width={220}
+        height={42}
+        className="h-auto w-[160px] sm:w-[200px] object-contain"
         priority
       />
     </div>
