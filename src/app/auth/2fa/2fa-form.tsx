@@ -305,7 +305,7 @@ export function TwoChallengeForm() {
               required
               value={code}
               onChange={(e) => setCode(e.target.value)}
-              className="w-full rounded-xl border bg-white px-3.5 py-2.5 text-sm shadow-sm placeholder:text-[#79747E] focus:outline-none focus:ring-2 focus:ring-[#DC2626]/25 focus:border-[#DC2626] transition-colors"
+              className="w-full rounded-xl border bg-white px-3.5 py-2.5 text-sm placeholder:text-[#79747E] focus:outline-none focus:ring-2 focus:ring-[#DC2626]/25 focus:border-[#DC2626] transition-colors"
               style={{ borderColor: "#E0E0E0", color: "#1C1B1F" }}
               placeholder={mode === "totp" ? "000000" : "xxxxxxxxxxxxxxxx"}
             />
@@ -314,7 +314,7 @@ export function TwoChallengeForm() {
           <button
             type="submit"
             disabled={isPending || code.length < 6}
-            className="w-full rounded-xl px-4 py-2.5 text-sm font-medium text-white shadow transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            className="w-full rounded-xl px-4 py-2.5 text-sm font-medium text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             style={{ background: "#DC2626" }}
             onMouseEnter={(e) => (e.currentTarget.style.background = "#B91C1C")}
             onMouseLeave={(e) => (e.currentTarget.style.background = "#DC2626")}

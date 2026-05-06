@@ -11,7 +11,7 @@ export function AuthCard({ title, subtitle, children, className }: AuthCardProps
   return (
     <div
       className={cn(
-        "w-full rounded-2xl bg-white p-6 sm:p-8 shadow-sm border",
+        "w-full rounded-2xl bg-white p-6 sm:p-8 border",
         className
       )}
       style={{ borderColor: "#E0E0E0" }}
