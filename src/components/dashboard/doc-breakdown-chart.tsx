@@ -1,112 +1,175 @@
 "use client";
 
-import { ResponsiveContainer, PieChart, Pie, Cell, Tooltip } from "recharts";
+import {
+  ResponsiveContainer,
+  PieChart,
+  Pie,
+  Cell,
+  Tooltip,
+} from "recharts";
 
-interface DocBreakdownProps {
-  counts: {
-    invoice: number;
-    voucher: number;
-    salarySlip: number;
-  };
+interface DocCounts {
+  invoice: number;
+  voucher: number;
+  salarySlip: number;
 }
 
-const COLORS = ["#DC2626", "#2563EB", "#16A34A"];
+interface DocBreakdownData {
+  type: string;
+  count: number;
+}
+
+const DOC_COLORS: Record<string, string> = {
+  Invoice: "#DC2626",
+  Voucher: "#2563EB",
+  "Salary Slip": "#16A34A",
+};
+
+const DOC_GRADIENTS: Record<string, [string, string]> = {
+  Invoice: ["#EF4444", "#DC2626"],
+  Voucher: ["#3B82F6", "#2563EB"],
+  "Salary Slip": ["#22C55E", "#16A34A"],
+};
+
+const DOC_LABELS: Record<string, string> = {
+  Invoice: "Invoices",
+  Voucher: "Vouchers",
+  "Salary Slip": "Salary Slips",
+};
 
 function CustomTooltip({
   active,
   payload,
 }: {
   active?: boolean;
-  payload?: { name: string; value: number }[];
+  payload?: { payload: DocBreakdownData }[];
 }) {
   if (!active || !payload?.length) return null;
-  const p = payload[0];
+  const d = payload[0].payload;
   return (
     <div
+      className="rounded-xl border px-3.5 py-2.5 text-xs"
       style={{
-        background: "#fff",
-        border: "1px solid #E0E0E0",
-        borderRadius: "10px",
-        boxShadow: "0 4px 16px rgba(0,0,0,0.08)",
-        padding: "10px 14px",
-        fontSize: 12,
+        background: "rgba(255,255,255,0.95)",
+        borderColor: "#E0E0E0",
+        boxShadow: "0 8px 24px rgba(0,0,0,0.1)",
+        backdropFilter: "blur(8px)",
       }}
     >
-      <p style={{ fontWeight: 600, color: "#1C1B1F" }}>{p.name}</p>
-      <p style={{ color: "#79747E" }}>{p.value} documents</p>
+      <p className="mb-1 text-[11px] font-semibold" style={{ color: "#1C1B1F" }}>
+        {DOC_LABELS[d.type] || d.type}
+      </p>
+      <p style={{ color: "#79747E" }}>
+        Count: <span className="font-semibold" style={{ color: "#1C1B1F" }}>{d.count}</span>
+      </p>
     </div>
   );
 }
 
-export function DocBreakdownChart({ counts }: DocBreakdownProps) {
-  const data = [
-    { name: "Invoices", value: counts.invoice },
-    { name: "Vouchers", value: counts.voucher },
-    { name: "Salary Slips", value: counts.salarySlip },
-  ].filter((d) => d.value > 0);
+interface DocBreakdownChartProps {
+  counts: DocCounts;
+}
 
-  const total = counts.invoice + counts.voucher + counts.salarySlip;
+export function DocBreakdownChart({ counts }: DocBreakdownChartProps) {
+  const data: DocBreakdownData[] = [
+    { type: "Invoice", count: counts.invoice },
+    { type: "Voucher", count: counts.voucher },
+    { type: "Salary Slip", count: counts.salarySlip },
+  ].filter((d) => d.count > 0);
+
+  const totalCount = data.reduce((s, d) => s + d.count, 0);
 
   return (
     <div
-      className="relative flex flex-col rounded-2xl border bg-white p-4"
-      style={{ borderColor: "#E0E0E0", minHeight: 240 }}
+      className="flex h-full flex-col rounded-2xl border bg-white p-5"
+      style={{ borderColor: "#E0E0E0", minHeight: 300 }}
     >
+      {/* Header */}
       <div className="mb-2">
         <h3 className="text-sm font-semibold" style={{ color: "#1C1B1F" }}>
           Document Breakdown
         </h3>
+        <p className="text-[11px]" style={{ color: "#79747E" }}>
+          Distribution by type
+        </p>
       </div>
 
-      {data.length > 0 ? (
-        <div className="flex-1" style={{ minHeight: 180 }}>
-          <ResponsiveContainer width="100%" height="100%">
-            <PieChart>
-              <Pie
-                data={data}
-                cx="50%"
-                cy="50%"
-                innerRadius={55}
-                outerRadius={80}
-                paddingAngle={3}
-                dataKey="value"
-                stroke="none"
-              >
-                {data.map((_, index) => (
-                  <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                ))}
-              </Pie>
-              <Tooltip content={<CustomTooltip />} />
-            </PieChart>
-          </ResponsiveContainer>
-          {/* Center label */}
-          <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center pt-6">
-            <p className="text-2xl font-bold" style={{ color: "#1C1B1F" }}>
-              {total}
-            </p>
-            <p className="text-xs" style={{ color: "#79747E" }}>
+      <div className="relative flex flex-1 items-center justify-center" style={{ minHeight: 200 }}>
+        <ResponsiveContainer width="100%" height="100%">
+          <PieChart>
+            <defs>
+              {data.map((d) => {
+                const colors = DOC_GRADIENTS[d.type] || ["#94A3B8", "#64748B"];
+                return (
+                  <linearGradient
+                    key={d.type}
+                    id={`donut-${d.type.replace(/\s/g, "")}`}
+                    x1="0"
+                    y1="0"
+                    x2="0"
+                    y2="1"
+                  >
+                    <stop offset="0%" stopColor={colors[0]} />
+                    <stop offset="100%" stopColor={colors[1]} />
+                  </linearGradient>
+                );
+              })}
+            </defs>
+
+            <Pie
+              data={data}
+              dataKey="count"
+              nameKey="type"
+              cx="50%"
+              cy="50%"
+              innerRadius={58}
+              outerRadius={85}
+              cornerRadius={6}
+              paddingAngle={4}
+              stroke="none"
+              strokeWidth={0}
+            >
+              {data.map((entry) => (
+                <Cell
+                  key={entry.type}
+                  fill={`url(#donut-${entry.type.replace(/\s/g, "")})`}
+                />
+              ))}
+            </Pie>
+
+            <Tooltip content={<CustomTooltip />} />
+          </PieChart>
+        </ResponsiveContainer>
+
+        {/* Center label */}
+        <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+          <div className="flex flex-col items-center">
+            <span className="text-[10px] font-medium" style={{ color: "#79747E" }}>
               Total
-            </p>
+            </span>
+            <span className="text-xl font-bold" style={{ color: "#1C1B1F" }}>
+              {totalCount}
+            </span>
+            <span className="text-[10px] font-medium" style={{ color: "#79747E" }}>
+              docs
+            </span>
           </div>
         </div>
-      ) : (
-        <div className="flex flex-1 items-center justify-center" style={{ minHeight: 180 }}>
-          <p className="text-sm" style={{ color: "#79747E" }}>
-            No documents yet
-          </p>
-        </div>
-      )}
+      </div>
 
       {/* Legend */}
-      <div className="mt-2 flex justify-center gap-4">
-        {data.map((entry, index) => (
-          <div key={entry.name} className="flex items-center gap-1.5">
+      <div className="mt-2 flex items-center justify-center gap-5">
+        {data.map((d) => (
+          <div key={d.type} className="flex items-center gap-1.5">
             <span
               className="h-2.5 w-2.5 rounded-full"
-              style={{ background: COLORS[index % COLORS.length] }}
+              style={{ background: DOC_COLORS[d.type] || "#94A3B8" }}
             />
-            <span className="text-xs" style={{ color: "#79747E" }}>
-              {entry.name}
+            <span className="text-[11px] font-medium" style={{ color: "#49454F" }}>
+              {DOC_LABELS[d.type] || d.type}
+            </span>
+            <span className="text-[11px] font-semibold" style={{ color: "#1C1B1F" }}>
+              {Math.round((d.count / Math.max(totalCount, 1)) * 100)}%
             </span>
           </div>
         ))}

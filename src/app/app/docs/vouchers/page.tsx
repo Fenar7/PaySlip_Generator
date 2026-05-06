@@ -388,7 +388,7 @@ export default async function VouchersPage({
           </div>
 
           <form method="GET" className="relative flex-1 max-w-xs">
-            {type && type !== "undefined" && <input type="hidden" name="type" value={type} />}
+            {type && <input type="hidden" name="type" value={type} />}
             {view !== "list" && <input type="hidden" name="view" value={view} />}
             {dateFrom && dateFrom !== "undefined" && <input type="hidden" name="dateFrom" value={dateFrom} />}
             {dateTo && dateTo !== "undefined" && <input type="hidden" name="dateTo" value={dateTo} />}

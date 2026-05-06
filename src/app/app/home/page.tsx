@@ -32,10 +32,10 @@ export default async function AppHomePage() {
   const data = dashboardResult.success ? dashboardResult.data : null;
 
   return (
-    <div className="min-h-screen px-4 py-5 sm:px-5 lg:px-6" style={{ background: "#f8f9fc" }}>
+    <div className="min-h-screen px-3 py-4 sm:px-4 lg:px-5" style={{ background: "#f8f9fc" }}>
       <div className="mx-auto max-w-[1440px]">
         {/* Header */}
-        <div className="mb-5 flex items-end justify-between">
+        <div className="mb-4 flex items-end justify-between">
           <div>
             <h1 className="text-lg font-semibold" style={{ color: "#1C1B1F" }}>
               Dashboard
@@ -55,13 +55,13 @@ export default async function AppHomePage() {
 
         {/* KPI Row */}
         {data && (
-          <div className="mb-5">
+          <div className="mb-4">
             <KpiRow counts={data.counts} kpis={{ pay: data.kpis.pay }} />
           </div>
         )}
 
         {/* Main grid: Charts + Activity */}
-        <div className="mb-5 grid grid-cols-1 gap-3 lg:grid-cols-3">
+        <div className="mb-4 grid grid-cols-1 gap-3 lg:grid-cols-3">
           {/* Left: Revenue chart — takes 2/3 */}
           <div className="lg:col-span-2">
             {data && <RevenueChart data={data.revenueTrend} />}
@@ -97,7 +97,7 @@ export default async function AppHomePage() {
         </div>
 
         {/* Bottom row: Recent docs + Module grid */}
-        <div className="mb-6 grid grid-cols-1 gap-3 lg:grid-cols-3">
+        <div className="mb-4 grid grid-cols-1 gap-3 lg:grid-cols-3">
           <div className="lg:col-span-1">
             {data && <RecentDocs docs={data.recentDocs} />}
           </div>

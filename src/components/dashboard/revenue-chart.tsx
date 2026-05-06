@@ -2,8 +2,8 @@
 
 import {
   ResponsiveContainer,
-  AreaChart,
-  Area,
+  BarChart,
+  Bar,
   XAxis,
   YAxis,
   Tooltip,
@@ -16,10 +16,11 @@ interface RevenueTrendPoint {
   paid: number;
 }
 
-function formatCurrency(value: number): string {
-  if (value >= 10_00_000) return `₹${(value / 10_00_000).toFixed(1)}L`;
-  if (value >= 1_000) return `₹${(value / 1_000).toFixed(1)}K`;
-  return `₹${value}`;
+function formatCurrency(n: number): string {
+  if (n >= 1_00_00_000) return `₹${(n / 1_00_00_000).toFixed(1)}Cr`;
+  if (n >= 1_00_000) return `₹${(n / 1_00_000).toFixed(1)}L`;
+  if (n >= 1_000) return `₹${(n / 1_000).toFixed(1)}K`;
+  return `₹${n}`;
 }
 
 function CustomTooltip({
@@ -34,20 +35,27 @@ function CustomTooltip({
   if (!active || !payload?.length) return null;
   return (
     <div
+      className="rounded-xl border px-4 py-3 text-xs"
       style={{
-        background: "#fff",
-        border: "1px solid #E0E0E0",
-        borderRadius: "10px",
-        boxShadow: "0 4px 16px rgba(0,0,0,0.08)",
-        padding: "10px 14px",
-        fontSize: 12,
+        background: "rgba(255,255,255,0.96)",
+        borderColor: "#E0E0E0",
+        boxShadow: "0 12px 32px rgba(0,0,0,0.12)",
       }}
     >
-      <p style={{ fontWeight: 600, color: "#1C1B1F", marginBottom: 4 }}>{label}</p>
+      <p className="mb-2 text-[11px] font-semibold" style={{ color: "#1C1B1F" }}>
+        {label}
+      </p>
       {payload.map((entry) => (
-        <p key={entry.name} style={{ color: entry.color, fontWeight: 500 }}>
-          {entry.name}: ₹{entry.value.toLocaleString("en-IN")}
-        </p>
+        <div key={entry.name} className="flex items-center gap-2">
+          <span
+            className="h-2 w-2 rounded-full"
+            style={{ background: entry.color }}
+          />
+          <span style={{ color: "#79747E" }}>{entry.name}:</span>
+          <span className="font-semibold" style={{ color: "#1C1B1F" }}>
+            ₹{entry.value.toLocaleString("en-IN")}
+          </span>
+        </div>
       ))}
     </div>
   );
@@ -59,77 +67,94 @@ interface RevenueChartProps {
 
 export function RevenueChart({ data }: RevenueChartProps) {
   const hasData = data.some((d) => d.invoiced > 0 || d.paid > 0);
+  const latest = data[data.length - 1];
 
   return (
     <div
-      className="flex h-full flex-col rounded-2xl border bg-white p-4"
-      style={{ borderColor: "#E0E0E0", minHeight: 340 }}
+      className="flex h-full flex-col rounded-2xl border bg-white p-5"
+      style={{ borderColor: "#E0E0E0", minHeight: 360 }}
     >
-      <div className="mb-3">
-        <h3 className="text-sm font-semibold" style={{ color: "#1C1B1F" }}>
-          Revenue Overview
-        </h3>
-        <p className="text-xs" style={{ color: "#79747E" }}>
-          Invoiced vs Collected — Last 12 Months
-        </p>
+      {/* Header */}
+      <div className="mb-5 flex items-start justify-between">
+        <div>
+          <h3 className="text-sm font-semibold" style={{ color: "#1C1B1F" }}>
+            Revenue Overview
+          </h3>
+          <p className="text-[11px]" style={{ color: "#79747E" }}>
+            Invoiced vs Collected — Last 12 Months
+          </p>
+        </div>
+        {latest && (
+          <div className="text-right">
+            <p className="text-[11px]" style={{ color: "#79747E" }}>
+              {latest.month}
+            </p>
+            <p className="text-sm font-bold" style={{ color: "#DC2626" }}>
+              {formatCurrency(latest.invoiced)}
+            </p>
+          </div>
+        )}
       </div>
 
       {hasData ? (
         <div className="flex-1" style={{ minHeight: 260 }}>
           <ResponsiveContainer width="100%" height="100%">
-            <AreaChart data={data} margin={{ top: 4, right: 8, bottom: 0, left: 0 }}>
+            <BarChart
+              data={data}
+              margin={{ top: 10, right: 10, bottom: 0, left: 0 }}
+              barGap={4}
+            >
               <defs>
-                <linearGradient id="gradInvoiced" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#DC2626" stopOpacity={0.35} />
-                  <stop offset="40%" stopColor="#DC2626" stopOpacity={0.15} />
-                  <stop offset="100%" stopColor="#DC2626" stopOpacity={0} />
+                <linearGradient id="barInvoiced" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="#EF4444" />
+                  <stop offset="100%" stopColor="#DC2626" />
                 </linearGradient>
-                <linearGradient id="gradPaid" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#16A34A" stopOpacity={0.3} />
-                  <stop offset="40%" stopColor="#16A34A" stopOpacity={0.12} />
-                  <stop offset="100%" stopColor="#16A34A" stopOpacity={0} />
+                <linearGradient id="barPaid" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="#22C55E" />
+                  <stop offset="100%" stopColor="#16A34A" />
                 </linearGradient>
               </defs>
+
               <CartesianGrid
-                strokeDasharray="4 4"
-                stroke="#F0F0F0"
                 vertical={false}
+                stroke="#F0F0F0"
+                strokeDasharray="0"
               />
               <XAxis
                 dataKey="month"
-                tick={{ fontSize: 11, fill: "#9CA3AF" }}
+                tick={{ fontSize: 10, fill: "#9CA3AF", fontWeight: 500 }}
                 tickLine={false}
-                axisLine={{ stroke: "#E5E7EB" }}
+                axisLine={false}
+                dy={8}
               />
               <YAxis
                 tickFormatter={formatCurrency}
-                tick={{ fontSize: 11, fill: "#9CA3AF" }}
+                tick={{ fontSize: 10, fill: "#9CA3AF", fontWeight: 500 }}
                 tickLine={false}
                 axisLine={false}
-                width={56}
+                width={50}
+                dx={-4}
               />
-              <Tooltip content={<CustomTooltip />} />
-              <Area
-                type="monotone"
+              <Tooltip
+                content={<CustomTooltip />}
+                cursor={{ fill: "rgba(0,0,0,0.03)", radius: 4 }}
+              />
+
+              <Bar
                 dataKey="invoiced"
                 name="Invoiced"
-                stroke="#DC2626"
-                strokeWidth={2.5}
-                fill="url(#gradInvoiced)"
-                dot={false}
-                activeDot={{ r: 5, stroke: "#DC2626", strokeWidth: 2, fill: "#fff" }}
+                fill="url(#barInvoiced)"
+                radius={[4, 4, 0, 0]}
+                maxBarSize={28}
               />
-              <Area
-                type="monotone"
+              <Bar
                 dataKey="paid"
                 name="Collected"
-                stroke="#16A34A"
-                strokeWidth={2.5}
-                fill="url(#gradPaid)"
-                dot={false}
-                activeDot={{ r: 5, stroke: "#16A34A", strokeWidth: 2, fill: "#fff" }}
+                fill="url(#barPaid)"
+                radius={[4, 4, 0, 0]}
+                maxBarSize={28}
               />
-            </AreaChart>
+            </BarChart>
           </ResponsiveContainer>
         </div>
       ) : (

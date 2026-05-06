@@ -33,5 +33,6 @@ export async function GET() {
       { error: "Failed to initiate connection" },
       { status: 500 }
     );
+
   }
 }
