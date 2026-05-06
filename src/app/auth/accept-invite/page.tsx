@@ -51,7 +51,7 @@ function AcceptInviteContent() {
   if (loading) {
     return (
       <div className="flex items-center justify-center py-20">
-        <p className="text-sm" style={{ color: "var(--text-muted)" }}>Loading invitation…</p>
+        <p className="text-sm" style={{ color: "#79747E" }}>Loading invitation…</p>
       </div>
     );
   }
@@ -62,9 +62,9 @@ function AcceptInviteContent() {
         <div className="text-center space-y-5">
           <div
             className="mx-auto h-12 w-12 rounded-full flex items-center justify-center"
-            style={{ background: "var(--state-danger-soft)" }}
+            style={{ background: "#F9DEDC" }}
           >
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--state-danger)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#B3261E" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M18 6 6 18" />
               <path d="m6 6 12 12" />
             </svg>
@@ -83,9 +83,9 @@ function AcceptInviteContent() {
         <div className="text-center space-y-5">
           <div
             className="mx-auto h-12 w-12 rounded-full flex items-center justify-center"
-            style={{ background: "var(--state-success-soft)" }}
+            style={{ background: "#E8F5E9" }}
           >
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--state-success)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#2E7D32" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
               <polyline points="22 4 12 14.01 9 11.01" />
             </svg>
@@ -104,9 +104,9 @@ function AcceptInviteContent() {
         <div className="text-center space-y-5">
           <div
             className="mx-auto h-12 w-12 rounded-full flex items-center justify-center"
-            style={{ background: "var(--state-warning-soft)" }}
+            style={{ background: "#FFF8E1" }}
           >
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--state-warning)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#F9A825" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <circle cx="12" cy="12" r="10" />
               <polyline points="12 6 12 12 16 14" />
             </svg>
@@ -132,14 +132,14 @@ function AcceptInviteContent() {
       <div className="text-center mb-6">
         <div
           className="mx-auto h-12 w-12 rounded-full flex items-center justify-center mb-4"
-          style={{ background: "var(--surface-cta-soft)" }}
+          style={{ background: "#FFDAD6" }}
         >
-          <span className="text-lg font-bold" style={{ color: "var(--brand-cta)" }}>S</span>
+          <span className="text-lg font-bold" style={{ color: "#DC2626" }}>S</span>
         </div>
       </div>
 
       {error && (
-        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 mb-4">
+        <div className="rounded-lg border p-3 text-sm mb-4" style={{ background: "#F9DEDC", borderColor: "#F2B8B5", color: "#410E0B" }}>
           {error}
         </div>
       )}
@@ -167,7 +167,7 @@ function AcceptInviteContent() {
 function AcceptInviteFallback() {
   return (
     <div className="flex items-center justify-center py-20">
-      <p className="text-sm" style={{ color: "var(--text-muted)" }}>Loading invitation…</p>
+      <p className="text-sm" style={{ color: "#79747E" }}>Loading invitation…</p>
     </div>
   );
 }

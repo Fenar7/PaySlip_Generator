@@ -183,13 +183,13 @@ export function TwoChallengeForm() {
   return (
     <AuthCard title="Multi-factor authentication" subtitle={subtitle}>
       {error && (
-        <p className="text-sm text-red-600 text-center mb-4" role="alert">
+        <div className="rounded-lg border p-3 text-sm text-center mb-4" style={{ background: "#F9DEDC", borderColor: "#F2B8B5", color: "#410E0B" }} role="alert">
           {error}
-        </p>
+        </div>
       )}
 
       {loadingFactors && (
-        <div className="rounded-lg border border-[var(--border-soft)] bg-[var(--surface-subtle)] px-4 py-3 text-center text-sm" style={{ color: "var(--text-muted)" }}>
+        <div className="rounded-lg border px-4 py-3 text-center text-sm" style={{ background: "#F5F5F5", borderColor: "#E0E0E0", color: "#79747E" }}>
           Checking your account before showing a verification method.
         </div>
       )}
@@ -220,8 +220,8 @@ export function TwoChallengeForm() {
               <button
                 type="button"
                 onClick={() => { setMode("totp"); setError(null); }}
-                className="text-xs hover:text-[var(--text-primary)] underline-offset-4 hover:underline transition-colors"
-                style={{ color: "var(--text-muted)" }}
+                className="text-xs underline-offset-4 hover:underline transition-colors"
+                style={{ color: "#79747E" }}
               >
                 Use authenticator app instead
               </button>
@@ -230,8 +230,8 @@ export function TwoChallengeForm() {
               <button
                 type="button"
                 onClick={() => { setMode("recovery"); setError(null); }}
-                className="text-xs hover:text-[var(--text-primary)] underline-offset-4 hover:underline transition-colors"
-                style={{ color: "var(--text-muted)" }}
+                className="text-xs underline-offset-4 hover:underline transition-colors"
+                style={{ color: "#79747E" }}
               >
                 Use a recovery code instead
               </button>
@@ -240,8 +240,8 @@ export function TwoChallengeForm() {
               <button
                 type="button"
                 onClick={backToSignIn}
-                className="text-xs hover:text-[var(--text-primary)] underline-offset-4 hover:underline transition-colors"
-                style={{ color: "var(--text-muted)" }}
+                className="text-xs underline-offset-4 hover:underline transition-colors"
+                style={{ color: "#79747E" }}
               >
                 Back to sign in
               </button>
@@ -252,7 +252,7 @@ export function TwoChallengeForm() {
 
       {!loadingFactors && mode === "passkey" && factors?.hasPasskey && !webauthnSupported && (
         <div className="space-y-4 text-center">
-          <p className="text-sm" style={{ color: "var(--text-muted)" }}>
+          <p className="text-sm" style={{ color: "#79747E" }}>
             This browser does not support passkeys. Use another enrolled verification method or sign in from a supported device.
           </p>
           {showTotp && (
@@ -269,8 +269,8 @@ export function TwoChallengeForm() {
             <button
               type="button"
               onClick={backToSignIn}
-              className="text-xs hover:text-[var(--text-primary)] underline-offset-4 hover:underline transition-colors"
-              style={{ color: "var(--text-muted)" }}
+              className="text-xs underline-offset-4 hover:underline transition-colors"
+              style={{ color: "#79747E" }}
             >
               Back to sign in
             </button>
@@ -280,7 +280,7 @@ export function TwoChallengeForm() {
 
       {!loadingFactors && !showPasskey && !showTotp && !showRecovery && (
         <div className="space-y-4 text-center">
-          <p className="text-sm" style={{ color: "var(--text-muted)" }}>
+          <p className="text-sm" style={{ color: "#79747E" }}>
             No verification method is available for this account. Sign in again or contact your administrator.
           </p>
           <Button type="button" variant="secondary" className="w-full" onClick={backToSignIn}>
@@ -292,7 +292,7 @@ export function TwoChallengeForm() {
       {!loadingFactors && (mode === "totp" || mode === "recovery") && (
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="block text-sm font-medium mb-1.5" htmlFor="code" style={{ color: "var(--text-primary)" }}>
+            <label className="block text-sm font-medium mb-1.5" htmlFor="code" style={{ color: "#1C1B1F" }}>
               {mode === "totp" ? "Authenticator code" : "Recovery code"}
             </label>
             <input
@@ -305,8 +305,8 @@ export function TwoChallengeForm() {
               required
               value={code}
               onChange={(e) => setCode(e.target.value)}
-              className="w-full rounded-xl border bg-white px-3.5 py-2.5 text-sm shadow-sm placeholder:text-[var(--text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--focus-ring)] focus:border-[var(--brand-primary)] transition-colors"
-              style={{ borderColor: "var(--border-default)", color: "var(--text-primary)" }}
+              className="w-full rounded-xl border bg-white px-3.5 py-2.5 text-sm shadow-sm placeholder:text-[#79747E] focus:outline-none focus:ring-2 focus:ring-[#DC2626]/25 focus:border-[#DC2626] transition-colors"
+              style={{ borderColor: "#E0E0E0", color: "#1C1B1F" }}
               placeholder={mode === "totp" ? "000000" : "xxxxxxxxxxxxxxxx"}
             />
           </div>
@@ -315,9 +315,9 @@ export function TwoChallengeForm() {
             type="submit"
             disabled={isPending || code.length < 6}
             className="w-full rounded-xl px-4 py-2.5 text-sm font-medium text-white shadow transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-            style={{ background: "var(--brand-cta)" }}
+            style={{ background: "#DC2626" }}
             onMouseEnter={(e) => (e.currentTarget.style.background = "#B91C1C")}
-            onMouseLeave={(e) => (e.currentTarget.style.background = "var(--brand-cta)")}
+            onMouseLeave={(e) => (e.currentTarget.style.background = "#DC2626")}
           >
             {isPending ? "Verifying…" : "Verify"}
           </button>
@@ -327,8 +327,8 @@ export function TwoChallengeForm() {
               <button
                 type="button"
                 onClick={() => { setMode("passkey"); setError(null); setCode(""); }}
-                className="text-xs hover:text-[var(--text-primary)] underline-offset-4 hover:underline transition-colors"
-                style={{ color: "var(--text-muted)" }}
+                className="text-xs underline-offset-4 hover:underline transition-colors"
+                style={{ color: "#79747E" }}
               >
                 Use passkey instead
               </button>
@@ -337,8 +337,8 @@ export function TwoChallengeForm() {
               <button
                 type="button"
                 onClick={() => { setMode("recovery"); setError(null); setCode(""); }}
-                className="text-xs hover:text-[var(--text-primary)] underline-offset-4 hover:underline transition-colors"
-                style={{ color: "var(--text-muted)" }}
+                className="text-xs underline-offset-4 hover:underline transition-colors"
+                style={{ color: "#79747E" }}
               >
                 Use a recovery code instead
               </button>
@@ -347,8 +347,8 @@ export function TwoChallengeForm() {
               <button
                 type="button"
                 onClick={() => { setMode("totp"); setError(null); setCode(""); }}
-                className="text-xs hover:text-[var(--text-primary)] underline-offset-4 hover:underline transition-colors"
-                style={{ color: "var(--text-muted)" }}
+                className="text-xs underline-offset-4 hover:underline transition-colors"
+                style={{ color: "#79747E" }}
               >
                 Use authenticator app instead
               </button>

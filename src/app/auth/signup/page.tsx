@@ -96,7 +96,8 @@ export default function SignupPage() {
           <button
             type="button"
             onClick={() => setShowPassword((s) => !s)}
-            className="absolute right-3 top-[2.05rem] text-[var(--text-muted)] hover:text-[var(--text-secondary)] transition-colors"
+            className="absolute right-3 top-[2.05rem] transition-colors"
+            style={{ color: "#79747E" }}
             tabIndex={-1}
           >
             {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
@@ -115,16 +116,17 @@ export default function SignupPage() {
           <button
             type="button"
             onClick={() => setShowConfirm((s) => !s)}
-            className="absolute right-3 top-[2.05rem] text-[var(--text-muted)] hover:text-[var(--text-secondary)] transition-colors"
+            className="absolute right-3 top-[2.05rem] transition-colors"
+            style={{ color: "#79747E" }}
             tabIndex={-1}
           >
             {showConfirm ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
           </button>
         </div>
         {error && (
-          <p className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          <div className="rounded-lg border p-3 text-sm" style={{ background: "#F9DEDC", borderColor: "#F2B8B5", color: "#410E0B" }}>
             {error}
-          </p>
+          </div>
         )}
         <Button
           type="submit"
@@ -139,9 +141,9 @@ export default function SignupPage() {
 
       <GoogleButton callbackURL="/onboarding" />
 
-      <p className="mt-6 text-center text-sm" style={{ color: "var(--text-muted)" }}>
+      <p className="mt-6 text-center text-sm" style={{ color: "#79747E" }}>
         Already have an account?{" "}
-        <Link href="/auth/login" className="font-medium hover:underline" style={{ color: "var(--brand-cta)" }}>
+        <Link href="/auth/login" className="font-medium hover:underline" style={{ color: "#DC2626" }}>
           Sign in
         </Link>
       </p>

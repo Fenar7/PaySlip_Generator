@@ -198,7 +198,7 @@ export function LoginForm({
   return (
     <AuthCard title="Welcome back" subtitle="Sign in to your Slipwise account">
       {ssoMessage && (
-        <div className="mb-5 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+        <div className="mb-5 rounded-lg border p-3 text-sm" style={{ background: "#FFF8E1", borderColor: "#FFC107", color: "#7A5C00" }}>
           {ssoMessage}
         </div>
       )}
@@ -235,37 +235,39 @@ export function LoginForm({
           <button
             type="button"
             onClick={() => setShowPassword((s) => !s)}
-            className="absolute right-3 top-[2.05rem] text-[var(--text-muted)] hover:text-[var(--text-secondary)] transition-colors"
+            className="absolute right-3 top-[2.05rem] transition-colors"
+            style={{ color: "#79747E" }}
             tabIndex={-1}
           >
             {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
           </button>
         </div>
         <div className="flex items-center justify-between">
-          <label className="flex items-center gap-2 text-sm" style={{ color: "var(--text-secondary)" }}>
+          <label className="flex items-center gap-2 text-sm" style={{ color: "#49454F" }}>
             <input
               type="checkbox"
               name="rememberMe"
               value="true"
               checked={rememberMe}
               onChange={(e) => setRememberMe(e.target.checked)}
-              className="h-4 w-4 rounded border-[var(--border-default)] text-[var(--brand-cta)] focus:ring-[var(--brand-cta)]"
+              className="h-4 w-4 rounded"
+              style={{ accentColor: "#DC2626" }}
             />
             Remember me
           </label>
           <Link
             href="/auth/forgot-password"
             className="text-sm font-medium hover:underline"
-            style={{ color: "var(--brand-cta)" }}
+            style={{ color: "#DC2626" }}
           >
             Forgot password?
           </Link>
         </div>
         {!rememberMe ? <input type="hidden" name="rememberMe" value="false" /> : null}
         {error && (
-          <p className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          <div className="rounded-lg border p-3 text-sm" style={{ background: "#F9DEDC", borderColor: "#F2B8B5", color: "#410E0B" }}>
             {error}
-          </p>
+          </div>
         )}
         <Button
           type="submit"
@@ -288,29 +290,29 @@ export function LoginForm({
             onClick={handlePasskeySignIn}
             disabled={passkeyLoading}
           >
-            <KeyRound className="h-4 w-4" style={{ color: "var(--text-muted)" }} />
+            <KeyRound className="h-4 w-4" style={{ color: "#79747E" }} />
             {passkeyLoading ? "Waiting for passkey…" : "Sign in with passkey"}
           </Button>
         )}
       </div>
 
-      <p className="mt-4 rounded-lg border border-[var(--border-soft)] bg-[var(--surface-subtle)] px-4 py-3 text-xs" style={{ color: "var(--text-muted)" }}>
+      <p className="mt-4 rounded-lg border px-4 py-3 text-xs" style={{ background: "#F5F5F5", borderColor: "#E0E0E0", color: "#79747E" }}>
         If you enabled a passkey, you may be asked to use it as a second verification step after sign-in.
       </p>
 
-      <div className="mt-5 space-y-2 border-t border-[var(--border-soft)] pt-5 text-center">
+      <div className="mt-5 space-y-2 border-t pt-5 text-center" style={{ borderColor: "#E0E0E0" }}>
         {!ssoOpen ? (
           <button
             type="button"
             onClick={() => setSsoOpen(true)}
-            className="block w-full text-sm hover:text-[var(--text-primary)] transition-colors"
-            style={{ color: "var(--text-muted)" }}
+            className="block w-full text-sm transition-colors hover:text-[#1C1B1F]"
+            style={{ color: "#79747E" }}
           >
             Sign in with SSO →
           </button>
         ) : (
           <div className="space-y-2 text-left">
-            <p className="text-sm font-medium" style={{ color: "var(--text-primary)" }}>Enterprise SSO</p>
+            <p className="text-sm font-medium" style={{ color: "#1C1B1F" }}>Enterprise SSO</p>
             <Input
               label="Organization slug"
               value={orgSlug}
@@ -329,8 +331,8 @@ export function LoginForm({
             <button
               type="button"
               onClick={() => setSsoOpen(false)}
-              className="block text-xs hover:text-[var(--text-secondary)] transition-colors"
-              style={{ color: "var(--text-muted)" }}
+              className="block text-xs transition-colors hover:text-[#49454F]"
+              style={{ color: "#79747E" }}
             >
               Cancel
             </button>
@@ -341,14 +343,14 @@ export function LoginForm({
           <button
             type="button"
             onClick={() => setBreakGlassOpen(true)}
-            className="block w-full text-sm hover:text-[var(--text-primary)] transition-colors"
-            style={{ color: "var(--text-muted)" }}
+            className="block w-full text-sm transition-colors hover:text-[#1C1B1F]"
+            style={{ color: "#79747E" }}
           >
             Use break-glass code →
           </button>
         ) : (
           <div className="space-y-2 text-left">
-            <p className="text-sm font-medium" style={{ color: "var(--text-primary)" }}>Break-glass recovery</p>
+            <p className="text-sm font-medium" style={{ color: "#1C1B1F" }}>Break-glass recovery</p>
             {!orgSlug ? (
               <Input
                 label="Organization slug"
@@ -369,8 +371,8 @@ export function LoginForm({
             <button
               type="button"
               onClick={() => setBreakGlassOpen(false)}
-              className="block text-xs hover:text-[var(--text-secondary)] transition-colors"
-              style={{ color: "var(--text-muted)" }}
+              className="block text-xs transition-colors hover:text-[#49454F]"
+              style={{ color: "#79747E" }}
             >
               Cancel
             </button>
@@ -378,9 +380,9 @@ export function LoginForm({
         )}
       </div>
 
-      <p className="mt-6 text-center text-sm" style={{ color: "var(--text-muted)" }}>
+      <p className="mt-6 text-center text-sm" style={{ color: "#79747E" }}>
         Don&apos;t have an account?{" "}
-        <Link href="/auth/signup" className="font-medium hover:underline" style={{ color: "var(--brand-cta)" }}>
+        <Link href="/auth/signup" className="font-medium hover:underline" style={{ color: "#DC2626" }}>
           Sign up
         </Link>
       </p>

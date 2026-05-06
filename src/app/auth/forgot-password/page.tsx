@@ -34,20 +34,20 @@ export default function ForgotPasswordPage() {
         <div className="text-center space-y-5">
           <div
             className="mx-auto h-12 w-12 rounded-full flex items-center justify-center"
-            style={{ background: "var(--state-success-soft)" }}
+            style={{ background: "#E8F5E9" }}
           >
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--state-success)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#2E7D32" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <rect width="20" height="16" x="2" y="4" rx="2" />
               <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7" />
             </svg>
           </div>
-          <p className="text-sm" style={{ color: "var(--text-muted)" }}>
+          <p className="text-sm" style={{ color: "#79747E" }}>
             Check your inbox (and spam) for the password reset link.
           </p>
           <Link
             href="/auth/login"
             className="block text-sm font-medium hover:underline"
-            style={{ color: "var(--brand-cta)" }}
+            style={{ color: "#DC2626" }}
           >
             Back to sign in
           </Link>
@@ -75,11 +75,11 @@ export default function ForgotPasswordPage() {
           {loading ? "Sending…" : "Send reset link"}
         </Button>
       </form>
-      <p className="text-center text-sm mt-5" style={{ color: "var(--text-muted)" }}>
+      <p className="text-center text-sm mt-5" style={{ color: "#79747E" }}>
         <Link
           href="/auth/login"
           className="font-medium hover:underline"
-          style={{ color: "var(--brand-cta)" }}
+          style={{ color: "#DC2626" }}
         >
           Back to sign in
         </Link>

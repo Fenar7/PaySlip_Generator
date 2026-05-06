@@ -89,7 +89,11 @@ export default function OTPPage() {
             autoComplete="email"
             placeholder="you@company.com"
           />
-          {error && <p className="text-sm text-red-600">{error}</p>}
+          {error && (
+            <div className="rounded-lg border p-3 text-sm" style={{ background: "#F9DEDC", borderColor: "#F2B8B5", color: "#410E0B" }}>
+              {error}
+            </div>
+          )}
           <Button type="submit" className="w-full" disabled={loading}>
             {loading ? "Sending…" : "Send code"}
           </Button>
@@ -108,25 +112,29 @@ export default function OTPPage() {
             autoComplete="one-time-code"
             placeholder="000000"
           />
-          {error && <p className="text-sm text-red-600">{error}</p>}
+          {error && (
+            <div className="rounded-lg border p-3 text-sm" style={{ background: "#F9DEDC", borderColor: "#F2B8B5", color: "#410E0B" }}>
+              {error}
+            </div>
+          )}
           <Button type="submit" className="w-full" disabled={loading || otp.length < 6}>
             {loading ? "Verifying…" : "Verify code"}
           </Button>
           <button
             type="button"
             onClick={() => setStep("email")}
-            className="w-full text-sm hover:text-[var(--text-primary)] transition-colors"
-            style={{ color: "var(--text-muted)" }}
+            className="w-full text-sm transition-colors hover:text-[#1C1B1F]"
+            style={{ color: "#79747E" }}
           >
             ← Use a different email
           </button>
         </form>
       )}
-      <p className="text-center text-sm mt-5" style={{ color: "var(--text-muted)" }}>
+      <p className="text-center text-sm mt-5" style={{ color: "#79747E" }}>
         <Link
           href="/auth/login"
           className="font-medium hover:underline"
-          style={{ color: "var(--brand-cta)" }}
+          style={{ color: "#DC2626" }}
         >
           Back to sign in
         </Link>

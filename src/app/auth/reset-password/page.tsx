@@ -59,7 +59,8 @@ function ResetPasswordContent() {
           <button
             type="button"
             onClick={() => setShowPassword((s) => !s)}
-            className="absolute right-3 top-[2.05rem] text-[var(--text-muted)] hover:text-[var(--text-secondary)] transition-colors"
+            className="absolute right-3 top-[2.05rem] transition-colors"
+            style={{ color: "#79747E" }}
             tabIndex={-1}
           >
             {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
@@ -78,13 +79,18 @@ function ResetPasswordContent() {
           <button
             type="button"
             onClick={() => setShowConfirm((s) => !s)}
-            className="absolute right-3 top-[2.05rem] text-[var(--text-muted)] hover:text-[var(--text-secondary)] transition-colors"
+            className="absolute right-3 top-[2.05rem] transition-colors"
+            style={{ color: "#79747E" }}
             tabIndex={-1}
           >
             {showConfirm ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
           </button>
         </div>
-        {error && <p className="text-sm text-red-600">{error}</p>}
+        {error && (
+          <div className="rounded-lg border p-3 text-sm" style={{ background: "#F9DEDC", borderColor: "#F2B8B5", color: "#410E0B" }}>
+            {error}
+          </div>
+        )}
         <Button type="submit" className="w-full" disabled={loading}>
           {loading ? "Saving…" : "Save new password"}
         </Button>
