@@ -47,7 +47,7 @@ export function RecentDocs({ docs }: RecentDocsProps) {
   return (
     <div
       className="flex h-full flex-col rounded-2xl border bg-white p-4"
-      style={{ borderColor: "#E0E0E0", maxHeight: 320 }}
+      style={{ borderColor: "#E0E0E0" }}
     >
       <div className="mb-3 flex items-center justify-between">
         <h3 className="text-sm font-semibold" style={{ color: "#1C1B1F" }}>

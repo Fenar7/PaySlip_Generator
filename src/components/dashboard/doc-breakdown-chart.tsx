@@ -50,10 +50,9 @@ function CustomTooltip({
     <div
       className="rounded-xl border px-3.5 py-2.5 text-xs"
       style={{
-        background: "rgba(255,255,255,0.95)",
+        background: "rgba(255,255,255,0.96)",
         borderColor: "#E0E0E0",
         boxShadow: "0 8px 24px rgba(0,0,0,0.1)",
-        backdropFilter: "blur(8px)",
       }}
     >
       <p className="mb-1 text-[11px] font-semibold" style={{ color: "#1C1B1F" }}>
@@ -81,7 +80,7 @@ export function DocBreakdownChart({ counts }: DocBreakdownChartProps) {
 
   return (
     <div
-      className="flex h-full flex-col rounded-2xl border bg-white p-5"
+      className="flex h-full flex-col rounded-2xl border bg-white p-4"
       style={{ borderColor: "#E0E0E0" }}
     >
       {/* Header */}
@@ -89,12 +88,9 @@ export function DocBreakdownChart({ counts }: DocBreakdownChartProps) {
         <h3 className="text-sm font-semibold" style={{ color: "#1C1B1F" }}>
           Document Breakdown
         </h3>
-        <p className="text-[11px]" style={{ color: "#79747E" }}>
-          Distribution by type
-        </p>
       </div>
 
-      <div className="relative flex flex-1 items-center justify-center" style={{ minHeight: 120, maxHeight: 160 }}>
+      <div className="relative flex flex-1 flex-col items-center justify-center" style={{ minHeight: 140 }}>
         <ResponsiveContainer width="100%" height="100%">
           <PieChart>
             <defs>
@@ -122,12 +118,11 @@ export function DocBreakdownChart({ counts }: DocBreakdownChartProps) {
               nameKey="type"
               cx="50%"
               cy="50%"
-              innerRadius={58}
-              outerRadius={85}
-              cornerRadius={6}
-              paddingAngle={4}
+              innerRadius="55%"
+              outerRadius="80%"
+              cornerRadius={5}
+              paddingAngle={3}
               stroke="none"
-              strokeWidth={0}
             >
               {data.map((entry) => (
                 <Cell
@@ -147,7 +142,7 @@ export function DocBreakdownChart({ counts }: DocBreakdownChartProps) {
             <span className="text-[10px] font-medium" style={{ color: "#79747E" }}>
               Total
             </span>
-            <span className="text-xl font-bold" style={{ color: "#1C1B1F" }}>
+            <span className="text-lg font-bold" style={{ color: "#1C1B1F" }}>
               {totalCount}
             </span>
             <span className="text-[10px] font-medium" style={{ color: "#79747E" }}>
@@ -158,11 +153,11 @@ export function DocBreakdownChart({ counts }: DocBreakdownChartProps) {
       </div>
 
       {/* Legend */}
-      <div className="mt-2 flex items-center justify-center gap-5">
+      <div className="mt-1 flex items-center justify-center gap-4">
         {data.map((d) => (
           <div key={d.type} className="flex items-center gap-1.5">
             <span
-              className="h-2.5 w-2.5 rounded-full"
+              className="h-2 w-2 rounded-full"
               style={{ background: DOC_COLORS[d.type] || "#94A3B8" }}
             />
             <span className="text-[11px] font-medium" style={{ color: "#49454F" }}>

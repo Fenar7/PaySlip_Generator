@@ -88,7 +88,7 @@ export default async function AppHomePage() {
                     salarySlip: data.counts.salarySlip,
                   }}
                 />
-                <div className="flex-1 min-h-[200px]">
+                <div className="flex-1" style={{ minHeight: 200 }}>
                   <ActivitySidebar entries={data.recentActivity} />
                 </div>
               </>

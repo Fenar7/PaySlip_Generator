@@ -18,9 +18,9 @@ interface RevenueTrendPoint {
 }
 
 const RANGE_OPTIONS = [
-  { label: "Last 3 months", value: 3 },
-  { label: "Last 6 months", value: 6 },
-  { label: "Last 12 months", value: 12 },
+  { label: "3M", value: 3 },
+  { label: "6M", value: 6 },
+  { label: "12M", value: 12 },
 ];
 
 function formatCurrency(n: number): string {
@@ -54,10 +54,7 @@ function CustomTooltip({
       </p>
       {payload.map((entry) => (
         <div key={entry.name} className="flex items-center gap-2">
-          <span
-            className="h-2 w-2 rounded-full"
-            style={{ background: entry.color }}
-          />
+          <span className="h-2 w-2 rounded-full" style={{ background: entry.color }} />
           <span style={{ color: "#79747E" }}>{entry.name}:</span>
           <span className="font-semibold" style={{ color: "#1C1B1F" }}>
             ₹{entry.value.toLocaleString("en-IN")}
@@ -89,24 +86,27 @@ export function RevenueChart({ data }: RevenueChartProps) {
       style={{ borderColor: "#E0E0E0" }}
     >
       {/* Header */}
-      <div className="mb-3 flex items-start justify-between">
+      <div className="mb-3 flex items-center justify-between">
         <div>
           <h3 className="text-sm font-semibold" style={{ color: "#1C1B1F" }}>
             Revenue Overview
           </h3>
-          <p className="text-[11px]" style={{ color: "#79747E" }}>
-            Invoiced vs Collected
-          </p>
         </div>
         <div className="flex items-center gap-3">
           {latest && (
-            <div className="text-right">
-              <p className="text-[10px]" style={{ color: "#79747E" }}>
-                {latest.month} Invoiced
-              </p>
-              <p className="text-sm font-bold" style={{ color: "#DC2626" }}>
-                {formatCurrency(latest.invoiced)}
-              </p>
+            <div className="flex items-center gap-3 text-right">
+              <div>
+                <p className="text-[10px]" style={{ color: "#79747E" }}>Invoiced</p>
+                <p className="text-sm font-bold" style={{ color: "#DC2626" }}>
+                  {formatCurrency(latest.invoiced)}
+                </p>
+              </div>
+              <div>
+                <p className="text-[10px]" style={{ color: "#79747E" }}>Collected</p>
+                <p className="text-sm font-bold" style={{ color: "#16A34A" }}>
+                  {formatCurrency(latest.paid)}
+                </p>
+              </div>
             </div>
           )}
           <select
@@ -116,16 +116,14 @@ export function RevenueChart({ data }: RevenueChartProps) {
             style={{ borderColor: "#E0E0E0", color: "#49454F", background: "#fff" }}
           >
             {RANGE_OPTIONS.map((o) => (
-              <option key={o.value} value={o.value}>
-                {o.label}
-              </option>
+              <option key={o.value} value={o.value}>{o.label}</option>
             ))}
           </select>
         </div>
       </div>
 
       {hasData ? (
-        <div className="flex-1" style={{ minHeight: 160, maxHeight: 220 }}>
+        <div className="flex-1" style={{ minHeight: 140 }}>
           <ResponsiveContainer width="100%" height="100%">
             <BarChart
               data={filtered}
@@ -143,11 +141,7 @@ export function RevenueChart({ data }: RevenueChartProps) {
                 </linearGradient>
               </defs>
 
-              <CartesianGrid
-                vertical={false}
-                stroke="#F5F5F5"
-                strokeDasharray="0"
-              />
+              <CartesianGrid vertical={false} stroke="#F5F5F5" />
               <XAxis
                 dataKey="month"
                 tick={{ fontSize: 10, fill: "#9CA3AF", fontWeight: 500 }}
@@ -163,30 +157,15 @@ export function RevenueChart({ data }: RevenueChartProps) {
                 width={46}
                 dx={-2}
               />
-              <Tooltip
-                content={<CustomTooltip />}
-                cursor={{ fill: "rgba(0,0,0,0.03)", radius: 4 }}
-              />
+              <Tooltip content={<CustomTooltip />} cursor={{ fill: "rgba(0,0,0,0.03)" }} />
 
-              <Bar
-                dataKey="invoiced"
-                name="Invoiced"
-                fill="url(#barInvoiced)"
-                radius={[3, 3, 0, 0]}
-                maxBarSize={22}
-              />
-              <Bar
-                dataKey="paid"
-                name="Collected"
-                fill="url(#barPaid)"
-                radius={[3, 3, 0, 0]}
-                maxBarSize={22}
-              />
+              <Bar dataKey="invoiced" name="Invoiced" fill="url(#barInvoiced)" radius={[3, 3, 0, 0]} maxBarSize={24} />
+              <Bar dataKey="paid" name="Collected" fill="url(#barPaid)" radius={[3, 3, 0, 0]} maxBarSize={24} />
             </BarChart>
           </ResponsiveContainer>
         </div>
       ) : (
-        <div className="flex flex-1 items-center justify-center" style={{ minHeight: 160 }}>
+        <div className="flex flex-1 items-center justify-center" style={{ minHeight: 140 }}>
           <p className="text-sm" style={{ color: "#79747E" }}>
             No revenue data yet. Create and issue your first invoice.
           </p>
