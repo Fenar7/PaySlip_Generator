@@ -1,118 +1,246 @@
 "use client";
 
+import { useEffect, useRef } from "react";
+
+type Point = {
+  x: number;
+  y: number;
+};
+
+function createSmoothBlobPath(
+  context: CanvasRenderingContext2D,
+  centerX: number,
+  centerY: number,
+  radiusX: number,
+  radiusY: number,
+  time: number,
+  seed: number,
+  tilt: number,
+) {
+  const points: Point[] = [];
+  const steps = 26;
+
+  for (let index = 0; index < steps; index += 1) {
+    const angle = (Math.PI * 2 * index) / steps;
+    const asymmetry =
+      1 +
+      Math.cos(angle - tilt) * 0.22 +
+      Math.sin((angle - tilt) * 2) * 0.08 +
+      Math.sin(angle * 3 + time * 0.36 + seed) * 0.14 +
+      Math.cos(angle * 5 - time * 0.28 + seed * 1.7) * 0.09 +
+      Math.sin(angle * 7 + time * 0.21 + seed * 0.8) * 0.04;
+    const driftX = Math.sin(time * 0.27 + seed + angle * 1.4) * radiusX * 0.035;
+    const driftY = Math.cos(time * 0.31 + seed * 1.3 - angle * 1.1) * radiusY * 0.03;
+
+    points.push({
+      x: centerX + Math.cos(angle) * radiusX * asymmetry + driftX,
+      y: centerY + Math.sin(angle) * radiusY * (asymmetry * 0.92) + driftY,
+    });
+  }
+
+  context.beginPath();
+  context.moveTo((points[0].x + points[1].x) / 2, (points[0].y + points[1].y) / 2);
+
+  for (let index = 1; index < points.length; index += 1) {
+    const current = points[index];
+    const next = points[(index + 1) % points.length];
+    context.quadraticCurveTo(current.x, current.y, (current.x + next.x) / 2, (current.y + next.y) / 2);
+  }
+
+  context.closePath();
+}
+
+function drawRibbon(
+  context: CanvasRenderingContext2D,
+  centerX: number,
+  centerY: number,
+  width: number,
+  height: number,
+  time: number,
+) {
+  const gradient = context.createLinearGradient(
+    centerX - width * 0.5,
+    centerY - height * 0.2,
+    centerX + width * 0.52,
+    centerY + height * 0.22,
+  );
+  gradient.addColorStop(0, "rgba(255,255,255,0)");
+  gradient.addColorStop(0.2, "rgba(255,255,255,0.08)");
+  gradient.addColorStop(0.46, "rgba(254,226,226,0.22)");
+  gradient.addColorStop(0.7, "rgba(252,165,165,0.3)");
+  gradient.addColorStop(1, "rgba(255,255,255,0)");
+
+  const startX = centerX - width * 0.48;
+  const endX = centerX + width * 0.53;
+  const waveA = Math.sin(time * 0.34) * height * 0.05;
+  const waveB = Math.cos(time * 0.29) * height * 0.06;
+  const waveC = Math.sin(time * 0.22 + 1.2) * height * 0.04;
+
+  context.save();
+  context.filter = "blur(18px)";
+  context.strokeStyle = gradient;
+  context.lineCap = "round";
+  context.lineWidth = Math.max(36, width * 0.07);
+  context.beginPath();
+  context.moveTo(startX, centerY - height * 0.1 + waveA);
+  context.bezierCurveTo(
+    centerX - width * 0.2,
+    centerY + height * 0.18 + waveB,
+    centerX + width * 0.08,
+    centerY - height * 0.24 + waveC,
+    centerX + width * 0.18,
+    centerY - height * 0.03,
+  );
+  context.bezierCurveTo(
+    centerX + width * 0.29,
+    centerY + height * 0.18 + waveA,
+    centerX + width * 0.42,
+    centerY - height * 0.08 + waveB,
+    endX,
+    centerY + height * 0.08 + waveC,
+  );
+  context.stroke();
+  context.restore();
+}
+
 export function AuthBlobBackground() {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    const context = canvas.getContext("2d");
+    if (!context) return;
+
+    let frameId = 0;
+    let width = 0;
+    let height = 0;
+    let dpr = 1;
+
+    const resize = () => {
+      const rect = canvas.getBoundingClientRect();
+      dpr = Math.min(window.devicePixelRatio || 1, 2);
+      width = rect.width;
+      height = rect.height;
+      canvas.width = Math.max(1, Math.floor(width * dpr));
+      canvas.height = Math.max(1, Math.floor(height * dpr));
+      context.setTransform(dpr, 0, 0, dpr, 0, 0);
+    };
+
+    const drawLayer = (
+      time: number,
+      offsetX: number,
+      offsetY: number,
+      radiusX: number,
+      radiusY: number,
+      seed: number,
+      tint: string,
+      blur: number,
+      alpha: number,
+      tilt: number,
+    ) => {
+      context.save();
+      context.globalAlpha = alpha;
+      context.filter = `blur(${blur}px)`;
+      createSmoothBlobPath(context, offsetX, offsetY, radiusX, radiusY, time, seed, tilt);
+      context.fillStyle = tint;
+      context.fill();
+      context.restore();
+    };
+
+    const render = (timestamp: number) => {
+      const time = timestamp * 0.001;
+      const centerX = width * 0.5;
+      const centerY = height * 0.56;
+      const spanX = Math.min(width * 0.82, 920);
+      const spanY = Math.min(height * 0.72, 680);
+
+      context.clearRect(0, 0, width, height);
+
+      drawLayer(
+        time,
+        centerX - spanX * 0.05 + Math.sin(time * 0.21) * spanX * 0.03,
+        centerY - spanY * 0.02 + Math.cos(time * 0.18) * spanY * 0.03,
+        spanX * 0.44,
+        spanY * 0.4,
+        0.4,
+        "rgba(254, 226, 226, 0.78)",
+        92,
+        0.92,
+        Math.PI * 0.7,
+      );
+
+      drawLayer(
+        time,
+        centerX + spanX * 0.1 + Math.cos(time * 0.26) * spanX * 0.03,
+        centerY + spanY * 0.03 + Math.sin(time * 0.22) * spanY * 0.03,
+        spanX * 0.36,
+        spanY * 0.33,
+        1.4,
+        "rgba(252, 165, 165, 0.56)",
+        72,
+        0.78,
+        Math.PI * 0.2,
+      );
+
+      drawLayer(
+        time,
+        centerX + spanX * 0.2 + Math.sin(time * 0.19) * spanX * 0.025,
+        centerY + spanY * 0.08 + Math.cos(time * 0.24) * spanY * 0.025,
+        spanX * 0.28,
+        spanY * 0.25,
+        2.8,
+        "rgba(248, 113, 113, 0.44)",
+        54,
+        0.64,
+        -Math.PI * 0.1,
+      );
+
+      drawRibbon(context, centerX, centerY, spanX, spanY, time);
+
+      context.save();
+      context.globalAlpha = 0.38;
+      context.filter = "blur(110px)";
+      createSmoothBlobPath(
+        context,
+        centerX + spanX * 0.04,
+        centerY + spanY * 0.04,
+        spanX * 0.46,
+        spanY * 0.42,
+        time,
+        4.2,
+        Math.PI * 0.55,
+      );
+      context.strokeStyle = "rgba(255,255,255,0.26)";
+      context.lineWidth = Math.max(30, spanX * 0.04);
+      context.stroke();
+      context.restore();
+
+      frameId = window.requestAnimationFrame(render);
+    };
+
+    resize();
+    frameId = window.requestAnimationFrame(render);
+    window.addEventListener("resize", resize);
+
+    return () => {
+      window.cancelAnimationFrame(frameId);
+      window.removeEventListener("resize", resize);
+    };
+  }, []);
+
   return (
     <div className="pointer-events-none absolute inset-0 hidden overflow-hidden lg:block" aria-hidden="true">
-      <div className="absolute left-1/2 top-1/2 h-[88%] w-[92%] max-h-[920px] max-w-[1060px] -translate-x-1/2 -translate-y-1/2">
-        <svg
-          className="h-full w-full"
-          viewBox="0 0 1200 900"
-          preserveAspectRatio="xMidYMid slice"
-          xmlns="http://www.w3.org/2000/svg"
-        >
-          <defs>
-            <filter id="auth-liquid-blur" x="-40%" y="-40%" width="180%" height="180%">
-              <feGaussianBlur stdDeviation="32" />
-            </filter>
-            <filter id="auth-liquid-soft" x="-50%" y="-50%" width="200%" height="200%">
-              <feGaussianBlur stdDeviation="56" />
-            </filter>
-
-            <radialGradient id="auth-red-core" cx="50%" cy="50%" r="50%">
-              <stop offset="0%" stopColor="rgba(248,113,113,0.85)" />
-              <stop offset="40%" stopColor="rgba(239,68,68,0.55)" />
-              <stop offset="75%" stopColor="rgba(252,165,165,0.28)" />
-              <stop offset="100%" stopColor="rgba(255,255,255,0)" />
-            </radialGradient>
-
-            <linearGradient id="auth-ribbon-highlight" x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" stopColor="rgba(255,255,255,0)" />
-              <stop offset="28%" stopColor="rgba(255,255,255,0.15)" />
-              <stop offset="55%" stopColor="rgba(254,226,226,0.28)" />
-              <stop offset="76%" stopColor="rgba(252,165,165,0.22)" />
-              <stop offset="100%" stopColor="rgba(255,255,255,0)" />
-            </linearGradient>
-          </defs>
-
-          <g opacity="0.94" filter="url(#auth-liquid-soft)">
-            <path
-              fill="url(#auth-red-core)"
-              d="M194 451C257 309 419 238 585 250C728 260 905 346 950 482C992 608 923 741 789 795C644 854 418 852 282 764C152 679 128 599 194 451Z"
-            >
-              <animate
-                attributeName="d"
-                dur="12s"
-                repeatCount="indefinite"
-                values="
-                  M194 451C257 309 419 238 585 250C728 260 905 346 950 482C992 608 923 741 789 795C644 854 418 852 282 764C152 679 128 599 194 451Z;
-                  M168 430C246 286 438 224 616 248C770 268 932 378 963 503C992 622 889 742 746 793C591 847 388 827 259 731C145 646 104 565 168 430Z;
-                  M213 468C284 314 470 226 651 258C809 286 928 404 938 548C947 677 849 777 698 806C531 838 343 793 238 692C143 600 150 530 213 468Z;
-                  M194 451C257 309 419 238 585 250C728 260 905 346 950 482C992 608 923 741 789 795C644 854 418 852 282 764C152 679 128 599 194 451Z"
-              />
-            </path>
-          </g>
-
-          <g opacity="0.86" filter="url(#auth-liquid-blur)">
-            <path
-              fill="rgba(248,113,113,0.34)"
-              d="M339 398C406 298 534 260 673 281C793 300 912 374 947 485C980 591 928 702 832 758C731 817 565 834 423 785C292 739 212 639 221 531C228 463 281 433 339 398Z"
-            >
-              <animate
-                attributeName="d"
-                dur="8.5s"
-                repeatCount="indefinite"
-                values="
-                  M339 398C406 298 534 260 673 281C793 300 912 374 947 485C980 591 928 702 832 758C731 817 565 834 423 785C292 739 212 639 221 531C228 463 281 433 339 398Z;
-                  M314 418C383 294 543 249 702 285C833 315 930 410 947 520C964 625 881 724 776 774C663 828 505 823 384 763C272 707 210 613 224 513C234 444 271 442 314 418Z;
-                  M362 372C448 286 591 262 733 310C852 350 932 447 930 557C928 659 845 737 737 773C609 817 448 801 336 722C249 659 221 568 252 481C270 430 317 403 362 372Z;
-                  M339 398C406 298 534 260 673 281C793 300 912 374 947 485C980 591 928 702 832 758C731 817 565 834 423 785C292 739 212 639 221 531C228 463 281 433 339 398Z"
-              />
-            </path>
-          </g>
-
-          <g opacity="0.9" filter="url(#auth-liquid-blur)">
-            <path
-              fill="url(#auth-ribbon-highlight)"
-              d="M192 404C302 451 436 470 531 433C637 392 723 314 861 332C957 345 1038 413 1087 472C1134 529 1144 587 1116 622C1085 662 1016 667 932 642C852 618 765 568 651 558C512 545 373 603 280 618C213 628 160 620 134 593C106 562 111 514 134 472C150 443 170 422 192 404Z"
-            >
-              <animate
-                attributeName="d"
-                dur="10s"
-                repeatCount="indefinite"
-                values="
-                  M192 404C302 451 436 470 531 433C637 392 723 314 861 332C957 345 1038 413 1087 472C1134 529 1144 587 1116 622C1085 662 1016 667 932 642C852 618 765 568 651 558C512 545 373 603 280 618C213 628 160 620 134 593C106 562 111 514 134 472C150 443 170 422 192 404Z;
-                  M168 424C292 468 432 471 545 430C661 388 753 294 886 315C985 331 1060 419 1096 486C1128 547 1118 603 1085 634C1043 674 964 664 873 635C787 607 699 568 595 561C461 553 336 616 254 634C191 648 147 636 128 603C113 577 119 531 135 490C145 463 153 442 168 424Z;
-                  M208 388C327 428 458 460 569 432C694 401 797 332 923 354C1006 370 1073 424 1110 474C1146 525 1155 584 1134 625C1107 674 1037 690 949 674C860 657 757 612 643 592C515 570 393 604 300 609C233 612 177 598 149 562C124 529 130 485 155 444C169 421 188 402 208 388Z;
-                  M192 404C302 451 436 470 531 433C637 392 723 314 861 332C957 345 1038 413 1087 472C1134 529 1144 587 1116 622C1085 662 1016 667 932 642C852 618 765 568 651 558C512 545 373 603 280 618C213 628 160 620 134 593C106 562 111 514 134 472C150 443 170 422 192 404Z"
-              />
-            </path>
-          </g>
-
-          <g opacity="0.46" filter="url(#auth-liquid-soft)">
-            <path
-              fill="rgba(255,255,255,0.26)"
-              d="M264 346C361 262 548 228 731 260C884 286 1010 374 1047 474C1085 575 1020 693 886 758C737 831 510 832 345 746C225 682 148 593 154 500C159 433 205 395 264 346Z"
-            >
-              <animate
-                attributeName="d"
-                dur="14s"
-                repeatCount="indefinite"
-                values="
-                  M264 346C361 262 548 228 731 260C884 286 1010 374 1047 474C1085 575 1020 693 886 758C737 831 510 832 345 746C225 682 148 593 154 500C159 433 205 395 264 346Z;
-                  M238 375C347 264 564 220 759 270C917 309 1022 421 1037 528C1049 620 986 719 868 779C731 848 520 827 364 734C245 662 175 574 173 486C171 436 199 406 238 375Z;
-                  M291 332C419 245 617 236 802 304C945 356 1028 454 1028 551C1027 647 952 720 837 776C697 844 515 824 373 740C255 670 196 571 205 482C211 424 246 373 291 332Z;
-                  M264 346C361 262 548 228 731 260C884 286 1010 374 1047 474C1085 575 1020 693 886 758C737 831 510 832 345 746C225 682 148 593 154 500C159 433 205 395 264 346Z"
-              />
-            </path>
-          </g>
-        </svg>
+      <div className="absolute left-1/2 top-1/2 h-[88%] w-[92%] max-h-[900px] max-w-[1040px] -translate-x-1/2 -translate-y-1/2">
+        <canvas ref={canvasRef} className="h-full w-full" />
       </div>
 
       <div
-        className="absolute left-1/2 top-1/2 h-[92%] w-[96%] max-h-[960px] max-w-[1100px] -translate-x-1/2 -translate-y-1/2"
+        className="absolute left-1/2 top-1/2 h-[90%] w-[94%] max-h-[920px] max-w-[1060px] -translate-x-1/2 -translate-y-1/2"
         style={{
           background:
-            "radial-gradient(circle at 50% 50%, rgba(255,255,255,0) 0%, rgba(255,255,255,0.02) 26%, rgba(255,255,255,0.1) 58%, rgba(255,255,255,0.82) 100%)",
+            "radial-gradient(circle at 50% 52%, rgba(255,255,255,0) 0%, rgba(255,255,255,0.03) 24%, rgba(255,255,255,0.14) 56%, rgba(255,255,255,0.92) 100%)",
         }}
       />
     </div>
