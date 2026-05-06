@@ -285,10 +285,10 @@ describe("SequenceSettingsPage", () => {
     render(<SequenceSettingsPage />);
 
     await waitFor(() => {
-      expect(screen.getByText("Use recommended defaults")).toBeInTheDocument();
+      expect(screen.getByText("Set up invoice numbering")).toBeInTheDocument();
     });
 
-    expect(screen.getByText("Customize numbering")).toBeInTheDocument();
+    expect(screen.getByText("Customize")).toBeInTheDocument();
     expect(screen.getByText("Recommended default")).toBeInTheDocument();
     expect(screen.getByText("INV/2026/00001")).toBeInTheDocument();
     expect(screen.queryByText(/Run the migration script/i)).not.toBeInTheDocument();
@@ -341,10 +341,10 @@ describe("SequenceSettingsPage", () => {
     render(<SequenceSettingsPage />);
 
     await waitFor(() => {
-      expect(screen.getByText("Use recommended defaults")).toBeInTheDocument();
+      expect(screen.getByText("Set up invoice numbering")).toBeInTheDocument();
     });
 
-    fireEvent.click(screen.getByText("Use recommended defaults"));
+    fireEvent.click(screen.getByText("Set up invoice numbering"));
 
     await waitFor(() => {
       expect(mockInitializeSequenceSettings).toHaveBeenCalledWith("org-1", {

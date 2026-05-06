@@ -611,7 +611,8 @@ function NotConfiguredState({
 }) {
   const recommended = getDefaultSequenceConfig(documentType);
   const recommendedPreview = renderPreview(recommended.formatString, recommended.startCounter);
-  const noun = documentType === "INVOICE" ? "Invoices" : "Vouchers";
+  const noun = documentType === "INVOICE" ? "Invoice" : "Voucher";
+  const nounPlural = documentType === "INVOICE" ? "Invoices" : "Vouchers";
 
   return (
     <div className="space-y-4">
@@ -620,7 +621,7 @@ function NotConfiguredState({
           Recommended default
         </p>
         <p className="mt-2 text-sm text-[var(--text-primary)]">
-          {noun} will start as{" "}
+          {nounPlural} will start as{" "}
           <span className="rounded border border-[var(--border-soft)] bg-white px-1.5 py-0.5 font-mono text-xs">
             {recommendedPreview ?? recommended.formatString}
           </span>{" "}
@@ -631,20 +632,27 @@ function NotConfiguredState({
         </p>
       </div>
 
-      {isOwner ? (
-        <div className="flex flex-wrap gap-2">
-          <Button onClick={onUseDefaults} disabled={saving} variant="primary" size="sm">
-            {saving ? "Setting up…" : "Use recommended defaults"}
-          </Button>
-          <Button onClick={onCustomize} variant="secondary" size="sm">
-            Customize numbering
-          </Button>
-        </div>
-      ) : (
-        <p className="text-sm text-[var(--text-muted)]">
-          {noun} numbering has not been set up for this organization yet.
-        </p>
-      )}
+      <div className="flex flex-wrap items-center gap-3">
+        {isOwner ? (
+          <>
+            <Button onClick={onUseDefaults} disabled={saving} variant="primary" size="sm">
+              {saving ? "Setting up…" : `Set up ${noun.toLowerCase()} numbering`}
+            </Button>
+            <Button onClick={onCustomize} variant="secondary" size="sm">
+              Customize
+            </Button>
+          </>
+        ) : (
+          <>
+            <Button disabled variant="primary" size="sm">
+              Set up {noun.toLowerCase()} numbering
+            </Button>
+            <p className="text-xs text-[var(--text-muted)]">
+              Only the organization owner can configure numbering.
+            </p>
+          </>
+        )}
+      </div>
     </div>
   );
 }
