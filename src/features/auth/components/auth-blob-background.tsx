@@ -22,90 +22,63 @@ export function AuthBlobBackground() {
       dpr = Math.min(window.devicePixelRatio || 1, 2);
       width = rect.width;
       height = rect.height;
-
       canvas.width = Math.max(1, Math.floor(width * dpr));
       canvas.height = Math.max(1, Math.floor(height * dpr));
       context.setTransform(dpr, 0, 0, dpr, 0, 0);
     };
 
-    const drawMorphBlob = ({
-      centerX,
-      centerY,
-      radiusX,
-      radiusY,
-      blur,
-      alpha,
+    const drawWaveRibbon = ({
       time,
+      yBase,
+      amplitude,
+      frequency,
       phase,
-      colors,
+      thickness,
+      alpha,
+      blur = 22,
     }: {
-      centerX: number;
-      centerY: number;
-      radiusX: number;
-      radiusY: number;
-      blur: number;
-      alpha: number;
       time: number;
+      yBase: number;
+      amplitude: number;
+      frequency: number;
       phase: number;
-      colors: Array<[number, string]>;
+      thickness: number;
+      alpha: number;
+      blur?: number;
     }) => {
-      const steps = 28;
-      const points: { x: number; y: number }[] = [];
-
-      for (let index = 0; index < steps; index += 1) {
-        const angle = (index / steps) * Math.PI * 2;
-        // separate X/Y morph to break circular symmetry
-        const morphX =
-          1 +
-          Math.sin(angle * 2 + time * 0.82 + phase) * 0.24 +
-          Math.cos(angle * 3 - time * 0.47 + phase * 0.92) * 0.16 +
-          Math.sin(angle * 5 + time * 0.31 - phase * 0.65) * 0.10 +
-          Math.cos(angle * 7 + time * 0.19 + phase * 1.3) * 0.06;
-
-        const morphY =
-          1 +
-          Math.cos(angle * 2 + time * 0.69 + phase * 1.1) * 0.22 +
-          Math.sin(angle * 4 - time * 0.53 + phase * 0.74) * 0.14 +
-          Math.cos(angle * 6 + time * 0.27 - phase * 0.48) * 0.09 +
-          Math.sin(angle * 8 + time * 0.15 + phase * 1.6) * 0.05;
-
-        points.push({
-          x:
-            centerX +
-            Math.cos(angle) * radiusX * morphX +
-            Math.sin(time * 0.41 + phase) * radiusX * 0.10,
-          y:
-            centerY +
-            Math.sin(angle) * radiusY * morphY +
-            Math.cos(time * 0.35 + phase * 0.72) * radiusY * 0.09,
-        });
-      }
-
-      const gradient = context.createRadialGradient(
-        centerX - radiusX * 0.12,
-        centerY - radiusY * 0.08,
-        0,
-        centerX,
-        centerY,
-        Math.max(radiusX, radiusY) * 1.08,
-      );
-
-      for (const [stop, color] of colors) {
-        gradient.addColorStop(stop, color.replace("__ALPHA__", String(alpha)));
-      }
+      const gradient = context.createLinearGradient(0, yBase - amplitude - thickness, 0, yBase + amplitude + thickness);
+      gradient.addColorStop(0, `rgba(255,255,255,0)`);
+      gradient.addColorStop(0.25, `rgba(254,226,226,${alpha * 0.5})`);
+      gradient.addColorStop(0.5, `rgba(220,38,38,${alpha})`);
+      gradient.addColorStop(0.75, `rgba(254,226,226,${alpha * 0.5})`);
+      gradient.addColorStop(1, `rgba(255,255,255,0)`);
 
       context.save();
       context.filter = `blur(${blur}px)`;
       context.fillStyle = gradient;
       context.beginPath();
-      context.moveTo(points[0]!.x, points[0]!.y);
 
-      for (let index = 0; index < steps; index += 1) {
-        const current = points[index]!;
-        const next = points[(index + 1) % steps]!;
-        const midpointX = (current.x + next.x) / 2;
-        const midpointY = (current.y + next.y) / 2;
-        context.quadraticCurveTo(current.x, current.y, midpointX, midpointY);
+      // top edge: flowing sine with secondary harmonic for organic shape
+      const steps = 60;
+      for (let i = 0; i <= steps; i++) {
+        const x = (i / steps) * width;
+        const y =
+          yBase +
+          Math.sin(x * frequency + time + phase) * amplitude +
+          Math.sin(x * frequency * 0.6 + time * 0.8 + phase * 1.3) * amplitude * 0.4;
+        if (i === 0) context.moveTo(x, y);
+        else context.lineTo(x, y);
+      }
+
+      // bottom edge
+      for (let i = steps; i >= 0; i--) {
+        const x = (i / steps) * width;
+        const y =
+          yBase +
+          Math.sin(x * frequency + time + phase) * amplitude +
+          Math.sin(x * frequency * 0.6 + time * 0.8 + phase * 1.3) * amplitude * 0.4 +
+          thickness;
+        context.lineTo(x, y);
       }
 
       context.closePath();
@@ -113,170 +86,235 @@ export function AuthBlobBackground() {
       context.restore();
     };
 
-    const drawSweep = (time: number, offset = 0, intensity = 1) => {
-      const topY = height * (0.12 + Math.sin(time * 0.28 + offset) * 0.07);
-      const midY = height * (0.46 + Math.cos(time * 0.37 + offset * 0.7) * 0.08);
-      const bottomY = height * (0.85 + Math.sin(time * 0.31 + offset * 0.5) * 0.06);
-      const gradient = context.createLinearGradient(width * -0.04, topY, width * 1.06, bottomY);
-      gradient.addColorStop(0, "rgba(255,255,255,0)");
-      gradient.addColorStop(0.12, `rgba(255,255,255,${0.18 * intensity})`);
-      gradient.addColorStop(0.28, `rgba(254,226,226,${0.28 * intensity})`);
-      gradient.addColorStop(0.5, `rgba(248,113,113,${0.42 * intensity})`);
-      gradient.addColorStop(0.72, `rgba(220,38,38,${0.32 * intensity})`);
-      gradient.addColorStop(1, "rgba(255,255,255,0)");
+    const drawDiagonalWave = ({
+      time,
+      xBase,
+      yBase,
+      amplitude,
+      frequency,
+      phase,
+      thickness,
+      alpha,
+      angle = 0.35,
+      blur = 26,
+    }: {
+      time: number;
+      xBase: number;
+      yBase: number;
+      amplitude: number;
+      frequency: number;
+      phase: number;
+      thickness: number;
+      alpha: number;
+      angle?: number;
+      blur?: number;
+    }) => {
+      const cosA = Math.cos(angle);
+      const sinA = Math.sin(angle);
+      const diagLen = Math.sqrt(width * width + height * height);
+      const steps = 50;
+
+      const gradient = context.createLinearGradient(
+        xBase - diagLen * cosA * 0.3,
+        yBase - diagLen * sinA * 0.3,
+        xBase + diagLen * cosA * 0.3,
+        yBase + diagLen * sinA * 0.3,
+      );
+      gradient.addColorStop(0, `rgba(255,255,255,0)`);
+      gradient.addColorStop(0.3, `rgba(252,165,165,${alpha * 0.55})`);
+      gradient.addColorStop(0.5, `rgba(220,38,38,${alpha})`);
+      gradient.addColorStop(0.7, `rgba(252,165,165,${alpha * 0.55})`);
+      gradient.addColorStop(1, `rgba(255,255,255,0)`);
 
       context.save();
-      context.filter = "blur(20px)";
-      context.strokeStyle = gradient;
-      context.lineWidth = Math.max(32, width * 0.06);
-      context.lineCap = "round";
+      context.filter = `blur(${blur}px)`;
+      context.fillStyle = gradient;
       context.beginPath();
-      context.moveTo(width * -0.04, topY);
-      context.bezierCurveTo(
-        width * 0.18,
-        topY + height * 0.26,
-        width * 0.36,
-        midY - height * 0.32,
-        width * 0.56,
-        midY,
-      );
-      context.bezierCurveTo(
-        width * 0.74,
-        midY + height * 0.26,
-        width * 0.90,
-        bottomY - height * 0.26,
-        width * 1.08,
-        bottomY,
-      );
-      context.stroke();
+
+      for (let i = 0; i <= steps; i++) {
+        const t = (i / steps - 0.5) * diagLen;
+        const wave = Math.sin(t * frequency + time + phase) * amplitude + Math.sin(t * frequency * 0.5 + time * 0.7) * amplitude * 0.35;
+        const x = xBase + t * cosA - wave * sinA;
+        const y = yBase + t * sinA + wave * cosA;
+        if (i === 0) context.moveTo(x, y);
+        else context.lineTo(x, y);
+      }
+      for (let i = steps; i >= 0; i--) {
+        const t = (i / steps - 0.5) * diagLen;
+        const wave = Math.sin(t * frequency + time + phase) * amplitude + Math.sin(t * frequency * 0.5 + time * 0.7) * amplitude * 0.35;
+        const x = xBase + t * cosA - (wave + thickness) * sinA;
+        const y = yBase + t * sinA + (wave + thickness) * cosA;
+        context.lineTo(x, y);
+      }
+
+      context.closePath();
+      context.fill();
+      context.restore();
+    };
+
+    const drawOrb = ({
+      cx,
+      cy,
+      rx,
+      ry,
+      blur,
+      alpha,
+      time,
+      phase,
+    }: {
+      cx: number;
+      cy: number;
+      rx: number;
+      ry: number;
+      blur: number;
+      alpha: number;
+      time: number;
+      phase: number;
+    }) => {
+      const steps = 20;
+      const points: { x: number; y: number }[] = [];
+      for (let i = 0; i < steps; i++) {
+        const angle = (i / steps) * Math.PI * 2;
+        const morph =
+          1 +
+          Math.sin(angle * 3 + time * 0.6 + phase) * 0.18 +
+          Math.cos(angle * 5 - time * 0.4 + phase * 0.8) * 0.12;
+        points.push({
+          x: cx + Math.cos(angle) * rx * morph + Math.sin(time * 0.3 + phase) * rx * 0.06,
+          y: cy + Math.sin(angle) * ry * morph + Math.cos(time * 0.25 + phase) * ry * 0.05,
+        });
+      }
+
+      const gradient = context.createRadialGradient(cx - rx * 0.1, cy - ry * 0.1, 0, cx, cy, Math.max(rx, ry));
+      gradient.addColorStop(0, `rgba(255,245,245,${alpha})`);
+      gradient.addColorStop(0.5, `rgba(248,113,113,${alpha * 0.8})`);
+      gradient.addColorStop(1, `rgba(220,38,38,0)`);
+
+      context.save();
+      context.filter = `blur(${blur}px)`;
+      context.fillStyle = gradient;
+      context.beginPath();
+      context.moveTo(points[0]!.x, points[0]!.y);
+      for (let i = 0; i < steps; i++) {
+        const c = points[i]!;
+        const n = points[(i + 1) % steps]!;
+        context.quadraticCurveTo(c.x, c.y, (c.x + n.x) / 2, (c.y + n.y) / 2);
+      }
+      context.closePath();
+      context.fill();
       context.restore();
     };
 
     const render = (timestamp: number) => {
       const time = timestamp * 0.001;
-      const anchorX = width * 0.52;
-      const anchorY = height * 0.53;
-
       context.clearRect(0, 0, width, height);
 
-      // Blob 1 — massive central anchor, widened
-      drawMorphBlob({
-        centerX: anchorX - width * 0.10 + Math.sin(time * 0.38) * width * 0.07,
-        centerY: anchorY + height * 0.08 + Math.cos(time * 0.32) * height * 0.06,
-        radiusX: width * 0.52,
-        radiusY: height * 0.34,
-        blur: 34,
-        alpha: 0.58,
+      // Back layer: wide soft orbs for ambient color
+      drawOrb({
+        cx: width * 0.45 + Math.sin(time * 0.2) * width * 0.04,
+        cy: height * 0.48 + Math.cos(time * 0.18) * height * 0.03,
+        rx: width * 0.28,
+        ry: height * 0.22,
+        blur: 50,
+        alpha: 0.28,
         time,
-        phase: 0.2,
-        colors: [
-          [0, "rgba(255,255,255,0)"],
-          [0.16, "rgba(255,241,242,__ALPHA__)"],
-          [0.44, "rgba(248,113,113,__ALPHA__)"],
-          [0.74, "rgba(220,38,38,__ALPHA__)"],
-          [1, "rgba(255,255,255,0)"],
-        ],
+        phase: 0,
       });
 
-      // Blob 2 — tall right-side mass
-      drawMorphBlob({
-        centerX: anchorX + width * 0.22 + Math.cos(time * 0.44) * width * 0.06,
-        centerY: anchorY + height * 0.02 + Math.sin(time * 0.39) * height * 0.08,
-        radiusX: width * 0.34,
-        radiusY: height * 0.50,
-        blur: 26,
+      drawOrb({
+        cx: width * 0.58 + Math.cos(time * 0.24) * width * 0.05,
+        cy: height * 0.52 + Math.sin(time * 0.2) * height * 0.04,
+        rx: width * 0.22,
+        ry: height * 0.28,
+        blur: 44,
+        alpha: 0.22,
+        time,
+        phase: 2.5,
+      });
+
+      // Mid layer: flowing horizontal wave ribbons
+      drawWaveRibbon({
+        time: time * 0.9,
+        yBase: height * 0.32,
+        amplitude: height * 0.07,
+        frequency: 0.008,
+        phase: 0,
+        thickness: height * 0.14,
+        alpha: 0.42,
+        blur: 24,
+      });
+
+      drawWaveRibbon({
+        time: time * 1.1,
+        yBase: height * 0.48,
+        amplitude: height * 0.09,
+        frequency: 0.006,
+        phase: 2.2,
+        thickness: height * 0.18,
         alpha: 0.50,
-        time: time + 1.4,
-        phase: 1.8,
-        colors: [
-          [0, "rgba(255,255,255,0)"],
-          [0.14, "rgba(255,245,245,__ALPHA__)"],
-          [0.40, "rgba(252,165,165,__ALPHA__)"],
-          [0.70, "rgba(239,68,68,__ALPHA__)"],
-          [1, "rgba(255,255,255,0)"],
-        ],
+        blur: 26,
       });
 
-      // Blob 3 — wide left-center band
-      drawMorphBlob({
-        centerX: anchorX - width * 0.28 + Math.sin(time * 0.29) * width * 0.05,
-        centerY: anchorY - height * 0.04 + Math.cos(time * 0.35) * height * 0.06,
-        radiusX: width * 0.30,
-        radiusY: height * 0.26,
-        blur: 22,
-        alpha: 0.38,
-        time: time + 2.9,
-        phase: 2.6,
-        colors: [
-          [0, "rgba(255,255,255,0)"],
-          [0.18, "rgba(255,255,255,__ALPHA__)"],
-          [0.44, "rgba(254,226,226,__ALPHA__)"],
-          [0.76, "rgba(248,113,113,__ALPHA__)"],
-          [1, "rgba(255,255,255,0)"],
-        ],
-      });
-
-      // Blob 4 — top wide accent, low blur for visibility
-      drawMorphBlob({
-        centerX: anchorX + width * 0.04 + Math.sin(time * 0.22) * width * 0.05,
-        centerY: anchorY - height * 0.22 + Math.cos(time * 0.27) * height * 0.05,
-        radiusX: width * 0.44,
-        radiusY: height * 0.20,
-        blur: 38,
-        alpha: 0.32,
-        time: time + 4.4,
+      drawWaveRibbon({
+        time: time * 0.8,
+        yBase: height * 0.66,
+        amplitude: height * 0.06,
+        frequency: 0.009,
         phase: 4.1,
-        colors: [
-          [0, "rgba(255,255,255,0)"],
-          [0.26, "rgba(255,255,255,__ALPHA__)"],
-          [0.54, "rgba(254,226,226,__ALPHA__)"],
-          [0.84, "rgba(248,113,113,__ALPHA__)"],
-          [1, "rgba(255,255,255,0)"],
-        ],
+        thickness: height * 0.12,
+        alpha: 0.36,
+        blur: 22,
       });
 
-      // Blob 5 — top-left spread anchor
-      drawMorphBlob({
-        centerX: width * 0.18 + Math.cos(time * 0.33) * width * 0.06,
-        centerY: height * 0.18 + Math.sin(time * 0.28) * height * 0.07,
-        radiusX: width * 0.30,
-        radiusY: height * 0.24,
-        blur: 30,
-        alpha: 0.34,
-        time: time + 3.2,
-        phase: 5.5,
-        colors: [
-          [0, "rgba(255,255,255,0)"],
-          [0.20, "rgba(255,245,245,__ALPHA__)"],
-          [0.48, "rgba(252,165,165,__ALPHA__)"],
-          [0.78, "rgba(239,68,68,__ALPHA__)"],
-          [1, "rgba(255,255,255,0)"],
-        ],
-      });
-
-      // Blob 6 — bottom-right sweep mass
-      drawMorphBlob({
-        centerX: width * 0.78 + Math.sin(time * 0.26) * width * 0.05,
-        centerY: height * 0.76 + Math.cos(time * 0.31) * height * 0.06,
-        radiusX: width * 0.28,
-        radiusY: height * 0.22,
+      // Front layer: diagonal wave accents for depth
+      drawDiagonalWave({
+        time: time * 0.7,
+        xBase: width * 0.35,
+        yBase: height * 0.4,
+        amplitude: height * 0.05,
+        frequency: 0.007,
+        phase: 1.0,
+        thickness: height * 0.10,
+        alpha: 0.32,
+        angle: 0.25,
         blur: 28,
-        alpha: 0.30,
-        time: time + 5.1,
-        phase: 3.3,
-        colors: [
-          [0, "rgba(255,255,255,0)"],
-          [0.22, "rgba(255,241,242,__ALPHA__)"],
-          [0.50, "rgba(254,202,202,__ALPHA__)"],
-          [0.80, "rgba(220,38,38,__ALPHA__)"],
-          [1, "rgba(255,255,255,0)"],
-        ],
       });
 
-      // Sweeps — wider, more intense
-      drawSweep(time, 0, 1);
-      drawSweep(time + 1.8, 2.2, 0.72);
-      drawSweep(time + 3.6, 4.4, 0.48);
+      drawDiagonalWave({
+        time: time * 0.85,
+        xBase: width * 0.65,
+        yBase: height * 0.55,
+        amplitude: height * 0.04,
+        frequency: 0.008,
+        phase: 3.5,
+        thickness: height * 0.08,
+        alpha: 0.26,
+        angle: -0.3,
+        blur: 30,
+      });
+
+      // Small sharp accent orbs for focal points
+      drawOrb({
+        cx: width * 0.38 + Math.sin(time * 0.45) * width * 0.03,
+        cy: height * 0.35 + Math.cos(time * 0.38) * height * 0.025,
+        rx: width * 0.10,
+        ry: height * 0.08,
+        blur: 18,
+        alpha: 0.45,
+        time,
+        phase: 1.2,
+      });
+
+      drawOrb({
+        cx: width * 0.62 + Math.cos(time * 0.5) * width * 0.035,
+        cy: height * 0.60 + Math.sin(time * 0.42) * height * 0.03,
+        rx: width * 0.08,
+        ry: height * 0.10,
+        blur: 16,
+        alpha: 0.38,
+        time,
+        phase: 3.8,
+      });
 
       frameId = window.requestAnimationFrame(render);
     };
