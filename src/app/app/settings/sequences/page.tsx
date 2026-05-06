@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useActiveOrg } from "@/hooks/use-active-org";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -37,10 +37,13 @@ import type { SequenceDocumentType, HealthCheckReport, HealthCheckFailure } from
 export default function SequenceSettingsPage() {
   const { activeOrg, isLoading: isOrgLoading } = useActiveOrg();
   const [canEditSettings, setCanEditSettings] = useState<boolean | null>(null);
-  // Server-validated editability only. No client-side fallback to avoid
-  // split-brain when localStorage and server userOrgPreference drift.
-  const isOwner = canEditSettings === true;
-  const editabilityKnown = canEditSettings !== null;
+  // Derive owner status from server response first; fall back to client-side org
+  // role because the server-side canEdit check can be out of sync after role changes.
+  const isOwner =
+    canEditSettings === true ||
+    activeOrg?.role === "owner" ||
+    activeOrg?.role === "OWNER";
+  const editabilityKnown = canEditSettings !== null || activeOrg?.role != null;
 
   const [invoiceSettings, setInvoiceSettings] = useState<SequenceSettingsData | null>(null);
   const [voucherSettings, setVoucherSettings] = useState<SequenceSettingsData | null>(null);
@@ -237,7 +240,7 @@ export default function SequenceSettingsPage() {
 
   if (isOrgLoading) {
     return (
-      <div className="slipwise-panel p-6">
+      <div className="py-6">
         <p className="text-sm text-[var(--text-muted)]">Loading organization...</p>
       </div>
     );
@@ -245,7 +248,7 @@ export default function SequenceSettingsPage() {
 
   if (loading) {
     return (
-      <div className="slipwise-panel p-6">
+      <div className="py-6">
         <p className="text-sm text-[var(--text-muted)]">Loading sequence settings...</p>
       </div>
     );
@@ -381,20 +384,20 @@ export default function SequenceSettingsPage() {
           <h3 className="text-xs font-semibold uppercase tracking-[0.15em] text-[var(--text-muted)]">
             Continue from existing numbers
           </h3>
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Continue from your last used number</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
+          <div className="rounded-lg border border-[var(--border-soft)] bg-white">
+            <div className="border-b border-[var(--border-soft)] px-5 py-4">
+              <h3 className="text-base font-semibold text-[var(--text-primary)]">Continue from your last used number</h3>
+            </div>
+            <div className="px-5 py-4 space-y-4">
               <div className="flex items-center gap-3">
-                <label className="text-sm text-[#666]">Document type:</label>
+                <label className="text-sm text-[var(--text-muted)]">Document type:</label>
                 <select
                   value={seedDocType}
                   onChange={(e) => {
                     setSeedDocType(e.target.value as SequenceDocumentType);
                     setSeedNumber("");
                   }}
-                  className="block w-40 rounded-xl border border-[#e5e5e5] bg-white px-3 py-2 text-sm text-[#1a1a1a] focus:outline-none focus:ring-2 focus:ring-[#dc2626]"
+                  className="block w-40 rounded-lg border border-[var(--border-soft)] bg-white px-3 py-2 text-sm text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--brand-primary)]"
                 >
                   {invoiceSettings ? <option value="INVOICE">Invoice</option> : null}
                   {voucherSettings ? <option value="VOUCHER">Voucher</option> : null}
@@ -429,8 +432,8 @@ export default function SequenceSettingsPage() {
                   }
                 }}
               />
-            </CardContent>
-          </Card>
+            </div>
+          </div>
         </section>
       )}
 
@@ -526,32 +529,32 @@ function SequenceConfigCard({
     const recommendedPreview = renderPreview(recommended.formatString, recommended.startCounter);
 
     return (
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">
+      <div className="rounded-lg border border-[var(--border-soft)] bg-white">
+        <div className="border-b border-[var(--border-soft)] px-5 py-4">
+          <h3 className="text-base font-semibold text-[var(--text-primary)]">
             {documentType === "INVOICE" ? "Invoice Numbering" : "Voucher Numbering"}
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
+          </h3>
+        </div>
+        <div className="px-5 py-4 space-y-4">
           {!isEditing ? (
             <>
-              <p className="text-sm text-[#666]">
+              <p className="text-sm text-[var(--text-muted)]">
                 {isOwner
                   ? `This organization has not set up ${documentType === "INVOICE" ? "invoice" : "voucher"} numbering yet.`
                   : `${documentType === "INVOICE" ? "Invoice" : "Voucher"} numbering has not been set up for this organization yet.`}
               </p>
-              <div className="rounded-xl border border-[#e5e5e5] bg-[#fafafa] px-4 py-3 space-y-2">
-                <p className="text-xs font-semibold uppercase tracking-wide text-[#999]">
+              <div className="rounded-lg border border-[var(--border-soft)] bg-[var(--surface-subtle)]/40 px-4 py-3 space-y-2">
+                <p className="text-[0.7rem] font-semibold uppercase tracking-[0.12em] text-[var(--text-muted)]">
                   Recommended default
                 </p>
-                <p className="text-sm text-[#1a1a1a]">
+                <p className="text-sm text-[var(--text-primary)]">
                   {documentType === "INVOICE" ? "Invoices" : "Vouchers"} will start as{" "}
-                  <span className="rounded border border-[#e5e5e5] bg-white px-1.5 py-0.5 font-mono">
+                  <span className="rounded border border-[var(--border-soft)] bg-white px-1.5 py-0.5 font-mono text-xs">
                     {recommendedPreview ?? recommended.formatString}
                   </span>{" "}
                   and reset every year.
                 </p>
-                <p className="text-xs text-[#666]">
+                <p className="text-xs text-[var(--text-muted)]">
                   You can keep this recommended setup or customize the prefix, reset cycle, and number length.
                 </p>
               </div>
@@ -562,10 +565,11 @@ function SequenceConfigCard({
                     disabled={saving}
                     variant="primary"
                     size="sm"
+                    className="h-9 px-4"
                   >
                     {saving ? "Setting up…" : "Use recommended defaults"}
                   </Button>
-                  <Button onClick={onEdit} variant="secondary" size="sm">
+                  <Button onClick={onEdit} variant="secondary" size="sm" className="h-9 px-4">
                     Customize numbering
                   </Button>
                 </div>
@@ -575,33 +579,33 @@ function SequenceConfigCard({
             <>
               {children}
               <div className="flex gap-2 pt-2">
-                <Button onClick={onSave} disabled={saving} variant="primary" size="sm">
+                <Button onClick={onSave} disabled={saving} variant="primary" size="sm" className="h-9 px-4">
                   {saving ? "Saving…" : "Create numbering"}
                 </Button>
-                <Button onClick={onCancel} variant="ghost" size="sm">
+                <Button onClick={onCancel} variant="ghost" size="sm" className="h-9 px-4">
                   Cancel
                 </Button>
               </div>
             </>
           )}
-        </CardContent>
-      </Card>
+        </div>
+      </div>
     );
   }
 
   return (
-    <Card>
-      <CardHeader>
+    <div className="rounded-lg border border-[var(--border-soft)] bg-white">
+      <div className="border-b border-[var(--border-soft)] px-5 py-4">
         <div className="flex items-center justify-between">
-          <CardTitle className="text-base">
+          <h3 className="text-base font-semibold text-[var(--text-primary)]">
             {documentType === "INVOICE" ? "Invoice Numbering" : "Voucher Numbering"}
-          </CardTitle>
+          </h3>
           <Badge variant={settings.isActive ? "success" : "warning"}>
             {settings.isActive ? "Active" : "Inactive"}
           </Badge>
         </div>
-      </CardHeader>
-      <CardContent className="space-y-4">
+      </div>
+      <div className="px-5 py-4 space-y-4">
         {!isEditing ? (
           <SequenceSummary
             documentType={documentType}
@@ -616,15 +620,15 @@ function SequenceConfigCard({
         {isOwner && (
           <div className="flex gap-2 pt-2">
             {!isEditing ? (
-              <Button onClick={onEdit} variant="secondary" size="sm">
+              <Button onClick={onEdit} variant="secondary" size="sm" className="h-9 px-4">
                 Edit numbering
               </Button>
             ) : (
               <>
-                <Button onClick={onSave} disabled={saving} variant="primary" size="sm">
+                <Button onClick={onSave} disabled={saving} variant="primary" size="sm" className="h-9 px-4">
                   {saving ? "Saving…" : "Save changes"}
                 </Button>
-                <Button onClick={onCancel} variant="ghost" size="sm">
+                <Button onClick={onCancel} variant="ghost" size="sm" className="h-9 px-4">
                   Cancel
                 </Button>
               </>
@@ -634,8 +638,8 @@ function SequenceConfigCard({
 
         {/* History section */}
         {!isEditing && settings.sequenceId && orgId && (
-          <details className="group mt-4 border-t border-slate-100 pt-4">
-            <summary className="flex cursor-pointer items-center gap-2 text-xs font-medium text-slate-500 hover:text-slate-700">
+          <details className="group mt-4 border-t border-[var(--border-soft)] pt-4">
+            <summary className="flex cursor-pointer items-center gap-2 text-xs font-medium text-[var(--text-muted)] hover:text-[var(--text-secondary)]">
               <svg
                 className="h-3.5 w-3.5 transition-transform group-open:rotate-90"
                 viewBox="0 0 24 24"
@@ -657,8 +661,8 @@ function SequenceConfigCard({
             </div>
           </details>
         )}
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   );
 }
 
@@ -697,11 +701,11 @@ function DiagnosticsSection({
   onError: (v: string | null) => void;
 }) {
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="text-base">Diagnostics &amp; Support</CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-6">
+    <div className="rounded-lg border border-[var(--border-soft)] bg-white">
+      <div className="border-b border-[var(--border-soft)] px-5 py-4">
+        <h3 className="text-base font-semibold text-[var(--text-primary)]">Diagnostics &amp; Support</h3>
+      </div>
+      <div className="px-5 py-4 space-y-6">
         <p className="text-sm text-[#666]">
           Investigate sequence health, current state, and irregularities.
         </p>
@@ -914,8 +918,8 @@ function DiagnosticsSection({
             </div>
           </div>
         )}
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   );
 }
 
