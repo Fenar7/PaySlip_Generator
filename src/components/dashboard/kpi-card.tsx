@@ -16,7 +16,7 @@ export function KpiCard({ label, value, icon: Icon, trend, className }: KpiCardP
   return (
     <div
       className={cn(
-        "slipwise-panel flex flex-col gap-3 p-5 transition-shadow hover:shadow-md",
+        "slipwise-panel flex flex-col gap-3 p-5 transition-colors hover:border-[var(--border-brand)]",
         className
       )}
     >

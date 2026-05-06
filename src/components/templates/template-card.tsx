@@ -56,8 +56,8 @@ export function TemplateCard({
   return (
     <div
       className={cn(
-        "group relative flex flex-col overflow-hidden rounded-xl border border-[var(--border-default)] bg-white shadow-[var(--shadow-card)] transition-all duration-200",
-        "hover:shadow-[var(--shadow-lg)] hover:-translate-y-0.5"
+        "group relative flex flex-col overflow-hidden rounded-lg border border-[var(--border-default)] bg-white transition-colors duration-200",
+        "hover:border-[var(--border-strong)]"
       )}
     >
       {/* Preview thumbnail */}
@@ -71,7 +71,7 @@ export function TemplateCard({
         aria-label={`Preview ${template.name}`}
       >
         <div className="absolute inset-0 flex items-center justify-center p-4">
-          <div className="w-full max-w-[120px] shadow-lg rounded-md overflow-hidden">
+          <div className="w-full max-w-[120px] overflow-hidden rounded-sm border border-[var(--border-soft)] bg-white">
             <Image
               src={template.previewImage}
               alt={template.name}
@@ -86,13 +86,13 @@ export function TemplateCard({
         {/* Badges */}
         <div className="absolute top-2.5 left-2.5 flex flex-col gap-1.5">
           {isDefault && (
-            <div className="inline-flex items-center gap-1 rounded-md bg-[var(--state-success)] px-2 py-1 text-[0.6rem] font-bold uppercase tracking-wider text-white shadow-sm">
+            <div className="inline-flex items-center gap-1 rounded-sm bg-[var(--state-success)] px-2 py-1 text-[0.6rem] font-bold uppercase tracking-wider text-white">
               <CheckCircle2 className="h-3 w-3" />
               Default
             </div>
           )}
           {template.isPremium && (
-            <div className="inline-flex items-center gap-1 rounded-md bg-[var(--brand-secondary)] px-2 py-1 text-[0.6rem] font-bold uppercase tracking-wider text-white shadow-sm">
+            <div className="inline-flex items-center gap-1 rounded-sm bg-[var(--brand-secondary)] px-2 py-1 text-[0.6rem] font-bold uppercase tracking-wider text-white">
               <Star className="h-3 w-3" />
               Pro
             </div>
@@ -100,8 +100,8 @@ export function TemplateCard({
         </div>
 
         {/* Hover overlay */}
-        <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-black/0 group-hover:bg-black/35 transition-all opacity-0 group-hover:opacity-100">
-          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-white/95 text-[var(--text-primary)] shadow-lg">
+        <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-black/0 opacity-0 transition-all group-hover:bg-black/30 group-hover:opacity-100">
+          <div className="flex h-10 w-10 items-center justify-center rounded-md bg-white/95 text-[var(--text-primary)]">
             <Eye className="h-4 w-4" />
           </div>
           <span className="text-xs font-semibold text-white drop-shadow-md">Preview</span>
@@ -165,7 +165,7 @@ export function TemplateCard({
             type="button"
             onClick={handleUseOnce}
             disabled={isPending}
-            className="flex-1 rounded-lg border border-[var(--border-default)] bg-white px-3 py-2 text-xs font-medium text-[var(--text-primary)] shadow-[var(--shadow-xs)] transition-all hover:bg-[var(--surface-subtle)] disabled:opacity-50"
+            className="flex-1 rounded-md border border-[var(--border-default)] bg-white px-3 py-2 text-xs font-medium text-[var(--text-primary)] transition-colors hover:bg-[var(--surface-subtle)] disabled:opacity-50"
           >
             Use Once
           </button>
@@ -174,10 +174,10 @@ export function TemplateCard({
             onClick={handleSetDefault}
             disabled={isPending || isDefault}
             className={cn(
-              "flex-1 rounded-lg px-3 py-2 text-xs font-medium transition-all disabled:opacity-50",
+              "flex-1 rounded-md px-3 py-2 text-xs font-medium transition-colors disabled:opacity-50",
               isDefault
                 ? "border border-[var(--state-success)]/30 bg-[var(--state-success-soft)] text-[var(--state-success)] cursor-default"
-                : "border border-transparent bg-[var(--brand-cta)] text-white shadow-[var(--shadow-xs)] hover:bg-[#B91C1C]"
+                : "border border-transparent bg-[var(--brand-cta)] text-white hover:bg-[#B91C1C]"
             )}
           >
             {isPending ? "Saving…" : isDefault ? "Default Set" : "Set Default"}
