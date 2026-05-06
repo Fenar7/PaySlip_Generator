@@ -280,7 +280,7 @@ export function LoginForm({
 
       <AuthDivider text="or" />
 
-      <div className="space-y-3">
+      <div className="grid grid-cols-2 gap-3">
         <GoogleButton callbackURL={destination} />
         {passkeySupported && (
           <Button
@@ -291,7 +291,7 @@ export function LoginForm({
             disabled={passkeyLoading}
           >
             <KeyRound className="h-4 w-4" style={{ color: "#79747E" }} />
-            {passkeyLoading ? "Waiting for passkey…" : "Sign in with passkey"}
+            {passkeyLoading ? "Waiting…" : "Passkey"}
           </Button>
         )}
       </div>
