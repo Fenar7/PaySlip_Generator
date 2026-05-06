@@ -133,16 +133,16 @@ export async function computeAndUpsertSnapshot(
   const storageBytes = Number(storageAggregate._sum.size ?? 0);
 
   const data = {
-    activeInvoices,
-    activeQuotes,
-    vouchers,
-    salarySlips,
+    activeInvoices: Number(activeInvoices),
+    activeQuotes: Number(activeQuotes),
+    vouchers: Number(vouchers),
+    salarySlips: Number(salarySlips),
     storageBytes,
-    teamMembers,
-    webhookCallsMonthly,
-    activePortalSessions,
-    activeShareBundles,
-    pixelJobsSaved,
+    teamMembers: Number(teamMembers),
+    webhookCallsMonthly: Number(webhookCallsMonthly),
+    activePortalSessions: Number(activePortalSessions),
+    activeShareBundles: Number(activeShareBundles),
+    pixelJobsSaved: Number(pixelJobsSaved),
     lastComputedAt: new Date(),
     periodEnd: end,
   };
@@ -153,7 +153,7 @@ export async function computeAndUpsertSnapshot(
     update: data,
   });
 
-  return data as unknown as Record<string, number>;
+  return normalizeBigInts(data);
 }
 
 function resolvePlanLimit(
