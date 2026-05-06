@@ -93,14 +93,7 @@ export default async function UsagePage() {
   ];
 
   return (
-    <div className="mx-auto max-w-2xl space-y-8 p-6">
-      <div>
-        <h1 className="text-2xl font-bold">Usage &amp; Limits</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Current usage for your organisation against plan limits.
-        </p>
-      </div>
-
+    <div className="space-y-8">
       <UsageDashboardClient
         rows={rows}
         planName={planId}
