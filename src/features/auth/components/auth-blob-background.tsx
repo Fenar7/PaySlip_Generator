@@ -9,17 +9,20 @@ export function AuthBlobBackground() {
     const canvas = canvasRef.current;
     if (!canvas) return;
 
-    const context = canvas.getContext("2d");
+    const context = canvas.getContext("2d", { alpha: true, desynchronized: true });
     if (!context) return;
 
     let frameId = 0;
     let width = 0;
     let height = 0;
     let dpr = 1;
+    let lastDraw = 0;
+    const TARGET_FPS = 30;
+    const FRAME_INTERVAL = 1000 / TARGET_FPS;
 
     const resize = () => {
       const rect = canvas.getBoundingClientRect();
-      dpr = Math.min(window.devicePixelRatio || 1, 2);
+      dpr = Math.min(window.devicePixelRatio || 1, 1.25);
       width = rect.width;
       height = rect.height;
       canvas.width = Math.max(1, Math.floor(width * dpr));
@@ -27,57 +30,39 @@ export function AuthBlobBackground() {
       context.setTransform(dpr, 0, 0, dpr, 0, 0);
     };
 
-    const drawWaveRibbon = ({
-      time,
-      yBase,
-      amplitude,
-      frequency,
-      phase,
-      thickness,
-      alpha,
-      blur = 22,
-    }: {
-      time: number;
-      yBase: number;
-      amplitude: number;
-      frequency: number;
-      phase: number;
-      thickness: number;
-      alpha: number;
-      blur?: number;
-    }) => {
+    const drawWaveRibbon = (
+      time: number,
+      yBase: number,
+      amplitude: number,
+      frequency: number,
+      phase: number,
+      thickness: number,
+      alpha: number,
+    ) => {
       const gradient = context.createLinearGradient(0, yBase - amplitude - thickness, 0, yBase + amplitude + thickness);
-      gradient.addColorStop(0, `rgba(255,255,255,0)`);
+      gradient.addColorStop(0, "rgba(255,255,255,0)");
       gradient.addColorStop(0.25, `rgba(254,226,226,${alpha * 0.5})`);
       gradient.addColorStop(0.5, `rgba(220,38,38,${alpha})`);
       gradient.addColorStop(0.75, `rgba(254,226,226,${alpha * 0.5})`);
-      gradient.addColorStop(1, `rgba(255,255,255,0)`);
+      gradient.addColorStop(1, "rgba(255,255,255,0)");
 
       context.save();
-      context.filter = `blur(${blur}px)`;
+      context.globalAlpha = 1;
+      context.shadowBlur = 18;
+      context.shadowColor = `rgba(220,38,38,${alpha * 0.35})`;
       context.fillStyle = gradient;
       context.beginPath();
 
-      // top edge: flowing sine with secondary harmonic for organic shape
-      const steps = 60;
+      const steps = 24;
       for (let i = 0; i <= steps; i++) {
         const x = (i / steps) * width;
-        const y =
-          yBase +
-          Math.sin(x * frequency + time + phase) * amplitude +
-          Math.sin(x * frequency * 0.6 + time * 0.8 + phase * 1.3) * amplitude * 0.4;
+        const y = yBase + Math.sin(x * frequency + time + phase) * amplitude + Math.sin(x * frequency * 0.6 + time * 0.8 + phase * 1.3) * amplitude * 0.4;
         if (i === 0) context.moveTo(x, y);
         else context.lineTo(x, y);
       }
-
-      // bottom edge
       for (let i = steps; i >= 0; i--) {
         const x = (i / steps) * width;
-        const y =
-          yBase +
-          Math.sin(x * frequency + time + phase) * amplitude +
-          Math.sin(x * frequency * 0.6 + time * 0.8 + phase * 1.3) * amplitude * 0.4 +
-          thickness;
+        const y = yBase + Math.sin(x * frequency + time + phase) * amplitude + Math.sin(x * frequency * 0.6 + time * 0.8 + phase * 1.3) * amplitude * 0.4 + thickness;
         context.lineTo(x, y);
       }
 
@@ -86,33 +71,21 @@ export function AuthBlobBackground() {
       context.restore();
     };
 
-    const drawDiagonalWave = ({
-      time,
-      xBase,
-      yBase,
-      amplitude,
-      frequency,
-      phase,
-      thickness,
-      alpha,
+    const drawDiagonalWave = (
+      time: number,
+      xBase: number,
+      yBase: number,
+      amplitude: number,
+      frequency: number,
+      phase: number,
+      thickness: number,
+      alpha: number,
       angle = 0.35,
-      blur = 26,
-    }: {
-      time: number;
-      xBase: number;
-      yBase: number;
-      amplitude: number;
-      frequency: number;
-      phase: number;
-      thickness: number;
-      alpha: number;
-      angle?: number;
-      blur?: number;
-    }) => {
+    ) => {
       const cosA = Math.cos(angle);
       const sinA = Math.sin(angle);
       const diagLen = Math.sqrt(width * width + height * height);
-      const steps = 50;
+      const steps = 18;
 
       const gradient = context.createLinearGradient(
         xBase - diagLen * cosA * 0.3,
@@ -120,14 +93,15 @@ export function AuthBlobBackground() {
         xBase + diagLen * cosA * 0.3,
         yBase + diagLen * sinA * 0.3,
       );
-      gradient.addColorStop(0, `rgba(255,255,255,0)`);
+      gradient.addColorStop(0, "rgba(255,255,255,0)");
       gradient.addColorStop(0.3, `rgba(252,165,165,${alpha * 0.55})`);
       gradient.addColorStop(0.5, `rgba(220,38,38,${alpha})`);
       gradient.addColorStop(0.7, `rgba(252,165,165,${alpha * 0.55})`);
-      gradient.addColorStop(1, `rgba(255,255,255,0)`);
+      gradient.addColorStop(1, "rgba(255,255,255,0)");
 
       context.save();
-      context.filter = `blur(${blur}px)`;
+      context.shadowBlur = 20;
+      context.shadowColor = `rgba(220,38,38,${alpha * 0.3})`;
       context.fillStyle = gradient;
       context.beginPath();
 
@@ -152,33 +126,20 @@ export function AuthBlobBackground() {
       context.restore();
     };
 
-    const drawOrb = ({
-      cx,
-      cy,
-      rx,
-      ry,
-      blur,
-      alpha,
-      time,
-      phase,
-    }: {
-      cx: number;
-      cy: number;
-      rx: number;
-      ry: number;
-      blur: number;
-      alpha: number;
-      time: number;
-      phase: number;
-    }) => {
-      const steps = 20;
+    const drawOrb = (
+      cx: number,
+      cy: number,
+      rx: number,
+      ry: number,
+      alpha: number,
+      time: number,
+      phase: number,
+    ) => {
+      const steps = 16;
       const points: { x: number; y: number }[] = [];
       for (let i = 0; i < steps; i++) {
         const angle = (i / steps) * Math.PI * 2;
-        const morph =
-          1 +
-          Math.sin(angle * 3 + time * 0.6 + phase) * 0.18 +
-          Math.cos(angle * 5 - time * 0.4 + phase * 0.8) * 0.12;
+        const morph = 1 + Math.sin(angle * 3 + time * 0.6 + phase) * 0.18 + Math.cos(angle * 5 - time * 0.4 + phase * 0.8) * 0.12;
         points.push({
           x: cx + Math.cos(angle) * rx * morph + Math.sin(time * 0.3 + phase) * rx * 0.06,
           y: cy + Math.sin(angle) * ry * morph + Math.cos(time * 0.25 + phase) * ry * 0.05,
@@ -188,10 +149,11 @@ export function AuthBlobBackground() {
       const gradient = context.createRadialGradient(cx - rx * 0.1, cy - ry * 0.1, 0, cx, cy, Math.max(rx, ry));
       gradient.addColorStop(0, `rgba(255,245,245,${alpha})`);
       gradient.addColorStop(0.5, `rgba(248,113,113,${alpha * 0.8})`);
-      gradient.addColorStop(1, `rgba(220,38,38,0)`);
+      gradient.addColorStop(1, "rgba(220,38,38,0)");
 
       context.save();
-      context.filter = `blur(${blur}px)`;
+      context.shadowBlur = 16;
+      context.shadowColor = `rgba(220,38,38,${alpha * 0.25})`;
       context.fillStyle = gradient;
       context.beginPath();
       context.moveTo(points[0]!.x, points[0]!.y);
@@ -206,117 +168,55 @@ export function AuthBlobBackground() {
     };
 
     const render = (timestamp: number) => {
+      frameId = window.requestAnimationFrame(render);
+      if (timestamp - lastDraw < FRAME_INTERVAL) return;
+      lastDraw = timestamp;
+
       const time = timestamp * 0.001;
       context.clearRect(0, 0, width, height);
 
-      // Back layer: wide soft orbs for ambient color
-      drawOrb({
-        cx: width * 0.45 + Math.sin(time * 0.2) * width * 0.04,
-        cy: height * 0.48 + Math.cos(time * 0.18) * height * 0.03,
-        rx: width * 0.28,
-        ry: height * 0.22,
-        blur: 50,
-        alpha: 0.28,
+      drawOrb(
+        width * 0.45 + Math.sin(time * 0.2) * width * 0.04,
+        height * 0.48 + Math.cos(time * 0.18) * height * 0.03,
+        width * 0.28,
+        height * 0.22,
+        0.28,
         time,
-        phase: 0,
-      });
-
-      drawOrb({
-        cx: width * 0.58 + Math.cos(time * 0.24) * width * 0.05,
-        cy: height * 0.52 + Math.sin(time * 0.2) * height * 0.04,
-        rx: width * 0.22,
-        ry: height * 0.28,
-        blur: 44,
-        alpha: 0.22,
+        0,
+      );
+      drawOrb(
+        width * 0.58 + Math.cos(time * 0.24) * width * 0.05,
+        height * 0.52 + Math.sin(time * 0.2) * height * 0.04,
+        width * 0.22,
+        height * 0.28,
+        0.22,
         time,
-        phase: 2.5,
-      });
+        2.5,
+      );
 
-      // Mid layer: flowing horizontal wave ribbons
-      drawWaveRibbon({
-        time: time * 0.9,
-        yBase: height * 0.32,
-        amplitude: height * 0.07,
-        frequency: 0.008,
-        phase: 0,
-        thickness: height * 0.14,
-        alpha: 0.42,
-        blur: 24,
-      });
+      drawWaveRibbon(time * 0.9, height * 0.32, height * 0.07, 0.008, 0, height * 0.14, 0.42);
+      drawWaveRibbon(time * 1.1, height * 0.52, height * 0.09, 0.006, 2.2, height * 0.18, 0.50);
 
-      drawWaveRibbon({
-        time: time * 1.1,
-        yBase: height * 0.48,
-        amplitude: height * 0.09,
-        frequency: 0.006,
-        phase: 2.2,
-        thickness: height * 0.18,
-        alpha: 0.50,
-        blur: 26,
-      });
+      drawDiagonalWave(time * 0.7, width * 0.35, height * 0.4, height * 0.05, 0.007, 1.0, height * 0.10, 0.32, 0.25);
 
-      drawWaveRibbon({
-        time: time * 0.8,
-        yBase: height * 0.66,
-        amplitude: height * 0.06,
-        frequency: 0.009,
-        phase: 4.1,
-        thickness: height * 0.12,
-        alpha: 0.36,
-        blur: 22,
-      });
-
-      // Front layer: diagonal wave accents for depth
-      drawDiagonalWave({
-        time: time * 0.7,
-        xBase: width * 0.35,
-        yBase: height * 0.4,
-        amplitude: height * 0.05,
-        frequency: 0.007,
-        phase: 1.0,
-        thickness: height * 0.10,
-        alpha: 0.32,
-        angle: 0.25,
-        blur: 28,
-      });
-
-      drawDiagonalWave({
-        time: time * 0.85,
-        xBase: width * 0.65,
-        yBase: height * 0.55,
-        amplitude: height * 0.04,
-        frequency: 0.008,
-        phase: 3.5,
-        thickness: height * 0.08,
-        alpha: 0.26,
-        angle: -0.3,
-        blur: 30,
-      });
-
-      // Small sharp accent orbs for focal points
-      drawOrb({
-        cx: width * 0.38 + Math.sin(time * 0.45) * width * 0.03,
-        cy: height * 0.35 + Math.cos(time * 0.38) * height * 0.025,
-        rx: width * 0.10,
-        ry: height * 0.08,
-        blur: 18,
-        alpha: 0.45,
+      drawOrb(
+        width * 0.38 + Math.sin(time * 0.45) * width * 0.03,
+        height * 0.35 + Math.cos(time * 0.38) * height * 0.025,
+        width * 0.10,
+        height * 0.08,
+        0.45,
         time,
-        phase: 1.2,
-      });
-
-      drawOrb({
-        cx: width * 0.62 + Math.cos(time * 0.5) * width * 0.035,
-        cy: height * 0.60 + Math.sin(time * 0.42) * height * 0.03,
-        rx: width * 0.08,
-        ry: height * 0.10,
-        blur: 16,
-        alpha: 0.38,
+        1.2,
+      );
+      drawOrb(
+        width * 0.62 + Math.cos(time * 0.5) * width * 0.035,
+        height * 0.60 + Math.sin(time * 0.42) * height * 0.03,
+        width * 0.08,
+        height * 0.10,
+        0.38,
         time,
-        phase: 3.8,
-      });
-
-      frameId = window.requestAnimationFrame(render);
+        3.8,
+      );
     };
 
     resize();
