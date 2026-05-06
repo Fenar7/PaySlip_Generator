@@ -72,7 +72,7 @@ export function RevenueChart({ data }: RevenueChartProps) {
   return (
     <div
       className="flex h-full flex-col rounded-2xl border bg-white p-5"
-      style={{ borderColor: "#E0E0E0", minHeight: 360 }}
+      style={{ borderColor: "#E0E0E0", minHeight: 280 }}
     >
       {/* Header */}
       <div className="mb-5 flex items-start justify-between">
@@ -97,7 +97,7 @@ export function RevenueChart({ data }: RevenueChartProps) {
       </div>
 
       {hasData ? (
-        <div className="flex-1" style={{ minHeight: 260 }}>
+        <div className="flex-1" style={{ minHeight: 180 }}>
           <ResponsiveContainer width="100%" height="100%">
             <BarChart
               data={data}
@@ -158,7 +158,7 @@ export function RevenueChart({ data }: RevenueChartProps) {
           </ResponsiveContainer>
         </div>
       ) : (
-        <div className="flex flex-1 items-center justify-center" style={{ minHeight: 260 }}>
+        <div className="flex flex-1 items-center justify-center" style={{ minHeight: 180 }}>
           <p className="text-sm" style={{ color: "#79747E" }}>
             No revenue data yet. Create and issue your first invoice.
           </p>
