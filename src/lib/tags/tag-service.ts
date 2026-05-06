@@ -2,6 +2,7 @@
 
 import { db } from "@/lib/db";
 import { requireOrgContext, requireRole } from "@/lib/auth";
+import { recordTagEvent } from "./telemetry";
 
 export type ActionResult<T> =
   | { success: true; data: T }
@@ -64,6 +65,8 @@ export async function createTag(input: {
         description: input.description?.trim() || null,
       },
     });
+
+    void recordTagEvent({ event: "tag_created", orgId, tagId: tag.id });
 
     return { success: true, data: tag };
   } catch (error) {
