@@ -57,6 +57,20 @@ function currentPeriodBounds(): { start: Date; end: Date } {
  * Returns the current snapshot for the org, computing it on-demand if absent.
  * Fast read path for enforcement and the dashboard.
  */
+function normalizeBigInts<T extends Record<string, unknown>>(obj: T): Record<string, number> {
+  const out: Record<string, number> = {};
+  for (const [key, value] of Object.entries(obj)) {
+    if (typeof value === "bigint") {
+      out[key] = Number(value);
+    } else if (typeof value === "number") {
+      out[key] = value;
+    } else {
+      out[key] = Number(value) || 0;
+    }
+  }
+  return out;
+}
+
 export async function getOrComputeSnapshot(orgId: string): Promise<Record<string, number>> {
   const { start } = currentPeriodBounds();
 
@@ -66,7 +80,7 @@ export async function getOrComputeSnapshot(orgId: string): Promise<Record<string
   });
 
   if (existing) {
-    return existing as unknown as Record<string, number>;
+    return normalizeBigInts(existing);
   }
 
   return computeAndUpsertSnapshot(orgId, start);
