@@ -61,7 +61,7 @@ export default async function AppHomePage() {
         )}
 
         {/* Main grid: Charts + Activity */}
-        <div className="mb-4 grid grid-cols-1 gap-3 lg:grid-cols-3">
+        <div className="mb-3 grid grid-cols-1 gap-3 lg:grid-cols-3">
           {/* Left: Revenue chart — takes 2/3 */}
           <div className="lg:col-span-2">
             {data && <RevenueChart data={data.revenueTrend} />}
@@ -97,7 +97,7 @@ export default async function AppHomePage() {
         </div>
 
         {/* Bottom row: Recent docs + Module grid */}
-        <div className="mb-4 grid grid-cols-1 gap-3 lg:grid-cols-3">
+        <div className="grid grid-cols-1 gap-3 lg:grid-cols-3">
           <div className="lg:col-span-1">
             {data && <RecentDocs docs={data.recentDocs} />}
           </div>

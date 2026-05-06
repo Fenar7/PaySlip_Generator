@@ -1,5 +1,6 @@
 "use client";
 
+import { useState, useMemo } from "react";
 import {
   ResponsiveContainer,
   BarChart,
@@ -15,6 +16,12 @@ interface RevenueTrendPoint {
   invoiced: number;
   paid: number;
 }
+
+const RANGE_OPTIONS = [
+  { label: "Last 3 months", value: 3 },
+  { label: "Last 6 months", value: 6 },
+  { label: "Last 12 months", value: 12 },
+];
 
 function formatCurrency(n: number): string {
   if (n >= 1_00_00_000) return `₹${(n / 1_00_00_000).toFixed(1)}Cr`;
@@ -66,43 +73,64 @@ interface RevenueChartProps {
 }
 
 export function RevenueChart({ data }: RevenueChartProps) {
-  const hasData = data.some((d) => d.invoiced > 0 || d.paid > 0);
-  const latest = data[data.length - 1];
+  const [range, setRange] = useState(6);
+
+  const filtered = useMemo(() => {
+    if (data.length <= range) return data;
+    return data.slice(-range);
+  }, [data, range]);
+
+  const hasData = filtered.some((d) => d.invoiced > 0 || d.paid > 0);
+  const latest = filtered[filtered.length - 1];
 
   return (
     <div
-      className="flex h-full flex-col rounded-2xl border bg-white p-5"
-      style={{ borderColor: "#E0E0E0", minHeight: 280 }}
+      className="flex h-full flex-col rounded-2xl border bg-white p-4"
+      style={{ borderColor: "#E0E0E0" }}
     >
       {/* Header */}
-      <div className="mb-5 flex items-start justify-between">
+      <div className="mb-3 flex items-start justify-between">
         <div>
           <h3 className="text-sm font-semibold" style={{ color: "#1C1B1F" }}>
             Revenue Overview
           </h3>
           <p className="text-[11px]" style={{ color: "#79747E" }}>
-            Invoiced vs Collected — Last 12 Months
+            Invoiced vs Collected
           </p>
         </div>
-        {latest && (
-          <div className="text-right">
-            <p className="text-[11px]" style={{ color: "#79747E" }}>
-              {latest.month}
-            </p>
-            <p className="text-sm font-bold" style={{ color: "#DC2626" }}>
-              {formatCurrency(latest.invoiced)}
-            </p>
-          </div>
-        )}
+        <div className="flex items-center gap-3">
+          {latest && (
+            <div className="text-right">
+              <p className="text-[10px]" style={{ color: "#79747E" }}>
+                {latest.month} Invoiced
+              </p>
+              <p className="text-sm font-bold" style={{ color: "#DC2626" }}>
+                {formatCurrency(latest.invoiced)}
+              </p>
+            </div>
+          )}
+          <select
+            value={range}
+            onChange={(e) => setRange(Number(e.target.value))}
+            className="rounded-lg border px-2 py-1 text-[11px] font-medium outline-none focus:border-[#DC2626]"
+            style={{ borderColor: "#E0E0E0", color: "#49454F", background: "#fff" }}
+          >
+            {RANGE_OPTIONS.map((o) => (
+              <option key={o.value} value={o.value}>
+                {o.label}
+              </option>
+            ))}
+          </select>
+        </div>
       </div>
 
       {hasData ? (
-        <div className="flex-1" style={{ minHeight: 180 }}>
+        <div className="flex-1" style={{ minHeight: 160, maxHeight: 220 }}>
           <ResponsiveContainer width="100%" height="100%">
             <BarChart
-              data={data}
-              margin={{ top: 10, right: 10, bottom: 0, left: 0 }}
-              barGap={4}
+              data={filtered}
+              margin={{ top: 4, right: 4, bottom: 0, left: 0 }}
+              barGap={3}
             >
               <defs>
                 <linearGradient id="barInvoiced" x1="0" y1="0" x2="0" y2="1">
@@ -117,7 +145,7 @@ export function RevenueChart({ data }: RevenueChartProps) {
 
               <CartesianGrid
                 vertical={false}
-                stroke="#F0F0F0"
+                stroke="#F5F5F5"
                 strokeDasharray="0"
               />
               <XAxis
@@ -125,15 +153,15 @@ export function RevenueChart({ data }: RevenueChartProps) {
                 tick={{ fontSize: 10, fill: "#9CA3AF", fontWeight: 500 }}
                 tickLine={false}
                 axisLine={false}
-                dy={8}
+                dy={6}
               />
               <YAxis
                 tickFormatter={formatCurrency}
                 tick={{ fontSize: 10, fill: "#9CA3AF", fontWeight: 500 }}
                 tickLine={false}
                 axisLine={false}
-                width={50}
-                dx={-4}
+                width={46}
+                dx={-2}
               />
               <Tooltip
                 content={<CustomTooltip />}
@@ -144,21 +172,21 @@ export function RevenueChart({ data }: RevenueChartProps) {
                 dataKey="invoiced"
                 name="Invoiced"
                 fill="url(#barInvoiced)"
-                radius={[4, 4, 0, 0]}
-                maxBarSize={28}
+                radius={[3, 3, 0, 0]}
+                maxBarSize={22}
               />
               <Bar
                 dataKey="paid"
                 name="Collected"
                 fill="url(#barPaid)"
-                radius={[4, 4, 0, 0]}
-                maxBarSize={28}
+                radius={[3, 3, 0, 0]}
+                maxBarSize={22}
               />
             </BarChart>
           </ResponsiveContainer>
         </div>
       ) : (
-        <div className="flex flex-1 items-center justify-center" style={{ minHeight: 180 }}>
+        <div className="flex flex-1 items-center justify-center" style={{ minHeight: 160 }}>
           <p className="text-sm" style={{ color: "#79747E" }}>
             No revenue data yet. Create and issue your first invoice.
           </p>

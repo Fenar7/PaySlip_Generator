@@ -82,7 +82,7 @@ export function DocBreakdownChart({ counts }: DocBreakdownChartProps) {
   return (
     <div
       className="flex h-full flex-col rounded-2xl border bg-white p-5"
-      style={{ borderColor: "#E0E0E0", minHeight: 240 }}
+      style={{ borderColor: "#E0E0E0" }}
     >
       {/* Header */}
       <div className="mb-2">
@@ -94,7 +94,7 @@ export function DocBreakdownChart({ counts }: DocBreakdownChartProps) {
         </p>
       </div>
 
-      <div className="relative flex flex-1 items-center justify-center" style={{ minHeight: 150 }}>
+      <div className="relative flex flex-1 items-center justify-center" style={{ minHeight: 120, maxHeight: 160 }}>
         <ResponsiveContainer width="100%" height="100%">
           <PieChart>
             <defs>
