@@ -66,7 +66,7 @@ export async function getOrComputeSnapshot(orgId: string): Promise<Record<string
   });
 
   if (existing) {
-    return existing as unknown as Record<string, number>;
+    return normalizeSnapshot(existing);
   }
 
   return computeAndUpsertSnapshot(orgId, start);
@@ -119,16 +119,16 @@ export async function computeAndUpsertSnapshot(
   const storageBytes = Number(storageAggregate._sum.size ?? 0);
 
   const data = {
-    activeInvoices,
-    activeQuotes,
-    vouchers,
-    salarySlips,
+    activeInvoices: Number(activeInvoices),
+    activeQuotes: Number(activeQuotes),
+    vouchers: Number(vouchers),
+    salarySlips: Number(salarySlips),
     storageBytes,
-    teamMembers,
-    webhookCallsMonthly,
-    activePortalSessions,
-    activeShareBundles,
-    pixelJobsSaved,
+    teamMembers: Number(teamMembers),
+    webhookCallsMonthly: Number(webhookCallsMonthly),
+    activePortalSessions: Number(activePortalSessions),
+    activeShareBundles: Number(activeShareBundles),
+    pixelJobsSaved: Number(pixelJobsSaved),
     lastComputedAt: new Date(),
     periodEnd: end,
   };
@@ -139,7 +139,28 @@ export async function computeAndUpsertSnapshot(
     update: data,
   });
 
-  return data as unknown as Record<string, number>;
+  return normalizeSnapshot(data);
+}
+
+/**
+ * Normalizes a raw DB record so every numeric field is a JavaScript number.
+ * Prisma 5.x .count() returns bigint; storageBytes is a BigInt column.
+ */
+function normalizeSnapshot(raw: Record<string, unknown>): Record<string, number> {
+  const out: Record<string, number> = {};
+  for (const [key, value] of Object.entries(raw)) {
+    if (typeof value === "bigint") {
+      out[key] = Number(value);
+    } else if (typeof value === "number") {
+      out[key] = value;
+    } else if (typeof value === "string" && !Number.isNaN(Number(value))) {
+      out[key] = Number(value);
+    } else {
+      // Skip non-numeric fields (id, orgId, dates, etc.)
+      out[key] = 0;
+    }
+  }
+  return out;
 }
 
 function resolvePlanLimit(
