@@ -59,15 +59,15 @@ function drawRibbon(
   time: number,
 ) {
   const gradient = context.createLinearGradient(
-    centerX - width * 0.5,
-    centerY - height * 0.2,
-    centerX + width * 0.52,
-    centerY + height * 0.22,
+    centerX - width * 0.54,
+    centerY - height * 0.28,
+    centerX + width * 0.56,
+    centerY + height * 0.26,
   );
   gradient.addColorStop(0, "rgba(255,255,255,0)");
-  gradient.addColorStop(0.2, "rgba(255,255,255,0.08)");
-  gradient.addColorStop(0.46, "rgba(254,226,226,0.22)");
-  gradient.addColorStop(0.7, "rgba(252,165,165,0.3)");
+  gradient.addColorStop(0.18, "rgba(255,255,255,0.1)");
+  gradient.addColorStop(0.44, "rgba(254,226,226,0.28)");
+  gradient.addColorStop(0.66, "rgba(252,165,165,0.34)");
   gradient.addColorStop(1, "rgba(255,255,255,0)");
 
   const startX = centerX - width * 0.48;
@@ -77,10 +77,10 @@ function drawRibbon(
   const waveC = Math.sin(time * 0.22 + 1.2) * height * 0.04;
 
   context.save();
-  context.filter = "blur(18px)";
+  context.filter = "blur(14px)";
   context.strokeStyle = gradient;
   context.lineCap = "round";
-  context.lineWidth = Math.max(36, width * 0.07);
+  context.lineWidth = Math.max(40, width * 0.08);
   context.beginPath();
   context.moveTo(startX, centerY - height * 0.1 + waveA);
   context.bezierCurveTo(
@@ -100,6 +100,37 @@ function drawRibbon(
     centerY + height * 0.08 + waveC,
   );
   context.stroke();
+  context.restore();
+}
+
+function drawCoreGlow(
+  context: CanvasRenderingContext2D,
+  centerX: number,
+  centerY: number,
+  width: number,
+  height: number,
+  time: number,
+) {
+  const gradient = context.createRadialGradient(
+    centerX + Math.cos(time * 0.18) * width * 0.08,
+    centerY + Math.sin(time * 0.16) * height * 0.04,
+    width * 0.04,
+    centerX,
+    centerY,
+    width * 0.42,
+  );
+  gradient.addColorStop(0, "rgba(252, 165, 165, 0.34)");
+  gradient.addColorStop(0.24, "rgba(248, 113, 113, 0.24)");
+  gradient.addColorStop(0.58, "rgba(254, 226, 226, 0.12)");
+  gradient.addColorStop(1, "rgba(255,255,255,0)");
+
+  context.save();
+  context.filter = "blur(36px)";
+  context.globalAlpha = 0.92;
+  context.fillStyle = gradient;
+  context.beginPath();
+  context.ellipse(centerX, centerY, width * 0.38, height * 0.26, 0, 0, Math.PI * 2);
+  context.fill();
   context.restore();
 }
 
@@ -152,68 +183,69 @@ export function AuthBlobBackground() {
     const render = (timestamp: number) => {
       const time = timestamp * 0.001;
       const centerX = width * 0.5;
-      const centerY = height * 0.56;
-      const spanX = Math.min(width * 0.82, 920);
-      const spanY = Math.min(height * 0.72, 680);
+      const centerY = height * 0.55;
+      const spanX = Math.min(width * 0.92, 1020);
+      const spanY = Math.min(height * 0.8, 760);
 
       context.clearRect(0, 0, width, height);
 
       drawLayer(
         time,
-        centerX - spanX * 0.05 + Math.sin(time * 0.21) * spanX * 0.03,
-        centerY - spanY * 0.02 + Math.cos(time * 0.18) * spanY * 0.03,
-        spanX * 0.44,
-        spanY * 0.4,
+        centerX - spanX * 0.04 + Math.sin(time * 0.17) * spanX * 0.035,
+        centerY - spanY * 0.03 + Math.cos(time * 0.16) * spanY * 0.03,
+        spanX * 0.48,
+        spanY * 0.42,
         0.4,
-        "rgba(254, 226, 226, 0.78)",
-        92,
-        0.92,
-        Math.PI * 0.7,
+        "rgba(254, 226, 226, 0.88)",
+        74,
+        0.98,
+        Math.PI * 0.62,
       );
 
       drawLayer(
         time,
-        centerX + spanX * 0.1 + Math.cos(time * 0.26) * spanX * 0.03,
-        centerY + spanY * 0.03 + Math.sin(time * 0.22) * spanY * 0.03,
-        spanX * 0.36,
-        spanY * 0.33,
+        centerX + spanX * 0.08 + Math.cos(time * 0.21) * spanX * 0.03,
+        centerY + spanY * 0.02 + Math.sin(time * 0.19) * spanY * 0.03,
+        spanX * 0.4,
+        spanY * 0.35,
         1.4,
-        "rgba(252, 165, 165, 0.56)",
-        72,
+        "rgba(248, 113, 113, 0.56)",
+        58,
         0.78,
-        Math.PI * 0.2,
+        Math.PI * 0.14,
       );
 
       drawLayer(
         time,
-        centerX + spanX * 0.2 + Math.sin(time * 0.19) * spanX * 0.025,
-        centerY + spanY * 0.08 + Math.cos(time * 0.24) * spanY * 0.025,
-        spanX * 0.28,
-        spanY * 0.25,
+        centerX + spanX * 0.18 + Math.sin(time * 0.15) * spanX * 0.026,
+        centerY + spanY * 0.07 + Math.cos(time * 0.18) * spanY * 0.02,
+        spanX * 0.31,
+        spanY * 0.28,
         2.8,
-        "rgba(248, 113, 113, 0.44)",
-        54,
-        0.64,
-        -Math.PI * 0.1,
+        "rgba(239, 68, 68, 0.48)",
+        46,
+        0.72,
+        -Math.PI * 0.08,
       );
 
+      drawCoreGlow(context, centerX, centerY + spanY * 0.02, spanX, spanY, time);
       drawRibbon(context, centerX, centerY, spanX, spanY, time);
 
       context.save();
-      context.globalAlpha = 0.38;
-      context.filter = "blur(110px)";
+      context.globalAlpha = 0.5;
+      context.filter = "blur(92px)";
       createSmoothBlobPath(
         context,
-        centerX + spanX * 0.04,
-        centerY + spanY * 0.04,
-        spanX * 0.46,
-        spanY * 0.42,
+        centerX + spanX * 0.03,
+        centerY + spanY * 0.03,
+        spanX * 0.5,
+        spanY * 0.44,
         time,
         4.2,
-        Math.PI * 0.55,
+        Math.PI * 0.48,
       );
-      context.strokeStyle = "rgba(255,255,255,0.26)";
-      context.lineWidth = Math.max(30, spanX * 0.04);
+      context.strokeStyle = "rgba(255,255,255,0.34)";
+      context.lineWidth = Math.max(34, spanX * 0.045);
       context.stroke();
       context.restore();
 
@@ -240,7 +272,7 @@ export function AuthBlobBackground() {
         className="absolute left-1/2 top-1/2 h-[90%] w-[94%] max-h-[920px] max-w-[1060px] -translate-x-1/2 -translate-y-1/2"
         style={{
           background:
-            "radial-gradient(circle at 50% 52%, rgba(255,255,255,0) 0%, rgba(255,255,255,0.03) 24%, rgba(255,255,255,0.14) 56%, rgba(255,255,255,0.92) 100%)",
+            "radial-gradient(circle at 50% 52%, rgba(255,255,255,0) 0%, rgba(255,255,255,0.01) 20%, rgba(255,255,255,0.08) 50%, rgba(255,255,255,0.7) 100%)",
         }}
       />
     </div>
