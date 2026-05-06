@@ -1,4 +1,4 @@
-import { FileText, Receipt, Banknote, Wallet, AlertCircle, CheckCircle2, TrendingUp, Clock } from "lucide-react";
+import { FileText, AlertCircle, CheckCircle2, TrendingUp } from "lucide-react";
 
 interface KpiRowProps {
   counts: {
@@ -41,19 +41,19 @@ function KpiCard({
 }) {
   return (
     <div
-      className="flex items-center gap-4 rounded-2xl border bg-white p-5 transition-colors hover:border-[#DC2626]"
+      className="flex items-center gap-3 rounded-2xl border bg-white p-4 transition-colors hover:border-[#DC2626]"
       style={{ borderColor: "#E0E0E0" }}
     >
       <div
-        className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl"
+        className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl"
         style={{ background: iconBg, color: iconColor }}
       >
         <Icon className="h-5 w-5" />
       </div>
       <div className="min-w-0">
-        <p className="text-xs font-medium" style={{ color: "#79747E" }}>{label}</p>
-        <p className="text-xl font-bold tracking-tight" style={{ color: "#1C1B1F" }}>{value}</p>
-        {sub && <p className="text-xs mt-0.5" style={{ color: "#79747E" }}>{sub}</p>}
+        <p className="text-[11px] font-medium" style={{ color: "#79747E" }}>{label}</p>
+        <p className="text-lg font-bold tracking-tight" style={{ color: "#1C1B1F" }}>{value}</p>
+        {sub && <p className="text-[11px] mt-0.5" style={{ color: "#79747E" }}>{sub}</p>}
       </div>
     </div>
   );

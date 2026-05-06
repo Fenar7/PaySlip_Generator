@@ -46,10 +46,10 @@ function formatAmount(amount: number | null): string {
 export function RecentDocs({ docs }: RecentDocsProps) {
   return (
     <div
-      className="flex h-full flex-col rounded-2xl border bg-white p-5"
+      className="flex h-full flex-col rounded-2xl border bg-white p-4"
       style={{ borderColor: "#E0E0E0" }}
     >
-      <div className="mb-4 flex items-center justify-between">
+      <div className="mb-3 flex items-center justify-between">
         <h3 className="text-sm font-semibold" style={{ color: "#1C1B1F" }}>
           Recent Documents
         </h3>
@@ -63,46 +63,46 @@ export function RecentDocs({ docs }: RecentDocsProps) {
         </Link>
       </div>
 
-      <div className="flex-1 overflow-y-auto pr-1">
+      <div className="flex-1 overflow-y-auto">
         {docs.length === 0 ? (
-          <p className="py-8 text-center text-sm" style={{ color: "#79747E" }}>
+          <p className="py-6 text-center text-xs" style={{ color: "#79747E" }}>
             No documents yet
           </p>
         ) : (
           <div className="space-y-2">
-            {docs.map((doc) => {
+            {docs.slice(0, 6).map((doc) => {
               const Icon = DOC_ICONS[doc.docType] ?? FileText;
               const statusStyle = STATUS_STYLES[doc.status] ?? STATUS_STYLES.DRAFT;
               return (
                 <Link
                   key={doc.id}
                   href={`/app/docs/${doc.docType.replace("_", "-")}s/${doc.id}`}
-                  className="flex items-center gap-3 rounded-xl border p-3 transition-colors hover:border-[#DC2626]"
-                  style={{ borderColor: "#E0E0E0" }}
+                  className="flex items-center gap-2.5 rounded-xl border p-2.5 transition-colors hover:border-[#DC2626]"
+                  style={{ borderColor: "#F0F0F0" }}
                 >
                   <div
-                    className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg"
+                    className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg"
                     style={{ background: "#F5F5F5", color: "#49454F" }}
                   >
-                    <Icon className="h-4 w-4" />
+                    <Icon className="h-3.5 w-3.5" />
                   </div>
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2">
-                      <p className="truncate text-sm font-medium" style={{ color: "#1C1B1F" }}>
+                      <p className="truncate text-xs font-medium" style={{ color: "#1C1B1F" }}>
                         {doc.documentNumber || doc.titleOrSummary}
                       </p>
                       <span
-                        className="shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase"
+                        className="shrink-0 rounded-full px-1.5 py-0.5 text-[9px] font-semibold uppercase"
                         style={{ background: statusStyle.bg, color: statusStyle.color }}
                       >
                         {doc.status.replace("_", " ")}
                       </span>
                     </div>
                     <div className="flex items-center justify-between">
-                      <p className="text-xs" style={{ color: "#79747E" }}>
+                      <p className="text-[11px]" style={{ color: "#79747E" }}>
                         {doc.counterpartyLabel || "—"} · {formatDate(doc.primaryDate)}
                       </p>
-                      <p className="text-xs font-medium" style={{ color: "#1C1B1F" }}>
+                      <p className="text-[11px] font-medium" style={{ color: "#1C1B1F" }}>
                         {formatAmount(doc.amount)}
                       </p>
                     </div>
