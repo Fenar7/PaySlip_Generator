@@ -10,8 +10,8 @@ export function Card({ children, className, hover = false }: CardProps) {
   return (
     <div
       className={cn(
-        "rounded-2xl border border-[var(--border-strong)] bg-white shadow-[var(--shadow-card)] transition-all duration-200",
-        hover && "hover:shadow-[var(--shadow-lg)] hover:-translate-y-0.5 hover:border-[var(--border-brand)]",
+        "rounded-xl border border-[var(--border-strong)] bg-white shadow-[var(--shadow-card)] transition-colors duration-200",
+        hover && "hover:border-[var(--border-brand)]",
         className
       )}
     >
@@ -33,5 +33,5 @@ export function CardContent({ children, className }: CardProps) {
 }
 
 export function CardTitle({ children, className }: CardProps) {
-  return <h3 className={cn("text-base font-semibold text-[#1a1a1a]", className)}>{children}</h3>;
+  return <h3 className={cn("text-base font-semibold text-[var(--foreground)]", className)}>{children}</h3>;
 }

@@ -1,145 +1,146 @@
+"use client";
+
 import Link from "next/link";
+import { useMemo, useState } from "react";
+import { ArrowRight, Search } from "lucide-react";
 import {
-  Shield,
-  Building2,
-  FileDigit,
-  Plug,
-  Eye,
-  ArrowRight,
-  FileStack,
-} from "lucide-react";
-import { cn } from "@/lib/utils";
-
-interface SettingsCategoryCard {
-  label: string;
-  description: string;
-  href: string;
-  icon: React.ElementType;
-  items: { label: string; href: string }[];
-}
-
-const settingsCategories: SettingsCategoryCard[] = [
-  {
-    label: "Account & Security",
-    description: "Your profile, password, and multi-factor authentication",
-    href: "/app/settings/profile",
-    icon: Shield,
-    items: [
-      { label: "Profile", href: "/app/settings/profile" },
-      { label: "Security", href: "/app/settings/security" },
-      { label: "SSO / SAML", href: "/app/settings/security/sso" },
-    ],
-  },
-  {
-    label: "Organization",
-    description: "Branding, team, roles, and entity structure",
-    href: "/app/settings/organization",
-    icon: Building2,
-    items: [
-      { label: "Organization", href: "/app/settings/organization" },
-      { label: "Team Members", href: "/app/settings/users" },
-      { label: "Roles", href: "/app/settings/roles" },
-      { label: "Entity Groups", href: "/app/settings/entities" },
-    ],
-  },
-  {
-    label: "Document Templates",
-    description: "Browse, manage, and set default templates by document type",
-    href: "/app/settings/templates",
-    icon: FileStack,
-    items: [
-      { label: "Template Library", href: "/app/settings/templates" },
-      { label: "Default Templates", href: "/app/settings/templates/defaults" },
-      { label: "My Templates", href: "/app/docs/templates/my-templates" },
-    ],
-  },
-  {
-    label: "Operations & Defaults",
-    description: "Numbering, language, currency, and payroll defaults",
-    href: "/app/settings/sequences",
-    icon: FileDigit,
-    items: [
-      { label: "Document Numbering", href: "/app/settings/sequences" },
-      { label: "Sequence History", href: "/app/settings/sequences/history" },
-      { label: "Language & Currency", href: "/app/settings/i18n" },
-      { label: "Payroll", href: "/app/settings/payroll" },
-    ],
-  },
-  {
-    label: "Integrations & Data",
-    description: "Connect apps, manage API keys, and configure webhooks",
-    href: "/app/settings/integrations",
-    icon: Plug,
-    items: [
-      { label: "Integrations", href: "/app/settings/integrations" },
-      { label: "API Keys", href: "/app/settings/api" },
-      { label: "Webhooks", href: "/app/settings/developer/webhooks/v2" },
-      { label: "Payment Gateway", href: "/app/settings/payments" },
-      { label: "Customer Portal", href: "/app/settings/portal" },
-    ],
-  },
-  {
-    label: "Advanced & Admin",
-    description: "Audit, access control, billing, and compliance",
-    href: "/app/settings/audit",
-    icon: Eye,
-    items: [
-      { label: "Proxy Access", href: "/app/settings/access" },
-      { label: "Audit Log", href: "/app/settings/audit" },
-      { label: "Usage & Limits", href: "/app/settings/billing/usage" },
-      { label: "Enterprise", href: "/app/settings/enterprise" },
-      { label: "E-Invoice Config", href: "/app/settings/compliance/einvoice" },
-    ],
-  },
-];
-
-function CategoryCard({ category }: { category: SettingsCategoryCard }) {
-  const Icon = category.icon;
-  return (
-    <div className="slipwise-panel flex flex-col overflow-hidden transition-shadow hover:shadow-md">
-      <div className="flex items-start gap-3 p-5">
-        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[var(--surface-selected)]">
-          <Icon className="h-5 w-5 text-[var(--brand-primary)]" />
-        </div>
-        <div className="min-w-0 flex-1">
-          <h3 className="text-sm font-semibold text-[var(--text-primary)]">
-            {category.label}
-          </h3>
-          <p className="mt-0.5 text-xs text-[var(--text-muted)] leading-relaxed">
-            {category.description}
-          </p>
-        </div>
-      </div>
-      <div className="flex-1 border-t border-[var(--border-soft)] bg-[var(--surface-subtle)]/40 px-3 py-2">
-        <ul className="space-y-0.5">
-          {category.items.map((item) => (
-            <li key={item.href}>
-              <Link
-                href={item.href}
-                className={cn(
-                  "group flex items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors",
-                  "text-[var(--text-secondary)] hover:bg-[var(--surface-subtle)] hover:text-[var(--text-primary)]"
-                )}
-              >
-                <span className="truncate">{item.label}</span>
-                <ArrowRight className="ml-auto h-3 w-3 shrink-0 opacity-0 transition-opacity group-hover:opacity-60" />
-              </Link>
-            </li>
-          ))}
-        </ul>
-      </div>
-    </div>
-  );
-}
+  getSettingsPopularTasks,
+  getSettingsVisibleEntries,
+  searchSettingsEntries,
+  settingsGroups,
+} from "@/components/settings/settings-registry";
 
 export default function SettingsPage() {
+  const [searchQuery, setSearchQuery] = useState("");
+
+  const matchedIds = useMemo(() => {
+    if (!searchQuery.trim()) return null;
+    return new Set(searchSettingsEntries(searchQuery).map((entry) => entry.id));
+  }, [searchQuery]);
+
+  const visibleGroups = useMemo(() => {
+    return settingsGroups
+      .map((group) => {
+        const entries = getSettingsVisibleEntries(group.id);
+        const filteredEntries = matchedIds
+          ? entries.filter((entry) => matchedIds.has(entry.id))
+          : entries;
+
+        if (filteredEntries.length === 0) return null;
+
+        return {
+          ...group,
+          entries: filteredEntries,
+        };
+      })
+      .filter((group): group is NonNullable<typeof group> => Boolean(group));
+  }, [matchedIds]);
+
+  const popularTasks = getSettingsPopularTasks();
+
   return (
-    <div className="space-y-6">
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-        {settingsCategories.map((category) => (
-          <CategoryCard key={category.label} category={category} />
-        ))}
-      </div>
+    <div className="space-y-8">
+      <section className="space-y-4">
+        <div className="max-w-3xl">
+          <h2 className="text-lg font-semibold text-[var(--text-primary)]">Workspace settings overview</h2>
+          <p className="mt-2 text-sm leading-relaxed text-[var(--text-secondary)]">
+            Browse account, team, billing, integration, template, and portal controls from one structured workspace.
+          </p>
+        </div>
+        <div className="relative max-w-xl">
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--text-muted)]" />
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(event) => setSearchQuery(event.target.value)}
+            placeholder="Search settings"
+            className="w-full rounded-xl border border-[var(--border-soft)] bg-[var(--surface-subtle)] px-10 py-3 text-sm text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--focus-ring)]"
+          />
+        </div>
+      </section>
+
+      <section className="rounded-[22px] border border-[var(--border-soft)] bg-[var(--surface-subtle)]/45 p-5">
+        <p className="text-[0.72rem] font-semibold uppercase tracking-[0.18em] text-[var(--text-muted)]">
+          Popular tasks
+        </p>
+        <div className="mt-4 grid gap-3 lg:grid-cols-2 xl:grid-cols-3">
+          {popularTasks.map((task) => {
+            const TaskIcon = task.icon;
+            return (
+              <Link
+                key={task.id}
+                href={task.href}
+                className="group flex items-start gap-3 rounded-2xl border border-[var(--border-soft)] bg-white px-4 py-3.5 transition-colors hover:bg-[var(--surface-subtle)]"
+              >
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-[var(--border-soft)] bg-[var(--surface-subtle)] text-[var(--brand-primary)]">
+                  <TaskIcon className="h-4 w-4" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-semibold text-[var(--text-primary)]">{task.label}</p>
+                  <p className="mt-1 line-clamp-2 text-xs leading-relaxed text-[var(--text-muted)]">
+                    {task.description}
+                  </p>
+                </div>
+                <ArrowRight className="mt-1 h-4 w-4 shrink-0 text-[var(--text-muted)] transition-transform group-hover:translate-x-0.5" />
+              </Link>
+            );
+          })}
+        </div>
+      </section>
+
+      <section className="space-y-6">
+        {visibleGroups.map((group) => {
+          const GroupIcon = group.icon;
+          return (
+            <div key={group.id} className="border-b border-[var(--border-soft)] pb-6 last:border-b-0 last:pb-0">
+              <div className="mb-4 flex items-start gap-4">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-[var(--border-soft)] bg-[var(--surface-subtle)] text-[var(--text-secondary)]">
+                  <GroupIcon className="h-4 w-4" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-base font-semibold text-[var(--text-primary)]">{group.label}</h3>
+                    <span className="rounded-full bg-[var(--surface-subtle)] px-2 py-0.5 text-[0.65rem] font-semibold uppercase tracking-[0.14em] text-[var(--text-muted)]">
+                      {group.entries.length}
+                    </span>
+                  </div>
+                  <p className="mt-1 text-sm text-[var(--text-secondary)]">{group.description}</p>
+                </div>
+              </div>
+              <div className="grid gap-3 lg:grid-cols-2">
+                {group.entries.map((entry) => {
+                  const EntryIcon = entry.icon;
+                  return (
+                    <Link
+                      key={entry.id}
+                      href={entry.href}
+                      className="group flex items-start gap-3 rounded-2xl border border-[var(--border-soft)] px-4 py-3.5 transition-colors hover:bg-[var(--surface-subtle)]"
+                    >
+                      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-[var(--border-soft)] bg-white text-[var(--text-secondary)]">
+                        <EntryIcon className="h-4 w-4" />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2">
+                          <p className="truncate text-sm font-semibold text-[var(--text-primary)]">{entry.label}</p>
+                          {entry.statusBadge ? (
+                            <span className="rounded-full border border-[var(--border-soft)] bg-white px-2 py-0.5 text-[0.6rem] font-semibold uppercase tracking-[0.16em] text-[var(--text-muted)]">
+                              {entry.statusBadge}
+                            </span>
+                          ) : null}
+                        </div>
+                        <p className="mt-1 line-clamp-2 text-xs leading-relaxed text-[var(--text-muted)]">
+                          {entry.description}
+                        </p>
+                      </div>
+                      <ArrowRight className="mt-1 h-4 w-4 shrink-0 text-[var(--text-muted)] transition-transform group-hover:translate-x-0.5" />
+                    </Link>
+                  );
+                })}
+              </div>
+            </div>
+          );
+        })}
+      </section>
     </div>
   );
 }
