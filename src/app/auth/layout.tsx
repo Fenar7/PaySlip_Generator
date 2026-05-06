@@ -1,7 +1,6 @@
 "use client";
 
 import { AuthLogo } from "@/features/auth/components/auth-logo";
-import { AuthIcon } from "@/features/auth/components/auth-icon";
 
 export default function AuthLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -53,10 +52,10 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
 
       {/* Right form panel */}
       <div className="flex-1 flex flex-col items-center bg-white overflow-y-auto">
-        <div className="w-full max-w-[420px] px-6 py-10 sm:px-10 my-auto">
-          {/* Desktop app icon inside form area */}
+        <div className="w-full max-w-[520px] px-6 py-10 sm:px-10 my-auto">
+          {/* Desktop logo inside form area */}
           <div className="hidden lg:flex justify-center mb-6">
-            <AuthIcon className="h-12 w-12 rounded-xl flex items-center justify-center" />
+            <AuthLogo />
           </div>
           {children}
         </div>
