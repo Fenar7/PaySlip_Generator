@@ -237,6 +237,8 @@ model Organization {
   // Sprint 26.5: CRM & SOP
   crmNotes                     CrmNote[]
   sopDocuments                 SopDocument[]
+  // Phase 29: Tagging Platform
+  documentTags                 DocumentTag[]
   // Phase 27: Forecast & Tax
   forecastSnapshots            ForecastSnapshot[]
   taxConfigs                   TaxConfig[]
@@ -5413,6 +5415,27 @@ model SopDocument {
   @@unique([orgId, slug])
   @@index([orgId, status, category])
   @@map("sop_document")
+}
+
+// ─── Phase 29: Tagging Platform ───────────────────────────────────────────────
+
+model DocumentTag {
+  id          String   @id @default(cuid())
+  orgId       String
+  name        String
+  slug        String
+  color       String?
+  description String?
+  isArchived  Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@unique([orgId, slug], map: "document_tag_org_slug_unique")
+  @@index([orgId])
+  @@index([orgId, isArchived])
+  @@map("document_tag")
 }
 
 // ─── Phase 27 Sprint 27.1: AI Financial Forecaster ──────────────────────────
