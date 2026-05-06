@@ -36,8 +36,13 @@ import type { SequenceDocumentType, HealthCheckReport, HealthCheckFailure } from
 export default function SequenceSettingsPage() {
   const { activeOrg, isLoading: isOrgLoading } = useActiveOrg();
   const [canEditSettings, setCanEditSettings] = useState<boolean | null>(null);
-  const isOwner = canEditSettings === true;
-  const editabilityKnown = canEditSettings !== null;
+  // Derive owner status from server response first; fall back to client-side org
+  // role because the server-side canEdit check can be out of sync after role changes.
+  const isOwner =
+    canEditSettings === true ||
+    activeOrg?.role === "owner" ||
+    activeOrg?.role === "OWNER";
+  const editabilityKnown = canEditSettings !== null || activeOrg?.role != null;
 
   const [invoiceSettings, setInvoiceSettings] = useState<SequenceSettingsData | null>(null);
   const [voucherSettings, setVoucherSettings] = useState<SequenceSettingsData | null>(null);
