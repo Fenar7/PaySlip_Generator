@@ -33,7 +33,7 @@ interface SettingsCardProps {
 
 export function SettingsCard({ children, className }: SettingsCardProps) {
   return (
-    <div className={cn("slipwise-panel overflow-hidden", className)}>
+    <div className={cn("py-6", className)}>
       {children}
     </div>
   );
@@ -47,7 +47,7 @@ export function SettingsCardHeader({
   className?: string;
 }) {
   return (
-    <div className={cn("border-b border-[var(--border-soft)] px-5 py-4", className)}>
+    <div className={cn("mb-4", className)}>
       {children}
     </div>
   );
@@ -60,7 +60,7 @@ export function SettingsCardContent({
   children: React.ReactNode;
   className?: string;
 }) {
-  return <div className={cn("px-5 py-4", className)}>{children}</div>;
+  return <div className={className}>{children}</div>;
 }
 
 interface SettingsFormFieldProps {
@@ -161,7 +161,7 @@ export function SettingsReadOnlyField({ label, value, hint }: SettingsReadOnlyFi
   return (
     <div className="space-y-1.5">
       <span className="block text-sm font-medium text-[var(--text-primary)]">{label}</span>
-      <div className="rounded-lg border border-[var(--border-soft)] bg-[var(--surface-subtle)] px-3 py-2 text-sm text-[var(--text-secondary)]">
+      <div className="rounded-md border border-[var(--border-soft)] bg-[var(--surface-subtle)] px-3 py-2 text-sm text-[var(--text-secondary)]">
         {value}
       </div>
       {hint && <p className="text-xs text-[var(--text-muted)]">{hint}</p>}
