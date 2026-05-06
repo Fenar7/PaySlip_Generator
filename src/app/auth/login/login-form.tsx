@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { KeyRound } from "lucide-react";
+import { KeyRound, Eye, EyeOff } from "lucide-react";
 import { AuthCard } from "@/features/auth/components/auth-card";
 import { GoogleButton } from "@/features/auth/components/google-button";
 import { AuthDivider } from "@/features/auth/components/auth-divider";
@@ -33,6 +33,7 @@ export function LoginForm({
 
   const [email, setEmail] = useState(initialEmail);
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [orgSlug, setOrgSlug] = useState(initialOrgSlug);
   const [breakGlassCode, setBreakGlassCode] = useState("");
   const [rememberMe, setRememberMe] = useState(true);
@@ -197,34 +198,16 @@ export function LoginForm({
   return (
     <AuthCard title="Welcome back" subtitle="Sign in to your Slipwise account">
       {ssoMessage && (
-        <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+        <div className="mb-5 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
           {ssoMessage}
         </div>
       )}
-      <div className="space-y-3">
-        <GoogleButton callbackURL={destination} />
-        {passkeySupported && (
-          <Button
-            type="button"
-            variant="outline"
-            className="h-10 w-full justify-center gap-2 border-gray-300 bg-white text-sm text-gray-700 hover:bg-gray-50"
-            onClick={handlePasskeySignIn}
-            disabled={passkeyLoading}
-          >
-            <KeyRound className="h-4 w-4 text-gray-500" />
-            {passkeyLoading ? "Waiting for passkey…" : "Sign in with passkey"}
-          </Button>
-        )}
-      </div>
-      <AuthDivider text="or" />
-      <p className="mt-4 rounded-lg border border-blue-100 bg-blue-50 px-4 py-3 text-xs text-blue-800">
-        If you enabled a passkey, you may be asked to use it as a second verification step after sign-in.
-      </p>
+
       <form
         action="/api/auth/password-login"
         method="post"
         onSubmit={handleSubmit}
-        className="mt-4 space-y-4"
+        className="space-y-4"
       >
         <input type="hidden" name="callbackUrl" value={callbackUrl ?? ""} />
         <input type="hidden" name="orgSlug" value={orgSlug} />
@@ -236,33 +219,44 @@ export function LoginForm({
           onChange={(e) => setEmail(e.target.value)}
           required
           autoComplete="email"
+          placeholder="you@company.com"
         />
-        <div>
+        <div className="relative">
           <Input
             label="Password"
             name="password"
-            type="password"
+            type={showPassword ? "text" : "password"}
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             required
             autoComplete="current-password"
+            placeholder="••••••••"
           />
+          <button
+            type="button"
+            onClick={() => setShowPassword((s) => !s)}
+            className="absolute right-3 top-[2.05rem] text-[var(--text-muted)] hover:text-[var(--text-secondary)] transition-colors"
+            tabIndex={-1}
+          >
+            {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+          </button>
         </div>
         <div className="flex items-center justify-between">
-          <label className="flex items-center gap-2 text-sm text-gray-600">
+          <label className="flex items-center gap-2 text-sm" style={{ color: "var(--text-secondary)" }}>
             <input
               type="checkbox"
               name="rememberMe"
               value="true"
               checked={rememberMe}
               onChange={(e) => setRememberMe(e.target.checked)}
-              className="h-4 w-4 rounded border-gray-300 text-[#dc2626] focus:ring-[#dc2626]"
+              className="h-4 w-4 rounded border-[var(--border-default)] text-[var(--brand-cta)] focus:ring-[var(--brand-cta)]"
             />
             Remember me
           </label>
           <Link
             href="/auth/forgot-password"
-            className="text-sm text-[#dc2626] hover:underline"
+            className="text-sm font-medium hover:underline"
+            style={{ color: "var(--brand-cta)" }}
           >
             Forgot password?
           </Link>
@@ -275,25 +269,48 @@ export function LoginForm({
         )}
         <Button
           type="submit"
-          className="h-10 w-full bg-[#dc2626] text-white hover:bg-[#b91c1c]"
+          className="h-10 w-full"
           disabled={loading}
         >
           {loading ? "Signing in…" : "Sign in"}
         </Button>
       </form>
 
-      <div className="mt-4 space-y-2 border-t border-gray-100 pt-4 text-center">
+      <AuthDivider text="or" />
+
+      <div className="space-y-3">
+        <GoogleButton callbackURL={destination} />
+        {passkeySupported && (
+          <Button
+            type="button"
+            variant="secondary"
+            className="h-10 w-full justify-center gap-2"
+            onClick={handlePasskeySignIn}
+            disabled={passkeyLoading}
+          >
+            <KeyRound className="h-4 w-4" style={{ color: "var(--text-muted)" }} />
+            {passkeyLoading ? "Waiting for passkey…" : "Sign in with passkey"}
+          </Button>
+        )}
+      </div>
+
+      <p className="mt-4 rounded-lg border border-[var(--border-soft)] bg-[var(--surface-subtle)] px-4 py-3 text-xs" style={{ color: "var(--text-muted)" }}>
+        If you enabled a passkey, you may be asked to use it as a second verification step after sign-in.
+      </p>
+
+      <div className="mt-5 space-y-2 border-t border-[var(--border-soft)] pt-5 text-center">
         {!ssoOpen ? (
           <button
             type="button"
             onClick={() => setSsoOpen(true)}
-            className="block w-full text-sm text-gray-500 hover:text-gray-700"
+            className="block w-full text-sm hover:text-[var(--text-primary)] transition-colors"
+            style={{ color: "var(--text-muted)" }}
           >
             Sign in with SSO →
           </button>
         ) : (
           <div className="space-y-2 text-left">
-            <p className="text-sm font-medium text-gray-700">Enterprise SSO</p>
+            <p className="text-sm font-medium" style={{ color: "var(--text-primary)" }}>Enterprise SSO</p>
             <Input
               label="Organization slug"
               value={orgSlug}
@@ -303,8 +320,8 @@ export function LoginForm({
             />
             <Button
               type="button"
-              variant="outline"
-              className="h-9 w-full border-gray-300 text-sm"
+              variant="secondary"
+              className="h-9 w-full text-sm"
               onClick={handleStartSso}
             >
               Continue with SSO
@@ -312,7 +329,8 @@ export function LoginForm({
             <button
               type="button"
               onClick={() => setSsoOpen(false)}
-              className="block text-xs text-gray-400 hover:text-gray-600"
+              className="block text-xs hover:text-[var(--text-secondary)] transition-colors"
+              style={{ color: "var(--text-muted)" }}
             >
               Cancel
             </button>
@@ -323,13 +341,14 @@ export function LoginForm({
           <button
             type="button"
             onClick={() => setBreakGlassOpen(true)}
-            className="block w-full text-sm text-gray-500 hover:text-gray-700"
+            className="block w-full text-sm hover:text-[var(--text-primary)] transition-colors"
+            style={{ color: "var(--text-muted)" }}
           >
             Use break-glass code →
           </button>
         ) : (
           <div className="space-y-2 text-left">
-            <p className="text-sm font-medium text-gray-700">Break-glass recovery</p>
+            <p className="text-sm font-medium" style={{ color: "var(--text-primary)" }}>Break-glass recovery</p>
             {!orgSlug ? (
               <Input
                 label="Organization slug"
@@ -350,7 +369,8 @@ export function LoginForm({
             <button
               type="button"
               onClick={() => setBreakGlassOpen(false)}
-              className="block text-xs text-gray-400 hover:text-gray-600"
+              className="block text-xs hover:text-[var(--text-secondary)] transition-colors"
+              style={{ color: "var(--text-muted)" }}
             >
               Cancel
             </button>
@@ -358,9 +378,9 @@ export function LoginForm({
         )}
       </div>
 
-      <p className="mt-4 text-center text-sm text-gray-500">
+      <p className="mt-6 text-center text-sm" style={{ color: "var(--text-muted)" }}>
         Don&apos;t have an account?{" "}
-        <Link href="/auth/signup" className="font-medium text-[#dc2626] hover:underline">
+        <Link href="/auth/signup" className="font-medium hover:underline" style={{ color: "var(--brand-cta)" }}>
           Sign up
         </Link>
       </p>
